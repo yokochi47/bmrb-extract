@@ -1,0 +1,17 @@
+#!/bin/bash
+
+trap exit TERM
+
+certbot certonly \
+  --webroot \
+  --webroot-path=/var/www/certbot \
+  --email ${SERVICE_ADMIN_EMAIL} \
+  --agree-tos \
+  --no-eff-email \
+  -d ${SERVICE_HOST}
+
+while :; do
+  certbot renew
+  sleep 12h
+done
+

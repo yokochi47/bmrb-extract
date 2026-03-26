@@ -1,0 +1,97 @@
+
+events {}
+
+http {
+    include       mime.types;
+    default_type  application/octet-stream;
+
+    ##
+    ## Defalut combined log format
+    ##
+    log_format default
+      '$remote_addr - $remote_user [$time_local] '
+      '"$request" $status $body_bytes_sent '
+      '"$http_referer" "$http_user_agent"';
+
+    ##
+    ## Define custom JSON combined log format
+    ##
+    log_format json escape=json '{'
+      '"time": "$time_iso8601", '
+      '"remote_addr": "$remote_addr", '
+      '"request": "$request", '
+      '"status": "$status", '
+      '"referer": "$http_referer", '
+      '"user_agent": "$http_user_agent"'
+    '}';
+
+    ##
+    ## Extract YYYY.MM for monthly log files
+    ##
+    map $time_iso8601 $log_month {
+        default "";
+        "~^(?<y>\d{4})-(?<m>\d{2})" "$y.$m";
+    }
+
+    ##
+    ## HTTP (ACME + redirect)
+    ##
+    server {
+        listen 80;
+        server_name ${SERVICE_HOST};
+
+        # ---- Logs ----
+        access_log /var/log/nginx/${SERVICE_HOST}/access_log.$log_month ${NGINX_LOG_FORMAT};
+        error_log  /var/log/nginx/${SERVICE_HOST}/error.log warn;
+
+        # ---- Certbot ----
+        location /.well-known/acme-challenge/ {
+            root /var/www/certbot;
+        }
+
+        # ---- Prefect server ----
+        location /prefect-server {
+            allow 127.0.0.1;
+            allow 192.168.0.0/16;
+            deny all;
+
+            proxy_pass http://prefect-server:4200;
+        }
+
+        # ---- Angular ----
+        location / {
+            root /usr/local/nginx/html;
+            index index.html;
+            try_files $uri $uri/ /index.html;
+        }
+
+        # ---- Flask API ----
+        location /api/ {
+            allow 127.0.0.1;
+            deny all;
+
+            proxy_pass http://backend:8000/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+        }
+
+        # ---- 401 page ----
+        error_page 401 /401.html;
+
+        location /401.html {
+            root /usr/share/nginx/html;
+            allow all;
+        }
+
+        # ---- 403 page ----
+        error_page 403 /403.html;
+
+        location /403.html {
+            root /usr/share/nginx/html;
+            allow all;
+        }
+
+    }
+
+}
+

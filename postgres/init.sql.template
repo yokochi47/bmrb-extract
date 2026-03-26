@@ -1,0 +1,204 @@
+
+DO
+$$
+BEGIN
+
+IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${POSTGRES_USER}') THEN
+    CREATE USER ${POSTGRES_USER} WITH ENCRYPTED PASSWORD '${POSTGRES_PASSWORD}' CREATEDB;
+END IF;
+
+END
+$$;
+
+--
+-- Internal service management
+--
+
+SELECT 'CREATE DATABASE ${POSTGRES_SERVICE_DB} OWNER ${POSTGRES_USER}' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${POSTGRES_SERVICE_DB}') \gexec
+
+\c ${POSTGRES_SERVICE_DB};
+
+DROP TYPE IF EXISTS session_status_code;
+CREATE TYPE session_status_code AS ENUM ('created', 'uploading', 'processing', 'completed', 'failed', 'expired');
+
+--
+-- Represents one UI session.
+--
+
+CREATE TABLE IF NOT EXISTS session (
+    token               UUID PRIMARY KEY DEFAULT uuidv7(),  -- token used by user and web frontend, uuidv7() func requires PosgreSQL 18+.
+    token_admin         UUID DEFAULT gen_random_uuid(),     -- token used by administrators to respond to inquiries on 'Communicationi' page
+    token_expiry        TIMESTAMP NOT NULL,                 -- time of expiry of the session
+
+    gdpr_consent        BOOLEAN NOT NULL DEFAULT FALSE,     -- whether user approved GDPR terms
+    gdpr_consent_time   TIMESTAMP,                          -- timestamp when user approve GPDR terms
+
+    client_ip           INET,
+    user_agent          TEXT,
+
+    status              session_status_code NOT NULL DEFAULT 'created',
+
+    -- The actual 'Conversion ID' will be generated from a prefix 'C_' and conversion_id.
+    -- For instance,
+    -- UConn production server (bmrb-extract.bmrb.io) : C_1xxxxxx
+    -- Osaka production server (bmrb-extract.pdbj.org): C_2xxxxxx
+    -- Anonymous development server                   : C_8xxxxxx
+    conversion_id       INT CHECK ( conversion_id >= 1000000 and conversion_id < 9000000 ) UNIQUE,
+
+    created_at          TIMESTAMP DEFAULT now(),
+    started_at          TIMESTAMP,  -- timestamp when conversion processes starts. ('Process selected files' button on 'File upload' page)
+    finished_at         TIMESTAMP,  -- timestamp when conversion processes finishes.
+
+    approved            BOOLEAN DEFAULT FALSE,  -- timestamp when user acknowledges all warnings, allowing user to download the conversion results.
+    transfered          BOOLEAN DEFAULT FALSE,  -- timestamp when data exchange among production servers completes.
+    downloaded          BOOLEAN DEFAULT FALSE   -- timestamp when user downloads the conversion results.
+);
+
+DROP TYPE IF EXISTS upload_file_type;
+CREATE TYPE upload_file_type AS ENUM (
+    'co-cif', 'co-pdb',
+    'nm-aux-amb', 'nm-aux-cha', 'nm-aux-gro', 'nm-aux-pdb', 'nm-aux-xea',
+    'nm-shi',     'nm-shi-ari', 'nm-shi-bar', 'nm-shi-gar', 'nm-shi-npi',
+    'nm-shi-oli', 'nm-shi-pip', 'nm-shi-ppm', 'nm-shi-st2', 'nm-shi-xea',
+    'nm-pea-any', 'nm-pea-ari', 'nm-pea-bar', 'nm-pea-ccp', 'nm-pea-oli',
+    'nm-pea-pip', 'nm-pea-pon', 'nm-pea-spa', 'nm-pea-sps', 'nm-pea-top',
+    'nm-pea-vie', 'nm-pea-vnm', 'nm-pea-xea', 'nm-pea-xwi',
+    'nm-res-amb', 'nm-res-ari', 'nm-res-arx', 'nm-res-bar', 'nm-res-bio',
+    'nm-res-cha', 'nm-res-cns', 'nm-res-cya', 'nm-res-dyn', 'nm-res-gro',
+    'nm-res-isd', 'nm-res-noa', 'nm-res-oth', 'nm-res-ros', 'nm-res-sax',
+    'nm-res-sch', 'nm-res-syb', 'nm-res-xpl',
+    'nm-uni-nef', 'nm-uni-str'
+    --
+    -- See also https://github.com/wwPDB/py-wwpdb_utils_nmr/blob/master/wwpdb/utils/nmr/README.md
+    --
+);
+
+--
+-- Uploaded files.
+--
+
+CREATE TABLE IF NOT EXISTS upload_file (
+    token           UUID REFERENCES session(token) ON DELETE CASCADE,
+    ordinal         INT CHECK ( ordinal > 0 ),
+
+    conversion_id   INT REFERENCES session(conversion_id),  -- conversion_id is null until the conversion process begins so that conversion_id can not be a part of composite primary key.
+
+    original_name   TEXT NOT NULL,
+    stored_path     TEXT NOT NULL,  -- if user uploads different files with the same name, the save paths for those files must be different.
+
+    file_size       BIGINT,
+    checksum        TEXT,
+
+    file_type       upload_file_type NOT NULL,
+
+    selected        BOOLEAN NOT NULL DEFAULT TRUE,  -- selected files will be used for the conversion process.
+
+    uploaded_at     TIMESTAMP DEFAULT now(),
+
+    PRIMARY KEY ( token, ordinal )
+);
+
+DROP TYPE IF EXISTS output_file_type;
+CREATE TYPE output_file_type AS ENUM (
+    'pdbx', 'nmr-star', 'nef',
+    'json_report', 'text_report',
+    'compressed'
+);
+
+--
+-- Outpuf files.
+--
+
+CREATE TABLE IF NOT EXISTS output_file (
+    conversion_id   INT REFERENCES session(conversion_id) ON DELETE CASCADE,
+    ordinal         INT CHECK ( ordinal > 0 ),
+
+    stored_path     TEXT NOT NULL,
+
+    file_size       BIGINT,
+    checksum        TEXT,
+
+    file_type       output_file_type NOT NULL,
+
+    downloaded      BOOLEAN NOT NULL DEFAULT TRUE,
+
+    downloaded_at   TIMESTAMP DEFAULT now(),
+
+    client_ip       INET,
+    user_agent      TEXT,
+
+    PRIMARY KEY ( conversion_id, ordinal )
+);
+
+DROP TYPE IF EXISTS delivery_status_code;
+CREATE TYPE delivery_status_code AS ENUM ('sent', 'queued', 'failed');
+
+--
+-- Notification.
+--
+
+CREATE TABLE IF NOT EXISTS notification (
+    conversion_id   INT REFERENCES session(conversion_id) ON DELETE CASCADE,
+    ordinal         INT CHECK ( ordinal > 0 ),
+
+    subject         TEXT NOT NULL,
+    content         TEXT NOT NULL,
+
+    sent_at         TIMESTAMP DEFAULT now(),
+
+    delivery_status delivery_status_code,
+
+    PRIMARY KEY ( conversion_id, ordinal )
+);
+
+--
+-- Communication.
+--
+
+CREATE TABLE IF NOT EXISTS communication (
+    conversion_id   INT REFERENCES session(conversion_id) ON DELETE CASCADE,
+    ordinal         INT CHECK ( ordinal > 0 ),
+
+    subject         TEXT NOT NULL,
+    content         TEXT NOT NULL,
+
+    email_address   TEXT NOT NULL,
+
+    sent_at         TIMESTAMP DEFAULT now(),
+
+    delivery_status delivery_status_code,
+
+    PRIMARY KEY ( conversion_id, ordinal )
+);
+
+DROP TYPE IF EXISTS wf_task_code;
+CREATE TYPE wf_task_code as ENUM ('issue_conversion', 'convert_model', 'convert_nmr_data', 'session_exchange', 'session_lock', 'session_cleanup', 'notification', 'communication');
+
+DROP TYPE IF EXISTS wf_stats_code;
+CREATE TYPE wf_status_code as ENUM ('created', 'pending', 'aborted', 'processing', 'completed', 'failed');
+
+--
+-- Workflow tracking
+--
+
+CREATE TABLE IF NOT EXISTS workflow (
+    conversion_id   INT REFERENCES session(conversion_id) ON DELETE CASCADE,
+    ordinal         INT CHECK ( ordinal > 0 ),
+
+    task            wf_task_code NOT NULL,
+
+    status          wf_status_code NOT NULL DEFAULT 'created',
+    log_path        TEXT NOT NULL,
+
+    created_at      TIMESTAMP DEFAULT now(),
+    started_at      TIMESTAMP,
+    finished_at     TIMESTAMP,
+    expiry_at       TIMESTAMP
+);
+
+--
+-- Prefect server
+--
+
+SELECT 'CREATE DATABASE ${POSTGRES_PREFECT_DB} OWNER ${POSTGRES_USER}' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${POSTGRES_PREFECT_DB}') \gexec
+

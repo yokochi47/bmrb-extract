@@ -1,0 +1,158 @@
+services:
+  backend:
+    build: ./backend
+    container_name: bmrb-extract-backend
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      prefect-server:
+        condition: service_healthy
+    volumes:
+      - ./backend/app:/app
+    expose:
+      - "8000"
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://0.0.0.0:8000"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build: ./frontend
+    container_name: bmrb-extract-frontend
+    restart: no
+    networks:
+      - internal
+
+  postgres:
+    image: postgres:18-alpine
+    container_name: bmrb-extract-postgres
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "5432:5432"
+    networks:
+      - internal
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $POSTGRES_USER"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    container_name: bmrb-extract-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    networks:
+      - internal
+    volumes:
+      - ./redis/data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+
+  prefect-server:
+    image: prefecthq/prefect:3-latest
+    container_name: bmrb-extract-prefect-server
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: prefect server start --no-services
+    ports:
+      - "4200:4200"
+    networks:
+      - internal
+    volumes:
+      - ./prefect/data:/root/.prefect
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://0.0.0.0:4200/api/health', timeout=1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  prefect-services:
+    image: prefecthq/prefect:3-latest
+    container_name: bmrb-extract-prefect-services
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      prefect-server:
+        condition: service_healthy
+    command: prefect server services start
+    networks:
+      - internal
+
+  prefect-worker:
+    image: prefecthq/prefect:3-latest
+    container_name: bmrb-extract-prefect-worker
+    restart: on-failure
+    env_file: .env
+    command: prefect worker start --pool "local-pool" --type "process"
+    depends_on:
+      prefect-services:
+        condition: service_started
+    networks:
+      - internal
+    volumes:
+      - ./prefect/flows:/flows
+
+  nginx:
+    build: ./nginx
+    container_name: bmrb-extract-nginx
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      - backend
+      - frontend
+    ports:
+      - "80:80/tcp"
+      - "443:443/tcp"
+      - "443:443/udp"
+    networks:
+      - internal
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl.conf:/etc/nginx/ssl.conf:ro
+      - nginx_logs:/var/log/nginx
+      # - ./certbot/cert:/etc/letsencrypt
+      # - ./certbot/www:/var/www/certbot
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/api"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+
+#  certbot:
+#    image: certbot/certbot:latest
+#    container_name: bmrb-extract-certbot
+#    volumes:
+#      - ./certbot/cert:/etc/letsencrypt
+#      - ./certbot/www:/var/www/certbot
+#      - ./certbot/certbot.sh:/certbot.sh:ro
+#    entrypoint: ["/bin/sh", "/certbot.sh"]
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  nginx_logs:
+
