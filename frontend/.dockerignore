@@ -1,4 +1,7 @@
-.git
-.gitignore
-.dockerignore
 Dockerfile
+.dockerignore
+.editorconfig
+eslint.config.mts
+.prettierrc
+README.md
+.vscode

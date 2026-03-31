@@ -100,8 +100,8 @@ EXPOSE 443/udp
 
 STOPSIGNAL SIGQUIT
 
-COPY docker-entrypoint.sh /opt/docker-entrypoint.sh
-RUN chmod +x /opt/docker-entrypoint.sh
+COPY entrypoint.sh /opt/entrypoint.sh
+RUN chmod +x /opt/entrypoint.sh
 
-ENTRYPOINT ["/opt/docker-entrypoint.sh"]
+ENTRYPOINT ["/opt/entrypoint.sh"]
 

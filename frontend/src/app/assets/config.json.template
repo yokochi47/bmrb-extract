@@ -1,0 +1,6 @@
+{
+  "serviceLevel": "${SERVICE_LEVE}",
+  "serviceHost": "${SERVICE_HOST}",
+  "serviceAdminEmail": "${SERVICE_ADMIN_EMAIL}",
+  "serviceHelpEmail": "${SERVICE_HELP_EMAIL}"
+}
