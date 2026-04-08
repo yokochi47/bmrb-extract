@@ -130,6 +130,8 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/ssl.conf:/etc/nginx/ssl.conf:ro
+      - ./nginx/share/401.html:/usr/share/nginx/html/401.html
+      - ./nginx/share/403.html:/usr/share/nginx/html/403.html
       - nginx_logs:/var/log/nginx
       # - ./certbot/cert:/etc/letsencrypt
       # - ./certbot/www:/var/www/certbot

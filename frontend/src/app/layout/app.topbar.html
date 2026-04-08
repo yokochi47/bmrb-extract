@@ -1,0 +1,30 @@
+<div class="layout-topbar">
+  <div class="layout-topbar-logo-container">
+    <button class="layout-menu-button layout-topbar-action" (click)="layoutService.onMenuToggle()">
+      <i class="pi pi-bars"></i>
+    </button>
+    <a class="layout-topbar-logo" routerLink="/">
+      <img src="bmrb_extract_logo.svg" alt="bmrb_extract" width="140px" />
+    </a>
+  </div>
+
+  <div class="flex justify-center">
+    <span>Conversion ID: </span>
+    <p-tag value="C_8000001" />
+  </div>
+
+  <div class="layout-topbar-actions">
+    <div class="layout-topbar-menu hidden lg:block">
+      <div class="layout-topbar-menu-content">
+        <button type="button" class="layout-topbar-action">
+          <i class="pi pi-bell"></i>
+          <span>Messages</span>
+        </button>
+        <button type="button" class="layout-topbar-action">
+          <i class="pi pi-user"></i>
+          <span>Profile</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

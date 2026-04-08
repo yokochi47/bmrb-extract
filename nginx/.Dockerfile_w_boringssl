@@ -1,0 +1,100 @@
+# =========================
+# Build stage
+# =========================
+FROM alpine:latest AS build
+
+ARG NGINX_VERSION=1.29.6
+
+RUN apk add --no-cache \
+    build-base \
+    linux-headers \
+    cmake \
+    curl \
+    git \
+    perl \
+    ninja \
+    zlib-dev \
+    pcre2-dev \
+    brotli-dev
+
+WORKDIR /build
+
+ENV MIN_NGINX_VERSION=1.25.3
+
+# ---- Clone BoringSSL ----
+RUN git clone https://github.com/google/boringssl.git
+
+WORKDIR /build/boringssl
+
+# ---- Build BoringSSL ----
+RUN mkdir build && cd build \
+ && cmake -GNinja -DCMAKE_BUILD_TYPE=Release .. \
+ && ninja
+
+# Save path
+ENV BORINGSSL_ROOT=/build/boringssl
+
+WORKDIR /build
+
+# ---- Download Nginx ----
+RUN echo "Nginx version: $NGINX_VERSION"; \
+ if [ "$(printf '%s\n' "$MIN_NGINX_VERSION" "$NGINX_VERSION" | sort -V | head -n1)" = "$MIN_NGINX_VERSION" ]; then \
+    echo "Version OK"; else exit 1; fi; \
+ curl -LO https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz \
+ && tar xzf nginx-${NGINX_VERSION}.tar.gz
+
+WORKDIR /build/nginx-${NGINX_VERSION}
+
+# ---- Configure Nginx with QUIC ----
+RUN ./configure \
+    --prefix=/etc/nginx \
+    --sbin-path=/usr/sbin/nginx \
+    --conf-path=/etc/nginx/nginx.conf \
+    --error-log-path=/var/log/nginx/error.log \
+    --http-log-path=/var/log/nginx/access.log \
+    --pid-path=/var/run/nginx.pid \
+    --with-http_v2_module \
+    --with-http_v3_module \
+    --with-pcre-jit \
+    --with-threads \
+    --with-cc-opt="-I${BORINGSSL_ROOT}/include" \
+    --with-ld-opt="-L${BORINGSSL_ROOT}/build -lstdc++" \
+ && make -j$(nproc) \
+ && make install
+
+# =========================
+# Runtime stage
+# =========================
+FROM alpine:latest
+
+RUN apk add --no-cache \
+    libstdc++ \
+    pcre2 \
+    zlib \
+    brotli \
+    ca-certificates \
+    tzdata \
+    logrotate \
+    busybox-suid
+
+# Nginx runtime user
+RUN addgroup -S nginx && adduser -S nginx -G nginx
+
+COPY --from=build /usr/sbin/nginx /usr/sbin/nginx
+COPY --from=build /etc/nginx /etc/nginx
+COPY logrotate-nginx.conf /etc/logrotate.d/nginx
+
+RUN mkdir -p /var/log/nginx /var/www/html \
+ && chown -R nginx:nginx /var/log/nginx
+
+EXPOSE 80/tcp
+EXPOSE 443/tcp
+EXPOSE 443/udp
+
+STOPSIGNAL SIGQUIT
+
+COPY entrypoint.sh /opt/entrypoint.sh
+RUN chmod +x /opt/entrypoint.sh
+
+ENTRYPOINT ["/opt/entrypoint.sh"]
+

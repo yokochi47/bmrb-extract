@@ -1,7 +1,9 @@
+dist
 Dockerfile
 .dockerignore
 .editorconfig
 eslint.config.mts
+node_modules
 .prettierrc
 README.md
 .vscode

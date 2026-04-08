@@ -5,7 +5,7 @@ WORKDIR /app
 
 COPY ./package*.json ./
 
-RUN npm install
+RUN npm install # --force
 
 COPY . .
 
@@ -16,5 +16,9 @@ FROM alpine:latest
 
 WORKDIR /app
 
-COPY --from=build /app/dist /app/dist
+COPY --from=build /app/dist/bmrb_extract/browser /data
+
+# Keep it running because Nginx to access /data
+# To stop the container, run 'docker compose down frontend' following by 'docker compose up'
+CMD ["tail", "-f", "/dev/null"]
 

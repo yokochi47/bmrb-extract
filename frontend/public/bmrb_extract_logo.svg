@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xl="http://www.w3.org/1999/xlink" viewBox="46.780173 383.5 333.46094 121.5" width="333.46094" height="121.5">
+  <defs>
+    <filter id="Shadow" filterUnits="userSpaceOnUse" x="13.434079" y="371.35">
+      <feGaussianBlur in="SourceAlpha" result="blur" stdDeviation="1.308"/>
+      <feOffset in="blur" result="offset" dx="0" dy="2"/>
+      <feFlood flood-color="black" flood-opacity=".5" result="flood"/>
+      <feComposite in="flood" in2="offset" operator="in"/>
+    </filter>
+    <linearGradient x1="0" x2="1" id="Gradient" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#78ebb3"/>
+      <stop offset=".6" stop-color="#70b7ff"/>
+      <stop offset="1" stop-color="#b474fd"/>
+    </linearGradient>
+    <linearGradient id="Obj_Gradient" xl:href="#Gradient" gradientTransform="translate(220.30077 505) rotate(-90) scale(121.5)"/>
+  </defs>
+  <g id="Canvas_1" stroke-dasharray="none" fill-opacity="1" stroke-opacity="1" fill="none" stroke="none">
+    <title>Canvas 1</title>
+    <g id="Canvas_1_Layer_1">
+      <title>Layer 1</title>
+      <g id="Graphic_15_shadow" filter="url(#Shadow)">
+        <rect x="49.78017" y="411.96484" width="327.46094" height="64.57031"/>
+      </g>
+      <g id="Graphic_26">
+        <path d="M 161.06808 413.875 L 161.06808 474.625 L 220.30077 505 L 279.53345 474.625 L 279.53345 413.875 L 220.30077 383.5 Z" fill="url(#Obj_Gradient)"/>
+      </g>
+      <g id="Graphic_15">
+        <text transform="translate(54.78017 416.96484)" fill="#76d6ff">
+          <tspan font-family="Arial" font-weight="bold" font-size="48" fill="#76d6ff" x="6.667969" y="43" xml:space="preserve">bmr</tspan>
+          <tspan font-family="Arial" font-weight="bold" font-size="48" fill="white" y="43" xml:space="preserve">b_ext</tspan>
+          <tspan font-family="Arial" font-weight="bold" font-size="48" fill="#76d6ff" y="43" xml:space="preserve">ract </tspan>
+        </text>
+      </g>
+    </g>
+  </g>
+</svg>
+

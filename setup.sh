@@ -66,8 +66,6 @@ docker volume inspect ${NGINX_LOG_VOL_LABEL} > /dev/null 2>&1 \
 		${NGINX_LOG_VOL_LABEL}
 
 #
-
-#
 # Setup GitHub Action Runner
 #
 if [[ -n "${ACTION_RUNNER_DIR}" ]] ; then
@@ -212,7 +210,7 @@ echo
 
 docker volume ls
 
-COMPOSE_BAKE=true docker compose build --build-arg OPENSSL_VERSION=${OPENSSL_VERSION} --build-arg NGINX_VERSION=${NGINX_VERSION} # --no-cache
+COMPOSE_BAKE=true docker compose build --build-arg OPENSSL_VERSION=${OPENSSL_VERSION} --build-arg NGINX_VERSION=${NGINX_VERSION} --build-arg CACHEBUST=$(date +%s) # --no-cache
 
 # Performance tuning
 sudo sysctl -w net.core.rmem_max=7500000

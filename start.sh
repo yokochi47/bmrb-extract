@@ -1,10 +1,13 @@
 #!/bin/bash
 
+# After running nginx, frontend is no longer needed.
+(sleep 120 ; docker compose down frontend) &
+
 docker compose up -d
 
-# prune unused image
+# Prune unused images
 # docker image prune
 
-# prune unused volume
+# Prune unused volumes
 # docker volume prune
 

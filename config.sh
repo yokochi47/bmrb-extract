@@ -218,3 +218,15 @@ sed -e 's/${SERVICE_ADMIN_EMAIL}/'"${SERVICE_ADMIN_EMAIL}"'/g' > certbot/certbot
 
 echo Generated certbot/certbot.sh file.
 
+#
+# Frontend
+#
+if [[ ${SERVICE_DOMAIN} = "bmrb.io" ]] ; then
+
+	( cd frontend/src ; rm -f index.html site.config.ts ; ln -s index.bmrb.html index.html ; ln -s bmrb.config.ts site.config.ts )
+
+else
+
+	( cd frontend/src ; rm -f index.html site.config.ts ; ln -s index.bmrbj.html index.html ; ln -s bmrbj.config.ts site.config.ts )
+
+fi
