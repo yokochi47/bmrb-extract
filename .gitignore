@@ -1,0 +1,15 @@
+.env
+actions_runner*
+backend/app/__pycache__
+certbot/cert/accounts
+certbot/cert/renewal
+certbot/cert/renewal-hooks
+frontend/.angular
+frontend/dist
+frontend/node_modules
+frontend/src/index.html
+frontend/src/site.config.ts
+node_modules
+nginx/nginx.conf
+nginx/ssl.conf
+postgres/init.sql
