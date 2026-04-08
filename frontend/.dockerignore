@@ -1,9 +1,12 @@
+.angular
 dist
 Dockerfile
 .dockerignore
 .editorconfig
+eslint.config.js
 eslint.config.mts
 node_modules
+.prettierignore
 .prettierrc
-README.md
+.prettierrc.json
 .vscode

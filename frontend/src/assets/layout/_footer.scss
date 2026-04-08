@@ -10,10 +10,6 @@
     align-items: center;
     justify-content: center;
 
-    &:hover a {
-      text-decoration: underline;
-    }
-
     .hover-image {
       transition:
         transform 0.3s ease,
