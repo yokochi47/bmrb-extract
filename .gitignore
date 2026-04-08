@@ -13,3 +13,5 @@ node_modules
 nginx/nginx.conf
 nginx/ssl.conf
 postgres/init.sql
+redis/data/dump.rdb
+redis/data/appendonlydir
