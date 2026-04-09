@@ -7,7 +7,6 @@ import { AppMenuitem } from './app.menuitem';
 
 @Component({
   selector: 'app-menu',
-  standalone: true,
   imports: [CommonModule, RouterModule, AppMenuitem],
   templateUrl: './app.menu.html',
 })

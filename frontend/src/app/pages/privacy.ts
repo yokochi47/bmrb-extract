@@ -9,7 +9,6 @@ import {
 
 @Component({
   selector: 'app-privacy',
-  standalone: true,
   imports: [DividerModule],
   templateUrl: './privacy.html',
 })

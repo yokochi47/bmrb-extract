@@ -7,7 +7,6 @@ import { TermsConsent } from './terms.consent';
 
 @Component({
   selector: 'app-info',
-  standalone: true,
   imports: [CommonModule, RouterLink, TermsConsent],
   templateUrl: './info.html',
 })

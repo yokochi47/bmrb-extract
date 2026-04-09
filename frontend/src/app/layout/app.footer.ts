@@ -2,7 +2,6 @@ import { Component } from '@angular/core';
 import { HOST_SITE_URL, HOST_SITE_LOGO, ONEDEP_URL, BMRBDEP_URL } from '../../site.config';
 
 @Component({
-  standalone: true,
   selector: 'app-footer',
   templateUrl: './app.footer.html',
 })

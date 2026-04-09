@@ -9,7 +9,6 @@ import { LayoutService } from './layout.service';
 
 @Component({
   selector: 'app-layout',
-  standalone: true,
   imports: [CommonModule, AppTopbar, AppSidebar, AppFooter, RouterModule],
   templateUrl: 'app.layout.html',
 })

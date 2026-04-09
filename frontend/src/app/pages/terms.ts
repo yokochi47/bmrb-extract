@@ -12,7 +12,6 @@ import {
 
 @Component({
   selector: 'app-terms',
-  standalone: true,
   imports: [RouterLink, DividerModule],
   templateUrl: './terms.html',
 })

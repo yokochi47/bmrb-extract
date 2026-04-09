@@ -6,7 +6,6 @@ import { LayoutService } from './layout.service';
 
 @Component({
   selector: 'app-topbar',
-  standalone: true,
   imports: [CommonModule, TagModule],
   templateUrl: 'app.topbar.html',
 })
