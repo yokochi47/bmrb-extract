@@ -1,6 +1,6 @@
 <div class="card">
   <div class="font-semibold text-2xl mb-4">Terms and Conditions</div>
-  <p class="text-sm mb-4"><strong>Last updated:</strong> April 8th, 2026</p>
+  <p class="text-sm mb-4"><strong>Last updated:</strong> April 9th, 2026</p>
 
   <p-divider type="solid" />
 
@@ -8,8 +8,10 @@
   <p class="text-lg mb-4">
     The <em>bmrb_extract</em> service ("Service") provides automated tools for conversion and
     processing of NMR and related structural data. The Service is intended to support the scientific
-    community in preparing, validating, and exchanging data with best practices adopted by the
-    Worldwide Protein Data Bank (wwPDB).
+    community in preparing, validating, and exchanging data with best practices adopted by
+    <a href="https://wwpdb.org" class="text-primary font-bold"
+      >the Worldwide Protein Data Bank (wwPDB)</a
+    >.
   </p>
   <p class="text-lg mb-4">
     By using this Service, you agree to comply with these Terms and Conditions ("Terms").
@@ -19,11 +21,22 @@
   <ul class="leading-normal list-disc pl-8 text-lg mb-4">
     <li>Facilitate preparation and conversion of NMR and related structural data</li>
     <li>
-      Support workflows consistent with existing deposition systems such as OneDep and BMRBdep
+      Support workflows consistent with existing deposition systems such as
+      <a href="{{ ONEDEP_URL }}" class="text-primary font-bold">OneDep</a> and
+      <a href="{{ BMRBDEP_URL }}" class="text-primary font-bold">BMRBdep</a>
     </li>
     <li>
-      Promote interoperability with community standard formats; NMR-STAR or NEF (if possible) for
-      NMR data, PDBx/mmCIF for structural data, respectively
+      Promote interoperability with community standard formats;
+      <a href="https://doi.org/10.1007/s10858-018-0220-3" class="text-primary font-bold"
+        >NMR-STAR</a
+      >
+      or
+      <a href="https://doi.org/10.1038/nsmb.3041" class="text-primary font-bold">NEF</a>
+      (if possible) for NMR data,
+      <a href="https://doi.org/10.1016/j.jmb.2022.167599" class="text-primary font-bold"
+        >PDBx/mmCIF</a
+      >
+      for structural data, respectively
     </li>
   </ul>
 
@@ -65,7 +78,7 @@
     <li>Data is processed in a <strong>non-public, session-based environment</strong></li>
     <li>The Service does not intentionally disclose user data to third parties</li>
     <li>
-      The service operators access user data when the user requires support through a
+      The system operators access user data when the user requires support through a
       <strong>Help desk</strong> menu
     </li>
     <li>
@@ -95,9 +108,14 @@
 
   <div class="font-semibold text-xl mb-4">7. Data Retention Policy</div>
   <ul class="leading-normal list-disc pl-8 text-lg mb-4">
-    <li>Data is stored only for the duration necessary to provide the Service</li>
+    <li>
+      Data is stored only for the duration necessary to provide the Service (
+      {{ SUCCESS_VALIDITY_PERIOD_IN_DAYS }} days since the last successful conversion,
+      {{ FAILURE_VALIDITY_PERIOD_IN_DAYS }} days since the last failed conversion or unprocessed
+      file upload)
+    </li>
     <li>Each session is associated with an <strong>expiration date</strong></li>
-    <li>All data (files, logs, metadata) is deleted after the expiration</li>
+    <li>All data (files, logs, metadata) will be deleted after the expiration</li>
   </ul>
   <p class="text-lg mb-4">
     Users are responsible for downloading and preserving their results before expiration.
@@ -153,7 +171,7 @@
   <ul class="leading-normal list-disc pl-8 text-lg mb-4">
     <li>The Service is provided <strong>“as is” without warranties</strong></li>
     <li>
-      The operators are not liable for:
+      The system operators are not liable for:
       <ul class="leading-normal list-disc pl-8 text-lg mb-4">
         <li>Data loss</li>
         <li>Processing errors</li>
@@ -182,6 +200,8 @@
   <div class="font-semibold text-xl mb-4">16. Contact</div>
   <p class="text-lg mb-4">For questions regarding these Terms or the Service, please contact:</p>
   <p class="text-lg mb-4">
-    <a href="mailto:bmrbhelp@protein.osaka-u.ac.jp">bmrbhelp@protein.osaka-u.ac.jp</a>
+    <a href="mailto:{{ SERVICE_HELP_EMAIL }}" class="text-primary font-bold">{{
+      SERVICE_HELP_EMAIL
+    }}</a>
   </p>
 </div>

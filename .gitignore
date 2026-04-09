@@ -9,9 +9,13 @@ frontend/dist
 frontend/node_modules
 frontend/src/index.html
 frontend/src/site.config.ts
+frontend/src/bmrb.config.ts
+frontend/src/bmrbj.config.ts
 node_modules
 nginx/nginx.conf
+nginx/nginx.conf.template
 nginx/ssl.conf
 postgres/init.sql
+postgres/init.seq.template
 redis/data/dump.rdb
 redis/data/appendonlydir

@@ -58,6 +58,22 @@ export class AppMenu implements OnInit {
           },
         ],
       },
+      {
+        label: 'Document',
+        path: '',
+        items: [
+          {
+            label: 'Terms and conditions',
+            icon: 'pi pi-fw pi-bookmark',
+            routerLink: ['/terms'],
+          },
+          {
+            label: 'Privacy policy',
+            icon: 'pi pi-fw pi-bookmark',
+            routerLink: ['/privacy'],
+          },
+        ],
+      },
     ];
   }
 }

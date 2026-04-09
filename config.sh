@@ -33,10 +33,12 @@ if [[ -z "${SERVICE_DOMAIN}" ]] ; then
 	case "${ans}" in
 		b*)
 			SERVICE_DOMAIN=bmrb.io
+                        SERVICE_HELP_EMAIL=help@bmrb.io
 			TZ=US/Eastern
 			;;
 		p*)
 			SERVICE_DOMAIN=pdbj.org
+                        SERVICE_HELP_EMAIL=bmrbhelp@protein.osaka-u.ac.jp
 			TZ=Asia/Tokyo
 			;;
 		*)
@@ -65,21 +67,6 @@ if [[ -z "${SERVICE_ADMIN_EMAIL}" ]] ; then
 	fi
 
 	SERVICE_ADMIN_EMAIL=$ans
-
-fi
-
-if [[ -z "${SERVICE_HELP_EMAIL}" ]] ; then
-
-	echo "Enter communication e-mail address:"
-
-	read ans
-
-	if [[ "${ans}" =~ $email_regex ]]; then
-		echo "Error: ${ans} is not valid."
-		exit 1
-	fi
-
-	SERVICE_HELP_EMAIL=$ans
 
 fi
 
@@ -191,6 +178,7 @@ echo Generated .env file.
 
 source .env
 
+( cd nginx; rm -f nginx.conf.template; ln -s nginx-${SERVICE_LEVEL}.conf.template nginx.conf.template )
 sed -e 's/${SERVICE_HOST}/'"${SERVICE_HOST}"'/' < nginx/nginx.conf.template | \
 sed -e 's/${NGINX_LOG_FORMAT}/'"${NGINX_LOG_FORMAT}"'/' > nginx/nginx.conf
 
@@ -203,6 +191,8 @@ echo Generated nginx/ssl.conf file.
 #
 # Write init.sql
 #
+
+( cd postgres; rm -f init.sql.template; ln -s init-${SERVICE_LEVEL}.sql.template init.sql.template )
 sed -e 's/${POSTGRES_USER}/'"${POSTGRES_USER}"'/' postgres/init.sql.template | \
 sed -e 's/${POSTGRES_PASSWORD}/'"${POSTGRES_PASSWORD}"'/' | \
 sed -e 's/${POSTGRES_SERVICE_DB}/'"${POSTGRES_SERVICE_DB}"'/g' | \
@@ -223,10 +213,24 @@ echo Generated certbot/certbot.sh file.
 #
 if [[ ${SERVICE_DOMAIN} = "bmrb.io" ]] ; then
 
-	( cd frontend/src ; rm -f index.html site.config.ts ; ln -s index.bmrb.html index.html ; ln -s bmrb.config.ts site.config.ts )
+	( cd frontend/src
+          rm -f index.html site.config.ts
+          ln -s index.bmrb.html index.html
+          sed -e 's/${SERVICE_HELP_EMAIL}/'"${SERVICE_HELP_EMAIL}"'/g' bmrb.config.ts.template | \
+          sed -e 's/${SUCCESS_VALIDITY_PERIOD_IN_DAYS}/'"${SUCCESS_VALIDITY_PERIOD_IN_DAYS}"'/g' | \
+          sed -e 's/${FAILURE_VALIDITY_PERIOD_IN_DAYS}/'"${FAILURE_VALIDITY_PERIOD_IN_DAYS}"'/g' > bmrb.config.ts
+          ln -s bmrb.config.ts site.config.ts )
 
 else
 
-	( cd frontend/src ; rm -f index.html site.config.ts ; ln -s index.bmrbj.html index.html ; ln -s bmrbj.config.ts site.config.ts )
+	( cd frontend/src
+          rm -f index.html site.config.ts
+          ln -s index.bmrbj.html index.html
+          sed -e 's/${SERVICE_HELP_EMAIL}/'"${SERVICE_HELP_EMAIL}"'/g' bmrbj.config.ts.template | \
+          sed -e 's/${SUCCESS_VALIDITY_PERIOD_IN_DAYS}/'"${SUCCESS_VALIDITY_PERIOD_IN_DAYS}"'/g' | \
+          sed -e 's/${FAILURE_VALIDITY_PERIOD_IN_DAYS}/'"${FAILURE_VALIDITY_PERIOD_IN_DAYS}"'/g' > bmrbj.config.ts
+          ln -s bmrbj.config.ts site.config.ts )
 
 fi
+
+echo Genearted frontend/src/index.html and frontend/src/site.config.ts files.

@@ -30,8 +30,8 @@ CREATE TABLE IF NOT EXISTS session (
     token_admin         UUID DEFAULT gen_random_uuid(),     -- token used by administrators to respond to inquiries on 'Communicationi' page
     token_expiry        TIMESTAMP NOT NULL,                 -- time of expiry of the session
 
-    gdpr_consent        BOOLEAN NOT NULL DEFAULT FALSE,     -- whether user approved GDPR terms
-    gdpr_consent_time   TIMESTAMP,                          -- timestamp when user approve GPDR terms
+    terms_consent       BOOLEAN NOT NULL DEFAULT FALSE,     -- whether user approved terms and conditions
+    terms_consent_time  TIMESTAMP,                          -- timestamp when user approve terms and conditions
 
     client_ip           INET,
     user_agent          TEXT,

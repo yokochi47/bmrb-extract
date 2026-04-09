@@ -1,0 +1,7 @@
+export const HOST_SITE_LOGO = 'bmrbj_logo.png';
+export const HOST_SITE_URL = 'https://bmrbj.pdbj.org';
+export const ONEDEP_URL = 'https://deposit-pdbj.wwpdb.org';
+export const BMRBDEP_URL = 'https://deposit-bmrb.pdbj.org';
+export const SERVICE_HELP_EMAIL = '${SERVICE_HELP_EMAIL}';
+export const SUCCESS_VALIDITY_PERIOD_IN_DAYS = ${SUCCESS_VALIDITY_PERIOD_IN_DAYS};
+export const FAILURE_VALIDITY_PERIOD_IN_DAYS = ${FAILURE_VALIDITY_PERIOD_IN_DAYS};
