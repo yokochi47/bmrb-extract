@@ -1,6 +1,6 @@
 # bmrb_extract
 
-bmrb_extract is an NMR data conversion service for preparing a single NMR experimental data file from various software native formats for PDB and BMRB depositions. The service is designed to hosted by BMRB and BMRBj.
+**bmrb_extract** is an NMR data conversion service that simplifies data deposition to PDB (via OneDep) and BMRB (via BMRBdep) by creating a single NMR data file from various software-native formats. The service is designed to hosted by [BMRB](https://bmrb.io) and [BMRBj](https://bmrbj.pdbj.org).
 
 ## Requirements
 - Docker engin
@@ -18,4 +18,8 @@ bmrb_extract is an NMR data conversion service for preparing a single NMR experi
 ```shell
 ./start.sh
 ./stop.sh
+```
+To reload the web frontend (for developers)
+```shell
+./reload_wfe.sh
 ```
