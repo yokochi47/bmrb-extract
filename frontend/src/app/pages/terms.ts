@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { DividerModule } from 'primeng/divider';
 
 import {
@@ -11,7 +12,8 @@ import {
 
 @Component({
   selector: 'app-terms',
-  imports: [DividerModule],
+  standalone: true,
+  imports: [RouterLink, DividerModule],
   templateUrl: './terms.html',
 })
 export class Terms {

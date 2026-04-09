@@ -1,10 +1,11 @@
 import { Component, EventEmitter, Output } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { RadioButtonModule } from 'primeng/radiobutton';
+import { CheckboxModule } from 'primeng/checkbox';
 
 @Component({
   selector: 'app-terms-consent',
-  imports: [FormsModule, RadioButtonModule],
+  imports: [RouterLink, FormsModule, CheckboxModule],
   templateUrl: './terms.consent.html',
 })
 export class TermsConsent {

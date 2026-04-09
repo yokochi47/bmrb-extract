@@ -1,6 +1,6 @@
 <div class="card">
   <div class="test-primary font-semibold text-2xl mb-4">Welcome to bmrb_extract</div>
-  <p class="text-lg mb-4">
+  <p class="text-xl mb-4">
     <strong>bmrb_extract</strong> is an NMR data conversion service that simplifies data deposition
     to PDB (via
     <a
@@ -18,8 +18,86 @@
       >BMRBdep</a
     >) by creating a single NMR experimental data file from various software native formats.
   </p>
-  <app-terms-consent></app-terms-consent>
+
   <div class="text-lg mb-4">Steps for file conversion</div>
-  <div class="text-lg mb-4">Requirements for PDB deposition</div>
-  <div class="text-lg mb-4">Requirements for BMRB deposition</div>
+  <ul class="leading-normal list-disc pl-8 text-lg mb-4">
+    <li>
+      You should read "Terms and Conditions" and "Privacy Policy" and must accept our policies by
+      clicking the check-box below
+    </li>
+    <li>
+      In a <strong><a routerLink="/upload">Upload files</a></strong> page, select target deposition
+      system and upload files, and choose the appropriate format for each
+    </li>
+    <li>
+      In case the requirements matches, conversion starts when you select "Process selected files"
+      button
+    </li>
+    <li>
+      After analysis of upload files, you can overview conversion status ("OK", "Warning", or
+      "Error") and diagnostic messages if necessary on
+      <strong><a routerLink="/summary">Upload summary</a></strong> page
+    </li>
+    <li>
+      In case of "Warning" status, you must accept all warnings to access the conversion results,
+      otherwise you should re-upload corrected files
+    </li>
+    <li>
+      In a <strong><a routerLink="/download">Download</a></strong
+      >, you can view statistics of the data conversion and access to a zipped conversion results
+      file
+    </li>
+    <li>
+      Once you download the conversion results, you will no longer be able to re-upload files
+      (create new session if necessary)
+    </li>
+    <li>
+      You will see tokenized URL to review the session (read-only) until scheduled expiry date
+    </li>
+    <li>
+      When you need assistance in data conversion, please contact us only through a
+      <strong><a routerLink="/help">Help desk</a></strong> page, do not to send email directly
+    </li>
+    <li>Your mail address must be verified before using the Help desk</li>
+    <li>
+      You can log-in with the verified mail and access to all your previous conversion sessions from
+      the top-bar menu
+    </li>
+  </ul>
+
+  <app-terms-consent></app-terms-consent>
+
+  <div class="text-lg mb-4">Requirements for OneDep deposition</div>
+  <ul class="leading-normal list-disc pl-8 text-lg mb-4">
+    <li>Coordinate file (PDBx/mmCIF or legacy PDB format)</li>
+    <li>
+      Assigned chemical shift file (NMR-STAR, NEF, existing BMRB ID, or other supported formats)
+    </li>
+    <li>Restraint file (Software-native format)</li>
+    <li>Spectral peak list file (Software-native format)</li>
+  </ul>
+
+  <div class="text-lg mb-4">
+    Requirements for ongoing OneDep deposition - Replacing assigned chemical shifts
+  </div>
+  <ul class="leading-normal list-disc pl-8 text-lg mb-4">
+    <li>Coordinate file (PDBx/mmCIF or legacy PDB format)</li>
+    <li>
+      Master NMR data file (NMR-STAR or NEF) containing at least assigned chemical shifts and
+      restraints
+    </li>
+    <li>
+      Assigned chemical shift file (NMR-STAR, NEF, existing BMRB ID, or other supported formats)
+    </li>
+  </ul>
+  <p class="text-xl mb-4">
+    Assigned chemical shifts of the master file will be replaced with the chemical shifts from the
+    newly uploaded files.
+  </p>
+
+  <div class="text-lg mb-4">Requirements for BMRBdep deposition</div>
+  <ul class="leading-normal list-disc pl-8 text-lg mb-4">
+    <li>Assigned chemical shift file (NMR-STAR, NEF, or other supported formats)</li>
+    <li>Other NMR experimental data in NMR-STAR format except for restraints</li>
+  </ul>
 </div>

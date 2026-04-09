@@ -79,7 +79,7 @@
     <li>The Service does not intentionally disclose user data to third parties</li>
     <li>
       The system operators access user data when the user requires support through a
-      <strong>Help desk</strong> menu
+      <strong><a routerLink="/help">Help desk</a></strong> page
     </li>
     <li>
       Access is controlled via a <strong>tokenized URL</strong>, and possession of the token grants
@@ -106,22 +106,46 @@
   </ul>
   <p class="text-lg mb-4">The Service does not guarantee anonymization of submitted data.</p>
 
-  <div class="font-semibold text-xl mb-4">7. Data Retention Policy</div>
+  <div class="font-semibold text-xl mb-4">7. Upload File Check</div>
+  <p class="text-lg mb-4">
+    Users receive one of three conversion status based on analysis of the uploaded files:
+  </p>
+  <ul class="leading-normal list-disc pl-8 text-lg mb-4">
+    <li>
+      OK – No issue found and users can download the conversion results, including model file, NMR
+      data file, and report file
+    </li>
+    <li>
+      Warning – Minor issues were found during the conversion, but you can access the conversion
+      results by accepting all warnings or try to fix the issues reported before download the
+      results
+    </li>
+    <li>
+      Error – Failed in conversion due to format issue in uploaded files, inconsistencies among
+      uploaded files (e.g. model vs NMR data) or missing mandatory contents. Users can achieve the
+      desired results by re-uploading files
+    </li>
+  </ul>
+
+  <div class="font-semibold text-xl mb-4">8. Data Retention Policy</div>
   <ul class="leading-normal list-disc pl-8 text-lg mb-4">
     <li>
       Data is stored only for the duration necessary to provide the Service (
       {{ SUCCESS_VALIDITY_PERIOD_IN_DAYS }} days since the last successful conversion,
-      {{ FAILURE_VALIDITY_PERIOD_IN_DAYS }} days since the last failed conversion or unprocessed
-      file upload)
+      {{ FAILURE_VALIDITY_PERIOD_IN_DAYS }} days since the last failed conversion or unprocessed)
     </li>
     <li>Each session is associated with an <strong>expiration date</strong></li>
     <li>All data (files, logs, metadata) will be deleted after the expiration</li>
+    <li>
+      Once users approve the status (OK or Warning) and download the conversion results, The session
+      will become read-only, and users will no longer be able to re-upload files
+    </li>
   </ul>
   <p class="text-lg mb-4">
     Users are responsible for downloading and preserving their results before expiration.
   </p>
 
-  <div class="font-semibold text-xl mb-4">8. Processing and Validation Limitations</div>
+  <div class="font-semibold text-xl mb-4">9. Processing and Validation Limitations</div>
   <p class="text-lg mb-4">The Service provides automated processing tools that:</p>
   <ul class="leading-normal list-disc pl-8 text-lg mb-4">
     <li>Perform format conversion and basic validation</li>
@@ -133,7 +157,7 @@
     <li>Results must be independently reviewed before OneDep or BMRBDep deposition</li>
   </ul>
 
-  <div class="font-semibold text-xl mb-4">9. Use of Results and Deposition</div>
+  <div class="font-semibold text-xl mb-4">10. Use of Results and Deposition</div>
   <p class="text-lg mb-4">Users may use output from the Service for:</p>
   <ul class="leading-normal list-disc pl-8 text-lg mb-4">
     <li>Internal analysis</li>
@@ -145,14 +169,14 @@
     <li>Ensure compliance with repository-specific standards and policies</li>
   </ul>
 
-  <div class="font-semibold text-xl mb-4">10. Communication and Sharing</div>
+  <div class="font-semibold text-xl mb-4">11. Communication and Sharing</div>
   <p class="text-lg mb-4">The Service allows users to share session access via email.</p>
   <ul class="leading-normal list-disc pl-8 text-lg mb-4">
     <li>You have permission to contact recipients</li>
     <li>You understand that shared links grant access to session data</li>
   </ul>
 
-  <div class="font-semibold text-xl mb-4">11. Acceptable Use</div>
+  <div class="font-semibold text-xl mb-4">12. Acceptable Use</div>
   <p class="text-lg mb-4">Users agree not to:</p>
   <ul class="leading-normal list-disc pl-8 text-lg mb-4">
     <li>Upload malicious or harmful content</li>
@@ -160,14 +184,14 @@
     <li>Use the Service for non-scientific or inappropriate commercial purposes</li>
   </ul>
 
-  <div class="font-semibold text-xl mb-4">12. Availability and Service Level</div>
+  <div class="font-semibold text-xl mb-4">13. Availability and Service Level</div>
   <ul class="leading-normal list-disc pl-8 text-lg mb-4">
     <li>No guarantee of uptime or performance</li>
     <li>Processing times may vary depending on system load</li>
     <li>Features may change without prior notice</li>
   </ul>
 
-  <div class="font-semibold text-xl mb-4">13. Limitation of Liability</div>
+  <div class="font-semibold text-xl mb-4">14. Limitation of Liability</div>
   <ul class="leading-normal list-disc pl-8 text-lg mb-4">
     <li>The Service is provided <strong>“as is” without warranties</strong></li>
     <li>
@@ -181,7 +205,7 @@
     </li>
   </ul>
 
-  <div class="font-semibold text-xl mb-4">14. Alignment with Community Standards</div>
+  <div class="font-semibold text-xl mb-4">15. Alignment with Community Standards</div>
   <p class="text-lg mb-4">This Service is designed to align with:</p>
   <ul class="leading-normal list-disc pl-8 text-lg mb-4">
     <li>wwPDB data standards and practices</li>
@@ -191,13 +215,13 @@
     However, <strong>the Service is not an official deposition or validation system.</strong>
   </p>
 
-  <div class="font-semibold text-xl mb-4">15. Changes to Terms</div>
+  <div class="font-semibold text-xl mb-4">16. Changes to Terms</div>
   <p class="text-lg mb-4">
     These Terms may be updated periodically. Continued use of the Service constitutes acceptance of
     any revised Terms.
   </p>
 
-  <div class="font-semibold text-xl mb-4">16. Contact</div>
+  <div class="font-semibold text-xl mb-4">17. Contact</div>
   <p class="text-lg mb-4">For questions regarding these Terms or the Service, please contact:</p>
   <p class="text-lg mb-4">
     <a href="mailto:{{ SERVICE_HELP_EMAIL }}" class="text-primary font-bold">{{

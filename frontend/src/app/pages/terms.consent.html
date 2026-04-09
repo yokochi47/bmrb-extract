@@ -1,16 +1,10 @@
-<div class="card p-3 mt-3">
-  <div class="form-check">
-    <input
-      class="form-check-input"
-      type="checkbox"
-      id="agreeCheck"
-      [(ngModel)]="agreed"
-      (change)="onChange()"
-    />
-    <label class="form-check-label" for="agreeCheck">
-      I have read and agree to the
-      <a routerLink="/terms">Terms and Conditions</a> and
-      <a routerLink="/privacy">Privacy Policy</a>.
-    </label>
-  </div>
+<div class="font-semibold text-xl mb-4">
+  Learning Terms and Conditions and acceptance of Privacy Policy
+</div>
+<div class="flex items-center mb-4">
+  <p-checkbox id="agreeCheck" [(ngModel)]="agreed" [binary]="true" />
+  <label for="agreeCheck" class="text-xl pl-2"
+    >I have read and agree to the <a routerLink="/terms">Terms and Conditions</a> and
+    <a routerLink="/privacy">Privacy Policy</a></label
+  >
 </div>

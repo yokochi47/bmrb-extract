@@ -63,6 +63,11 @@ export class AppMenu implements OnInit {
         path: '',
         items: [
           {
+            label: 'Preface',
+            icon: 'pi pi-fw pi-bookmark',
+            routerLink: ['/preface'],
+          },
+          {
             label: 'Terms and conditions',
             icon: 'pi pi-fw pi-bookmark',
             routerLink: ['/terms'],

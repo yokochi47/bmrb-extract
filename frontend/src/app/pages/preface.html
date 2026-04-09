@@ -1,0 +1,89 @@
+<div class="card">
+  <div class="font-semibold text-2xl mb-4">Preface</div>
+
+  <p-divider type="solid" />
+
+  <p class="text-lg mb-4">
+    NMR experimental data used for structure determination typically include assigned chemical
+    shifts, restraints, and optionally spectral peak lists.
+    <a href="https://wwpdb.org" class="text-primary font-bold"
+      >the Worldwide Protein Data Bank (wwPDB)</a
+    >
+    requires the mandatory submission of assigned chemical shifts and restraints for PDB
+    depositions.
+  </p>
+  <p class="text-lg mb-4">
+    Assigned chemical shifts must be provided in the NMR-STAR V3 format, which serves as the primary
+    format for both the PDB Core Archive and the BMRB Core Archive. In contrast, restraints and
+    spectral peak lists have historically been accepted in their original software-native formats.
+    To accommodate this, the OneDep deposition system has been extended to support these native
+    formats and convert them into the standardized NMR-STAR V3 format.
+  </p>
+  <p class="text-lg mb-4">
+    Converting all NMR experimental data into a single, standardized format offers several
+    advantages:
+  </p>
+  <ol class="leading-normal list-disc pl-8 text-lg mb-4" type="1">
+    <li>
+      <strong>Data consistency</strong> – Annotators can review and correct data without needing to
+      understand software-specific formats
+    </li>
+    <li>
+      <strong>Validation</strong> – Standardized data enables validation tools to assess the
+      agreement between experimental restraints and the resulting structure model
+    </li>
+    <li>
+      <strong>Simplified distribution</strong> – A unified format allows database providers to
+      distribute NMR data in a single file
+    </li>
+    <li>
+      <strong>Reproducibility</strong> – Researchers can more easily test whether a structure model
+      can be reproduced using the provided data
+    </li>
+  </ol>
+
+  <p class="text-lg mb-4">
+    The NMR data processing package in the OneDep system currently supports 12 restraint file
+    formats and 11 spectral peak list file formats that are sufficient to cover all existing PDB
+    entries. Ideally, all software developers involved in NMR data analysis and structure
+    determination should adopt community-standard formats, such as NMR-STAR V3 or NMR Exchange
+    Format (NEF). However, due to the diversity and complexity of NMR data, the OneDep system and
+    PDB annotators still face significant challenges in handling and troubleshooting of non-standard
+    data files. In addition, OneDep release cycle is not only coupled with NMR specific bug fixes
+    that often leads depositors in trouble to wait of the next release of OneDep system, usually the
+    OneDep release will happen every month.
+  </p>
+
+  <p class="text-lg mb-4">
+    To streamline the deposition process and reduce the workload for PDB annotators, a standalone
+    NMR data conversion service is being planned. This service aims to improve the overall
+    experience for PDB (NMR structure containing biological macromolecules) and BMRB depositors (NMR
+    experimental data only), as well as for the annotators supporting both deposition systems.
+  </p>
+
+  <div class="font-semibold text-xl mb-4">References</div>
+  <ul class="leading-normal list-disc pl-8 text-lg mb-4">
+    <li>
+      <a href="https://doi.org/10.1007/s10858-018-0220-3" class="text-primary font-bold"
+        >NMR-STAR</a
+      >
+    </li>
+    <li><a href="https://doi.org/10.1038/nsmb.3041" class="text-primary font-bold">NEF</a></li>
+    <li>
+      <a href="https://doi.org/10.1016/j.str.2017.01.004" class="text-primary font-bold">OneDep</a>
+    </li>
+    <li>
+      <a href="https://doi.org/10.1093/nar/gkac1050" class="text-primary font-bold">BMRBdep</a>
+    </li>
+    <li>
+      <a href="https://doi.org/10.1016/j.str.2024.02.011" class="text-primary font-bold"
+        >OneDep NMR restraint validation</a
+      >
+    </li>
+    <li>
+      <a href="https://doi.org/10.1016/j.str.2013.07.021" class="text-primary font-bold"
+        >wwPDB NMR Validation Task Force</a
+      >
+    </li>
+  </ul>
+</div>
