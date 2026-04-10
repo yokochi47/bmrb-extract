@@ -1,3 +1,5 @@
+/* eslint-disable @angular-eslint/component-selector */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Component, OnInit, AfterViewInit, computed, inject, input, signal } from '@angular/core';
 import { NavigationEnd, Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
@@ -122,7 +124,7 @@ export class AppMenuitem implements OnInit, AfterViewInit {
 
   router = inject(Router);
 
-  item = input<unknown>(null);
+  item = input<any>(null);
 
   root = input<boolean>(false);
 

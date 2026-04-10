@@ -1,25 +1,27 @@
-<div class="font-semibold text-xl mb-4">
-  Learning Terms and Conditions and acceptance of Privacy Policy
-</div>
-<div class="flex items-center mb-4">
-  @if (locked) {
-    <p-checkbox
-      id="consentCheck"
-      [(ngModel)]="consentedTo"
-      [binary]="true"
-      (onChange)="onChange()"
-      [disabled]="true"
-    />
-  } @else {
-    <p-checkbox
-      id="consentCheck"
-      [(ngModel)]="consentedTo"
-      [binary]="true"
-      (onChange)="onChange()"
-    />
-  }
-  <label for="consentCheck" class="text-lg pl-2"
-    >I have read and consented to the <a routerLink="/terms">Terms and Conditions</a> and
-    <a routerLink="/privacy">Privacy Policy</a></label
-  >
+<div class="card">
+  <div class="font-semibold text-2xl mb-4">
+    Learning "Terms and Conditions" and content to "Privacy Policy" before uploading any files
+  </div>
+  <div class="flex items-center mb-4">
+    @if (locked) {
+      <p-checkbox
+        id="consentCheck"
+        [(ngModel)]="consentedTo"
+        [binary]="true"
+        (onChange)="onChange()"
+        [disabled]="true"
+      />
+    } @else {
+      <p-checkbox
+        id="consentCheck"
+        [(ngModel)]="consentedTo"
+        [binary]="true"
+        (onChange)="onChange()"
+      />
+    }
+    <label for="consentCheck" class="font-semibold text-xl italic pl-2"
+      >I have learned and consented to the <a routerLink="/terms">Terms and Conditions</a> and
+      <a routerLink="/privacy">Privacy Policy</a></label
+    >
+  </div>
 </div>
