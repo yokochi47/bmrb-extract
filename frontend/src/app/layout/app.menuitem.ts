@@ -122,7 +122,7 @@ export class AppMenuitem implements OnInit, AfterViewInit {
 
   router = inject(Router);
 
-  item = input<any>(null);
+  item = input<unknown>(null);
 
   root = input<boolean>(false);
 
