@@ -13,4 +13,8 @@ import { TermsConsent } from './terms.consent';
 export class Info {
   ONEDEP_URL = ONEDEP_URL;
   BMRBDEP_URL = BMRBDEP_URL;
+
+  subscribeCesentChanged(agreed: boolean) {
+    console.log('Agreed', agreed);
+  }
 }

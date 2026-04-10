@@ -7,6 +7,7 @@ import { CheckboxModule } from 'primeng/checkbox';
   selector: 'app-terms-consent',
   imports: [RouterLink, FormsModule, CheckboxModule],
   templateUrl: './terms.consent.html',
+  outputs: ['consentChanged'],
 })
 export class TermsConsent {
   agreed = false;

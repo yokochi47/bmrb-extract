@@ -70,7 +70,7 @@
     </li>
   </ul>
 
-  <app-terms-consent></app-terms-consent>
+  <app-terms-consent (consentChanged)="subscribeCesentChanged($event)"></app-terms-consent>
 
   <div class="font-semibold text-xl mb-4">Requirements for OneDep deposition</div>
   <ul class="leading-normal list-disc pl-8 text-lg mb-4">
@@ -78,7 +78,7 @@
     <p class="text-base italic">For combined single file deposition</p>
     <ul class="leading-normal list-disc pl-8 text-lg">
       <li>
-        Unified NMR data file (NMR-STAR or NEF) containing at least assigned chemical shifts and
+        Combined NMR data file (NMR-STAR or NEF) containing at least assigned chemical shifts and
         restraints
       </li>
     </ul>
@@ -99,19 +99,21 @@
   <ul class="leading-normal list-disc pl-8 text-lg mb-4">
     <li>Coordinate file (PDBx/mmCIF or legacy PDB format)</li>
     <li>
-      Master unified NMR data file (NMR-STAR or NEF) containing at least assigned chemical shifts
-      and restraints
+      Master combined NMR data file (NMR-STAR or NEF) containing assigned chemical shifts and
+      restraints.
     </li>
-    <li>Assigned chemical shift files (NMR-STAR, NEF, or other supported formats)</li>
+    <li>Assigned chemical shift files (NMR-STAR, NEF, or other supported formats).</li>
   </ul>
   <p class="text-lg mb-4">
-    Assigned chemical shifts of the master file will be replaced with those of the newly uploaded
-    files.
+    The chemical shifts in the master file will be replaced with those in the additionally uploaded
+    chemical shift file(s).
   </p>
 
   <div class="font-semibold text-xl mb-4">Requirements for BMRBdep deposition</div>
   <ul class="leading-normal list-disc pl-8 text-lg mb-4">
     <li>Assigned chemical shift files (NMR-STAR, NEF, or other supported formats)</li>
-    <li>Other NMR data files in NMR-STAR format except for restraints</li>
+    <li>
+      Other NMR data files in NMR-STAR format (e.g. relaxation, kinetic, thermodynamic parameters)
+    </li>
   </ul>
 </div>
