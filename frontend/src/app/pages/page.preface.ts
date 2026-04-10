@@ -4,6 +4,6 @@ import { DividerModule } from 'primeng/divider';
 @Component({
   selector: 'app-preface',
   imports: [DividerModule],
-  templateUrl: './preface.html',
+  templateUrl: './page.preface.html',
 })
 export class Preface {}

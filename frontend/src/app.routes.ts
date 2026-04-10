@@ -8,15 +8,15 @@ export const appRoutes: Routes = [
     component: AppLayout,
     children: [
       { path: '', redirectTo: 'info', pathMatch: 'full' },
-      { path: 'info', loadComponent: () => import('./app/pages/info').then((m) => m.Info) },
+      { path: 'info', loadComponent: () => import('./app/pages/page.info').then((m) => m.Info) },
       {
         path: 'preface',
-        loadComponent: () => import('./app/pages/preface').then((m) => m.Preface),
+        loadComponent: () => import('./app/pages/page.preface').then((m) => m.Preface),
       },
-      { path: 'terms', loadComponent: () => import('./app/pages/terms').then((m) => m.Terms) },
+      { path: 'terms', loadComponent: () => import('./app/pages/page.terms').then((m) => m.Terms) },
       {
         path: 'privacy',
-        loadComponent: () => import('./app/pages/privacy').then((m) => m.Privacy),
+        loadComponent: () => import('./app/pages/page.privacy').then((m) => m.Privacy),
       },
     ],
   },

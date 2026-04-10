@@ -8,13 +8,9 @@ import { TermsConsent } from './terms.consent';
 @Component({
   selector: 'app-info',
   imports: [CommonModule, RouterLink, TermsConsent],
-  templateUrl: './info.html',
+  templateUrl: './page.info.html',
 })
 export class Info {
   ONEDEP_URL = ONEDEP_URL;
   BMRBDEP_URL = BMRBDEP_URL;
-
-  subscribeCesentChanged(agreed: boolean) {
-    console.log('Agreed', agreed);
-  }
 }

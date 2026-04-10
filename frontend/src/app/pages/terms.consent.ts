@@ -1,20 +1,25 @@
-import { Component, EventEmitter, Output } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { CheckboxModule } from 'primeng/checkbox';
+
+import { PageService } from './page.service';
 
 @Component({
   selector: 'app-terms-consent',
   imports: [RouterLink, FormsModule, CheckboxModule],
   templateUrl: './terms.consent.html',
-  outputs: ['consentChanged'],
 })
 export class TermsConsent {
-  agreed = false;
+  pageService = inject(PageService);
 
-  @Output() consentChanged = new EventEmitter<boolean>();
+  state = this.pageService.pageState();
+
+  consentedTo = this.state.consentedTo;
+  locked = this.state.lockedSession || this.state.expiredSession || !this.state.firstUpload;
 
   onChange() {
-    this.consentChanged.emit(this.agreed);
+    this.state.consentedTo = this.consentedTo;
+    console.log('consentedTo', this.consentedTo);
   }
 }
