@@ -80,6 +80,7 @@ services:
       - internal
     volumes:
       - ./prefect/data:/root/.prefect
+      - ./prefect/flows:/flows
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://0.0.0.0:4200/api/health', timeout=1)"]
       interval: 30s
@@ -110,8 +111,6 @@ services:
         condition: service_started
     networks:
       - internal
-    volumes:
-      - ./prefect/flows:/flows
 
   nginx:
     build: ./nginx

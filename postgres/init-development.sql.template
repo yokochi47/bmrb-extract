@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS session (
     finished_at         TIMESTAMP,  -- timestamp when conversion processes finishes.
 
     approved            BOOLEAN DEFAULT FALSE,  -- timestamp when user acknowledges all warnings, allowing user to download the conversion results.
-    transfered          BOOLEAN DEFAULT FALSE,  -- timestamp when data exchange among production servers completes.
+    exchanged           BOOLEAN DEFAULT FALSE,  -- timestamp when data exchange among production servers completes.
     downloaded          BOOLEAN DEFAULT FALSE   -- timestamp when user downloads the conversion results.
 );
 
