@@ -13,11 +13,12 @@
     depositions.
   </p>
   <p class="text-lg mb-4">
-    Assigned chemical shifts must be provided in the NMR-STAR V3 format, which serves as the primary
-    format for both the PDB Core Archive and the BMRB Core Archive. In contrast, restraints and
-    spectral peak lists have historically been accepted in their original software-native formats.
-    To accommodate this, the OneDep deposition system has been extended to support these native
-    formats and convert them into the standardized NMR-STAR V3 format.
+    Assigned chemical shifts must be provided in NMR-STAR V3 format, the primary format for both the
+    PDB Core Archive and the BMRB Core Archive. Restraints and spectral peak lists, on the other
+    hand, have traditionally been accepted in their original software native formats. To realize the
+    FAIR principle with respect to structural data, metadata, and experimental data used for the NMR
+    structure determination, OneDep system has been extended to support these native formats and
+    convert them to the NMR-STAR V3 format.
   </p>
   <p class="text-lg mb-4">
     Converting all NMR experimental data into a single, standardized format offers several
@@ -26,7 +27,7 @@
   <ol class="leading-normal list-disc pl-8 text-lg mb-4" type="1">
     <li>
       <strong>Data consistency</strong> – Annotators can review and correct data without needing to
-      understand software-specific formats
+      understand software native formats and specific custom
     </li>
     <li>
       <strong>Validation</strong> – Standardized data enables validation tools to assess the
@@ -37,8 +38,8 @@
       distribute NMR data in a single file
     </li>
     <li>
-      <strong>Reproducibility</strong> – Researchers can more easily test whether a structure model
-      can be reproduced using the provided data
+      <strong>Interoperability</strong> – Researchers can more easily test whether a structure model
+      can be reproduced using the standardized data
     </li>
   </ol>
 
