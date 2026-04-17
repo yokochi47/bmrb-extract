@@ -1,4 +1,6 @@
-import { Injectable, effect, signal } from '@angular/core';
+import { Injectable, effect, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
+// import { HttpClient } from '@angular/common/http';
 
 export enum TargetDepSys {
   ONEDEP,
@@ -7,6 +9,7 @@ export enum TargetDepSys {
 }
 
 export interface PageState {
+  firstConsent: boolean;
   consentedTo: boolean;
   targetDepSys: TargetDepSys;
   referEntryId: string | null;
@@ -24,6 +27,7 @@ export interface PageState {
 })
 export class PageService {
   pageState = signal<PageState>({
+    firstConsent: true,
     consentedTo: false,
     targetDepSys: TargetDepSys.ONEDEP,
     referEntryId: null,
@@ -37,14 +41,28 @@ export class PageService {
   });
 
   private initialized = false;
+  // private apiUrl = 'http://127.0.0.1:8000/api/';  // Flask API
+
+  private router = inject(Router);
+  // constructor(private http: HttpClient) {}
 
   constructor() {
     effect(() => {
       const state = this.pageState();
 
+      console.log('current url: ', this.router.url);
+
       if (!this.initialized || !state) {
         this.initialized = true;
         return;
+      }
+
+      if (state.firstConsent && state.consentedTo) {
+        console.log('First consent');
+        this.pageState.update((prev) => ({
+          ...prev,
+          firstConsent: false,
+        }));
       }
     });
   }

@@ -19,7 +19,10 @@ export class TermsConsent {
   locked = this.state.lockedSession || this.state.expiredSession || !this.state.firstUpload;
 
   onChange() {
-    this.state.consentedTo = this.consentedTo;
+    this.pageService.pageState.update((prev) => ({
+      ...prev,
+      consentedTo: this.consentedTo,
+    }));
     console.log('consentedTo', this.consentedTo);
   }
 }
