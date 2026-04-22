@@ -1,10 +1,10 @@
 #!/bin/bash
 
-if [[ ! -e .env ]]; then
+if [[ ! -e .env ]] ; then
 
 	./config.sh
 
-	if [[ ! -e .env ]]; then
+	if [[ ! -e .env ]] ; then
 		echo "Error: Mssing .env file."
 		exit 1
 	fi

@@ -9,3 +9,7 @@ def index():
 @app.route("/health")
 def health():
     return {"status": "ok"}
+
+@app.route("/new_token")
+def new_token():
+    return {"status": "failed"}

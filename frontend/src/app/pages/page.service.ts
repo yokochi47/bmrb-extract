@@ -1,6 +1,8 @@
 import { Injectable, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-// import { HttpClient } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
+
+import { FLASK_API_URL } from '../../site.config';
 
 export enum TargetDepSys {
   ONEDEP,
@@ -41,29 +43,32 @@ export class PageService {
   });
 
   private initialized = false;
-  // private apiUrl = 'http://127.0.0.1:8000/api/';  // Flask API
-
   private router = inject(Router);
-  // constructor(private http: HttpClient) {}
+  private http = inject(HttpClient);
 
   constructor() {
     effect(() => {
       const state = this.pageState();
-
-      console.log('current url: ', this.router.url);
 
       if (!this.initialized || !state) {
         this.initialized = true;
         return;
       }
 
-      if (state.firstConsent && state.consentedTo) {
-        console.log('First consent');
+      if (state.firstConsent && state.consentedTo && this.router.url == '/info') {
         this.pageState.update((prev) => ({
           ...prev,
           firstConsent: false,
         }));
+
+        this.newToken();
       }
     });
+  }
+
+  private newToken() {
+    console.log('Send request for new token');
+
+    this.http.get(FLASK_API_URL + 'new_token');
   }
 }

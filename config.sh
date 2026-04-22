@@ -61,7 +61,7 @@ if [[ -z "${SERVICE_ADMIN_EMAIL}" ]] ; then
 
 	read ans
 
-	if [[ "${ans}" =~ $email_regex ]]; then
+	if [[ "${ans}" =~ $email_regex ]] ; then
 		echo "Error: ${ans} is not valid."
 		exit 1
 	fi
@@ -118,7 +118,7 @@ if [[ -z "${MAXIT_CCD_SELF_RUNNER_TOKEN}" ]] ; then
 
 	read ans
 
-	if [[ "${ans}" =~ $token_regex ]]; then
+	if [[ "${ans}" =~ $token_regex ]] ; then
 		echo "Error: ${ans} is not valid."
 		exit 1
 	fi
@@ -133,7 +133,7 @@ if [[ -z "${UTILS_NMR_SELF_RUNNER_TOKEN}" ]] ; then
 
 	read ans
 
-	if [[ "${ans}" =~ $token_regex ]]; then
+	if [[ "${ans}" =~ $token_regex ]] ; then
 		echo "Error: ${ans} is not valid."
 		exit 1
 	fi
@@ -160,8 +160,9 @@ SERVICE_HELP_EMAIL=${SERVICE_HELP_EMAIL}
 # Nginx
 NGINX_LOG_FORMAT=${NGINX_LOG_FORMAT}
 
-# Frontend (Flask)
+# Backend (Flask)
 FLASK_ENV=${SERVICE_LEVEL}
+FLASK_API_URL=http://127.0.0.1:8000/api/
 
 # PostgreSQL
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -178,7 +179,9 @@ echo Generated .env file.
 
 source .env
 
-( cd nginx; rm -f nginx.conf.template; ln -s nginx-${SERVICE_LEVEL}.conf.template nginx.conf.template )
+( cd nginx
+  rm -f nginx.conf.template
+  ln -s nginx-${SERVICE_LEVEL}.conf.template nginx.conf.template )
 sed -e 's/${SERVICE_HOST}/'"${SERVICE_HOST}"'/' < nginx/nginx.conf.template | \
 sed -e 's/${NGINX_LOG_FORMAT}/'"${NGINX_LOG_FORMAT}"'/' > nginx/nginx.conf
 
@@ -192,7 +195,12 @@ echo Generated nginx/ssl.conf file.
 # Write init.sql
 #
 
-( cd postgres; rm -f init.sql.template; ln -s init-${SERVICE_LEVEL}.sql.template init.sql.template )
+( cd postgres
+  rm -f init.sql.template
+  cat setup-${SERVICE_LEVEL}.sql.template > init-${SERVICE_LEVEL}.sql.template
+  cat init-service.sql.template >> init-${SERVICE_LEVEL}.sql.template
+  cat init-prefect.sql.template >> init-${SERVICE_LEVEL}.sql.template
+  ln -s init-${SERVICE_LEVEL}.sql.template init.sql.template )
 sed -e 's/${POSTGRES_USER}/'"${POSTGRES_USER}"'/' postgres/init.sql.template | \
 sed -e 's/${POSTGRES_PASSWORD}/'"${POSTGRES_PASSWORD}"'/' | \
 sed -e 's/${POSTGRES_SERVICE_DB}/'"${POSTGRES_SERVICE_DB}"'/g' | \
@@ -218,17 +226,21 @@ if [[ ${SERVICE_DOMAIN} = "bmrb.io" ]] ; then
 	  ln -s index.bmrb.html index.html
 	  sed -e 's/${SERVICE_HELP_EMAIL}/'"${SERVICE_HELP_EMAIL}"'/g' bmrb.config.ts.template | \
 	  sed -e 's/${SUCCESS_VALIDITY_PERIOD_IN_DAYS}/'"${SUCCESS_VALIDITY_PERIOD_IN_DAYS}"'/g' | \
-	  sed -e 's/${FAILURE_VALIDITY_PERIOD_IN_DAYS}/'"${FAILURE_VALIDITY_PERIOD_IN_DAYS}"'/g' > bmrb.config.ts
+	  sed -e 's/${FAILURE_VALIDITY_PERIOD_IN_DAYS}/'"${FAILURE_VALIDITY_PERIOD_IN_DAYS}"'/g' | \
+          sed -e 's/${FLASK_API_URL}/'\'`echo ${FLASK_API_URL} | sed -e 's/\//\\\\\//g'`\''/g' > bmrb.config.ts
 	  ln -s bmrb.config.ts site.config.ts )
 
 else
+
+ echo sed -e 's/${FLASK_API_URL}/'"${FLASK_API_URL}"'/g'
 
 	( cd frontend/src
 	  rm -f index.html site.config.ts
 	  ln -s index.bmrbj.html index.html
 	  sed -e 's/${SERVICE_HELP_EMAIL}/'"${SERVICE_HELP_EMAIL}"'/g' bmrbj.config.ts.template | \
 	  sed -e 's/${SUCCESS_VALIDITY_PERIOD_IN_DAYS}/'"${SUCCESS_VALIDITY_PERIOD_IN_DAYS}"'/g' | \
-	  sed -e 's/${FAILURE_VALIDITY_PERIOD_IN_DAYS}/'"${FAILURE_VALIDITY_PERIOD_IN_DAYS}"'/g' > bmrbj.config.ts
+	  sed -e 's/${FAILURE_VALIDITY_PERIOD_IN_DAYS}/'"${FAILURE_VALIDITY_PERIOD_IN_DAYS}"'/g' | \
+          sed -e 's/${FLASK_API_URL}/'\'`echo ${FLASK_API_URL} | sed -e 's/\//\\\\\//g'`\''/g' > bmrbj.config.ts
 	  ln -s bmrbj.config.ts site.config.ts )
 
 fi
