@@ -1,5 +1,5 @@
 # This code is generated from postgres/init-service.sql.template
-# and omymodels Online (https://archon-omymodels-online.hf.spacesqlalchemy)
+# by omymodels Online (https://archon-omymodels-online.hf.space)
 import sqlalchemy as sa
 from sqlalchemy.ext.declarative import declarative_base
 from enum import Enum

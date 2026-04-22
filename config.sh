@@ -3,7 +3,7 @@
 source .env.template
 
 if [ -e .env ] ; then
-	source .env
+  source .env
 fi
 
 echo "Choose service level: [ production or development ]"
@@ -11,101 +11,109 @@ echo "Choose service level: [ production or development ]"
 read ans
 
 case "${ans}" in
-	p*)
-		SERVICE_LEVEL=production
-		;;
-	d*)
-		SERVICE_LEVEL=development
-		;;
-	*)
-		echo "Error: ${ans} is not defined."
-		exit 1
-		;;
+  p*)
+    SERVICE_LEVEL=production
+    ;;
+  d*)
+    SERVICE_LEVEL=development
+    ;;
+  *)
+    echo "Error: ${ans} is not defined."
+    exit 1
+    ;;
 
 esac
 
 if [[ -z "${SERVICE_DOMAIN}" ]] ; then
 
-	echo "Choose service domain: [ bmrb.io or pdbj.org ]"
+  echo "Choose service domain: [ bmrb.io or pdbj.org ]"
 
-	read ans
+  read ans
 
-	case "${ans}" in
-		b*)
-			SERVICE_DOMAIN=bmrb.io
-			SERVICE_HELP_EMAIL=help@bmrb.io
-			TZ=US/Eastern
-			;;
-		p*)
-			SERVICE_DOMAIN=pdbj.org
-			SERVICE_HELP_EMAIL=bmrbhelp@protein.osaka-u.ac.jp
-			TZ=Asia/Tokyo
-			;;
-		*)
-			echo "Error: ${ans} is not defined."
-			exit 1
-			;;
-	esac
+  case "${ans}" in
+    b*)
+      SERVICE_DOMAIN=bmrb.io
+      SERVICE_HELP_EMAIL=help@bmrb.io
+      CONV_ID_REGEX=C_1\\d{6}
+      TZ=US/Eastern
+      ;;
+    p*)
+      SERVICE_DOMAIN=pdbj.org
+      SERVICE_HELP_EMAIL=bmrbhelp@protein.osaka-u.ac.jp
+      CONV_ID_REGEX=C_2\\d{6}
+      TZ=Asia/Tokyo
+      ;;
+    *)
+      echo "Error: ${ans} is not defined."
+      exit 1
+      ;;
+  esac
 
 elif [[ "${SERVICE_DOMAIN}" = "bmrb.io" ]] ; then
-	TZ=US/Eastern
+  CONV_ID_REGEX=C_1\\d{6}
+  TZ=US/Eastern
 elif [[ "${SERVICE_DOMAIN}" = "pdbj.org" ]] ; then
-	TZ=Asia/Tokyo
+  CONV_ID_REGEX=C_2\\d{6}
+  TZ=Asia/Tokyo
+fi
+
+if [[ "${SERVICE_LEVEL}" = "development" ]] ; then
+  CONV_ID_REGEX=C_8\\d{6}
 fi
 
 email_regex='^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\n$'
 
 if [[ -z "${SERVICE_ADMIN_EMAIL}" ]] ; then
 
-	echo "Enter administrator e-mail address:"
+  echo "Enter administrator e-mail address:"
 
-	read ans
+  read ans
 
-	if [[ "${ans}" =~ $email_regex ]] ; then
-		echo "Error: ${ans} is not valid."
-		exit 1
-	fi
+  if [[ "${ans}" =~ $email_regex ]] ; then
+    echo "Error: ${ans} is not valid."
+    exit 1
+  fi
 
-	SERVICE_ADMIN_EMAIL=$ans
+  SERVICE_ADMIN_EMAIL=$ans
 
 fi
 
 if [[ -z "${NGINX_LOG_FORMAT}" ]] ; then
 
-	echo "Choose nginx log format: [ default or json ]"
+  echo "Choose nginx log format: [ default or json ]"
 
-	read ans
+  read ans
 
-	case "${ans}" in
-		j*)
-			NGINX_LOG_FORMAT=json
-			;;
-		*)
-			NGINX_LOG_FORMAT=default
-			;;
-	esac
+  case "${ans}" in
+    j*)
+      NGINX_LOG_FORMAT=json
+      ;;
+    *)
+      NGINX_LOG_FORMAT=default
+      ;;
+  esac
 
 fi
 
 if [[ -z "${POSTGRES_PASSWORD}" ]] ; then
 
-	echo "Enter password for PostgreSQL user (${POSTGRES_USER})"
+  echo "Enter password for PostgreSQL user (${POSTGRES_USER})"
 
-	read ans
+  read ans
 
-	case "${ans}" in
-		*[[:space:]]*)
-			echo "Error: ${ans} contains whitespace characters."
-			exit 1
-			;;
-		*[\t]*)
-			echo "Error: ${ans} contains a tab character."
-			exit 1
-			;;
-		*)
-			POSTGRES_PASSWORD=$ans
-			;;
-	esac
+  case "${ans}" in
+    *[[:space:]]*)
+      echo "Error: ${ans} contains whitespace characters."
+      exit 1
+      ;;
+    *[\t]*)
+      echo "Error: ${ans} contains a tab character."
+      exit 1
+      ;;
+    *)
+      POSTGRES_PASSWORD=$ans
+      ;;
+  esac
 
 fi
 
@@ -114,31 +122,31 @@ token_regex='^[0-9A-Z]{29}\n$'
 if [[ -z "${MAXIT_CCD_SELF_RUNNER_TOKEN}" ]] ; then
 
 
-	echo "Enter GitHub Action Runner token of ${MAXIT_CCD_REPO} repositor: [29 charactors string]"
+  echo "Enter GitHub Action Runner token of ${MAXIT_CCD_REPO} repositor: [29 charactors string]"
 
-	read ans
+  read ans
 
-	if [[ "${ans}" =~ $token_regex ]] ; then
-		echo "Error: ${ans} is not valid."
-		exit 1
-	fi
+  if [[ "${ans}" =~ $token_regex ]] ; then
+    echo "Error: ${ans} is not valid."
+    exit 1
+  fi
 
-	MAXIT_CCD_SELF_RUNNER_TOKEN=$ans
+  MAXIT_CCD_SELF_RUNNER_TOKEN=$ans
 
 fi
 
 if [[ -z "${UTILS_NMR_SELF_RUNNER_TOKEN}" ]] ; then
 
-	echo "Enter GitHub Action Runner token of ${UTILS_NMR_REPO} repositor: [29 charactors string]"
+  echo "Enter GitHub Action Runner token of ${UTILS_NMR_REPO} repositor: [29 charactors string]"
 
-	read ans
+  read ans
 
-	if [[ "${ans}" =~ $token_regex ]] ; then
-		echo "Error: ${ans} is not valid."
-		exit 1
-	fi
+  if [[ "${ans}" =~ $token_regex ]] ; then
+    echo "Error: ${ans} is not valid."
+    exit 1
+  fi
 
-	UTILS_NMR_SELF_RUNNER_TOKEN=$ans
+  UTILS_NMR_SELF_RUNNER_TOKEN=$ans
 
 fi
 
@@ -148,6 +156,7 @@ cat << EOF >> .env
 ##
 ## Configure bellow lines
 ##
+CONV_ID_REGEX=${CONV_ID_REGEX}
 TZ=${TZ}
 
 # Standalone NMR data conversion service
@@ -175,7 +184,21 @@ UTILS_NMR_SELF_RUNNER_TOKEN=${UTILS_NMR_SELF_RUNNER_TOKEN}
 
 EOF
 
-echo Generated .env file.
+check_file () {
+
+  if [[ ! -e ${1} ]] || [[ -z ${1} ]] ; then
+    echo Failed to generate ${1} file.
+  fi
+
+  echo Generated ${1} file.
+}
+
+if [[ -z .env ]] ; then
+  echo Failed to generate .env file.
+  exit 1
+fi
+
+check_file .env
 
 source .env
 
@@ -185,11 +208,11 @@ source .env
 sed -e 's/${SERVICE_HOST}/'"${SERVICE_HOST}"'/' < nginx/nginx.conf.template | \
 sed -e 's/${NGINX_LOG_FORMAT}/'"${NGINX_LOG_FORMAT}"'/' > nginx/nginx.conf
 
-echo Generated nginx/nginx.conf file.
+check_file nginx/nginx.conf
 
 sed -e 's/${SERVICE_HOST}/'"${SERVICE_HOST}"'/' < nginx/ssl.conf.template > nginx/ssl.conf
 
-echo Generated nginx/ssl.conf file.
+check_file nginx/ssl.conf
 
 #
 # Write init.sql
@@ -206,7 +229,7 @@ sed -e 's/${POSTGRES_PASSWORD}/'"${POSTGRES_PASSWORD}"'/' | \
 sed -e 's/${POSTGRES_SERVICE_DB}/'"${POSTGRES_SERVICE_DB}"'/g' | \
 sed -e 's/${POSTGRES_PREFECT_DB}/'"${POSTGRES_PREFECT_DB}"'/g' > postgres/init.sql
 
-echo Generated postgres/init.sql file.
+check_file postgres/init.sql
 
 #
 # Write certbot.sh
@@ -214,35 +237,39 @@ echo Generated postgres/init.sql file.
 sed -e 's/${SERVICE_HOST}/'"${SERVICE_HOST}"'/' certbot/certbot.sh.template | \
 sed -e 's/${SERVICE_ADMIN_EMAIL}/'"${SERVICE_ADMIN_EMAIL}"'/g' > certbot/certbot.sh
 
-echo Generated certbot/certbot.sh file.
+check_file certbot/certbot.sh
 
 #
 # Frontend
 #
+FLASK_API_URL_ESC="$(echo ${FLASK_API_URL} | sed -e 's/\//\\\//g')"
+
 if [[ ${SERVICE_DOMAIN} = "bmrb.io" ]] ; then
 
-	( cd frontend/src
-	  rm -f index.html site.config.ts
-	  ln -s index.bmrb.html index.html
-	  sed -e 's/${SERVICE_HELP_EMAIL}/'"${SERVICE_HELP_EMAIL}"'/g' bmrb.config.ts.template | \
-	  sed -e 's/${SUCCESS_VALIDITY_PERIOD_IN_DAYS}/'"${SUCCESS_VALIDITY_PERIOD_IN_DAYS}"'/g' | \
-	  sed -e 's/${FAILURE_VALIDITY_PERIOD_IN_DAYS}/'"${FAILURE_VALIDITY_PERIOD_IN_DAYS}"'/g' | \
-          sed -e 's/${FLASK_API_URL}/'\'`echo ${FLASK_API_URL} | sed -e 's/\//\\\\\//g'`\''/g' > bmrb.config.ts
-	  ln -s bmrb.config.ts site.config.ts )
+  ( cd frontend/src
+    rm -f index.html site.config.ts
+    ln -s index.bmrb.html index.html
+    sed -e 's/${SERVICE_HELP_EMAIL}/'"${SERVICE_HELP_EMAIL}"'/g' bmrb.config.ts.template | \
+    sed -e 's/${SUCCESS_VALIDITY_PERIOD_IN_DAYS}/'"${SUCCESS_VALIDITY_PERIOD_IN_DAYS}"'/g' | \
+    sed -e 's/${FAILURE_VALIDITY_PERIOD_IN_DAYS}/'"${FAILURE_VALIDITY_PERIOD_IN_DAYS}"'/g' | \
+    sed -e 's/${FLASK_API_URL}/'\'"${FLASK_API_URL_ESC}"\''/g' > bmrb.config.ts
+    ln -s bmrb.config.ts site.config.ts )
 
 else
 
  echo sed -e 's/${FLASK_API_URL}/'"${FLASK_API_URL}"'/g'
 
-	( cd frontend/src
-	  rm -f index.html site.config.ts
-	  ln -s index.bmrbj.html index.html
-	  sed -e 's/${SERVICE_HELP_EMAIL}/'"${SERVICE_HELP_EMAIL}"'/g' bmrbj.config.ts.template | \
-	  sed -e 's/${SUCCESS_VALIDITY_PERIOD_IN_DAYS}/'"${SUCCESS_VALIDITY_PERIOD_IN_DAYS}"'/g' | \
-	  sed -e 's/${FAILURE_VALIDITY_PERIOD_IN_DAYS}/'"${FAILURE_VALIDITY_PERIOD_IN_DAYS}"'/g' | \
-          sed -e 's/${FLASK_API_URL}/'\'`echo ${FLASK_API_URL} | sed -e 's/\//\\\\\//g'`\''/g' > bmrbj.config.ts
-	  ln -s bmrbj.config.ts site.config.ts )
+  ( cd frontend/src
+    rm -f index.html site.config.ts
+    ln -s index.bmrbj.html index.html
+    sed -e 's/${SERVICE_HELP_EMAIL}/'"${SERVICE_HELP_EMAIL}"'/g' bmrbj.config.ts.template | \
+    sed -e 's/${SUCCESS_VALIDITY_PERIOD_IN_DAYS}/'"${SUCCESS_VALIDITY_PERIOD_IN_DAYS}"'/g' | \
+    sed -e 's/${FAILURE_VALIDITY_PERIOD_IN_DAYS}/'"${FAILURE_VALIDITY_PERIOD_IN_DAYS}"'/g' | \
+    sed -e 's/${FLASK_API_URL}/'\'"${FLASK_API_URL_ESC}"\''/g' > bmrbj.config.ts
+    ln -s bmrbj.config.ts site.config.ts )
 
 fi
 
-echo Genearted frontend/src/index.html and frontend/src/site.config.ts files.
+check_file frontend/src/index.html
+check_file frontend/src/site.config.ts
+
