@@ -210,6 +210,9 @@ echo
 
 docker volume ls
 
+# nginx depends on frontend
+COMPOSE_BAKE=true docker compose build frontend
+
 COMPOSE_BAKE=true docker compose build --build-arg OPENSSL_VERSION=${OPENSSL_VERSION} --build-arg NGINX_VERSION=${NGINX_VERSION} --build-arg CACHEBUST=$(date +%s) # --no-cache
 
 # Performance tuning
