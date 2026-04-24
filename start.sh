@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -eu
+
 # After running nginx, frontend is no longer needed.
 ( sleep 120 ; docker compose down frontend ) &
 

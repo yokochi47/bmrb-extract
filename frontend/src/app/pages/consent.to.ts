@@ -6,11 +6,11 @@ import { CheckboxModule } from 'primeng/checkbox';
 import { PageService } from './page.service';
 
 @Component({
-  selector: 'app-terms-consent',
+  selector: 'app-consent-to',
   imports: [RouterLink, FormsModule, CheckboxModule],
-  templateUrl: './terms.consent.html',
+  templateUrl: './consent.to.html',
 })
-export class TermsConsent {
+export class ConsentTo {
   pageService = inject(PageService);
 
   state = this.pageService.pageState();

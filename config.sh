@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -eu
+
 source .env.template
 
 if [ -e .env ] ; then
@@ -155,12 +157,20 @@ if [[ -z "${UTILS_NMR_SELF_RUNNER_TOKEN}" ]] ; then
 
 fi
 
+if [[ -z "${SECRET_KEY}" ]] ; then
+
+  SECRET_KEY=$(python3 -c "import uuid; print(uuid.uuid4())")
+
+fi
+
 grep -v '=\s' .env.template | grep -v SERVICE_HOST > .env
 
 cat << EOF >> .env
 ##
 ## Configure bellow lines
 ##
+export SECRET_KEY=${SECRET_KEY}
+export SMTP_SERVER=${SMTP_SERVER}
 export CONV_ID_RANGE_BEGIN=${CONV_ID_RANGE_BEGIN}
 export CONV_ID_RANGE_END=${CONV_ID_RANGE_END}
 export TZ=${TZ}
@@ -181,7 +191,7 @@ export FLASK_API_URL=http://backend:8000/api/
 
 # PostgreSQL
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-export SERVICE_DATABASE_CONNECTION_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:5432/${POSTGRES_SERVICE_DB}
+export SERVICE_DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:5432/${POSTGRES_SERVICE_DB}
 PREFECT_API_DATABASE_CONNECTION_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:5432/${POSTGRES_PREFECT_DB}
 
 # GitHub Container Repository

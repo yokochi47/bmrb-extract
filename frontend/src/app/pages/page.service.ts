@@ -61,14 +61,14 @@ export class PageService {
           firstConsent: false,
         }));
 
-        this.newToken();
+        this.newConsent();
       }
     });
   }
 
-  private newToken() {
-    console.log('Send request for new token');
+  private newConsent() {
+    console.log('Send request for new session');
 
-    this.http.get(FLASK_API_URL + 'new_token');
+    this.http.get(FLASK_API_URL + 'new_consent');
   }
 }

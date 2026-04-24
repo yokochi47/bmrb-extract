@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -eu
+
 if [[ ! -e .env ]] ; then
 
   ./config.sh

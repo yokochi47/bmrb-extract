@@ -1,6 +1,5 @@
 # This code is generated from postgres/init-service.sql.template
 # by omymodels Online (https://archon-omymodels-online.hf.space)
-
 import sqlalchemy as sa
 from sqlalchemy.ext.declarative import declarative_base
 from enum import Enum
@@ -122,14 +121,13 @@ class Session(Base):
     token = sa.Column(UUID, server_default='uuidv7()', primary_key=True)
     token_admin = sa.Column(UUID, server_default='gen_random_uuid()')
     token_expiry = sa.Column(sa.TIMESTAMP(), nullable=False)
-    terms_consent = sa.Column(sa.Boolean(), nullable=False, server_default='FALSE')
-    terms_consent_time = sa.Column(sa.TIMESTAMP())
+    consented = sa.Column(sa.Boolean(), nullable=False, server_default='FALSE')
     client_ip = sa.Column(inet())
     user_agent = sa.Column(sa.Text())
     status = sa.Column(sa.Enum(SessionStatusCode), nullable=False, server_default='created')
     conversion_id = sa.Column(sa.Integer(), unique=True)
     created_at = sa.Column(sa.TIMESTAMP(), server_default=func.now())
-    started_at = sa.Column(sa.TIMESTAMP())
+    timestamp = sa.Column(when user approve terms())
     finished_at = sa.Column(sa.TIMESTAMP())
     approved = sa.Column(sa.Boolean(), server_default='FALSE')
     exchanged = sa.Column(sa.Boolean(), server_default='FALSE')

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -eu
+
 if [[ ! -e .env ]] ; then
   echo "Error: Run config.sh at first."
   exit 1

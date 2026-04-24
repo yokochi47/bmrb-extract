@@ -10,8 +10,7 @@ CREATE TABLE IF NOT EXISTS session (
     token_admin         UUID DEFAULT gen_random_uuid(),     -- token used by administrators to respond to inquiries on 'Communicationi' page
     token_expiry        TIMESTAMP NOT NULL,                 -- time of expiry of the session
 
-    terms_consent       BOOLEAN NOT NULL DEFAULT FALSE,     -- whether user approved terms and conditions
-    terms_consent_time  TIMESTAMP,                          -- timestamp when user approve terms and conditions
+    consented           BOOLEAN NOT NULL DEFAULT FALSE,     -- whether user consented to our policies; 'Terms and Conditions' and 'Privacy Policy'
 
     client_ip           INET,
     user_agent          TEXT,
@@ -25,7 +24,7 @@ CREATE TABLE IF NOT EXISTS session (
     -- Anonymous development server                   : C_8xxxxxx
     conversion_id       INT CHECK ( conversion_id >= 1000000 and conversion_id < 9000000 ) UNIQUE,
 
-    created_at          TIMESTAMP DEFAULT now(),
+    created_at          TIMESTAMP DEFAULT now(), timestamp when user approve terms and conditions
     started_at          TIMESTAMP,  -- timestamp when conversion processes starts. ('Process selected files' button on 'File upload' page)
     finished_at         TIMESTAMP,  -- timestamp when conversion processes finishes.
 
