@@ -34,13 +34,15 @@ if [[ -z "${SERVICE_DOMAIN}" ]] ; then
     b*)
       SERVICE_DOMAIN=bmrb.io
       SERVICE_HELP_EMAIL=help@bmrb.io
-      CONV_ID_REGEX=C_1\\d{6}
+      CONV_ID_RANGE_BEGIN=1000001
+      CONV_ID_RANGE_END=2000000
       TZ=US/Eastern
       ;;
     p*)
       SERVICE_DOMAIN=pdbj.org
       SERVICE_HELP_EMAIL=bmrbhelp@protein.osaka-u.ac.jp
-      CONV_ID_REGEX=C_2\\d{6}
+      CONV_ID_RANGE_BEGIN=2000001
+      CONV_ID_RANGE_END=3000000
       TZ=Asia/Tokyo
       ;;
     *)
@@ -50,15 +52,18 @@ if [[ -z "${SERVICE_DOMAIN}" ]] ; then
   esac
 
 elif [[ "${SERVICE_DOMAIN}" = "bmrb.io" ]] ; then
-  CONV_ID_REGEX=C_1\\d{6}
+  CONV_ID_RANGE_BEGIN=1000001
+  CONV_ID_RANGE_END=2000000
   TZ=US/Eastern
 elif [[ "${SERVICE_DOMAIN}" = "pdbj.org" ]] ; then
-  CONV_ID_REGEX=C_2\\d{6}
+  CONV_ID_RANGE_BEGIN=2000001
+  CONV_ID_RANGE_END=3000000
   TZ=Asia/Tokyo
 fi
 
 if [[ "${SERVICE_LEVEL}" = "development" ]] ; then
-  CONV_ID_REGEX=C_8\\d{6}
+  CONV_ID_RANGE_BEGIN=8000001
+  CONV_ID_RANGE_END=9000000
 fi
 
 email_regex='^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\n$'
@@ -156,7 +161,8 @@ cat << EOF >> .env
 ##
 ## Configure bellow lines
 ##
-CONV_ID_REGEX=${CONV_ID_REGEX}
+CONV_ID_RANGE_BEGIN=${CONV_ID_RANGE_BEGIN}
+CONV_ID_RANGE_END=${CONV_ID_RANGE_END}
 TZ=${TZ}
 
 # Standalone NMR data conversion service
@@ -175,7 +181,7 @@ FLASK_API_URL=http://backend:8000/api/
 
 # PostgreSQL
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-DATABSE_URL=postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:5432/${POSTGRES_SERVICE_DB}
+SERVICE_DATABASE_CONNECTION_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:5432/${POSTGRES_SERVICE_DB}
 PREFECT_API_DATABASE_CONNECTION_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:5432/${POSTGRES_PREFECT_DB}
 
 # GitHub Container Repository
@@ -188,15 +194,12 @@ check_file () {
 
   if [[ ! -e ${1} ]] || [[ -z ${1} ]] ; then
     echo Failed to generate ${1} file.
+    exit 1
   fi
 
   echo Generated ${1} file.
-}
 
-if [[ -z .env ]] ; then
-  echo Failed to generate .env file.
-  exit 1
-fi
+}
 
 check_file .env
 
@@ -242,7 +245,7 @@ check_file certbot/certbot.sh
 #
 # Frontend
 #
-FLASK_API_URL_ESC="$(echo ${FLASK_API_URL} | sed -e 's/\//\\\//g')"
+FLASK_API_URL_ESC=$(echo ${FLASK_API_URL} | sed -e 's/\//\\\//g')
 
 if [[ ${SERVICE_DOMAIN} = "bmrb.io" ]] ; then
 
@@ -257,8 +260,6 @@ if [[ ${SERVICE_DOMAIN} = "bmrb.io" ]] ; then
 
 else
 
- echo sed -e 's/${FLASK_API_URL}/'"${FLASK_API_URL}"'/g'
-
   ( cd frontend/src
     rm -f index.html site.config.ts
     ln -s index.bmrbj.html index.html
@@ -272,4 +273,25 @@ fi
 
 check_file frontend/src/index.html
 check_file frontend/src/site.config.ts
+
+#
+# Backend
+#
+SERVICE_DATABASE_CONNECTION_URL_ESC=$(echo ${SERVICE_DATABASE_CONNECTION_URL} | sed -e 's/\//\\\//g')
+
+( cd backend/app/core
+  rm -f site_config.py
+  sed -e 's/${SERVICE_LEVEL}/'"${SERVICE_LEVEL}"'/g' site_config.py.template | \
+  sed -e 's/${SERVICE_DOMAIN}/'"${SERVICE_DOMAIN}"'/g' | \
+  sed -e 's/${SERVICE_HOST}/'"${SERVICE_HOST}"'/g' | \
+  sed -e 's/${SERVICE_ADMIN_EMAIL}/'"${SERVICE_ADMIN_EMAIL}"'/g' | \
+  sed -e 's/${SERVICE_HELP_EMAIL}/'"${SERVICE_HELP_EMAIL}"'/g' | \
+  sed -e 's/${CONV_ID_RANGE_BEGIN}/'"${CONV_ID_RANGE_BEGIN}"'/g' | \
+  sed -e 's/${CONV_ID_RANGE_END}/'"${CONV_ID_RANGE_END}"'/g' | \
+  sed -e 's/${SERVICE_DATABASE_CONNECTION_URL}/'"${SERVICE_DATABASE_CONNECTION_URL_ESC}"'/g' | \
+  sed -e 's/${FLASK_API_URL}/'"${FLASK_API_URL_ESC}"'/g' | \
+  sed -e 's/${SUCCESS_VALIDITY_PERIOD_IN_DAYS}/'"${SUCCESS_VALIDITY_PERIOD_IN_DAYS}"'/g' | \
+  sed -e 's/${FAILURE_VALIDITY_PERIOD_IN_DAYS}/'"${FAILURE_VALIDITY_PERIOD_IN_DAYS}"'/g' > site_config.py )
+
+check_file backend/app/core/site_config.py
 
