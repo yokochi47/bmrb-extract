@@ -5,4 +5,4 @@ export const BMRBDEP_URL = 'https://deposit.bmrb.io';
 export const HELP_MAIL_ADDRESS = '${HELP_MAIL_ADDRESS}';
 export const SUCCESS_VALIDITY_PERIOD_IN_DAYS = ${SUCCESS_VALIDITY_PERIOD_IN_DAYS};
 export const FAILURE_VALIDIRY_PERIOD_IN_DAYS = ${FAILURE_VALIDITY_PERIOD_IN_DAYS};
-export const FLASK_API_URL = ${FLASK_API_URL}; 
+export const FLASK_API_URL = '${FLASK_API_URL}';

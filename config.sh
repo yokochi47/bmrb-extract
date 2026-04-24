@@ -161,27 +161,27 @@ cat << EOF >> .env
 ##
 ## Configure bellow lines
 ##
-CONV_ID_RANGE_BEGIN=${CONV_ID_RANGE_BEGIN}
-CONV_ID_RANGE_END=${CONV_ID_RANGE_END}
-TZ=${TZ}
+export CONV_ID_RANGE_BEGIN=${CONV_ID_RANGE_BEGIN}
+export CONV_ID_RANGE_END=${CONV_ID_RANGE_END}
+export TZ=${TZ}
 
 # Standalone NMR data conversion service
-SERVICE_LEVEL=${SERVICE_LEVEL}
-SERVICE_DOMAIN=${SERVICE_DOMAIN}
-SERVICE_HOST=${SERVICE_SUBDOMAIN}.${SERVICE_DOMAIN}
-SERVICE_ADMIN_EMAIL=${SERVICE_ADMIN_EMAIL}
-SERVICE_HELP_EMAIL=${SERVICE_HELP_EMAIL}
+export SERVICE_LEVEL=${SERVICE_LEVEL}
+export SERVICE_DOMAIN=${SERVICE_DOMAIN}
+export SERVICE_HOST=${SERVICE_SUBDOMAIN}.${SERVICE_DOMAIN}
+export SERVICE_ADMIN_EMAIL=${SERVICE_ADMIN_EMAIL}
+export SERVICE_HELP_EMAIL=${SERVICE_HELP_EMAIL}
 
 # Nginx
 NGINX_LOG_FORMAT=${NGINX_LOG_FORMAT}
 
 # Backend (Flask)
 FLASK_ENV=${SERVICE_LEVEL}
-FLASK_API_URL=http://backend:8000/api/
+export FLASK_API_URL=http://backend:8000/api/
 
 # PostgreSQL
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-SERVICE_DATABASE_CONNECTION_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:5432/${POSTGRES_SERVICE_DB}
+export SERVICE_DATABASE_CONNECTION_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:5432/${POSTGRES_SERVICE_DB}
 PREFECT_API_DATABASE_CONNECTION_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:5432/${POSTGRES_PREFECT_DB}
 
 # GitHub Container Repository
@@ -213,7 +213,7 @@ sed -e 's/${NGINX_LOG_FORMAT}/'"${NGINX_LOG_FORMAT}"'/' > nginx/nginx.conf
 
 check_file nginx/nginx.conf
 
-sed -e 's/${SERVICE_HOST}/'"${SERVICE_HOST}"'/' < nginx/ssl.conf.template > nginx/ssl.conf
+envsubst < nginx/ssl.conf.template > nginx/ssl.conf
 
 check_file nginx/ssl.conf
 
@@ -227,35 +227,26 @@ check_file nginx/ssl.conf
   cat init-service.sql.template >> init-${SERVICE_LEVEL}.sql.template
   cat init-prefect.sql.template >> init-${SERVICE_LEVEL}.sql.template
   ln -s init-${SERVICE_LEVEL}.sql.template init.sql.template )
-sed -e 's/${POSTGRES_USER}/'"${POSTGRES_USER}"'/' postgres/init.sql.template | \
-sed -e 's/${POSTGRES_PASSWORD}/'"${POSTGRES_PASSWORD}"'/' | \
-sed -e 's/${POSTGRES_SERVICE_DB}/'"${POSTGRES_SERVICE_DB}"'/g' | \
-sed -e 's/${POSTGRES_PREFECT_DB}/'"${POSTGRES_PREFECT_DB}"'/g' > postgres/init.sql
+envsubst < postgres/init.sql.template > postgres/init.sql
 
 check_file postgres/init.sql
 
 #
 # Write certbot.sh
 #
-sed -e 's/${SERVICE_HOST}/'"${SERVICE_HOST}"'/' certbot/certbot.sh.template | \
-sed -e 's/${SERVICE_ADMIN_EMAIL}/'"${SERVICE_ADMIN_EMAIL}"'/g' > certbot/certbot.sh
+envsubst < certbot/certbot.sh.template > certbot/certbot.sh
 
 check_file certbot/certbot.sh
 
 #
 # Frontend
 #
-FLASK_API_URL_ESC=$(echo ${FLASK_API_URL} | sed -e 's/\//\\\//g')
-
 if [[ ${SERVICE_DOMAIN} = "bmrb.io" ]] ; then
 
   ( cd frontend/src
     rm -f index.html site.config.ts
     ln -s index.bmrb.html index.html
-    sed -e 's/${SERVICE_HELP_EMAIL}/'"${SERVICE_HELP_EMAIL}"'/g' bmrb.config.ts.template | \
-    sed -e 's/${SUCCESS_VALIDITY_PERIOD_IN_DAYS}/'"${SUCCESS_VALIDITY_PERIOD_IN_DAYS}"'/g' | \
-    sed -e 's/${FAILURE_VALIDITY_PERIOD_IN_DAYS}/'"${FAILURE_VALIDITY_PERIOD_IN_DAYS}"'/g' | \
-    sed -e 's/${FLASK_API_URL}/'\'"${FLASK_API_URL_ESC}"\''/g' > bmrb.config.ts
+    envsubst < bmrb.config.ts.template > bmrb.config.ts
     ln -s bmrb.config.ts site.config.ts )
 
 else
@@ -263,10 +254,7 @@ else
   ( cd frontend/src
     rm -f index.html site.config.ts
     ln -s index.bmrbj.html index.html
-    sed -e 's/${SERVICE_HELP_EMAIL}/'"${SERVICE_HELP_EMAIL}"'/g' bmrbj.config.ts.template | \
-    sed -e 's/${SUCCESS_VALIDITY_PERIOD_IN_DAYS}/'"${SUCCESS_VALIDITY_PERIOD_IN_DAYS}"'/g' | \
-    sed -e 's/${FAILURE_VALIDITY_PERIOD_IN_DAYS}/'"${FAILURE_VALIDITY_PERIOD_IN_DAYS}"'/g' | \
-    sed -e 's/${FLASK_API_URL}/'\'"${FLASK_API_URL_ESC}"\''/g' > bmrbj.config.ts
+    envsubst < bmrbj.config.ts.template > bmrbj.config.ts
     ln -s bmrbj.config.ts site.config.ts )
 
 fi
@@ -277,21 +265,9 @@ check_file frontend/src/site.config.ts
 #
 # Backend
 #
-SERVICE_DATABASE_CONNECTION_URL_ESC=$(echo ${SERVICE_DATABASE_CONNECTION_URL} | sed -e 's/\//\\\//g')
-
 ( cd backend/app/core
-  rm -f site_config.py
-  sed -e 's/${SERVICE_LEVEL}/'"${SERVICE_LEVEL}"'/g' site_config.py.template | \
-  sed -e 's/${SERVICE_DOMAIN}/'"${SERVICE_DOMAIN}"'/g' | \
-  sed -e 's/${SERVICE_HOST}/'"${SERVICE_HOST}"'/g' | \
-  sed -e 's/${SERVICE_ADMIN_EMAIL}/'"${SERVICE_ADMIN_EMAIL}"'/g' | \
-  sed -e 's/${SERVICE_HELP_EMAIL}/'"${SERVICE_HELP_EMAIL}"'/g' | \
-  sed -e 's/${CONV_ID_RANGE_BEGIN}/'"${CONV_ID_RANGE_BEGIN}"'/g' | \
-  sed -e 's/${CONV_ID_RANGE_END}/'"${CONV_ID_RANGE_END}"'/g' | \
-  sed -e 's/${SERVICE_DATABASE_CONNECTION_URL}/'"${SERVICE_DATABASE_CONNECTION_URL_ESC}"'/g' | \
-  sed -e 's/${FLASK_API_URL}/'"${FLASK_API_URL_ESC}"'/g' | \
-  sed -e 's/${SUCCESS_VALIDITY_PERIOD_IN_DAYS}/'"${SUCCESS_VALIDITY_PERIOD_IN_DAYS}"'/g' | \
-  sed -e 's/${FAILURE_VALIDITY_PERIOD_IN_DAYS}/'"${FAILURE_VALIDITY_PERIOD_IN_DAYS}"'/g' > site_config.py )
+  cp site_config.py.template site_config.py
+  envsubst < site_config.py.template > site_config.py )
 
 check_file backend/app/core/site_config.py
 
