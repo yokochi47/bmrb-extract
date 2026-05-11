@@ -5,7 +5,7 @@
 ## Requirements
 - Docker engin
 
-## Instrall
+## Install
 1. Configure service
 ```shell
 ./config.sh
