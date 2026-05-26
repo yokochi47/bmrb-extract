@@ -97,7 +97,7 @@ if [[ -n "${ACTION_RUNNER_DIR}" ]] ; then
       # Validate the hash
       #
       echo
-      echo "${ACTION_RUNNER_CHECK_SUM} ${ACTION_RUNNER_TARBALL}" | shasum -a 256 -c || exit 1
+      echo "${ACTION_RUNNER_CHECK_SUM}  ${ACTION_RUNNER_TARBALL}" | shasum -a 256 -c || exit 1
 
       #
       # Extract GutHub Action Runner installer and configuration
