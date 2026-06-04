@@ -215,6 +215,9 @@ check_file .env
 
 source .env
 
+#
+# Write nginx.conf
+#
 ( cd nginx
   rm -f nginx.conf.template
   ln -s nginx-${SERVICE_LEVEL}.conf.template nginx.conf.template )
@@ -223,6 +226,9 @@ sed -e 's/${NGINX_LOG_FORMAT}/'"${NGINX_LOG_FORMAT}"'/' > nginx/nginx.conf
 
 check_file nginx/nginx.conf
 
+#
+# Write ssl.conf
+#
 envsubst < nginx/ssl.conf.template > nginx/ssl.conf
 
 check_file nginx/ssl.conf
@@ -230,7 +236,6 @@ check_file nginx/ssl.conf
 #
 # Write init.sql
 #
-
 ( cd postgres
   rm -f init.sql.template
   cat setup-${SERVICE_LEVEL}.sql.template > init-${SERVICE_LEVEL}.sql.template
@@ -240,6 +245,13 @@ check_file nginx/ssl.conf
 envsubst < postgres/init.sql.template > postgres/init.sql
 
 check_file postgres/init.sql
+
+#
+# Write models.py
+#
+envsubst < postgres/models.py.template > postgres/models.py
+
+check_file postgres/models.py
 
 #
 # Write certbot.sh

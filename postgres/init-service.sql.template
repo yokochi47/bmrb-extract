@@ -1,3 +1,5 @@
+DROP TYPE IF EXISTS processing_site_code;
+CREATE TYPE processing_site_code AS ENUM ('bmrb.io', 'pdbj.org');
 DROP TYPE IF EXISTS session_status_code;
 CREATE TYPE session_status_code AS ENUM ('created', 'uploading', 'processing', 'completed', 'failed', 'expired');
 
@@ -6,6 +8,7 @@ CREATE TYPE session_status_code AS ENUM ('created', 'uploading', 'processing', '
 --
 
 CREATE TABLE IF NOT EXISTS session (
+    processing_site     processing_site_code DEFAULT '${SERVICE_DOMAIN}',  -- the original processing site, witch created the session
     token               UUID PRIMARY KEY DEFAULT uuidv7(),  -- token used by user and web frontend, uuidv7() func requires PosgreSQL 18+.
     token_admin         UUID DEFAULT gen_random_uuid(),     -- token used by administrators to respond to inquiries on 'Communicationi' page
     token_expiry        TIMESTAMP NOT NULL,                 -- time of expiry of the session
