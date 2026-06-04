@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS session (
     -- Anonymous development server                   : C_8xxxxxx
     conversion_id       INT CHECK ( conversion_id >= 1000000 and conversion_id < 9000000 ) UNIQUE,
 
-    created_at          TIMESTAMP DEFAULT now(), timestamp when user approve terms and conditions
+    created_at          TIMESTAMP DEFAULT now(), -- timestamp when user approve terms and conditions
     started_at          TIMESTAMP,  -- timestamp when conversion processes starts. ('Process selected files' button on 'File upload' page)
     finished_at         TIMESTAMP,  -- timestamp when conversion processes finishes.
 
