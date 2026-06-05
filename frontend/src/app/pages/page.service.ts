@@ -22,6 +22,7 @@ export interface PageState {
   signedIn: boolean;
   adminUser: boolean;
   tokenBase: string | null;
+  conversionId: number | null; 
 }
 
 @Injectable({
@@ -40,6 +41,7 @@ export class PageService {
     signedIn: false,
     adminUser: false,
     tokenBase: null,
+    conversionId: null
   });
 
   private initialized = false;
