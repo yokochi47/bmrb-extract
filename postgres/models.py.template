@@ -4,7 +4,7 @@ import sqlalchemy as sa
 from sqlalchemy.ext.declarative import declarative_base
 from enum import Enum
 from sqlalchemy.sql import func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, INET
 
 
 Base = declarative_base()
@@ -129,12 +129,12 @@ class Session(Base):
     token_admin = sa.Column(UUID, server_default='gen_random_uuid()')
     token_expiry = sa.Column(sa.TIMESTAMP(), nullable=False)
     consented = sa.Column(sa.Boolean(), nullable=False, server_default='FALSE')
-    client_ip = sa.Column(inet())
+    client_ip = sa.Column(INET())
     user_agent = sa.Column(sa.Text())
     status = sa.Column(sa.Enum(SessionStatusCode), nullable=False, server_default='created')
     conversion_id = sa.Column(sa.Integer(), unique=True)
     created_at = sa.Column(sa.TIMESTAMP(), server_default=func.now())
-    timestamp = sa.Column(when user approve terms())
+    started_at = sa.Column(sa.TIMESTAMP())
     finished_at = sa.Column(sa.TIMESTAMP())
     approved = sa.Column(sa.Boolean(), server_default='FALSE')
     exchanged = sa.Column(sa.Boolean(), server_default='FALSE')
@@ -169,7 +169,7 @@ class OutputFile(Base):
     file_type = sa.Column(sa.Enum(OutputFileType), nullable=False)
     downloaded = sa.Column(sa.Boolean(), nullable=False, server_default='TRUE')
     downloaded_at = sa.Column(sa.TIMESTAMP(), server_default=func.now())
-    client_ip = sa.Column(inet())
+    client_ip = sa.Column(INET())
     user_agent = sa.Column(sa.Text())
 
 

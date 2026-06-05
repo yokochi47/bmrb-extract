@@ -1,4 +1,4 @@
-flask
+flask[async]
 gunicorn
-SQLAlchemy
-# psycopg2-binary
+SQLAlchemy[asyncio]
+asyncpg

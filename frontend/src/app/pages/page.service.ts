@@ -2,7 +2,7 @@ import { Injectable, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 
-import { FLASK_API_URL } from '../../site.config';
+import { API_URL } from '../../site.config';
 
 export enum TargetDepSys {
   ONEDEP,
@@ -55,20 +55,37 @@ export class PageService {
         return;
       }
 
-      if (state.firstConsent && state.consentedTo && this.router.url == '/info') {
-        this.pageState.update((prev) => ({
-          ...prev,
-          firstConsent: false,
-        }));
-
+      if (state.firstConsent && state.consentedTo && !state.tokenBase) {
+        this.pageState.update((prev) => ({ ...prev, firstConsent: false }));
         this.newConsent();
       }
     });
+
+    // Restore session from URL on page load / refresh
+    const token = new URLSearchParams(window.location.search).get('token');
+    if (token) {
+      this.pageState.update((prev) => ({
+        ...prev,
+        tokenBase: token,
+        firstConsent: false,
+        consentedTo: true,
+      }));
+    }
   }
 
   private newConsent() {
-    console.log('Send request for new session');
-
-    this.http.get(FLASK_API_URL + 'new_consent');
+    this.http.post<{ token: string }>(API_URL + 'new_consent', {}).subscribe({
+      next: ({ token }) => {
+        this.pageState.update((prev) => ({ ...prev, tokenBase: token }));
+        this.router.navigate(['/info'], {
+          queryParams: { token },
+          replaceUrl: true,
+        });
+      },
+      error: (err) => {
+        console.error('Failed to obtain session token', err);
+        this.pageState.update((prev) => ({ ...prev, firstConsent: true, consentedTo: false }));
+      },
+    });
   }
 }
