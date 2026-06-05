@@ -6,11 +6,11 @@
 - Docker engin
 
 ## Install
-1. Configure service
+1. Configure service (generates .env, nginx.conf, init.sql, site_config.py, etc.)
 ```shell
 ./config.sh
 ```
-2. Setup
+2. Setup service (build Docker images, create volumes, init GitHub Action runners, start Docker Swarm services)
 ```shell
 ./setup.sh
 ```
@@ -19,7 +19,7 @@
 ./start.sh
 ./stop.sh
 ```
-To reload the web frontend (for developers)
+To rebuild web frontend + nginx only (for frontend development)
 ```shell
 ./reload_wfe.sh
 ```

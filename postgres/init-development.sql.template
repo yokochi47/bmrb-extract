@@ -187,7 +187,7 @@ DROP TYPE IF EXISTS wf_stats_code;
 CREATE TYPE wf_status_code as ENUM ('created', 'pending', 'aborted', 'processing', 'completed', 'failed');
 
 --
--- Workflow tracking
+-- Workflow tracking.
 --
 
 CREATE TABLE IF NOT EXISTS workflow (
