@@ -72,6 +72,14 @@ export class PageService {
         firstConsent: false,
         consentedTo: true,
       }));
+      this.http.get<{ conversion_id: number | null }>(API_URL + 'session', { params: { token } }).subscribe({
+        next: ({ conversion_id }) => {
+          this.pageState.update((prev) => ({ ...prev, conversionId: conversion_id }));
+        },
+        error: (err) => {
+          console.error('Failed to restore session', err);
+        },
+      });
     }
   }
 

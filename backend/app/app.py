@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from flask import Flask, request
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
 from core.site_config import SERVICE_DATABASE_URL, FAILURE_VALIDITY_PERIOD_IN_DAYS
@@ -19,6 +20,19 @@ def index():
 @app.route('/api/health')
 def health():
     return {'status': 'ok'}
+
+
+@app.route('/api/session', methods=['GET'])
+async def get_session():
+    token = request.args.get('token')
+    if not token:
+        return {'error': 'token is required'}, 400
+    async with async_session_factory() as db:
+        result = await db.execute(select(Session).where(Session.token == token))
+        session_row = result.scalar_one_or_none()
+        if session_row is None:
+            return {'error': 'session not found'}, 404
+        return {'conversion_id': session_row.conversion_id}
 
 
 @app.route('/api/new_consent', methods=['POST'])
