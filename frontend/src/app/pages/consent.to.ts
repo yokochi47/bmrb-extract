@@ -14,16 +14,17 @@ export class ConsentTo {
   pageService = inject(PageService);
 
   consentedTo = computed(() => this.pageService.pageState().consentedTo);
+
   locked = computed(() => {
-    const s = this.pageService.pageState();
-    return s.lockedSession || s.expiredSession || !s.firstUpload;
+    const state = this.pageService.pageState();
+    return state.lockedSession || state.expiredSession || !state.firstUpload;
   });
 
   onChange() {
-    const s = this.pageService.pageState();
+    const state = this.pageService.pageState();
     this.pageService.pageState.update((prev) => ({
       ...prev,
-      consentedTo: !s.consentedTo,
+      consentedTo: !state.consentedTo,
     }));
   }
 }

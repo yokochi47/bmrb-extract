@@ -8,6 +8,7 @@ export const tokenGuard: CanActivateFn = (route) => {
   if (route.queryParamMap.has('token')) {
     return true;
   }
+
   return inject(Router).createUrlTree(['/info']);
 };
 
