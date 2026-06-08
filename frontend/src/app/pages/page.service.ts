@@ -32,6 +32,9 @@ export class PageService {
   /** Set to true by tokenGuard to trigger the consent-required dialog in AppLayout. */
   consentRequired = signal(false);
 
+  /** Cached result of the most recent token DB validation. null = not yet checked. */
+  tokenValidation = signal<'valid' | 'expired' | 'invalid' | null>(null);
+
   pageState = signal<PageState>({
     firstConsent: true,
     consentedTo: false,
@@ -80,13 +83,19 @@ export class PageService {
         consentedTo: true,
       }));
       this.http
-        .get<{ conversion_id: number | null }>(API_URL + 'session', { params: { token } })
+        .get<{ conversion_id: number | null; expired: boolean }>(API_URL + 'session', { params: { token } })
         .subscribe({
-          next: ({ conversion_id }) => {
-            this.pageState.update((prev) => ({ ...prev, conversionId: conversion_id }));
+          next: ({ conversion_id, expired }) => {
+            if (expired) {
+              this.tokenValidation.set('expired');
+              this.pageState.update((prev) => ({ ...prev, expiredSession: true }));
+            } else {
+              this.tokenValidation.set('valid');
+              this.pageState.update((prev) => ({ ...prev, conversionId: conversion_id }));
+            }
           },
-          error: (err) => {
-            console.error('Failed to restore session', err);
+          error: () => {
+            this.tokenValidation.set('invalid');
           },
         });
     }

@@ -56,4 +56,17 @@ export class AppLayout {
     const token = this.pageService.pageState().tokenBase;
     this.router.navigate(['/info'], token ? { queryParams: { token } } : {});
   }
+
+  onExpiredDialogOk(): void {
+    this.pageService.tokenValidation.set(null);
+    this.pageService.pageState.update((prev) => ({
+      ...prev,
+      expiredSession: false,
+      tokenBase: null,
+      conversionId: null,
+      consentedTo: false,
+      firstConsent: true,
+    }));
+    this.router.navigate(['/info']);
+  }
 }

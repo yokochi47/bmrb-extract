@@ -32,7 +32,8 @@ async def get_session():
         session_row = result.scalar_one_or_none()
         if session_row is None:
             return {'error': 'session not found'}, 404
-        return {'conversion_id': session_row.conversion_id}
+        expired = session_row.token_expiry < datetime.now()
+        return {'conversion_id': session_row.conversion_id, 'expired': expired}
 
 
 @app.route('/api/new_consent', methods=['POST'])

@@ -26,3 +26,19 @@
     <p-button label="OK" (click)="onConsentDialogOk()" />
   </ng-template>
 </p-dialog>
+
+<p-dialog
+  header="Session Expired"
+  [visible]="pageService.pageState().expiredSession"
+  [modal]="true"
+  [closable]="false"
+  [dismissableMask]="false"
+  [style]="{ width: '30rem' }"
+>
+  <p class="text-base leading-relaxed">
+    Your session has expired. Please start a new session from the Instructions page.
+  </p>
+  <ng-template pTemplate="footer">
+    <p-button label="OK" (click)="onExpiredDialogOk()" />
+  </ng-template>
+</p-dialog>
