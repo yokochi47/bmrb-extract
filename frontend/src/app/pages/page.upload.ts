@@ -1,0 +1,196 @@
+import { Component, computed, inject, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { ButtonModule } from 'primeng/button';
+import { CheckboxModule } from 'primeng/checkbox';
+import { InputTextModule } from 'primeng/inputtext';
+import { MessageModule } from 'primeng/message';
+import { RadioButtonModule } from 'primeng/radiobutton';
+import { SelectModule } from 'primeng/select';
+
+import { PageService, TargetDepSys } from './page.service';
+
+interface FileRow {
+  selected: boolean;
+  name: string;
+  size: number;
+  fileType: string | null;
+}
+
+@Component({
+  selector: 'app-upload',
+  imports: [
+    CommonModule,
+    FormsModule,
+    ButtonModule,
+    CheckboxModule,
+    InputTextModule,
+    MessageModule,
+    RadioButtonModule,
+    SelectModule,
+  ],
+  templateUrl: './page.upload.html',
+})
+export class Upload {
+  protected readonly TargetDepSys = TargetDepSys;
+
+  private pageService = inject(PageService);
+  readonly state = this.pageService.pageState;
+
+  /** Hidden once conversion ID is issued. */
+  showSetupSection = computed(() => this.state().conversionId === null);
+
+  /** Choose Files is disabled after the session is locked or downloaded. */
+  isLocked = computed(
+    () => this.state().lockedSession || this.state().expiredSession || !this.state().firstUpload,
+  );
+
+  importBmrbEntry = signal(false);
+  bmrbId = signal('');
+
+  rows = signal<FileRow[]>([]);
+
+  requirementsMet = computed(() => {
+    const selected = this.rows().filter((r) => r.selected);
+    return selected.length > 0 && selected.every((r) => r.fileType !== null);
+  });
+
+  readonly depSystemOptions = [
+    {
+      label: 'OneDep (coordinates, chemical shifts, restraints)',
+      value: TargetDepSys.ONEDEP,
+    },
+    {
+      label: 'OneDep — replacement of assigned chemical shifts',
+      value: TargetDepSys.REPL_CS,
+    },
+    {
+      label: 'BMRBdep (assigned chemical shifts entry)',
+      value: TargetDepSys.BMRBDEP,
+    },
+  ];
+
+  readonly FILE_TYPE_OPTIONS = [
+    // Coordinate
+    { label: 'Coordinate (mmCIF/PDBx format)', value: 'co-cif' },
+    { label: 'Coordinate (legacy PDB format)', value: 'co-pdb' },
+    // NMR unified
+    { label: 'NMR unified data (NMR-STAR format)', value: 'nm-uni-str' },
+    { label: 'NMR unified data (NEF format)', value: 'nm-uni-nef' },
+    // Chemical shifts
+    { label: 'Assigned chemical shifts (any format)', value: 'nm-shi' },
+    { label: 'Assigned chemical shifts — ARIA', value: 'nm-shi-ari' },
+    { label: 'Assigned chemical shifts — BARDISC', value: 'nm-shi-bar' },
+    { label: 'Assigned chemical shifts — GARFIELD', value: 'nm-shi-gar' },
+    { label: 'Assigned chemical shifts — NMRPipe', value: 'nm-shi-npi' },
+    { label: 'Assigned chemical shifts — OLIVIA', value: 'nm-shi-oli' },
+    { label: 'Assigned chemical shifts — PIPP', value: 'nm-shi-pip' },
+    { label: 'Assigned chemical shifts — PPM', value: 'nm-shi-ppm' },
+    { label: 'Assigned chemical shifts — SPARKY/STAR2', value: 'nm-shi-st2' },
+    { label: 'Assigned chemical shifts — XEASY/CYANA', value: 'nm-shi-xea' },
+    // Spectral peak lists
+    { label: 'Spectral peak list (any format)', value: 'nm-pea-any' },
+    { label: 'Spectral peak list — ARIA', value: 'nm-pea-ari' },
+    { label: 'Spectral peak list — BARDISC', value: 'nm-pea-bar' },
+    { label: 'Spectral peak list — CCPN', value: 'nm-pea-ccp' },
+    { label: 'Spectral peak list — OLIVIA', value: 'nm-pea-oli' },
+    { label: 'Spectral peak list — PIPP', value: 'nm-pea-pip' },
+    { label: 'Spectral peak list — PONDUS', value: 'nm-pea-pon' },
+    { label: 'Spectral peak list — Sparky', value: 'nm-pea-spa' },
+    { label: 'Spectral peak list — SPARKY-SPS', value: 'nm-pea-sps' },
+    { label: 'Spectral peak list — TOPSPIN', value: 'nm-pea-top' },
+    { label: 'Spectral peak list — VIENNA', value: 'nm-pea-vie' },
+    { label: 'Spectral peak list — VNMR', value: 'nm-pea-vnm' },
+    { label: 'Spectral peak list — XEASY/CYANA', value: 'nm-pea-xea' },
+    { label: 'Spectral peak list — XWINNMR', value: 'nm-pea-xwi' },
+    // Restraints
+    { label: 'Restraint file — AMBER', value: 'nm-res-amb' },
+    { label: 'Restraint file — ARIA', value: 'nm-res-ari' },
+    { label: 'Restraint file — ARIA/X-PLOR', value: 'nm-res-arx' },
+    { label: 'Restraint file — BARDISC', value: 'nm-res-bar' },
+    { label: 'Restraint file — BIOSYM', value: 'nm-res-bio' },
+    { label: 'Restraint file — CHARMM', value: 'nm-res-cha' },
+    { label: 'Restraint file — CNS/X-PLOR', value: 'nm-res-cns' },
+    { label: 'Restraint file — CYANA', value: 'nm-res-cya' },
+    { label: 'Restraint file — DYNAMO', value: 'nm-res-dyn' },
+    { label: 'Restraint file — GROMACS', value: 'nm-res-gro' },
+    { label: 'Restraint file — ISD', value: 'nm-res-isd' },
+    { label: 'Restraint file — NOA', value: 'nm-res-noa' },
+    { label: 'Restraint file — other', value: 'nm-res-oth' },
+    { label: 'Restraint file — ROSETTA', value: 'nm-res-ros' },
+    { label: 'Restraint file — SAXS', value: 'nm-res-sax' },
+    { label: 'Restraint file — SCHIMP', value: 'nm-res-sch' },
+    { label: 'Restraint file — SYBYL', value: 'nm-res-syb' },
+    { label: 'Restraint file — X-PLOR', value: 'nm-res-xpl' },
+    // Auxiliary
+    { label: 'Auxiliary — AMBER topology/parameter', value: 'nm-aux-amb' },
+    { label: 'Auxiliary — CHARMM topology/parameter', value: 'nm-aux-cha' },
+    { label: 'Auxiliary — GROMACS topology', value: 'nm-aux-gro' },
+    { label: 'Auxiliary — PDB coordinates', value: 'nm-aux-pdb' },
+    { label: 'Auxiliary — XEASY/CYANA sequence', value: 'nm-aux-xea' },
+  ];
+
+  setTargetDepSys(value: TargetDepSys): void {
+    this.pageService.pageState.update((prev) => ({ ...prev, targetDepSys: value }));
+    if (value === TargetDepSys.BMRBDEP) {
+      this.importBmrbEntry.set(false);
+      this.pageService.pageState.update((prev) => ({
+        ...prev,
+        referEntryId: null,
+        validEntryId: false,
+      }));
+    }
+  }
+
+  onImportBmrbChange(value: boolean): void {
+    this.importBmrbEntry.set(value);
+    if (!value) {
+      this.bmrbId.set('');
+      this.pageService.pageState.update((prev) => ({
+        ...prev,
+        referEntryId: null,
+        validEntryId: false,
+      }));
+    }
+  }
+
+  onFilesChosen(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (!input.files?.length) return;
+    const added: FileRow[] = Array.from(input.files).map((f) => ({
+      selected: true,
+      name: f.name,
+      size: f.size,
+      fileType: null,
+    }));
+    this.rows.update((prev) => [...prev, ...added]);
+    input.value = '';
+  }
+
+  setSelected(index: number, value: boolean): void {
+    this.rows.update((prev) => prev.map((r, i) => (i === index ? { ...r, selected: value } : r)));
+  }
+
+  setFileType(index: number, value: string): void {
+    this.rows.update((prev) => prev.map((r, i) => (i === index ? { ...r, fileType: value } : r)));
+  }
+
+  removeRow(index: number): void {
+    this.rows.update((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  formatSize(bytes: number): string {
+    if (bytes === 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${units[i]}`;
+  }
+
+  processFiles(): void {
+    // TODO: POST selected files to /api/upload with session token
+    console.log(
+      'Processing files:',
+      this.rows().filter((r) => r.selected),
+    );
+  }
+}

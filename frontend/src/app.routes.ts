@@ -1,15 +1,22 @@
 import { inject } from '@angular/core';
-import { CanActivateFn, Router, Routes } from '@angular/router';
+import { CanActivateFn, Routes } from '@angular/router';
 
 import { AppLayout } from './app/layout/app.layout';
+import { PageService } from './app/pages/page.service';
 
-/** Redirect to /info when the session token is missing from the URL. */
+/**
+ * Block navigation and show a consent-required dialog when the session
+ * token is absent from the URL. The dialog (rendered in AppLayout) handles
+ * the subsequent redirect to /info.
+ */
 export const tokenGuard: CanActivateFn = (route) => {
-  if (route.queryParamMap.has('token')) {
+  const pageService = inject(PageService);
+  if (route.queryParamMap.has('token') && pageService.pageState().consentedTo) {
     return true;
   }
 
-  return inject(Router).createUrlTree(['/info']);
+  pageService.consentRequired.set(true);
+  return false;
 };
 
 export const appRoutes: Routes = [

@@ -1,19 +1,32 @@
 import { Component, computed, effect, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
+import { ButtonModule } from 'primeng/button';
+import { DialogModule } from 'primeng/dialog';
 
 import { AppTopbar } from './app.topbar';
 import { AppSidebar } from './app.sidebar';
 import { AppFooter } from './app.footer';
 import { LayoutService } from './layout.service';
+import { PageService } from '../pages/page.service';
 
 @Component({
   selector: 'app-layout',
-  imports: [CommonModule, AppTopbar, AppSidebar, AppFooter, RouterModule],
+  imports: [
+    CommonModule,
+    RouterModule,
+    ButtonModule,
+    DialogModule,
+    AppTopbar,
+    AppSidebar,
+    AppFooter,
+  ],
   templateUrl: 'app.layout.html',
 })
 export class AppLayout {
   layoutService = inject(LayoutService);
+  pageService = inject(PageService);
+  private router = inject(Router);
 
   constructor() {
     effect(() => {
@@ -37,4 +50,10 @@ export class AppLayout {
       'layout-mobile-active': state.mobileMenuActive,
     };
   });
+
+  onConsentDialogOk(): void {
+    this.pageService.consentRequired.set(false);
+    const token = this.pageService.pageState().tokenBase;
+    this.router.navigate(['/info'], token ? { queryParams: { token } } : {});
+  }
 }

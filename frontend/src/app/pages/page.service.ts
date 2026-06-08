@@ -29,6 +29,9 @@ export interface PageState {
   providedIn: 'root',
 })
 export class PageService {
+  /** Set to true by tokenGuard to trigger the consent-required dialog in AppLayout. */
+  consentRequired = signal(false);
+
   pageState = signal<PageState>({
     firstConsent: true,
     consentedTo: false,
@@ -60,6 +63,10 @@ export class PageService {
       if (state.firstConsent && state.consentedTo && !state.tokenBase) {
         this.pageState.update((prev) => ({ ...prev, firstConsent: false }));
         this.newConsent();
+      }
+
+      if (!state.firstConsent && state.consentedTo && state.tokenBase) {
+        this.consentRequired.set(false);
       }
     });
 

@@ -1,0 +1,186 @@
+<div class="card">
+  <div class="font-semibold text-2xl mb-6">Upload files</div>
+
+  <!-- ── Deposition system + BMRB import (hidden once conversion ID is issued) ── -->
+  @if (showSetupSection()) {
+    <div class="mb-6">
+      <div class="font-semibold text-lg mb-3">
+        What deposition system do you want to use converted NMR data files for?
+      </div>
+      <div class="flex flex-col gap-3 pl-2">
+        @for (opt of depSystemOptions; track opt.value) {
+          <div class="flex items-center gap-2">
+            <p-radiobutton
+              name="targetDepSys"
+              [value]="opt.value"
+              [ngModel]="state().targetDepSys"
+              (ngModelChange)="setTargetDepSys($event)"
+              [inputId]="'dep-' + opt.value"
+            />
+            <label [for]="'dep-' + opt.value" class="text-base cursor-pointer">
+              {{ opt.label }}
+            </label>
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Import existing BMRB entry (OneDep modes only) -->
+    @if (state().targetDepSys !== TargetDepSys.BMRBDEP) {
+      <div class="mb-6">
+        <div class="font-semibold text-lg mb-3">Do you want to import existing BMRB entry?</div>
+        <div class="flex flex-col gap-3 pl-2">
+          <div class="flex flex-wrap items-center gap-3">
+            <p-radiobutton
+              name="importBmrb"
+              [value]="true"
+              [ngModel]="importBmrbEntry()"
+              (ngModelChange)="onImportBmrbChange($event)"
+              inputId="import-yes"
+            />
+            <label for="import-yes" class="text-base cursor-pointer">Yes</label>
+            @if (importBmrbEntry()) {
+              <input
+                pInputText
+                [ngModel]="bmrbId()"
+                (ngModelChange)="bmrbId.set($event)"
+                placeholder="BMRB ID"
+                class="w-32"
+              />
+              @if (state().validEntryId) {
+                <!-- TODO: populate title / release date / authors from server validation -->
+                <span class="text-sm text-green-600">
+                  BMRB entry title: *******&nbsp;&bull;&nbsp;Release date:
+                  YYYY-MM-DD&nbsp;&bull;&nbsp;Authors: ***, ***
+                </span>
+              }
+            }
+          </div>
+          <div class="flex items-center gap-3">
+            <p-radiobutton
+              name="importBmrb"
+              [value]="false"
+              [ngModel]="importBmrbEntry()"
+              (ngModelChange)="onImportBmrbChange($event)"
+              inputId="import-no"
+            />
+            <label for="import-no" class="text-base cursor-pointer">No</label>
+          </div>
+        </div>
+      </div>
+    }
+  }
+
+  <!-- ── Previous upload status banner ──────────────────────────────────────── -->
+  <!-- TODO: drive from session status once it is tracked in PageState.
+  @if (previousFailed) {
+    <p-message severity="error" styleClass="mb-4 w-full" [closable]="false">
+      <span class="cursor-pointer" (click)="openLog()">
+        <i class="pi pi-times-circle mr-1"></i>Previous file upload failed. See detailed log.
+      </span>
+    </p-message>
+  }
+  @if (previousSucceeded) {
+    <p-message severity="success" styleClass="mb-4 w-full" [closable]="false">
+      <span class="cursor-pointer" (click)="openLog()">
+        <i class="pi pi-check-circle mr-1"></i>Previous file conversion was successful. See detailed log.
+      </span>
+    </p-message>
+  }
+  -->
+
+  <!-- ── File chooser ────────────────────────────────────────────────────────── -->
+  <div class="mb-6">
+    <input #fileInput type="file" multiple hidden (change)="onFilesChosen($event)" />
+    <p-button
+      label="Choose Files"
+      icon="pi pi-upload"
+      [disabled]="isLocked()"
+      (click)="fileInput.click()"
+    />
+  </div>
+
+  <!-- ── Uploaded files table ────────────────────────────────────────────────── -->
+  @if (rows().length > 0) {
+    <div class="mb-4 overflow-x-auto">
+      <table class="w-full text-sm border-collapse">
+        <thead>
+          <tr
+            class="border-b-2 border-surface-200 text-left text-surface-500 text-xs uppercase tracking-wide"
+          >
+            <th class="py-2 px-2 w-10"></th>
+            <th class="py-2 px-3">File name</th>
+            <th class="py-2 px-3 w-24 text-right">Size</th>
+            <th class="py-2 px-3 min-w-72">File type</th>
+            <th class="py-2 px-2 w-10"></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of rows(); track $index; let i = $index) {
+            <tr class="border-b border-surface-100 hover:bg-surface-50 transition-colors">
+              <td class="py-2 px-2 text-center">
+                <p-checkbox
+                  [ngModel]="row.selected"
+                  (ngModelChange)="setSelected(i, $event)"
+                  [binary]="true"
+                />
+              </td>
+              <td class="py-2 px-3 font-mono text-xs break-all">{{ row.name }}</td>
+              <td class="py-2 px-3 text-right text-surface-400 tabular-nums">
+                {{ formatSize(row.size) }}
+              </td>
+              <td class="py-2 px-3">
+                <p-select
+                  [ngModel]="row.fileType"
+                  (ngModelChange)="setFileType(i, $event)"
+                  [options]="FILE_TYPE_OPTIONS"
+                  optionLabel="label"
+                  optionValue="value"
+                  placeholder="Select file type"
+                  [filter]="true"
+                  filterPlaceholder="Search file types..."
+                  appendTo="body"
+                  styleClass="w-full"
+                />
+              </td>
+              <td class="py-2 px-2 text-center">
+                <p-button
+                  icon="pi pi-times"
+                  severity="danger"
+                  [text]="true"
+                  [rounded]="true"
+                  size="small"
+                  (click)="removeRow(i)"
+                />
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Requirements check -->
+    <div class="mb-6 text-sm">
+      @if (requirementsMet()) {
+        <span class="text-green-600 font-medium">
+          <i class="pi pi-check-circle mr-1"></i>File requirements are met.
+        </span>
+      } @else {
+        <span class="text-surface-400">
+          <i class="pi pi-info-circle mr-1"></i>Select at least one file and assign a file type to
+          all selected files.
+        </span>
+      }
+    </div>
+
+    <!-- Process selected files (shown only when requirements are met) -->
+    @if (requirementsMet()) {
+      <p-button
+        label="Process selected files"
+        icon="pi pi-cog"
+        severity="success"
+        (click)="processFiles()"
+      />
+    }
+  }
+</div>
