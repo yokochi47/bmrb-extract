@@ -1,8 +1,8 @@
 import { Component, computed, effect, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
-import { ButtonModule } from 'primeng/button';
-import { DialogModule } from 'primeng/dialog';
+import { Button } from 'primeng/button';
+import { Dialog } from 'primeng/dialog';
 
 import { AppTopbar } from './app.topbar';
 import { AppSidebar } from './app.sidebar';
@@ -12,15 +12,7 @@ import { PageService } from '../pages/page.service';
 
 @Component({
   selector: 'app-layout',
-  imports: [
-    CommonModule,
-    RouterModule,
-    ButtonModule,
-    DialogModule,
-    AppTopbar,
-    AppSidebar,
-    AppFooter,
-  ],
+  imports: [CommonModule, RouterModule, Button, Dialog, AppTopbar, AppSidebar, AppFooter],
   templateUrl: 'app.layout.html',
 })
 export class AppLayout {
