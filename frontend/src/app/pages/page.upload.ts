@@ -57,7 +57,7 @@ export class Upload {
 
   readonly depSystemOptions = [
     {
-      label: 'OneDep (coordinates, chemical shifts, restraints)',
+      label: 'OneDep (coordinates, assigned chemical shifts, restraints)',
       value: TargetDepSys.ONEDEP,
     },
     {
@@ -65,7 +65,7 @@ export class Upload {
       value: TargetDepSys.REPL_CS,
     },
     {
-      label: 'BMRBdep (assigned chemical shifts entry)',
+      label: 'BMRBdep (assigned chemical shifts)',
       value: TargetDepSys.BMRBDEP,
     },
   ];

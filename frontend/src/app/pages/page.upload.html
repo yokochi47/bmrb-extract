@@ -1,7 +1,7 @@
 <div class="card">
   <div class="font-semibold text-2xl mb-6">Upload files</div>
 
-  <!-- ── Deposition system + BMRB import (hidden once conversion ID is issued) ── -->
+  <!-- Selection of deposition system (hidden once conversion ID is issued) -->
   @if (showSetupSection()) {
     <div class="mb-6">
       <div class="font-semibold text-lg mb-3">
@@ -25,8 +25,8 @@
       </div>
     </div>
 
-    <!-- Import existing BMRB entry (OneDep modes only) -->
-    @if (state().targetDepSys !== TargetDepSys.BMRBDEP) {
+    <!-- Import existing BMRB entry (OneDep mode only) -->
+    @if (state().targetDepSys === TargetDepSys.ONEDEP) {
       <div class="mb-6">
         <div class="font-semibold text-lg mb-3">Do you want to import existing BMRB entry?</div>
         <div class="flex flex-col gap-3 pl-2">
