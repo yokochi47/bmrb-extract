@@ -6,6 +6,8 @@ from enum import Enum
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import UUID, INET
 
+from core.site_config import SERVICE_DOMAIN
+
 
 Base = declarative_base()
 
@@ -124,7 +126,7 @@ class Session(Base):
 
     __tablename__ = 'session'
 
-    processing_site = sa.Column(sa.Text(), server_default='pdbj.org')
+    processing_site = sa.Column(sa.Text(), server_default=SERVICE_DOMAIN)
     token = sa.Column(UUID, server_default='uuidv7()', primary_key=True)
     token_admin = sa.Column(UUID, server_default='gen_random_uuid()')
     token_expiry = sa.Column(sa.TIMESTAMP(), nullable=False)

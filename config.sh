@@ -247,15 +247,6 @@ envsubst < postgres/init.sql.template > postgres/init.sql
 check_file postgres/init.sql
 
 #
-# Write models.py
-#
-envsubst < postgres/models.py.template > postgres/models.py
-
-cp -f postgres/models.py backend/app/core
-
-check_file postgres/models.py
-
-#
 # Write certbot.sh
 #
 envsubst < certbot/certbot.sh.template > certbot/certbot.sh
@@ -289,9 +280,7 @@ check_file frontend/src/site.config.ts
 #
 # Backend
 #
-( cd backend/app/core
-  cp site_config.py.template site_config.py
-  envsubst < site_config.py.template > site_config.py )
+envsubst < backend/app/core/site_config.py.template > backend/app/core/site_config.py
 
 check_file backend/app/core/site_config.py
 
