@@ -175,6 +175,8 @@ CREATE TABLE IF NOT EXISTS workflow (
     created_at      TIMESTAMP DEFAULT now(),
     started_at      TIMESTAMP,
     finished_at     TIMESTAMP,
-    expiry_at       TIMESTAMP
+    expiry_at       TIMESTAMP,
+
+    PRIMARY KEY ( conversion_id, ordinal )
 );
 

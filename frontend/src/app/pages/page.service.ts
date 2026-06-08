@@ -22,7 +22,7 @@ export interface PageState {
   signedIn: boolean;
   adminUser: boolean;
   tokenBase: string | null;
-  conversionId: number | null; 
+  conversionId: number | null;
 }
 
 @Injectable({
@@ -41,7 +41,7 @@ export class PageService {
     signedIn: false,
     adminUser: false,
     tokenBase: null,
-    conversionId: null
+    conversionId: null,
   });
 
   private initialized = false;
@@ -72,14 +72,16 @@ export class PageService {
         firstConsent: false,
         consentedTo: true,
       }));
-      this.http.get<{ conversion_id: number | null }>(API_URL + 'session', { params: { token } }).subscribe({
-        next: ({ conversion_id }) => {
-          this.pageState.update((prev) => ({ ...prev, conversionId: conversion_id }));
-        },
-        error: (err) => {
-          console.error('Failed to restore session', err);
-        },
-      });
+      this.http
+        .get<{ conversion_id: number | null }>(API_URL + 'session', { params: { token } })
+        .subscribe({
+          next: ({ conversion_id }) => {
+            this.pageState.update((prev) => ({ ...prev, conversionId: conversion_id }));
+          },
+          error: (err) => {
+            console.error('Failed to restore session', err);
+          },
+        });
     }
   }
 

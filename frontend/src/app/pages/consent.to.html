@@ -3,22 +3,13 @@
     Learning "Terms and Conditions" and content to "Privacy Policy"
   </div>
   <div class="flex items-center mb-4">
-    @if (locked) {
-      <p-checkbox
-        id="consentCheck"
-        [(ngModel)]="consentedTo"
-        [binary]="true"
-        (onChange)="onChange()"
-        [disabled]="true"
-      />
-    } @else {
-      <p-checkbox
-        id="consentCheck"
-        [(ngModel)]="consentedTo"
-        [binary]="true"
-        (onChange)="onChange()"
-      />
-    }
+    <p-checkbox
+      id="consentCheck"
+      [ngModel]="consentedTo()"
+      [binary]="true"
+      [disabled]="locked()"
+      (onChange)="onChange()"
+    />
     <label for="consentCheck" class="font-semibold text-xl italic pl-2"
       >I have learned and consented to the
       <a routerLink="/terms" queryParamsHandling="preserve">Terms and Conditions</a> and

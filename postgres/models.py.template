@@ -124,7 +124,7 @@ class Session(Base):
 
     __tablename__ = 'session'
 
-    processing_site = sa.Column(sa.Enum(ProcessingSiteCode), server_default='${SERVICE_DOMAIN}')
+    processing_site = sa.Column(sa.Text(), server_default='${SERVICE_DOMAIN}')
     token = sa.Column(UUID, server_default='uuidv7()', primary_key=True)
     token_admin = sa.Column(UUID, server_default='gen_random_uuid()')
     token_expiry = sa.Column(sa.TIMESTAMP(), nullable=False)
@@ -145,14 +145,14 @@ class UploadFile(Base):
 
     __tablename__ = 'upload_file'
 
-    token = sa.Column(UUID, sa.ForeignKey('session.token'), ondelete="CASCADE", primary_key=True)
+    token = sa.Column(UUID, sa.ForeignKey('session.token'), primary_key=True)
     ordinal = sa.Column(sa.Integer(), primary_key=True)
     conversion_id = sa.Column(sa.Integer(), sa.ForeignKey('session.conversion_id'))
     original_name = sa.Column(sa.Text(), nullable=False)
     stored_path = sa.Column(sa.Text(), nullable=False)
     file_size = sa.Column(sa.BigInteger())
     checksum = sa.Column(sa.Text())
-    file_type = sa.Column(sa.Enum(UploadFileType), nullable=False)
+    file_type = sa.Column(sa.Text(), nullable=False)
     selected = sa.Column(sa.Boolean(), nullable=False, server_default='TRUE')
     uploaded_at = sa.Column(sa.TIMESTAMP(), server_default=func.now())
 
@@ -161,12 +161,12 @@ class OutputFile(Base):
 
     __tablename__ = 'output_file'
 
-    conversion_id = sa.Column(sa.Integer(), sa.ForeignKey('session.conversion_id'), ondelete="CASCADE", primary_key=True)
+    conversion_id = sa.Column(sa.Integer(), sa.ForeignKey('session.conversion_id'), primary_key=True)
     ordinal = sa.Column(sa.Integer(), primary_key=True)
     stored_path = sa.Column(sa.Text(), nullable=False)
     file_size = sa.Column(sa.BigInteger())
     checksum = sa.Column(sa.Text())
-    file_type = sa.Column(sa.Enum(OutputFileType), nullable=False)
+    file_type = sa.Column(sa.Text(), nullable=False)
     downloaded = sa.Column(sa.Boolean(), nullable=False, server_default='TRUE')
     downloaded_at = sa.Column(sa.TIMESTAMP(), server_default=func.now())
     client_ip = sa.Column(INET())
@@ -177,7 +177,7 @@ class Notification(Base):
 
     __tablename__ = 'notification'
 
-    conversion_id = sa.Column(sa.Integer(), sa.ForeignKey('session.conversion_id'), ondelete="CASCADE", primary_key=True)
+    conversion_id = sa.Column(sa.Integer(), sa.ForeignKey('session.conversion_id'), primary_key=True)
     ordinal = sa.Column(sa.Integer(), primary_key=True)
     subject = sa.Column(sa.Text(), nullable=False)
     content = sa.Column(sa.Text(), nullable=False)
@@ -189,7 +189,7 @@ class Communication(Base):
 
     __tablename__ = 'communication'
 
-    conversion_id = sa.Column(sa.Integer(), sa.ForeignKey('session.conversion_id'), ondelete="CASCADE", primary_key=True)
+    conversion_id = sa.Column(sa.Integer(), sa.ForeignKey('session.conversion_id'), primary_key=True)
     ordinal = sa.Column(sa.Integer(), primary_key=True)
     subject = sa.Column(sa.Text(), nullable=False)
     content = sa.Column(sa.Text(), nullable=False)
@@ -202,8 +202,8 @@ class Workflow(Base):
 
     __tablename__ = 'workflow'
 
-    conversion_id = sa.Column(sa.Integer(), sa.ForeignKey('session.conversion_id'), ondelete="CASCADE")
-    ordinal = sa.Column(sa.Integer())
+    conversion_id = sa.Column(sa.Integer(), sa.ForeignKey('session.conversion_id'), primary_key=True)
+    ordinal = sa.Column(sa.Integer(), primary_key=True)
     task = sa.Column(sa.Enum(WfTaskCode), nullable=False)
     status = sa.Column(sa.Enum(WfStatusCode), nullable=False, server_default='created')
     log_path = sa.Column(sa.Text(), nullable=False)

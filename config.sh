@@ -251,6 +251,8 @@ check_file postgres/init.sql
 #
 envsubst < postgres/models.py.template > postgres/models.py
 
+cp -f postgres/models.py backend/app/core
+
 check_file postgres/models.py
 
 #

@@ -28,8 +28,11 @@ export const appRoutes: Routes = [
         loadComponent: () => import('./app/pages/page.privacy').then((m) => m.Privacy),
       },
       // Protected routes — require a valid session token in the URL.
-      // Add canActivate: [tokenGuard] when implementing these pages.
-      // { path: 'upload',   canActivate: [tokenGuard], loadComponent: ... },
+      {
+        path: 'upload',
+        canActivate: [tokenGuard],
+        loadComponent: () => import('./app/pages/page.upload').then((m) => m.Upload),
+      },
       // { path: 'summary',  canActivate: [tokenGuard], loadComponent: ... },
       // { path: 'download', canActivate: [tokenGuard], loadComponent: ... },
       // { path: 'help',     canActivate: [tokenGuard], loadComponent: ... },
