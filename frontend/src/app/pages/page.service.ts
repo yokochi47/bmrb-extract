@@ -84,15 +84,22 @@ export class PageService {
         .get<{
           conversion_id: number | null;
           expired: boolean;
+          target_depsys: string;
+          related_bmrb_id: number | null;
         }>(API_URL + 'session', { params: { token } })
         .subscribe({
-          next: ({ conversion_id, expired }) => {
+          next: ({ conversion_id, expired, target_depsys, related_bmrb_id }) => {
             if (expired) {
               this.tokenValidation.set('expired');
               this.pageState.update((prev) => ({ ...prev, expiredSession: true }));
             } else {
               this.tokenValidation.set('valid');
-              this.pageState.update((prev) => ({ ...prev, conversionId: conversion_id }));
+              this.pageState.update((prev) => ({
+                ...prev,
+                conversionId: conversion_id,
+                targetDepsys: TargetDepsys[target_depsys as keyof typeof TargetDepsys] ?? TargetDepsys.onedep,
+                relatedBmrbId: related_bmrb_id,
+              }));
             }
           },
           error: () => {

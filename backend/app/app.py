@@ -40,7 +40,12 @@ async def get_session():
         if session_row is None:
             return {'error': 'session not found'}, 404
         expired = session_row.token_expiry < datetime.now()
-        return {'conversion_id': session_row.conversion_id, 'expired': expired}
+        return {
+            'conversion_id': session_row.conversion_id,
+            'expired': expired,
+            'target_depsys': session_row.target_depsys.value,
+            'related_bmrb_id': session_row.related_bmrb_id,
+        }
 
 
 @app.route('/api/session', methods=['PATCH'])
