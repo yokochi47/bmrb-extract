@@ -1,24 +1,22 @@
 import { Component, computed, effect, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router, RouterModule } from '@angular/router';
-import { Button } from 'primeng/button';
-import { Dialog } from 'primeng/dialog';
+import { RouterModule } from '@angular/router';
 
 import { AppTopbar } from './app.topbar';
 import { AppSidebar } from './app.sidebar';
 import { AppFooter } from './app.footer';
+import { AppConsentDialogs } from './app.consent-dialogs';
 import { LayoutService } from './layout.service';
 import { PageService } from '../pages/page.service';
 
 @Component({
   selector: 'app-layout',
-  imports: [CommonModule, RouterModule, Button, Dialog, AppTopbar, AppSidebar, AppFooter],
+  imports: [CommonModule, RouterModule, AppTopbar, AppSidebar, AppFooter, AppConsentDialogs],
   templateUrl: 'app.layout.html',
 })
 export class AppLayout {
   layoutService = inject(LayoutService);
   pageService = inject(PageService);
-  private router = inject(Router);
 
   constructor() {
     effect(() => {
@@ -42,23 +40,4 @@ export class AppLayout {
       'layout-mobile-active': state.mobileMenuActive,
     };
   });
-
-  onConsentDialogOk(): void {
-    this.pageService.consentRequired.set(false);
-    const token = this.pageService.pageState().tokenBase;
-    this.router.navigate(['/info'], token ? { queryParams: { token } } : {});
-  }
-
-  onExpiredDialogOk(): void {
-    this.pageService.tokenValidation.set(null);
-    this.pageService.pageState.update((prev) => ({
-      ...prev,
-      expiredSession: false,
-      tokenBase: null,
-      conversionId: null,
-      consentedTo: false,
-      firstConsent: true,
-    }));
-    this.router.navigate(['/info']);
-  }
 }
