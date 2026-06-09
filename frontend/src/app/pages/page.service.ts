@@ -4,18 +4,18 @@ import { HttpClient } from '@angular/common/http';
 
 import { API_URL } from '../../site.config';
 
-export enum TargetDepSys {
-  ONEDEP,
-  BMRBDEP,
-  REPL_CS,
+export enum TargetDepsys {
+  onedep,
+  repl_cs,
+  bmrbdep,
 }
 
 export interface PageState {
   firstConsent: boolean;
   consentedTo: boolean;
-  targetDepSys: TargetDepSys;
-  referEntryId: string | null;
-  validEntryId: boolean;
+  targetDepsys: TargetDepsys;
+  referBmrbId: number | null;
+  validBmrbId: boolean;
   firstUpload: boolean;
   lockedSession: boolean;
   expiredSession: boolean;
@@ -38,9 +38,9 @@ export class PageService {
   pageState = signal<PageState>({
     firstConsent: true,
     consentedTo: false,
-    targetDepSys: TargetDepSys.ONEDEP,
-    referEntryId: null,
-    validEntryId: false,
+    targetDepsys: TargetDepsys.onedep,
+    referBmrbId: null,
+    validBmrbId: false,
     firstUpload: true,
     lockedSession: false,
     expiredSession: false,

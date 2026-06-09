@@ -11,10 +11,10 @@
         @for (opt of depSystemOptions; track opt.value) {
           <div class="flex items-center gap-2">
             <p-radiobutton
-              name="targetDepSys"
+              name="targetDepsys"
               [value]="opt.value"
-              [ngModel]="state().targetDepSys"
-              (ngModelChange)="setTargetDepSys($event)"
+              [ngModel]="state().targetDepsys"
+              (ngModelChange)="setTargetDepsys($event)"
               [inputId]="'dep-' + opt.value"
             />
             <label [for]="'dep-' + opt.value" class="text-base cursor-pointer">
@@ -25,8 +25,8 @@
       </div>
     </div>
 
-    <!-- Import existing BMRB entry (OneDep mode only) -->
-    @if (state().targetDepSys === TargetDepSys.ONEDEP) {
+    <!-- Import existing BMRB entry (onedep mode only) -->
+    @if (state().targetDepsys === TargetDepsys.onedep) {
       <div class="mb-6">
         <div class="font-semibold text-lg mb-3">Do you want to import existing BMRB entry?</div>
         <div class="flex flex-col gap-3 pl-2">
@@ -47,7 +47,7 @@
                 placeholder="BMRB ID"
                 class="w-32"
               />
-              @if (state().validEntryId) {
+              @if (state().validBmrbId) {
                 <!-- TODO: populate title / release date / authors from server validation -->
                 <span class="text-sm text-green-600">
                   BMRB entry title: *******&nbsp;&bull;&nbsp;Release date:

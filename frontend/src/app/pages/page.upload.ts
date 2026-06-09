@@ -8,7 +8,7 @@ import { MessageModule } from 'primeng/message';
 import { RadioButtonModule } from 'primeng/radiobutton';
 import { SelectModule } from 'primeng/select';
 
-import { PageService, TargetDepSys } from './page.service';
+import { PageService, TargetDepsys } from './page.service';
 
 interface FileRow {
   selected: boolean;
@@ -32,7 +32,7 @@ interface FileRow {
   templateUrl: './page.upload.html',
 })
 export class Upload {
-  protected readonly TargetDepSys = TargetDepSys;
+  protected readonly TargetDepsys = TargetDepsys;
 
   private pageService = inject(PageService);
   readonly state = this.pageService.pageState;
@@ -58,15 +58,15 @@ export class Upload {
   readonly depSystemOptions = [
     {
       label: 'OneDep (coordinates, assigned chemical shifts, restraints)',
-      value: TargetDepSys.ONEDEP,
+      value: TargetDepsys.onedep,
     },
     {
       label: 'OneDep — replacement of assigned chemical shifts',
-      value: TargetDepSys.REPL_CS,
+      value: TargetDepsys.repl_cs,
     },
     {
       label: 'BMRBdep (assigned chemical shifts)',
-      value: TargetDepSys.BMRBDEP,
+      value: TargetDepsys.bmrbdep,
     },
   ];
 
@@ -130,14 +130,14 @@ export class Upload {
     { label: 'Auxiliary — XEASY/CYANA sequence', value: 'nm-aux-xea' },
   ];
 
-  setTargetDepSys(value: TargetDepSys): void {
-    this.pageService.pageState.update((prev) => ({ ...prev, targetDepSys: value }));
-    if (value === TargetDepSys.BMRBDEP) {
+  setTargetDepsys(value: TargetDepsys): void {
+    this.pageService.pageState.update((prev) => ({ ...prev, targetDepsys: value }));
+    if (value === TargetDepsys.bmrbdep) {
       this.importBmrbEntry.set(false);
       this.pageService.pageState.update((prev) => ({
         ...prev,
-        referEntryId: null,
-        validEntryId: false,
+        referBmrbId: null,
+        validBmrbId: false,
       }));
     }
   }
@@ -148,8 +148,8 @@ export class Upload {
       this.bmrbId.set('');
       this.pageService.pageState.update((prev) => ({
         ...prev,
-        referEntryId: null,
-        validEntryId: false,
+        referBmrbId: null,
+        validBmrbId: false,
       }));
     }
   }

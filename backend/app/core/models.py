@@ -28,6 +28,13 @@ class SessionStatusCode(str, Enum):
     uploading = 'uploading'
 
 
+class TargetDepsysCode(str, Enum):
+
+    bmrbdep = 'bmrbdep'
+    onedep = 'onedep'
+    repl_cs = 'repl_cs'
+
+
 class UploadFileType(str, Enum):
 
     co_cif = 'co-cif'
@@ -134,6 +141,8 @@ class Session(Base):
     client_ip = sa.Column(INET())
     user_agent = sa.Column(sa.Text())
     status = sa.Column(sa.Enum(SessionStatusCode), nullable=False, server_default='created')
+    target_depsys = sa.Column(sa.Enum(TargetDepsysCode), nullable=False, server_default='onedep')
+    related_bmrb_id = sa.Column(sa.Integer())
     conversion_id = sa.Column(sa.Integer(), unique=True)
     created_at = sa.Column(sa.TIMESTAMP(), server_default=func.now())
     started_at = sa.Column(sa.TIMESTAMP())

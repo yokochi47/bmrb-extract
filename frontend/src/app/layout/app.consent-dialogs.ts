@@ -18,8 +18,8 @@ import { PageService } from '../pages/page.service';
       [style]="{ width: '30rem' }"
     >
       <p class="text-base leading-relaxed">
-        To continue using the Service, you must agree to the "Terms of Service" and "Privacy
-        Policy" by checking the checkbox on the "Instructions" page.
+        To continue using the Service, you must agree to the "Terms of Service" and "Privacy Policy"
+        by checking the checkbox on the "Instructions" page.
       </p>
       <ng-template pTemplate="footer">
         <p-button label="OK" (click)="onConsentDialogOk()" />
