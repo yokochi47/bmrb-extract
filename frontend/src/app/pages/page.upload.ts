@@ -139,11 +139,11 @@ export class Upload {
       this.importBmrbEntry.set(false);
       this.pageService.pageState.update((prev) => ({
         ...prev,
-        referBmrbId: null,
+        relatedBmrbId: null,
         validBmrbId: false,
       }));
     }
-    this.persistDepsys(value, this.state().referBmrbId);
+    this.persistDepsys(value, this.state().relatedBmrbId);
   }
 
   onImportBmrbChange(value: boolean): void {
@@ -152,7 +152,7 @@ export class Upload {
       this.bmrbId.set('');
       this.pageService.pageState.update((prev) => ({
         ...prev,
-        referBmrbId: null,
+        relatedBmrbId: null,
         validBmrbId: false,
       }));
       this.persistDepsys(this.state().targetDepsys, null);
