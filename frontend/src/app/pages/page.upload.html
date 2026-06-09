@@ -5,7 +5,7 @@
   @if (showSetupSection()) {
     <div class="mb-6">
       <div class="font-semibold text-lg mb-3">
-        What deposition system do you want to use converted NMR data files for?
+        What deposition system will you be using the converted NMR data files with?
       </div>
       <div class="flex flex-col gap-3 pl-2">
         @for (opt of depSystemOptions; track opt.value) {
@@ -28,7 +28,7 @@
     <!-- Import existing BMRB entry (onedep mode only) -->
     @if (state().targetDepsys === TargetDepsys.onedep) {
       <div class="mb-6">
-        <div class="font-semibold text-lg mb-3">Do you want to import existing BMRB entry?</div>
+        <div class="font-semibold text-lg mb-3">Has the associated NMR experimental data been deposited to BMRB previously?</div>
         <div class="flex flex-col gap-3 pl-2">
           <div class="flex flex-wrap items-center gap-3">
             <p-radiobutton
@@ -44,7 +44,7 @@
                 pInputText
                 [ngModel]="bmrbId()"
                 (ngModelChange)="bmrbId.set($event)"
-                placeholder="BMRB ID"
+                placeholder="BMRB ID (integer)"
                 class="w-32"
               />
               @if (state().validBmrbId) {

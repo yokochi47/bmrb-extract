@@ -60,11 +60,11 @@ export class Upload {
 
   readonly depSystemOptions = [
     {
-      label: 'OneDep (coordinates, assigned chemical shifts, restraints)',
+      label: 'OneDep (conventional: coordinates, assigned chemical shifts, NMR restraints) or (combined: coordinates, NMR unified data)',
       value: TargetDepsys.onedep,
     },
     {
-      label: 'OneDep — replacement of assigned chemical shifts',
+      label: 'OneDep (coordinates processed by OneDep, NMR unified data processed by OneDep, correct assigned chemical shifts)',
       value: TargetDepsys.repl_cs,
     },
     {

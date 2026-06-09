@@ -12,8 +12,8 @@ CREATE TYPE target_depsys_code AS ENUM ('onedep', 'repl_cs', 'bmrbdep');
 
 CREATE TABLE IF NOT EXISTS session (
     processing_site     processing_site_code DEFAULT '${SERVICE_DOMAIN}',  -- the original processing site, which created the session.
-    token               UUID PRIMARY KEY DEFAULT uuidv7(),  -- token used by user and web frontend, uuidv7() func requires PosgreSQL 18+.
-    token_admin         UUID DEFAULT gen_random_uuid(),     -- token used by administrators to respond to inquiries on 'Communicationi' page.
+    token               UUID PRIMARY KEY DEFAULT uuidv7(),  -- token used by user and web frontend, uuidv7() func requires PostgreSQL 18+.
+    token_admin         UUID DEFAULT gen_random_uuid(),     -- token used by administrators to respond to inquiries on 'Communication' page.
     token_expiry        TIMESTAMP NOT NULL,                 -- time of expiry of the session.
 
     consented           BOOLEAN NOT NULL DEFAULT FALSE,     -- whether user consented to our policies: 'Terms and Conditions' and 'Privacy Policy'
@@ -24,11 +24,12 @@ CREATE TABLE IF NOT EXISTS session (
     status              session_status_code NOT NULL DEFAULT 'created',
 
     -- The selection of target deposition system defines file upload requirements.
-    -- onedep (unified): coordinate file, NMR data file
-    --        (legacy) : coordinate file, assigned chemical shift file(s), restraint file(s)
-    -- repl_cs         : coordinate file, NMR data file, assiged chemical shift file(s) (which replaces assigned chemical shift of the master NMR data file)
-    -- bmrbdep         : assigned chemical shift file
-    -- where coordinate file must be either PDB/mmCIF or legacy PDB format, NMR data file must be single file and contain assigned chemical shifts and restraints.
+    -- onedep (conventional): coordinates, assigned chemical shifts, NMR restraints
+    --        (combined)    : coordinates, NMR unified data
+    -- repl_cs         : coordinates processed by OneDep, NMR unified data processed by OneDep, correct assigned chemical shifts
+    -- bmrbdep         : assigned chemical shifts
+    -- where the coordinate file must be in either PDBx/mmCIF format or legacy PDB format,
+    --       the NMR unified data file must be a single file containng assigned chemical shifts and NMR restraints.
     target_depsys       target_depsys_code NOT NULL DEFAULT 'onedep',
     related_bmrb_id     INT CHECK ( related_bmrb_id > 0 and related_bmrb_id < 100000 ), -- onedep mode only
 
@@ -100,7 +101,7 @@ CREATE TYPE output_file_type AS ENUM (
 );
 
 --
--- Outpuf files.
+-- Output files.
 --
 
 CREATE TABLE IF NOT EXISTS output_file (
