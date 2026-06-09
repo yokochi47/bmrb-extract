@@ -1,6 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
 import { ButtonModule } from 'primeng/button';
 import { CheckboxModule } from 'primeng/checkbox';
 import { InputTextModule } from 'primeng/inputtext';
@@ -9,6 +10,7 @@ import { RadioButtonModule } from 'primeng/radiobutton';
 import { SelectModule } from 'primeng/select';
 
 import { PageService, TargetDepsys } from './page.service';
+import { API_URL } from '../../site.config';
 
 interface FileRow {
   selected: boolean;
@@ -35,6 +37,7 @@ export class Upload {
   protected readonly TargetDepsys = TargetDepsys;
 
   private pageService = inject(PageService);
+  private http = inject(HttpClient);
   readonly state = this.pageService.pageState;
 
   /** Hidden once conversion ID is issued. */
@@ -140,6 +143,7 @@ export class Upload {
         validBmrbId: false,
       }));
     }
+    this.persistDepsys(value, this.state().referBmrbId);
   }
 
   onImportBmrbChange(value: boolean): void {
@@ -151,7 +155,22 @@ export class Upload {
         referBmrbId: null,
         validBmrbId: false,
       }));
+      this.persistDepsys(this.state().targetDepsys, null);
     }
+  }
+
+  private persistDepsys(depsys: TargetDepsys, relatedBmrbId: number | null): void {
+    const token = this.state().tokenBase;
+    if (!token) return;
+    this.http
+      .patch(API_URL + 'session', {
+        token,
+        target_depsys: TargetDepsys[depsys],
+        related_bmrb_id: relatedBmrbId,
+      })
+      .subscribe({
+        error: (err) => console.error('Failed to save deposition system', err),
+      });
   }
 
   onFilesChosen(event: Event): void {

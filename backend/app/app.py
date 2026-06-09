@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 from sqlalchemy.pool import NullPool
 
 from core.site_config import SERVICE_DATABASE_URL, FAILURE_VALIDITY_PERIOD_IN_DAYS
-from core.models import Session
+from core.models import Session, TargetDepsysCode
 
 app = Flask(__name__)
 
@@ -41,6 +41,33 @@ async def get_session():
             return {'error': 'session not found'}, 404
         expired = session_row.token_expiry < datetime.now()
         return {'conversion_id': session_row.conversion_id, 'expired': expired}
+
+
+@app.route('/api/session', methods=['PATCH'])
+async def update_session():
+    body = request.get_json(silent=True) or {}
+    token = body.get('token')
+    target_depsys_str = body.get('target_depsys')
+    related_bmrb_id = body.get('related_bmrb_id')  # int or None
+
+    if not token:
+        return {'error': 'token is required'}, 400
+    try:
+        target_depsys = TargetDepsysCode(target_depsys_str)
+    except (ValueError, TypeError):
+        return {'error': 'invalid target_depsys'}, 400
+
+    async with async_session_factory() as db:
+        result = await db.execute(select(Session).where(Session.token == token))
+        session_row = result.scalar_one_or_none()
+        if session_row is None:
+            return {'error': 'session not found'}, 404
+        if session_row.conversion_id is not None:
+            return {'error': 'session already submitted'}, 409
+        session_row.target_depsys = target_depsys
+        session_row.related_bmrb_id = related_bmrb_id
+        await db.commit()
+    return {}, 200
 
 
 @app.route('/api/new_consent', methods=['POST'])
