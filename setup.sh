@@ -217,7 +217,14 @@ COMPOSE_BAKE=true docker compose build frontend
 
 COMPOSE_BAKE=true docker compose build --build-arg OPENSSL_VERSION=${OPENSSL_VERSION} --build-arg NGINX_VERSION=${NGINX_VERSION} --build-arg CACHEBUST=$(date +%s) # --no-cache
 
-# Performance tuning
-sudo sysctl -w net.core.rmem_max=7500000
-sudo sysctl -w net.core.wmem_max=7500000
+# Performance tuning for HTTP/3 (UDP)
+net_core_mem_max=7500000
+
+if [[ "`sysctl -n net.core.rmem_max`" -lt $net_core_mem_max ]] ; then
+  sudo sysctl -w net.core.rmem_max=$net_core_mem_max
+fi
+
+if [[ "`sysctl -n net.core.wmem_max`" -lt $net_core_mem_max ]] ; then
+  sudo sysctl -w net.core.wmem_max=$net_core_mem_max
+fi
 
