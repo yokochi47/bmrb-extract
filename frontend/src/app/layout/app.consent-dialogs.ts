@@ -1,13 +1,13 @@
 import { Component, inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { Button } from 'primeng/button';
-import { Dialog } from 'primeng/dialog';
+import { ButtonModule } from 'primeng/button';
+import { DialogModule } from 'primeng/dialog';
 
 import { PageService } from '../pages/page.service';
 
 @Component({
   selector: 'app-consent-dialogs',
-  imports: [Button, Dialog],
+  imports: [ButtonModule, DialogModule],
   template: `
     <p-dialog
       header="Consent Required"
