@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { ButtonModule } from 'primeng/button';
+import { CardModule } from 'primeng/card';
 import { CheckboxModule } from 'primeng/checkbox';
 import { InputTextModule } from 'primeng/inputtext';
 import { MessageModule } from 'primeng/message';
@@ -25,6 +26,7 @@ interface FileRow {
     CommonModule,
     FormsModule,
     ButtonModule,
+    CardModule,
     CheckboxModule,
     InputTextModule,
     MessageModule,
