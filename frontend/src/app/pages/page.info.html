@@ -16,7 +16,7 @@
       rel="noopener noreferrer"
       class="text-primary font-bold hover:underline"
       >BMRBdep</a
-    >) by creating a single NMR data file from various software native formats.
+    >) by generating a single NMR data file from various software native formats.
   </p>
   <p class="text-lg mb-4">
     Please see <strong><a routerLink="/preface">Preface</a></strong> for information about the
@@ -77,7 +77,7 @@
     <p class="text-base italic">For combined single file deposition</p>
     <ul class="leading-normal list-disc pl-8 text-lg">
       <li>
-        Combined NMR data file (NMR-STAR or NEF) containing assigned chemical shifts and restraints
+        NMR unifed data file (NMR-STAR or NEF) containing assigned chemical shifts and restraints
       </li>
     </ul>
     or
@@ -90,27 +90,33 @@
       <li>Optionaly, spectral peak list files (Software-native format)</li>
     </ul>
   </ul>
+  <p class="text-lg mb-4">
+    The wwPDB NMR Validation Task Force strongly encourages the submission of spectral peak lists,
+    in particular those generated from NOESY spectra.
+  </p>
 
   <div class="font-semibold text-xl mb-4">
     Requirements for ongoing OneDep deposition - Replacement of assigned chemical shifts
   </div>
   <ul class="leading-normal list-disc pl-8 text-lg mb-4">
-    <li>Coordinate file (PDBx/mmCIF or legacy PDB format)</li>
+    <li>Coordinate file processed by OneDep (PDBx/mmCIF)</li>
     <li>
-      Master NMR data file (NMR-STAR or NEF) containing assigned chemical shifts and restraints.
+      NMR unified data file processed by OneDep (NMR-STAR) containing assigned chemical shifts and
+      restraints.
     </li>
-    <li>Assigned chemical shift files (NMR-STAR, NEF, or other supported formats).</li>
+    <li>Correct assigned chemical shift files (NMR-STAR, NEF, or other supported formats).</li>
   </ul>
   <p class="text-lg mb-4">
-    The chemical shifts in the master file will be replaced with those in the additionally uploaded
-    chemical shift file(s).
+    The chemical shifts in the NMR unified data file will be replaced with those in the correct
+    assigned chemical shift file(s).
   </p>
 
   <div class="font-semibold text-xl mb-4">Requirements for BMRBdep deposition</div>
   <ul class="leading-normal list-disc pl-8 text-lg mb-4">
     <li>Assigned chemical shift files (NMR-STAR, NEF, or other supported formats)</li>
     <li>
-      Other NMR data files in NMR-STAR format (e.g. relaxation, kinetic, thermodynamic parameters)
+      Optionally, other data files in NMR-STAR format (e.g. relaxation, kinetic, thermodynamic
+      parameters)
     </li>
   </ul>
 </div>

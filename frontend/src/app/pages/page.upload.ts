@@ -9,6 +9,7 @@ import { InputTextModule } from 'primeng/inputtext';
 import { MessageModule } from 'primeng/message';
 import { RadioButtonModule } from 'primeng/radiobutton';
 import { SelectModule } from 'primeng/select';
+import { DividerModule } from 'primeng/divider';
 
 import { PageService, TargetDepsys } from './page.service';
 import { API_URL } from '../../site.config';
@@ -32,6 +33,7 @@ interface FileRow {
     MessageModule,
     RadioButtonModule,
     SelectModule,
+    DividerModule,
   ],
   templateUrl: './page.upload.html',
 })
@@ -62,11 +64,13 @@ export class Upload {
 
   readonly depSystemOptions = [
     {
-      label: 'OneDep (conventional: coordinates, assigned chemical shifts, NMR restraints) or (combined: coordinates, NMR unified data)',
+      label:
+        'OneDep (Conventional: coordinates, assigned chemical shifts, NMR restraints) or (Combined: coordinates, NMR unified data)',
       value: TargetDepsys.onedep,
     },
     {
-      label: 'OneDep (coordinates processed by OneDep, NMR unified data processed by OneDep, correct assigned chemical shifts)',
+      label:
+        'OneDep (Replacing CS: coordinates processed by OneDep, NMR unified data processed by OneDep, correct assigned chemical shifts)',
       value: TargetDepsys.repl_cs,
     },
     {

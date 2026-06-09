@@ -97,7 +97,8 @@ export class PageService {
               this.pageState.update((prev) => ({
                 ...prev,
                 conversionId: conversion_id,
-                targetDepsys: TargetDepsys[target_depsys as keyof typeof TargetDepsys] ?? TargetDepsys.onedep,
+                targetDepsys:
+                  TargetDepsys[target_depsys as keyof typeof TargetDepsys] ?? TargetDepsys.onedep,
                 relatedBmrbId: related_bmrb_id,
               }));
             }
