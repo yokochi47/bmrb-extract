@@ -66,9 +66,7 @@ export class PageService {
       if (state.firstConsent && state.consentedTo && !state.tokenBase) {
         this.pageState.update((prev) => ({ ...prev, firstConsent: false }));
         this.newConsent();
-      }
-
-      if (!state.firstConsent && state.consentedTo && state.tokenBase) {
+      } else if (!state.firstConsent && state.consentedTo && state.tokenBase) {
         this.consentRequired.set(false);
       }
     });
@@ -83,7 +81,10 @@ export class PageService {
         consentedTo: true,
       }));
       this.http
-        .get<{ conversion_id: number | null; expired: boolean }>(API_URL + 'session', { params: { token } })
+        .get<{
+          conversion_id: number | null;
+          expired: boolean;
+        }>(API_URL + 'session', { params: { token } })
         .subscribe({
           next: ({ conversion_id, expired }) => {
             if (expired) {

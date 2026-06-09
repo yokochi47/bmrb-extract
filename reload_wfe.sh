@@ -8,5 +8,5 @@ set -eu
 docker compose down nginx
 docker compose build frontend
 docker compose build nginx
-docker compose up nginx -d --remove-orphans
+docker compose up nginx --remove-orphans
 

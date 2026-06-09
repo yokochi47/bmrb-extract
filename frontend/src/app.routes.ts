@@ -23,19 +23,22 @@ export const tokenGuard: CanActivateFn = (route) => {
 
   // Fast path: reuse cached validation result from a prior HTTP call.
   const cached = pageService.tokenValidation();
-  if (cached === 'valid') return true;
-  if (cached === 'expired') {
-    pageService.pageState.update((prev) => ({ ...prev, expiredSession: true }));
-    return false;
-  }
-  if (cached === 'invalid') {
-    pageService.consentRequired.set(true);
-    return false;
+  switch (cached) {
+    case 'valid':
+      return true;
+    case 'expired':
+      pageService.pageState.update((prev) => ({ ...prev, expiredSession: true }));
+      return false;
+    case 'invalid':
+      pageService.consentRequired.set(true);
+      return false;
   }
 
   // Slow path: validate against DB (tokenValidation is null — first navigation).
   return inject(HttpClient)
-    .get<{ conversion_id: number | null; expired: boolean }>(API_URL + 'session', { params: { token } })
+    .get<{ conversion_id: number | null; expired: boolean }>(API_URL + 'session', {
+      params: { token },
+    })
     .pipe(
       map(({ conversion_id, expired }) => {
         if (expired) {

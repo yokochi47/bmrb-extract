@@ -135,7 +135,7 @@ services:
       # - ./certbot/cert:/etc/letsencrypt
       # - ./certbot/www:/var/www/certbot
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/api"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1"]
       interval: 5s
       timeout: 5s
       retries: 3
