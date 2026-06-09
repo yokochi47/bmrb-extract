@@ -144,7 +144,78 @@
       </div>
     }
   } @else {
-    <p-card header="Current file upload requirements" styleClass="mb-6"> </p-card>
+    <p-card header="Current file upload requirements" styleClass="mb-6">
+      @switch (state().targetDepsys) {
+        @case (TargetDepsys.onedep) {
+          <div class="font-semibold text-lg mb-4">Requirements for OneDep deposition</div>
+          <ul class="leading-normal list-disc pl-8 text-base mb-4">
+            <li>Coordinate file (PDBx/mmCIF or legacy PDB format)</li>
+            <p class="text-sm italic">For combined single file deposition</p>
+            <ul class="leading-normal list-disc pl-8 text-base">
+              <li>
+                NMR unified data file (NMR-STAR or NEF) containing assigned chemical shifts and
+                restraints
+              </li>
+            </ul>
+            or
+            <p class="text-sm italic">For conventional separated file deposition</p>
+            <ul class="leading-normal list-disc pl-8 text-base mb-4">
+              <li>
+                Assigned chemical shift files (NMR-STAR, NEF, existing BMRB ID, or other supported
+                formats)
+              </li>
+              <li>Restraint files (Software-native format)</li>
+              <li>Optionally, spectral peak list files (Software-native format)</li>
+            </ul>
+          </ul>
+          <p class="text-base mb-4">
+            The wwPDB NMR Validation Task Force strongly encourages the submission of spectral peak
+            lists, in particular those generated from NOESY spectra.
+          </p>
+          <p-divider align="left"> where </p-divider>
+          <ul class="leading-normal list-disc pl-8 text-sm mb-4">
+            <li>
+              <strong>Coordinate</strong> file must be in either PDBx/mmCIF format or legacy PDB
+              format.
+            </li>
+            <li>
+              <strong>NMR unified data</strong> file is either in NEF or NMR-STAR format that
+              includes chemical shifts, restraints, and optionally spectral peak lists in a single
+              file.
+            </li>
+          </ul>
+        }
+        @case (TargetDepsys.repl_cs) {
+          <div class="font-semibold text-lg mb-4">
+            Requirements for ongoing OneDep deposition — Replacement of assigned chemical shifts
+          </div>
+          <ul class="leading-normal list-disc pl-8 text-base mb-4">
+            <li>Coordinate file processed by OneDep (PDBx/mmCIF)</li>
+            <li>
+              NMR unified data file processed by OneDep (NMR-STAR) containing assigned chemical
+              shifts and restraints.
+            </li>
+            <li>
+              Correct assigned chemical shift files (NMR-STAR, NEF, or other supported formats).
+            </li>
+          </ul>
+          <p class="text-base mb-4">
+            The chemical shifts in the NMR unified data file will be replaced with those in the
+            correct assigned chemical shift file(s).
+          </p>
+        }
+        @case (TargetDepsys.bmrbdep) {
+          <div class="font-semibold text-lg mb-4">Requirements for BMRBdep deposition</div>
+          <ul class="leading-normal list-disc pl-8 text-base mb-4">
+            <li>Assigned chemical shift files (NMR-STAR, NEF, or other supported formats)</li>
+            <li>
+              Optionally, other data files in NMR-STAR format (e.g. relaxation, kinetic,
+              thermodynamic parameters)
+            </li>
+          </ul>
+        }
+      }
+    </p-card>
   }
 
   <!-- General file upload instructions -->
