@@ -240,9 +240,9 @@ export class Upload {
       // Step 2: Reject if the entry already has an exact PDB ID link
       const pdbLinks = await firstValueFrom(
         this.http
-          .get<{ pdb_id?: string; match_type: string }[]>(
-            `${this.BMRB_API}/search/get_pdb_ids_from_bmrb_id/${id}`,
-          )
+          .get<
+            { pdb_id?: string; match_type: string }[]
+          >(`${this.BMRB_API}/search/get_pdb_ids_from_bmrb_id/${id}`)
           .pipe(timeout(10_000)),
       );
       if (version !== this.validationVersion) return;
@@ -268,9 +268,9 @@ export class Upload {
         ),
         firstValueFrom(
           this.http
-            .get<Record<string, unknown>>(
-              `${this.BMRB_API}/entry/${id}?tag=Entry.Original_release_date`,
-            )
+            .get<
+              Record<string, unknown>
+            >(`${this.BMRB_API}/entry/${id}?tag=Entry.Original_release_date`)
             .pipe(timeout(10_000)),
         ),
         firstValueFrom(
@@ -308,11 +308,7 @@ export class Upload {
    * Extract a scalar value from a BMRB API tag response.
    * Actual format: { "<id>": { "Saveframe.Tag": ["value", ...] } }
    */
-  private extractScalar(
-    response: Record<string, unknown>,
-    id: number,
-    tagKey: string,
-  ): string {
+  private extractScalar(response: Record<string, unknown>, id: number, tagKey: string): string {
     const entry = (response[id] ?? response[String(id)]) as Record<string, unknown[]> | undefined;
     const values = entry?.[tagKey];
     return String(values?.[0] ?? '').trim();
@@ -325,9 +321,7 @@ export class Upload {
    */
   private extractAuthors(response: Record<string, unknown>, id: number): string {
     const entry = (response[id] ?? response[String(id)]) as Record<string, unknown> | undefined;
-    const loopArr = entry?.['Entry_author'] as
-      | { tags: string[]; data: string[][] }[]
-      | undefined;
+    const loopArr = entry?.['Entry_author'] as { tags: string[]; data: string[][] }[] | undefined;
     if (!loopArr?.length) return '';
 
     const { tags = [], data = [] } = loopArr[0];
@@ -396,6 +390,9 @@ export class Upload {
 
   processFiles(): void {
     // TODO: POST selected files to /api/upload with session token
-    console.log('Processing files:', this.rows().filter((r) => r.selected));
+    console.log(
+      'Processing files:',
+      this.rows().filter((r) => r.selected),
+    );
   }
 }
