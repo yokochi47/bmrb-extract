@@ -9,7 +9,6 @@ import { InputTextModule } from 'primeng/inputtext';
 import { MessageModule } from 'primeng/message';
 import { RadioButtonModule } from 'primeng/radiobutton';
 import { SelectModule } from 'primeng/select';
-import { DividerModule } from 'primeng/divider';
 
 import { PageService, TargetDepsys } from './page.service';
 import { API_URL } from '../../site.config';
@@ -33,7 +32,6 @@ interface FileRow {
     MessageModule,
     RadioButtonModule,
     SelectModule,
-    DividerModule,
   ],
   templateUrl: './page.upload.html',
 })

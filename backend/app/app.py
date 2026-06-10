@@ -23,7 +23,9 @@ from core.site_config import (
     CONV_ID_RANGE_BEGIN,
     CONV_ID_RANGE_END,
     FAILURE_VALIDITY_PERIOD_IN_DAYS,
+    SERVICE_ADMIN_EMAIL,
     SERVICE_DATABASE_URL,
+    SERVICE_HOST,
 )
 
 app = Flask(__name__)
@@ -37,7 +39,7 @@ app = Flask(__name__)
 engine = create_async_engine(SERVICE_DATABASE_URL, echo=True, poolclass=NullPool)
 async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-_GIT_ACTOR = Actor('bmrb-extract', 'system@bmrb-extract.local')
+_GIT_ACTOR = Actor(SERVICE_HOST, SERVICE_ADMIN_EMAIL)
 
 
 def _open_repo(session_dir: Path) -> Repo:
