@@ -4,7 +4,7 @@ ENV PIP_ROOT_USER_ACTION=ignore
 
 WORKDIR /app
 
-RUN apk add --no-cache gcc musl-dev libffi-dev
+RUN apk add --no-cache gcc musl-dev libffi-dev git
 
 COPY requirements.txt .
 

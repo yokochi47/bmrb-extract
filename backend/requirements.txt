@@ -2,3 +2,4 @@ flask[async]
 gunicorn
 SQLAlchemy[asyncio]
 asyncpg
+gitpython

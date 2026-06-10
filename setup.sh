@@ -48,6 +48,16 @@ docker volume inspect ${POSTGRES_DATA_VOL_LABEL} > /dev/null 2>&1 \
     ${POSTGRES_DATA_VOL_LABEL}
 
 #
+# Create a directory for archive storage
+#
+if [[ -n "${ARCHIVE_VOL_DIR}" ]] && [[ ! -d "${ARCHIVE_VOL_DIR}" ]] ; then
+
+  sudo mkdir -p ${ARCHIVE_VOL_DIR}
+  sudo chown ${USER}:${USER} ${ARCHIVE_VOL_DIR}
+
+fi
+
+#
 # Create a directory for Docker volume (nginx_logs)
 #
 if [[ -n "${NGINX_LOG_VOL_DIR}" ]] && [[ ! -d "${NGINX_LOG_VOL_DIR}" ]] ; then
@@ -197,7 +207,9 @@ for repo in "${ACTION_RUNNER_REPOS[@]}" ; do
   esac
 
   docker service ps $repo > /dev/null || \
-    (docker service create -q --replicas 3 --name $repo --update-delay 20s $container_repo &)
+    (docker service create -q --replicas 3 --name $repo --update-delay 20s \
+      --mount type=bind,source=${ARCHIVE_VOL_DIR},target=/archive \
+      $container_repo &)
 
 done
 

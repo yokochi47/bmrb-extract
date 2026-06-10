@@ -13,6 +13,7 @@ services:
         condition: service_healthy
     volumes:
       - ./backend/app:/app
+      - ${ARCHIVE_VOL_DIR}:/archive
     expose:
       - "8000"
     networks:
@@ -111,6 +112,8 @@ services:
         condition: service_started
     networks:
       - internal
+    volumes:
+      - ${ARCHIVE_VOL_DIR}:/archive
 
   nginx:
     build: ./nginx

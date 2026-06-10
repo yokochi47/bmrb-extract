@@ -1,11 +1,30 @@
+import json
+import os
 from datetime import datetime, timedelta
+from pathlib import Path
+
 from flask import Flask, request
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from git import Actor, InvalidGitRepositoryError, Repo
+from sqlalchemy import func, select, update
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from core.site_config import SERVICE_DATABASE_URL, FAILURE_VALIDITY_PERIOD_IN_DAYS
-from core.models import Session, TargetDepsysCode
+from core.models import (
+    Session,
+    SessionStatusCode,
+    TargetDepsysCode,
+    UploadFile,
+    Workflow,
+    WfStatusCode,
+    WfTaskCode,
+)
+from core.site_config import (
+    ARCHIVE_BASE_PATH,
+    CONV_ID_RANGE_BEGIN,
+    CONV_ID_RANGE_END,
+    FAILURE_VALIDITY_PERIOD_IN_DAYS,
+    SERVICE_DATABASE_URL,
+)
 
 app = Flask(__name__)
 
@@ -18,6 +37,30 @@ app = Flask(__name__)
 engine = create_async_engine(SERVICE_DATABASE_URL, echo=True, poolclass=NullPool)
 async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
+_GIT_ACTOR = Actor('bmrb-extract', 'system@bmrb-extract.local')
+
+
+def _open_repo(session_dir: Path) -> Repo:
+    """Return the git Repo for a session directory, initialising it on first use."""
+    try:
+        return Repo(str(session_dir))
+    except InvalidGitRepositoryError:
+        repo = Repo.init(str(session_dir))
+        return repo
+
+
+def _commit_run(repo: Repo, run_number: int) -> str:
+    """Stage all changes and create a commit for one processing run."""
+    repo.git.add(A=True)
+    commit = repo.index.commit(
+        f'Run #{run_number:04d} — {datetime.now().isoformat(timespec="seconds")}',
+        author=_GIT_ACTOR,
+        committer=_GIT_ACTOR,
+    )
+    return commit.hexsha
+
+
+# ── Health ────────────────────────────────────────────────────────────────────
 
 @app.route('/')
 def index():
@@ -28,6 +71,8 @@ def index():
 def health():
     return {'status': 'ok'}
 
+
+# ── Session ───────────────────────────────────────────────────────────────────
 
 @app.route('/api/session', methods=['GET'])
 async def get_session():
@@ -75,6 +120,8 @@ async def update_session():
     return {}, 200
 
 
+# ── Consent ───────────────────────────────────────────────────────────────────
+
 @app.route('/api/new_consent', methods=['POST'])
 async def new_consent():
     async with async_session_factory() as db:
@@ -88,3 +135,228 @@ async def new_consent():
         await db.commit()
         await db.refresh(new_session)
         return {'token': str(new_session.token)}
+
+
+# ── File upload ───────────────────────────────────────────────────────────────
+
+@app.route('/api/upload', methods=['POST'])
+async def upload():
+    """Store an uploaded file in the session archive and create a DB record.
+
+    Multipart form fields: token, file_type, file (binary).
+    On the first upload for a session, git init is called for the session directory.
+    Returns: { ordinal, stored_path, file_size }
+    """
+    token = request.form.get('token')
+    file_type = request.form.get('file_type')
+    f = request.files.get('file')
+
+    if not all([token, file_type, f]):
+        return {'error': 'token, file_type, and file are required'}, 400
+
+    original_name = f.filename or 'unnamed'
+
+    async with async_session_factory() as db:
+        result = await db.execute(select(Session).where(Session.token == token))
+        session_row = result.scalar_one_or_none()
+        if session_row is None:
+            return {'error': 'session not found'}, 404
+        if session_row.token_expiry < datetime.now():
+            return {'error': 'session expired'}, 410
+        if session_row.downloaded:
+            return {'error': 'session is locked after download'}, 409
+
+        # Assign next ordinal for this session
+        result = await db.execute(
+            select(func.max(UploadFile.ordinal)).where(UploadFile.token == token)
+        )
+        max_ordinal = result.scalar_one_or_none() or 0
+        ordinal = max_ordinal + 1
+
+        # Build archive path
+        session_dir = Path(ARCHIVE_BASE_PATH) / str(token)
+        session_dir.mkdir(parents=True, exist_ok=True)
+        stored_path = str(session_dir / f'{ordinal}_{original_name}')
+
+        # Save file and initialise git repo (idempotent)
+        f.save(stored_path)
+        _open_repo(session_dir)
+
+        file_size = os.path.getsize(stored_path)
+
+        # Persist upload_file record
+        db.add(UploadFile(
+            token=token,
+            ordinal=ordinal,
+            original_name=original_name,
+            stored_path=stored_path,
+            file_size=file_size,
+            file_type=file_type,
+            selected=True,
+        ))
+
+        await db.execute(
+            update(Session)
+            .where(Session.token == token)
+            .values(status=SessionStatusCode.uploading)
+        )
+        await db.commit()
+
+    return {'ordinal': ordinal, 'stored_path': stored_path, 'file_size': file_size}, 201
+
+
+@app.route('/api/upload', methods=['DELETE'])
+async def delete_upload():
+    """Remove an uploaded file from the archive and its DB record.
+
+    JSON body: { token, ordinal }
+    """
+    body = request.get_json(silent=True) or {}
+    token = body.get('token')
+    ordinal = body.get('ordinal')
+
+    if not token or ordinal is None:
+        return {'error': 'token and ordinal are required'}, 400
+
+    async with async_session_factory() as db:
+        result = await db.execute(
+            select(UploadFile).where(
+                UploadFile.token == token,
+                UploadFile.ordinal == ordinal,
+            )
+        )
+        upload_row = result.scalar_one_or_none()
+        if upload_row is None:
+            return {'error': 'upload file not found'}, 404
+
+        try:
+            os.remove(upload_row.stored_path)
+        except FileNotFoundError:
+            pass
+
+        await db.delete(upload_row)
+        await db.commit()
+
+    return {}, 200
+
+
+# ── Process ───────────────────────────────────────────────────────────────────
+
+@app.route('/api/process', methods=['POST'])
+async def process():
+    """Commit the current upload state and trigger the conversion workflow.
+
+    JSON body: { token }
+    - Issues a conversion_id on first call.
+    - Writes manifest.json into the session archive directory.
+    - Creates a git commit (one per processing run).
+    - Inserts Workflow task rows and updates session status to 'processing'.
+    Returns: { conversion_id, run_number, commit_sha }
+    """
+    body = request.get_json(silent=True) or {}
+    token = body.get('token')
+
+    if not token:
+        return {'error': 'token is required'}, 400
+
+    async with async_session_factory() as db:
+        result = await db.execute(select(Session).where(Session.token == token))
+        session_row = result.scalar_one_or_none()
+        if session_row is None:
+            return {'error': 'session not found'}, 404
+        if session_row.token_expiry < datetime.now():
+            return {'error': 'session expired'}, 410
+        if session_row.status == SessionStatusCode.processing:
+            return {'error': 'already processing'}, 409
+        if session_row.downloaded:
+            return {'error': 'session is locked after download'}, 409
+
+        # Require at least one selected file
+        result = await db.execute(
+            select(UploadFile).where(
+                UploadFile.token == token,
+                UploadFile.selected == True,
+            )
+        )
+        selected_files = result.scalars().all()
+        if not selected_files:
+            return {'error': 'no files selected'}, 400
+
+        # Issue conversion_id on first processing run
+        conversion_id = session_row.conversion_id
+        if conversion_id is None:
+            result = await db.execute(
+                select(func.max(Session.conversion_id)).where(
+                    Session.conversion_id.between(CONV_ID_RANGE_BEGIN, CONV_ID_RANGE_END)
+                )
+            )
+            max_id = result.scalar_one_or_none()
+            conversion_id = (max_id if max_id is not None else CONV_ID_RANGE_BEGIN - 1) + 1
+            if conversion_id > CONV_ID_RANGE_END:
+                return {'error': 'conversion ID range exhausted'}, 503
+            session_row.conversion_id = conversion_id
+            await db.execute(
+                update(UploadFile)
+                .where(UploadFile.token == token)
+                .values(conversion_id=conversion_id)
+            )
+
+        # Determine run number from git history
+        session_dir = Path(ARCHIVE_BASE_PATH) / str(token)
+        repo = _open_repo(session_dir)
+        try:
+            run_number = sum(1 for _ in repo.iter_commits()) + 1
+        except Exception:
+            run_number = 1
+
+        # Write manifest.json
+        manifest = {
+            'token': str(token),
+            'conversion_id': conversion_id,
+            'run_number': run_number,
+            'timestamp': datetime.now().isoformat(timespec='seconds'),
+            'target_depsys': session_row.target_depsys.value,
+            'files': [
+                {
+                    'ordinal': f.ordinal,
+                    'original_name': f.original_name,
+                    'stored_path': f.stored_path,
+                    'file_type': f.file_type,
+                    'selected': f.selected,
+                }
+                for f in selected_files
+            ],
+        }
+        (session_dir / 'manifest.json').write_text(json.dumps(manifest, indent=2))
+
+        # Git commit — captures all uploaded files + manifest for this run
+        commit_sha = _commit_run(repo, run_number)
+
+        # Insert Workflow task records
+        for i, task_code in enumerate(
+            [WfTaskCode.issue_conversion, WfTaskCode.convert_model, WfTaskCode.convert_nmr_data],
+            start=1,
+        ):
+            await db.execute(
+                Workflow.__table__.insert().values(
+                    conversion_id=conversion_id,
+                    ordinal=i,
+                    task=task_code,
+                    status=WfStatusCode.pending,
+                    log_path=str(session_dir / f'{task_code.value}.log'),
+                )
+            )
+
+        session_row.status = SessionStatusCode.processing
+        session_row.started_at = datetime.now()
+        await db.commit()
+
+    # TODO: trigger Prefect flow run via Prefect API
+    # from prefect.client.orchestration import get_client
+    # async with get_client() as client:
+    #     await client.create_flow_run_from_deployment(
+    #         deployment_name='process-session/default',
+    #         parameters={'token': token, 'conversion_id': conversion_id},
+    #     )
+
+    return {'conversion_id': conversion_id, 'run_number': run_number, 'commit_sha': commit_sha}, 202
