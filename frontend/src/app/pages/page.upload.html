@@ -46,19 +46,44 @@
             />
             <label for="import-yes" class="text-base cursor-pointer">Yes</label>
             @if (importBmrbEntry()) {
-              <input
-                pInputText
+              <p-inputNumber
                 [ngModel]="bmrbId()"
-                (ngModelChange)="bmrbId.set($event)"
-                placeholder="BMRB ID (5 digits)"
-                class="w-40"
+                (ngModelChange)="onBmrbIdChange($event)"
+                [useGrouping]="false"
+                [maxFractionDigits]="0"
+                placeholder="BMRB ID"
+                [invalid]="isBmrbIdInvalidFormat()"
+                inputStyleClass="w-32"
               />
-              @if (state().validBmrbId) {
-                <!-- TODO: populate title / release date / authors from server validation -->
-                <span class="text-sm text-green-600">
-                  BMRB entry title: *******&nbsp;&bull;&nbsp;Release date:
-                  YYYY-MM-DD&nbsp;&bull;&nbsp;Authors: ***, ***
-                </span>
+              @switch (bmrbValidationState()) {
+                @case ('validating') {
+                  <span class="text-sm text-surface-400">
+                    <i class="pi pi-spin pi-spinner mr-1"></i>Validating&hellip;
+                  </span>
+                }
+                @case ('valid') {
+                  @if (bmrbEntryInfo(); as info) {
+                    <span class="text-sm text-green-600 max-w-md break-words">
+                      {{ info.title }}&nbsp;&bull;&nbsp;{{ info.releaseDate }}&nbsp;&bull;&nbsp;{{ info.authors }}
+                    </span>
+                  }
+                }
+                @case ('not-found') {
+                  <span class="text-sm text-red-500">
+                    BMRB ID does not exist or is not publicly available
+                  </span>
+                }
+                @case ('already-linked') {
+                  <span class="text-sm text-red-500">
+                    BMRB ID has already been linked to PDB ID:&nbsp;{{ bmrbLinkedPdbId() }}
+                  </span>
+                }
+                @case ('timeout') {
+                  <span class="text-sm text-orange-500">BMRB API timeout error</span>
+                }
+                @case ('error') {
+                  <span class="text-sm text-red-500">BMRB ID is invalid</span>
+                }
               }
             }
           </div>

@@ -2,16 +2,34 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
+import { firstValueFrom, TimeoutError } from 'rxjs';
+import { timeout } from 'rxjs/operators';
 import { ButtonModule } from 'primeng/button';
 import { CardModule } from 'primeng/card';
 import { CheckboxModule } from 'primeng/checkbox';
-import { InputTextModule } from 'primeng/inputtext';
+import { DividerModule } from 'primeng/divider';
+import { InputNumberModule } from 'primeng/inputnumber';
 import { MessageModule } from 'primeng/message';
 import { RadioButtonModule } from 'primeng/radiobutton';
 import { SelectModule } from 'primeng/select';
 
 import { PageService, TargetDepsys } from './page.service';
 import { API_URL } from '../../site.config';
+
+type BmrbValidationState =
+  | 'idle'
+  | 'validating'
+  | 'valid'
+  | 'not-found'
+  | 'already-linked'
+  | 'timeout'
+  | 'error';
+
+interface BmrbEntryInfo {
+  title: string;
+  releaseDate: string;
+  authors: string;
+}
 
 interface FileRow {
   selected: boolean;
@@ -28,7 +46,8 @@ interface FileRow {
     ButtonModule,
     CardModule,
     CheckboxModule,
-    InputTextModule,
+    DividerModule,
+    InputNumberModule,
     MessageModule,
     RadioButtonModule,
     SelectModule,
@@ -51,7 +70,19 @@ export class Upload {
   );
 
   importBmrbEntry = signal(false);
-  bmrbId = signal('');
+  bmrbId = signal<number | null>(null);
+  bmrbValidationState = signal<BmrbValidationState>('idle');
+  bmrbEntryInfo = signal<BmrbEntryInfo | null>(null);
+  bmrbLinkedPdbId = signal<string | null>(null);
+
+  /** True when a value is present but outside the 5-digit range (10000–99999). */
+  isBmrbIdInvalidFormat = computed(() => {
+    const id = this.bmrbId();
+    return id !== null && (id < 10000 || id > 99999);
+  });
+
+  private validationVersion = 0;
+  private readonly BMRB_API = 'https://api.bmrb.io/v2';
 
   rows = signal<FileRow[]>([]);
 
@@ -141,11 +172,7 @@ export class Upload {
     this.pageService.pageState.update((prev) => ({ ...prev, targetDepsys: value }));
     if (value === TargetDepsys.bmrbdep) {
       this.importBmrbEntry.set(false);
-      this.pageService.pageState.update((prev) => ({
-        ...prev,
-        relatedBmrbId: null,
-        validBmrbId: false,
-      }));
+      this.resetBmrbValidation();
     }
     this.persistDepsys(value, this.state().relatedBmrbId);
   }
@@ -153,14 +180,154 @@ export class Upload {
   onImportBmrbChange(value: boolean): void {
     this.importBmrbEntry.set(value);
     if (!value) {
-      this.bmrbId.set('');
+      this.resetBmrbValidation();
+      this.persistDepsys(this.state().targetDepsys, null);
+    }
+  }
+
+  onBmrbIdChange(value: number | null): void {
+    this.bmrbId.set(value);
+    this.bmrbEntryInfo.set(null);
+    this.bmrbLinkedPdbId.set(null);
+
+    if (value !== null && value >= 10000 && value <= 99999) {
+      void this.validateBmrbId(value);
+    } else {
+      this.bmrbValidationState.set('idle');
       this.pageService.pageState.update((prev) => ({
         ...prev,
         relatedBmrbId: null,
         validBmrbId: false,
       }));
-      this.persistDepsys(this.state().targetDepsys, null);
     }
+  }
+
+  private resetBmrbValidation(): void {
+    this.bmrbId.set(null);
+    this.bmrbValidationState.set('idle');
+    this.bmrbEntryInfo.set(null);
+    this.bmrbLinkedPdbId.set(null);
+    this.pageService.pageState.update((prev) => ({
+      ...prev,
+      relatedBmrbId: null,
+      validBmrbId: false,
+    }));
+  }
+
+  private async validateBmrbId(id: number): Promise<void> {
+    const version = ++this.validationVersion;
+    this.bmrbValidationState.set('validating');
+
+    try {
+      // Step 1: Confirm the entry exists in the macromolecule database
+      const entryList = await firstValueFrom(
+        this.http
+          .get<unknown[]>(`${this.BMRB_API}/list_entries?database=macromolecules`)
+          .pipe(timeout(10_000)),
+      );
+      if (version !== this.validationVersion) return;
+
+      if (!entryList.some((e) => Number(e) === id)) {
+        this.bmrbValidationState.set('not-found');
+        this.pageService.pageState.update((prev) => ({
+          ...prev,
+          relatedBmrbId: null,
+          validBmrbId: false,
+        }));
+        return;
+      }
+
+      // Step 2: Reject if the entry already has an exact PDB ID link
+      const pdbLinks = await firstValueFrom(
+        this.http
+          .get<{ pdb_id?: string; match_type: string }[]>(
+            `${this.BMRB_API}/search/get_pdb_ids_from_bmrb_id/${id}`,
+          )
+          .pipe(timeout(10_000)),
+      );
+      if (version !== this.validationVersion) return;
+
+      const exact = pdbLinks.find((item) => item.match_type === 'Exact');
+      if (exact) {
+        this.bmrbLinkedPdbId.set(exact.pdb_id ?? 'unknown');
+        this.bmrbValidationState.set('already-linked');
+        this.pageService.pageState.update((prev) => ({
+          ...prev,
+          relatedBmrbId: null,
+          validBmrbId: false,
+        }));
+        return;
+      }
+
+      // Step 3: Fetch title, release date, and author list in parallel
+      const [titleResp, dateResp, authorsResp] = await Promise.all([
+        firstValueFrom(
+          this.http
+            .get<Record<string, unknown>>(`${this.BMRB_API}/entry/${id}?tag=Entry.Title`)
+            .pipe(timeout(10_000)),
+        ),
+        firstValueFrom(
+          this.http
+            .get<Record<string, unknown>>(
+              `${this.BMRB_API}/entry/${id}?tag=Entry.Original_release_date`,
+            )
+            .pipe(timeout(10_000)),
+        ),
+        firstValueFrom(
+          this.http
+            .get<Record<string, unknown>>(`${this.BMRB_API}/entry/${id}?loop=Entry_author`)
+            .pipe(timeout(10_000)),
+        ),
+      ]);
+      if (version !== this.validationVersion) return;
+
+      this.bmrbEntryInfo.set({
+        title: this.extractScalar(titleResp, id, 'Entry', 'Title'),
+        releaseDate: this.extractScalar(dateResp, id, 'Entry', 'Original_release_date'),
+        authors: this.extractAuthors(authorsResp, id),
+      });
+      this.bmrbValidationState.set('valid');
+      this.pageService.pageState.update((prev) => ({
+        ...prev,
+        relatedBmrbId: id,
+        validBmrbId: true,
+      }));
+      this.persistDepsys(this.state().targetDepsys, id);
+    } catch (err) {
+      if (version !== this.validationVersion) return;
+      this.bmrbValidationState.set(err instanceof TimeoutError ? 'timeout' : 'error');
+      this.pageService.pageState.update((prev) => ({
+        ...prev,
+        relatedBmrbId: null,
+        validBmrbId: false,
+      }));
+    }
+  }
+
+  /** Extract a single scalar value from a BMRB API tag response. */
+  private extractScalar(
+    response: Record<string, unknown>,
+    id: number,
+    saveframe: string,
+    tag: string,
+  ): string {
+    const entry = (response[id] ?? response[String(id)]) as Record<string, unknown> | undefined;
+    const rows = entry?.[saveframe] as Record<string, unknown>[] | undefined;
+    return String(rows?.[0]?.[tag] ?? '');
+  }
+
+  /** Build a formatted author list from a BMRB API loop response. */
+  private extractAuthors(response: Record<string, unknown>, id: number): string {
+    const entry = (response[id] ?? response[String(id)]) as Record<string, unknown> | undefined;
+    const rows = (entry?.['Entry_author'] ?? []) as Record<string, string>[];
+    return rows
+      .map((author) => {
+        const family = author['Family_name'] ?? '';
+        const given = author['Given_name'] ?? author['First_initial'] ?? '';
+        const initial = given ? given.charAt(0) : '';
+        return initial ? `${family} ${initial}.` : family;
+      })
+      .join(', ');
   }
 
   private persistDepsys(depsys: TargetDepsys, relatedBmrbId: number | null): void {
@@ -211,9 +378,6 @@ export class Upload {
 
   processFiles(): void {
     // TODO: POST selected files to /api/upload with session token
-    console.log(
-      'Processing files:',
-      this.rows().filter((r) => r.selected),
-    );
+    console.log('Processing files:', this.rows().filter((r) => r.selected));
   }
 }
