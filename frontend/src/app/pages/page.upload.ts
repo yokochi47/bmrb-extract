@@ -282,8 +282,8 @@ export class Upload {
       if (version !== this.validationVersion) return;
 
       this.bmrbEntryInfo.set({
-        title: this.extractScalar(titleResp, id, 'Entry', 'Title'),
-        releaseDate: this.extractScalar(dateResp, id, 'Entry', 'Original_release_date'),
+        title: this.extractScalar(titleResp, id, 'Entry.Title'),
+        releaseDate: this.extractScalar(dateResp, id, 'Entry.Original_release_date'),
         authors: this.extractAuthors(authorsResp, id),
       });
       this.bmrbValidationState.set('valid');
@@ -304,29 +304,47 @@ export class Upload {
     }
   }
 
-  /** Extract a single scalar value from a BMRB API tag response. */
+  /**
+   * Extract a scalar value from a BMRB API tag response.
+   * Actual format: { "<id>": { "Saveframe.Tag": ["value", ...] } }
+   */
   private extractScalar(
     response: Record<string, unknown>,
     id: number,
-    saveframe: string,
-    tag: string,
+    tagKey: string,
   ): string {
-    const entry = (response[id] ?? response[String(id)]) as Record<string, unknown> | undefined;
-    const rows = entry?.[saveframe] as Record<string, unknown>[] | undefined;
-    return String(rows?.[0]?.[tag] ?? '');
+    const entry = (response[id] ?? response[String(id)]) as Record<string, unknown[]> | undefined;
+    const values = entry?.[tagKey];
+    return String(values?.[0] ?? '').trim();
   }
 
-  /** Build a formatted author list from a BMRB API loop response. */
+  /**
+   * Build a formatted author list from a BMRB API loop response.
+   * Actual format: { "<id>": { "Entry_author": [{ "tags": [...], "data": [[...], ...] }] } }
+   * Column positions are mapped from "tags"; "." means null in NMR-STAR format.
+   */
   private extractAuthors(response: Record<string, unknown>, id: number): string {
     const entry = (response[id] ?? response[String(id)]) as Record<string, unknown> | undefined;
-    const rows = (entry?.['Entry_author'] ?? []) as Record<string, string>[];
-    return rows
-      .map((author) => {
-        const family = author['Family_name'] ?? '';
-        const given = author['Given_name'] ?? author['First_initial'] ?? '';
+    const loopArr = entry?.['Entry_author'] as
+      | { tags: string[]; data: string[][] }[]
+      | undefined;
+    if (!loopArr?.length) return '';
+
+    const { tags = [], data = [] } = loopArr[0];
+    const familyIdx = tags.indexOf('Family_name');
+    const givenIdx = tags.indexOf('Given_name');
+    if (familyIdx === -1) return '';
+
+    return data
+      .map((row) => {
+        const familyRaw = row[familyIdx] ?? '';
+        const givenRaw = givenIdx !== -1 ? (row[givenIdx] ?? '') : '';
+        const family = familyRaw !== '.' ? familyRaw : '';
+        const given = givenRaw !== '.' ? givenRaw : '';
         const initial = given ? given.charAt(0) : '';
         return initial ? `${family} ${initial}.` : family;
       })
+      .filter(Boolean)
       .join(', ');
   }
 
