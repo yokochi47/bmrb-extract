@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -54,12 +54,26 @@ interface FileRow {
   ],
   templateUrl: './page.upload.html',
 })
-export class Upload {
+export class Upload implements OnInit {
   protected readonly TargetDepsys = TargetDepsys;
 
   private pageService = inject(PageService);
   private http = inject(HttpClient);
   readonly state = this.pageService.pageState;
+
+  constructor() {
+    // Restore BMRB import section when the component is created and a related
+    // BMRB ID is already present in the session state (page refresh / resume).
+    effect(() => {
+      const relatedBmrbId = this.state().relatedBmrbId;
+      if (relatedBmrbId !== null && this.bmrbId() === null) {
+        this.importBmrbEntry.set(true);
+        void this.onBmrbIdChange(relatedBmrbId);
+      }
+    });
+  }
+
+  ngOnInit(): void {}
 
   /** Hidden once conversion ID is issued. */
   showSetupSection = computed(() => this.state().conversionId === null);
@@ -197,7 +211,6 @@ export class Upload {
       this.pageService.pageState.update((prev) => ({
         ...prev,
         relatedBmrbId: null,
-        validBmrbId: false,
       }));
     }
   }
@@ -210,7 +223,6 @@ export class Upload {
     this.pageService.pageState.update((prev) => ({
       ...prev,
       relatedBmrbId: null,
-      validBmrbId: false,
     }));
   }
 
@@ -232,7 +244,6 @@ export class Upload {
         this.pageService.pageState.update((prev) => ({
           ...prev,
           relatedBmrbId: null,
-          validBmrbId: false,
         }));
         return;
       }
@@ -254,7 +265,6 @@ export class Upload {
         this.pageService.pageState.update((prev) => ({
           ...prev,
           relatedBmrbId: null,
-          validBmrbId: false,
         }));
         return;
       }
@@ -290,7 +300,6 @@ export class Upload {
       this.pageService.pageState.update((prev) => ({
         ...prev,
         relatedBmrbId: id,
-        validBmrbId: true,
       }));
       this.persistDepsys(this.state().targetDepsys, id);
     } catch (err) {
@@ -299,7 +308,6 @@ export class Upload {
       this.pageService.pageState.update((prev) => ({
         ...prev,
         relatedBmrbId: null,
-        validBmrbId: false,
       }));
     }
   }

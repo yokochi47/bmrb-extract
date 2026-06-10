@@ -15,7 +15,6 @@ export interface PageState {
   consentedTo: boolean;
   targetDepsys: TargetDepsys;
   relatedBmrbId: number | null;
-  validBmrbId: boolean;
   firstUpload: boolean;
   lockedSession: boolean;
   expiredSession: boolean;
@@ -40,7 +39,6 @@ export class PageService {
     consentedTo: false,
     targetDepsys: TargetDepsys.onedep,
     relatedBmrbId: null,
-    validBmrbId: false,
     firstUpload: true,
     lockedSession: false,
     expiredSession: false,
