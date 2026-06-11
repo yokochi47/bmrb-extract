@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, effect, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -50,7 +50,7 @@ interface FileRow {
   ],
   templateUrl: './page.upload.html',
 })
-export class Upload implements OnInit {
+export class Upload {
   protected readonly TargetDepsys = TargetDepsys;
 
   private pageService = inject(PageService);
@@ -68,8 +68,6 @@ export class Upload implements OnInit {
       }
     });
   }
-
-  ngOnInit(): void {}
 
   /** Hidden once conversion ID is issued. */
   showSetupSection = computed(() => this.state().conversionId === null);
