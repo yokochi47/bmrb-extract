@@ -121,14 +121,19 @@
         </ul>
         Note
         <ul class="leading-normal list-none pl-8 text-base mb-4">
-          <li>
-            The wwPDB NMR Validation Task Force strongly encourages the submission of spectral peak
-            lists, in particular those generated from NOESY spectra.
-          </li>
           <li>Coordinate file must be in either PDBx/mmCIF format or legacy PDB format.</li>
           <li>
             NMR unified data file is either in NEF or NMR-STAR V3 format that includes chemical
             shifts, restraints, and optionally spectral peak lists in a single file.
+          </li>
+          <li>
+            The wwPDB NMR Validation Task Force strongly encourages the submission of spectral peak
+            lists, in particular those generated from NOESY spectra.
+          </li>
+          <li>
+            If the specified BMRB ID is valid, the assigned chemical shifts and other data will be
+            retrieved from BMRB. Generally, if the data is correct, you do not need to upload the
+            assigned chemical shift.
           </li>
         </ul>
       </p-card>
@@ -151,16 +156,16 @@
         Note
         <ul class="leading-normal list-none pl-8 text-base mb-4">
           <li>
-            The chemical shifts in the NMR unified data file will be replaced with those in the
-            correct assigned chemical shift file(s).
-          </li>
-          <li>
             Coordinate file should be in PDBx/mmCIF format (highly recommended), the use of legacy
             PDB format should be avoided.
           </li>
           <li>
             NMR unified data file should be NMR-STAR V3 data file that includes at least chemical
             shifts and restraints.
+          </li>
+          <li>
+            The chemical shifts in the NMR unified data file will be replaced with those in the
+            correct assigned chemical shift file(s).
           </li>
         </ul>
       </p-card>
