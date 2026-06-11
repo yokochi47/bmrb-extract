@@ -241,10 +241,9 @@ check_file nginx/ssl.conf
 #
 ( cd postgres
   rm -f init.sql.template
-  cat setup-${SERVICE_LEVEL}.sql.template > init-${SERVICE_LEVEL}.sql.template
-  cat init-service.sql.template >> init-${SERVICE_LEVEL}.sql.template
-  cat init-prefect.sql.template >> init-${SERVICE_LEVEL}.sql.template
-  ln -s init-${SERVICE_LEVEL}.sql.template init.sql.template )
+  cat setup-service.sql.template > init.sql.template
+  cat init-service.sql.template >> init.sql.template
+  cat init-prefect.sql.template >> init.sql.template )
 envsubst < postgres/init.sql.template > postgres/init.sql
 
 check_file postgres/init.sql

@@ -48,7 +48,7 @@ Additionally, Docker Swarm runs two external NMR processing services as replicat
 - `.env` — environment variables for all Docker services
 - `nginx/nginx.conf` — from `nginx/nginx-{production,development}.conf.template`
 - `nginx/ssl.conf`
-- `postgres/init.sql` — assembled from `setup-{level}.sql.template` + `init-service.sql.template` + `init-prefect.sql.template`
+- `postgres/init.sql` — assembled from `setup-service.sql.template` + `init-service.sql.template` + `init-prefect.sql.template`
 - `certbot/certbot.sh`
 - `frontend/src/index.html` and `frontend/src/site.config.ts` — symlinked to site-specific variants
 - `backend/app/core/site_config.py`
