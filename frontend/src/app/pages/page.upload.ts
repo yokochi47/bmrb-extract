@@ -202,12 +202,13 @@ export class Upload {
 
     if (value !== null && value >= 10000 && value <= 99999) {
       void this.validateBmrbId(value);
+    } else if (value !== null && value > 99999) {
+      // 6+ digits cannot be a valid BMRB ID
+      this.bmrbErrorMessage.set('BMRB ID does not exist.');
+      this.pageService.pageState.update((prev) => ({ ...prev, relatedBmrbId: null }));
     } else {
       this.bmrbValidationState.set('idle');
-      this.pageService.pageState.update((prev) => ({
-        ...prev,
-        relatedBmrbId: null,
-      }));
+      this.pageService.pageState.update((prev) => ({ ...prev, relatedBmrbId: null }));
     }
   }
 
