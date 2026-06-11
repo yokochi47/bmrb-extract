@@ -1,0 +1,14 @@
+--
+-- Development-only schema reset.
+-- Drops every service table and enum type so the CREATE statements in
+-- init-service.sql.template (appended after this file by config.sh) can
+-- recreate a clean schema. Applied via reset_db.sh against the running
+-- postgres container; never runs in production.
+--
+
+\c ${POSTGRES_SERVICE_DB};
+
+DROP TABLE IF EXISTS workflow, communication, notification, output_file, upload_file, session CASCADE;
+DROP TYPE IF EXISTS wf_status_code, wf_task_code, delivery_status_code,
+  output_file_type, upload_file_type, target_depsys_code,
+  session_status_code, processing_site_code CASCADE;

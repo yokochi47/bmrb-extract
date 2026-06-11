@@ -158,5 +158,11 @@ networks:
 
 volumes:
   postgres_data:
+    name: ${POSTGRES_DATA_VOL_LABEL}
+    driver: local
+    driver_opts:
+      type: none
+      device: ${POSTGRES_DATA_VOL_DIR}
+      o: bind
   nginx_logs:
 

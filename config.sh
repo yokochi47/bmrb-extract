@@ -191,6 +191,9 @@ export FLASK_API_URL=http://backend:8000/api/
 
 # PostgreSQL
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+# Data volume isolated per service level (overrides .env.template defaults)
+POSTGRES_DATA_VOL_LABEL=pg_data_${SERVICE_LEVEL}
+POSTGRES_DATA_VOL_DIR=/var/lib/pg_data_${SERVICE_LEVEL}
 export SERVICE_DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:5432/${POSTGRES_SERVICE_DB}
 PREFECT_API_DATABASE_CONNECTION_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:5432/${POSTGRES_PREFECT_DB}
 
@@ -245,6 +248,19 @@ check_file nginx/ssl.conf
 envsubst < postgres/init.sql.template > postgres/init.sql
 
 check_file postgres/init.sql
+
+#
+# Write reset.sql (development only; used by reset_db.sh)
+#
+if [[ "${SERVICE_LEVEL}" = "development" ]] ; then
+  ( cd postgres
+    cat reset-service.sql.template > reset.sql.tmp.template
+    cat init-service.sql.template >> reset.sql.tmp.template )
+  envsubst < postgres/reset.sql.tmp.template > postgres/reset.sql
+  rm -f postgres/reset.sql.tmp.template
+
+  check_file postgres/reset.sql
+fi
 
 #
 # Write certbot.sh
