@@ -44,9 +44,9 @@ CREATE TABLE IF NOT EXISTS session (
     started_at          TIMESTAMP,  -- timestamp when conversion processes starts. ('Process selected files' button on 'File upload' page)
     finished_at         TIMESTAMP,  -- timestamp when conversion processes finishes.
 
-    approved            BOOLEAN DEFAULT FALSE,  -- timestamp when user acknowledges all warnings, allowing user to download the conversion results.
-    exchanged           BOOLEAN DEFAULT FALSE,  -- timestamp when data exchange among production servers completes.
-    downloaded          BOOLEAN DEFAULT FALSE   -- timestamp when user downloads the conversion results.
+    approved            BOOLEAN DEFAULT FALSE,  -- wheather user acknowledges all warnings, allowing user to download the conversion results.
+    exchanged           BOOLEAN DEFAULT FALSE,  -- wheather data exchange among production servers completes.
+    downloaded          BOOLEAN DEFAULT FALSE   -- wheather user downloads the conversion results.
 );
 
 DROP TYPE IF EXISTS upload_file_type;
