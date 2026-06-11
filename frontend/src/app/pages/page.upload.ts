@@ -204,7 +204,7 @@ export class Upload {
       void this.validateBmrbId(value);
     } else if (value !== null && value > 99999) {
       // 6+ digits cannot be a valid BMRB ID
-      this.bmrbErrorMessage.set('BMRB ID does not exist.');
+      this.bmrbErrorMessage.set('BMRB ID (> 5 digits) is invalid.');
       this.pageService.pageState.update((prev) => ({ ...prev, relatedBmrbId: null }));
     } else {
       this.bmrbValidationState.set('idle');
@@ -216,7 +216,9 @@ export class Upload {
     const value = this.bmrbId();
     if (value !== null && value >= 1 && value <= 9999) {
       // Field lost focus with a 1–4 digit value — not a valid BMRB ID
-      this.bmrbErrorMessage.set('BMRB ID is outdated and unsuitable for linking to PDB.');
+      this.bmrbErrorMessage.set(
+        'BMRB ID is outdated and unsuitable for associating with any PDB IDs.',
+      );
       this.pageService.pageState.update((prev) => ({ ...prev, relatedBmrbId: null }));
     }
   }
@@ -244,7 +246,9 @@ export class Upload {
       if (version !== this.validationVersion) return;
 
       if (!entryList.some((e) => Number(e) === id)) {
-        this.bmrbErrorMessage.set('BMRB ID does not exist or is not publicly available yet.');
+        this.bmrbErrorMessage.set(
+          'BMRB ID does not exist or is not publicly available yet. If you are the legitimated entry author, please ask BMRB annotator for information regarding the entry status.',
+        );
         this.pageService.pageState.update((prev) => ({ ...prev, relatedBmrbId: null }));
         return;
       }
@@ -263,7 +267,7 @@ export class Upload {
       if (exact) {
         this.bmrbLinkedPdbId.set(exact.pdb_id ?? 'unknown');
         this.bmrbErrorMessage.set(
-          `BMRB ID has already been linked to PDB ID: ${exact.pdb_id ?? 'unknown'}.`,
+          `BMRB ID has already been associated with PDB ID: ${exact.pdb_id ?? 'unknown'}. It is not possible to break the existing one-to-one entry relationship between BMRB and PDB`,
         );
         this.pageService.pageState.update((prev) => ({ ...prev, relatedBmrbId: null }));
         return;
@@ -311,7 +315,9 @@ export class Upload {
     } catch (err) {
       if (version !== this.validationVersion) return;
       this.bmrbErrorMessage.set(
-        err instanceof TimeoutError ? 'BMRB API timeout error.' : 'BMRB ID is invalid.',
+        err instanceof TimeoutError
+          ? 'BMRB API timeout error. Please try again later or contact us if you would like further investigation'
+          : 'BMRB ID is invalid.',
       );
       this.pageService.pageState.update((prev) => ({
         ...prev,
