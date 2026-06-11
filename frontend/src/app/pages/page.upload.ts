@@ -7,6 +7,7 @@ import { timeout } from 'rxjs/operators';
 import { ButtonModule } from 'primeng/button';
 import { CardModule } from 'primeng/card';
 import { CheckboxModule } from 'primeng/checkbox';
+import { DialogModule } from 'primeng/dialog';
 import { DividerModule } from 'primeng/divider';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { MessageModule } from 'primeng/message';
@@ -16,14 +17,7 @@ import { SelectModule } from 'primeng/select';
 import { PageService, TargetDepsys } from './page.service';
 import { API_URL } from '../../site.config';
 
-type BmrbValidationState =
-  | 'idle'
-  | 'validating'
-  | 'valid'
-  | 'not-found'
-  | 'already-linked'
-  | 'timeout'
-  | 'error';
+type BmrbValidationState = 'idle' | 'validating' | 'valid';
 
 interface BmrbEntryInfo {
   title: string;
@@ -46,6 +40,7 @@ interface FileRow {
     ButtonModule,
     CardModule,
     CheckboxModule,
+    DialogModule,
     DividerModule,
     InputNumberModule,
     MessageModule,
@@ -88,6 +83,8 @@ export class Upload implements OnInit {
   bmrbValidationState = signal<BmrbValidationState>('idle');
   bmrbEntryInfo = signal<BmrbEntryInfo | null>(null);
   bmrbLinkedPdbId = signal<string | null>(null);
+  /** Non-null when an error dialog should be shown; cleared on dialog close. */
+  bmrbErrorMessage = signal<string | null>(null);
 
   /** True when a value is present but outside the 5-digit range (10000–99999). */
   isBmrbIdInvalidFormat = computed(() => {
@@ -220,10 +217,8 @@ export class Upload implements OnInit {
     this.bmrbValidationState.set('idle');
     this.bmrbEntryInfo.set(null);
     this.bmrbLinkedPdbId.set(null);
-    this.pageService.pageState.update((prev) => ({
-      ...prev,
-      relatedBmrbId: null,
-    }));
+    this.bmrbErrorMessage.set(null);
+    this.pageService.pageState.update((prev) => ({ ...prev, relatedBmrbId: null }));
   }
 
   private async validateBmrbId(id: number): Promise<void> {
@@ -240,11 +235,8 @@ export class Upload implements OnInit {
       if (version !== this.validationVersion) return;
 
       if (!entryList.some((e) => Number(e) === id)) {
-        this.bmrbValidationState.set('not-found');
-        this.pageService.pageState.update((prev) => ({
-          ...prev,
-          relatedBmrbId: null,
-        }));
+        this.bmrbErrorMessage.set('BMRB ID does not exist or is not publicly available yet.');
+        this.pageService.pageState.update((prev) => ({ ...prev, relatedBmrbId: null }));
         return;
       }
 
@@ -261,11 +253,10 @@ export class Upload implements OnInit {
       const exact = pdbLinks.find((item) => item.match_type === 'Exact');
       if (exact) {
         this.bmrbLinkedPdbId.set(exact.pdb_id ?? 'unknown');
-        this.bmrbValidationState.set('already-linked');
-        this.pageService.pageState.update((prev) => ({
-          ...prev,
-          relatedBmrbId: null,
-        }));
+        this.bmrbErrorMessage.set(
+          `BMRB ID has already been linked to PDB ID: ${exact.pdb_id ?? 'unknown'}.`,
+        );
+        this.pageService.pageState.update((prev) => ({ ...prev, relatedBmrbId: null }));
         return;
       }
 
@@ -304,7 +295,9 @@ export class Upload implements OnInit {
       this.persistDepsys(this.state().targetDepsys, id);
     } catch (err) {
       if (version !== this.validationVersion) return;
-      this.bmrbValidationState.set(err instanceof TimeoutError ? 'timeout' : 'error');
+      this.bmrbErrorMessage.set(
+        err instanceof TimeoutError ? 'BMRB API timeout error.' : 'BMRB ID is invalid.',
+      );
       this.pageService.pageState.update((prev) => ({
         ...prev,
         relatedBmrbId: null,
@@ -348,6 +341,12 @@ export class Upload implements OnInit {
       })
       .filter(Boolean)
       .join(', ');
+  }
+
+  /** Close the BMRB error dialog, clear the input, and select "No". */
+  onBmrbErrorClose(): void {
+    this.bmrbErrorMessage.set(null);
+    this.onImportBmrbChange(false);
   }
 
   private persistDepsys(depsys: TargetDepsys, relatedBmrbId: number | null): void {

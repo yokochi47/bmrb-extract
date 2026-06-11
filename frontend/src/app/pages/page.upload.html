@@ -70,26 +70,7 @@
                       <li><strong>Release date:</strong> {{ info.releaseDate }}</li>
                       <li><strong>Entry authors:</strong> {{ info.authors }}</li>
                     </ul>
-                    <!--span class="text-sm text-green-600 max-w-md break-words">
-                      {{ info.title }}&nbsp;&bull;&nbsp;{{ info.releaseDate }}&nbsp;&bull;&nbsp;{{ info.authors }}
-                    </span-->
                   }
-                }
-                @case ('not-found') {
-                  <span class="text-sm text-red-500">
-                    BMRB ID does not exist or is not publicly available yet
-                  </span>
-                }
-                @case ('already-linked') {
-                  <span class="text-sm text-red-500">
-                    BMRB ID has already been linked to PDB ID:&nbsp;{{ bmrbLinkedPdbId() }}
-                  </span>
-                }
-                @case ('timeout') {
-                  <span class="text-sm text-orange-500">BMRB API timeout error</span>
-                }
-                @case ('error') {
-                  <span class="text-sm text-red-500">BMRB ID is invalid</span>
                 }
               }
             }
@@ -328,3 +309,18 @@
     }
   }
 </div>
+
+<!-- BMRB ID validation error dialog -->
+<p-dialog
+  header="BMRB ID Validation Error"
+  [visible]="bmrbErrorMessage() !== null"
+  [modal]="true"
+  [closable]="false"
+  [dismissableMask]="false"
+  [style]="{ width: '30rem' }"
+>
+  <p class="text-base leading-relaxed">{{ bmrbErrorMessage() }}</p>
+  <ng-template pTemplate="footer">
+    <p-button label="OK" (click)="onBmrbErrorClose()" />
+  </ng-template>
+</p-dialog>
