@@ -51,6 +51,7 @@
               <p-inputNumber
                 [ngModel]="bmrbId()"
                 (ngModelChange)="onBmrbIdChange($event)"
+                (onBlur)="onBmrbIdBlur()"
                 [useGrouping]="false"
                 [maxFractionDigits]="0"
                 placeholder="BMRB ID (5 digits)"

@@ -212,6 +212,15 @@ export class Upload {
     }
   }
 
+  onBmrbIdBlur(): void {
+    const value = this.bmrbId();
+    if (value !== null && value >= 1 && value <= 9999) {
+      // Field lost focus with a 1–4 digit value — not a valid BMRB ID
+      this.bmrbErrorMessage.set('BMRB ID does not exist.');
+      this.pageService.pageState.update((prev) => ({ ...prev, relatedBmrbId: null }));
+    }
+  }
+
   private resetBmrbValidation(): void {
     this.bmrbId.set(null);
     this.bmrbValidationState.set('idle');
