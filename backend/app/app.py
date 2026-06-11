@@ -175,6 +175,9 @@ async def upload():
         max_ordinal = result.scalar_one_or_none() or 0
         ordinal = max_ordinal + 1
 
+        # The draft (not-yet-processed) run is always latest_run_number + 1.
+        draft_run = session_row.latest_run_number + 1
+
         # Build archive path
         session_dir = Path(ARCHIVE_BASE_PATH) / str(token)
         session_dir.mkdir(parents=True, exist_ok=True)
@@ -190,6 +193,7 @@ async def upload():
         db.add(UploadFile(
             token=token,
             ordinal=ordinal,
+            run_number=draft_run,
             original_name=original_name,
             stored_path=stored_path,
             file_size=file_size,
@@ -209,9 +213,16 @@ async def upload():
 
 @app.route('/api/upload', methods=['DELETE'])
 async def delete_upload():
-    """Remove an uploaded file from the archive and its DB record.
+    """Remove a file from the working set without losing already-processed files.
 
     JSON body: { token, ordinal }
+
+    - If the file belongs to the current un-processed draft run
+      (run_number > session.latest_run_number), it is hard-deleted from disk and DB
+      (mistake correction before the file has ever participated in a run).
+    - Otherwise the file has been part of a committed run: it is soft-deselected
+      (selected = False), keeping the file on disk and the row in the DB.
+    Returns: { action: 'deleted' | 'deselected' }
     """
     body = request.get_json(silent=True) or {}
     token = body.get('token')
@@ -221,25 +232,39 @@ async def delete_upload():
         return {'error': 'token and ordinal are required'}, 400
 
     async with async_session_factory() as db:
-        result = await db.execute(
-            select(UploadFile).where(
-                UploadFile.token == token,
-                UploadFile.ordinal == ordinal,
+        session_row = (
+            await db.execute(select(Session).where(Session.token == token))
+        ).scalar_one_or_none()
+        if session_row is None:
+            return {'error': 'session not found'}, 404
+
+        upload_row = (
+            await db.execute(
+                select(UploadFile).where(
+                    UploadFile.token == token,
+                    UploadFile.ordinal == ordinal,
+                )
             )
-        )
-        upload_row = result.scalar_one_or_none()
+        ).scalar_one_or_none()
         if upload_row is None:
             return {'error': 'upload file not found'}, 404
 
-        try:
-            os.remove(upload_row.stored_path)
-        except FileNotFoundError:
-            pass
+        if upload_row.run_number > session_row.latest_run_number:
+            # Current draft, never processed — safe to remove entirely.
+            try:
+                os.remove(upload_row.stored_path)
+            except FileNotFoundError:
+                pass
+            await db.delete(upload_row)
+            action = 'deleted'
+        else:
+            # File has participated in a committed run — preserve it, just deselect.
+            upload_row.selected = False
+            action = 'deselected'
 
-        await db.delete(upload_row)
         await db.commit()
 
-    return {}, 200
+    return {'action': action}, 200
 
 
 # ── Process ───────────────────────────────────────────────────────────────────
@@ -297,19 +322,19 @@ async def process():
             if conversion_id > CONV_ID_RANGE_END:
                 return {'error': 'conversion ID range exhausted'}, 503
             session_row.conversion_id = conversion_id
-            await db.execute(
-                update(UploadFile)
-                .where(UploadFile.token == token)
-                .values(conversion_id=conversion_id)
-            )
 
-        # Determine run number from git history
+        # Link any not-yet-linked upload rows to the conversion_id (covers files
+        # uploaded for later draft runs after the ID was first issued).
+        await db.execute(
+            update(UploadFile)
+            .where(UploadFile.token == token, UploadFile.conversion_id.is_(None))
+            .values(conversion_id=conversion_id)
+        )
+
+        # The run being processed is the current draft = latest_run_number + 1.
+        run_number = session_row.latest_run_number + 1
         session_dir = Path(ARCHIVE_BASE_PATH) / str(token)
         repo = _open_repo(session_dir)
-        try:
-            run_number = sum(1 for _ in repo.iter_commits()) + 1
-        except Exception:
-            run_number = 1
 
         # Write manifest.json
         manifest = {
@@ -331,10 +356,13 @@ async def process():
         }
         (session_dir / 'manifest.json').write_text(json.dumps(manifest, indent=2))
 
-        # Git commit — captures all uploaded files + manifest for this run
+        # Git commit — captures all uploaded files + manifest for this run —
+        # plus a lightweight tag run-<N> for easy per-run lookup / diffing.
         commit_sha = _commit_run(repo, run_number)
+        repo.create_tag(f'run-{run_number}', ref=commit_sha)
 
-        # Insert Workflow task records
+        # Insert Workflow task records for this run. Ordinals reset to 1..3 per run;
+        # the composite PK (conversion_id, run_number, ordinal) keeps re-runs distinct.
         for i, task_code in enumerate(
             [WfTaskCode.issue_conversion, WfTaskCode.convert_model, WfTaskCode.convert_nmr_data],
             start=1,
@@ -342,15 +370,17 @@ async def process():
             await db.execute(
                 Workflow.__table__.insert().values(
                     conversion_id=conversion_id,
+                    run_number=run_number,
                     ordinal=i,
                     task=task_code,
                     status=WfStatusCode.pending,
-                    log_path=str(session_dir / f'{task_code.value}.log'),
+                    log_path=str(session_dir / f'run-{run_number}_{task_code.value}.log'),
                 )
             )
 
         session_row.status = SessionStatusCode.processing
         session_row.started_at = datetime.now()
+        session_row.latest_run_number = run_number
         await db.commit()
 
     # TODO: trigger Prefect flow run via Prefect API
@@ -358,7 +388,11 @@ async def process():
     # async with get_client() as client:
     #     await client.create_flow_run_from_deployment(
     #         deployment_name='process-session/default',
-    #         parameters={'token': token, 'conversion_id': conversion_id},
+    #         parameters={
+    #             'token': token,
+    #             'conversion_id': conversion_id,
+    #             'run_number': run_number,
+    #         },
     #     )
 
     return {'conversion_id': conversion_id, 'run_number': run_number, 'commit_sha': commit_sha}, 202

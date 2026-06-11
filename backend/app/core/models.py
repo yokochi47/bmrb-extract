@@ -143,6 +143,7 @@ class Session(Base):
     status = sa.Column(sa.Enum(SessionStatusCode), nullable=False, server_default='created')
     target_depsys = sa.Column(sa.Enum(TargetDepsysCode), nullable=False, server_default='onedep')
     related_bmrb_id = sa.Column(sa.Integer())
+    latest_run_number = sa.Column(sa.Integer(), nullable=False, server_default='0')
     conversion_id = sa.Column(sa.Integer(), unique=True)
     created_at = sa.Column(sa.TIMESTAMP(), server_default=func.now())
     started_at = sa.Column(sa.TIMESTAMP())
@@ -159,6 +160,7 @@ class UploadFile(Base):
     token = sa.Column(UUID, sa.ForeignKey('session.token'), primary_key=True)
     ordinal = sa.Column(sa.Integer(), primary_key=True)
     conversion_id = sa.Column(sa.Integer(), sa.ForeignKey('session.conversion_id'))
+    run_number = sa.Column(sa.Integer(), nullable=False, server_default='1')
     original_name = sa.Column(sa.Text(), nullable=False)
     stored_path = sa.Column(sa.Text(), nullable=False)
     file_size = sa.Column(sa.BigInteger())
@@ -173,6 +175,7 @@ class OutputFile(Base):
     __tablename__ = 'output_file'
 
     conversion_id = sa.Column(sa.Integer(), sa.ForeignKey('session.conversion_id'), primary_key=True)
+    run_number = sa.Column(sa.Integer(), primary_key=True, server_default='1')
     ordinal = sa.Column(sa.Integer(), primary_key=True)
     stored_path = sa.Column(sa.Text(), nullable=False)
     file_size = sa.Column(sa.BigInteger())
@@ -214,6 +217,7 @@ class Workflow(Base):
     __tablename__ = 'workflow'
 
     conversion_id = sa.Column(sa.Integer(), sa.ForeignKey('session.conversion_id'), primary_key=True)
+    run_number = sa.Column(sa.Integer(), primary_key=True, server_default='1')
     ordinal = sa.Column(sa.Integer(), primary_key=True)
     task = sa.Column(sa.Enum(WfTaskCode), nullable=False)
     status = sa.Column(sa.Enum(WfStatusCode), nullable=False, server_default='created')

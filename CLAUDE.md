@@ -64,10 +64,12 @@ Additionally, Docker Swarm runs two external NMR processing services as replicat
 ### Database Schema (`postgres/init-service.sql.template`)
 Key tables:
 - `session` — one row per user UI session; tracks lifecycle from `created` → `uploading` → `processing` → `completed`/`failed`/`expired`. The `conversion_id` (INT, range-partitioned by site) is assigned when processing begins and forms the public ID (displayed as `C_<conversion_id>`).
-- `upload_file` — files uploaded by the user, keyed by `(token, ordinal)`.
-- `output_file` — converted output files, keyed by `(conversion_id, ordinal)`.
-- `workflow` — Prefect task tracking per conversion (`WfTaskCode` enum).
+- `upload_file` — files uploaded by the user, keyed by `(token, ordinal)`. Files **accumulate** across runs and are never physically deleted once a run has used them; `selected` controls participation and `run_number` records the draft run a file was uploaded for.
+- `output_file` — converted output files, keyed by `(conversion_id, run_number, ordinal)`.
+- `workflow` — Prefect task tracking per conversion+run, keyed by `(conversion_id, run_number, ordinal)` (`WfTaskCode` enum).
 - `notification` / `communication` — email delivery records.
+
+A session supports multiple processing runs: `session.latest_run_number` counts committed runs (0 before the first Process; the in-progress draft is always `latest_run_number + 1`), and each `POST /api/process` creates a git commit tagged `run-<N>` plus `output_file`/`workflow` rows carrying that `run_number`.
 
 Conversion ID ranges: bmrb.io → 1000001–2000000, pdbj.org → 2000001–3000000, development → 8000001–9000000.
 

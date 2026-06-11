@@ -40,6 +40,10 @@ CREATE TABLE IF NOT EXISTS session (
     -- Anonymous development server                   : C_8xxxxxx
     conversion_id       INT CHECK ( conversion_id >= 1000000 and conversion_id < 9000000 ) UNIQUE,
 
+    -- Number of committed processing runs (0 before the first 'Process selected files').
+    -- The in-progress draft run is always latest_run_number + 1.
+    latest_run_number   INT NOT NULL DEFAULT 0 CHECK ( latest_run_number >= 0 ),
+
     created_at          TIMESTAMP DEFAULT now(), -- timestamp when the session was created according to the user policy agreement.
     started_at          TIMESTAMP,  -- timestamp when conversion processes starts. ('Process selected files' button on 'File upload' page)
     finished_at         TIMESTAMP,  -- timestamp when conversion processes finishes.
@@ -78,6 +82,11 @@ CREATE TABLE IF NOT EXISTS upload_file (
 
     conversion_id   INT REFERENCES session(conversion_id),  -- conversion_id is null until the conversion process begins so that conversion_id can not be a part of composite primary key.
 
+    -- Provenance marker: the draft run number (session.latest_run_number + 1) at upload time.
+    -- Files accumulate across runs and are never auto-deleted once a run has used them; 'selected'
+    -- controls participation in the next run.
+    run_number      INT NOT NULL DEFAULT 1 CHECK ( run_number > 0 ),
+
     original_name   TEXT NOT NULL,
     stored_path     TEXT NOT NULL,  -- if user uploads different files with the same name, the save paths for those files must be different.
 
@@ -106,6 +115,7 @@ CREATE TYPE output_file_type AS ENUM (
 
 CREATE TABLE IF NOT EXISTS output_file (
     conversion_id   INT REFERENCES session(conversion_id) ON DELETE CASCADE,
+    run_number      INT NOT NULL DEFAULT 1 CHECK ( run_number > 0 ),  -- the processing run that produced this output.
     ordinal         INT CHECK ( ordinal > 0 ),
 
     stored_path     TEXT NOT NULL,
@@ -122,7 +132,7 @@ CREATE TABLE IF NOT EXISTS output_file (
     client_ip       INET,
     user_agent      TEXT,
 
-    PRIMARY KEY ( conversion_id, ordinal )
+    PRIMARY KEY ( conversion_id, run_number, ordinal )
 );
 
 DROP TYPE IF EXISTS delivery_status_code;
@@ -178,6 +188,7 @@ CREATE TYPE wf_status_code as ENUM ('created', 'pending', 'aborted', 'processing
 
 CREATE TABLE IF NOT EXISTS workflow (
     conversion_id   INT REFERENCES session(conversion_id) ON DELETE CASCADE,
+    run_number      INT NOT NULL DEFAULT 1 CHECK ( run_number > 0 ),  -- the processing run this task belongs to.
     ordinal         INT CHECK ( ordinal > 0 ),
 
     task            wf_task_code NOT NULL,
@@ -190,6 +201,6 @@ CREATE TABLE IF NOT EXISTS workflow (
     finished_at     TIMESTAMP,
     expiry_at       TIMESTAMP,
 
-    PRIMARY KEY ( conversion_id, ordinal )
+    PRIMARY KEY ( conversion_id, run_number, ordinal )
 );
 

@@ -7,7 +7,7 @@ Deploy with:
 
 Then trigger via the Prefect API or directly:
   prefect run deployment process-session/default \
-      --param token=<uuid> --param conversion_id=<int>
+      --param token=<uuid> --param conversion_id=<int> --param run_number=<int>
 """
 
 import json
@@ -59,24 +59,27 @@ def nmr_data_conversion(token: str, conversion_id: int, archive_base: str = '/ar
 
 
 @flow(name='process-session')
-def process_session(token: str, conversion_id: int, archive_base: str = '/archive') -> dict:
-    """Orchestrate NMR data conversion for one session.
+def process_session(
+    token: str, conversion_id: int, run_number: int, archive_base: str = '/archive'
+) -> dict:
+    """Orchestrate NMR data conversion for one session run.
 
     Reads /archive/<token>/manifest.json (written by POST /api/process) and
     runs the coordinate and NMR data conversion pipelines in sequence.
     The archive directory is a git repo; each POST /api/process call creates
-    one commit, so git log shows the full history of processing runs.
+    one commit tagged run-<N>, so git log shows the full history of runs.
 
     Args:
         token:          Session token (UUID string) — also the archive subdirectory name.
         conversion_id:  Numeric conversion ID (e.g. C_8000001 → 8000001).
+        run_number:     The processing run this invocation handles (session.latest_run_number).
         archive_base:   Base directory of the archive volume (default /archive).
     """
     session_dir = Path(archive_base) / token
     manifest = json.loads((session_dir / 'manifest.json').read_text())
 
     print(
-        f'[{conversion_id}] Starting run #{manifest["run_number"]} '
+        f'[{conversion_id}] Starting run #{run_number} '
         f'({len(manifest["files"])} selected files, target={manifest["target_depsys"]})'
     )
 
@@ -84,7 +87,8 @@ def process_session(token: str, conversion_id: int, archive_base: str = '/archiv
     nmr_ok = nmr_data_conversion(token, conversion_id, archive_base)
 
     success = coord_ok and nmr_ok
-    print(f'[{conversion_id}] Run #{manifest["run_number"]} complete — success={success}')
+    print(f'[{conversion_id}] Run #{run_number} complete — success={success}')
 
     # TODO: update session status in DB (completed / failed) and insert output_file rows
-    return {'success': success, 'run_number': manifest['run_number']}
+    #       with run_number=run_number (PK = conversion_id, run_number, ordinal).
+    return {'success': success, 'run_number': run_number}
