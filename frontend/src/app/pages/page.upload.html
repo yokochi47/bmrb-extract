@@ -281,7 +281,7 @@
                 <p-select
                   [ngModel]="row.fileType"
                   (ngModelChange)="setFileType(i, $event)"
-                  [options]="FILE_TYPE_OPTIONS"
+                  [options]="fileTypeOptions()"
                   optionLabel="label"
                   optionValue="value"
                   placeholder="Select file type"
