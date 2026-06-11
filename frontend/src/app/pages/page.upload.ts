@@ -181,7 +181,7 @@ export class Upload {
   /**
    * Acceptable upload file types per target deposition system (exact value or
    * prefix match). Keep in sync with the file upload requirements cards.
-   * - onedep : co-*, nm-uni-*, nm-shi, nm-pea-*, nm-res-*
+   * - onedep : co-*, nm-uni-*, nm-shi, nm-pea-*, nm-res-*, nm-aux-*
    * - repl_cs: co-*, nm-uni-str, nm-shi
    * - bmrbdep: nm-uni-*, nm-shi, nm-shi-*, nm-aux-*
    */
@@ -191,7 +191,8 @@ export class Upload {
       v.startsWith('nm-uni-') ||
       v === 'nm-shi' ||
       v.startsWith('nm-pea-') ||
-      v.startsWith('nm-res-'),
+      v.startsWith('nm-res-') ||
+      v.startsWith('nm-aux-'),
     [TargetDepsys.repl_cs]: (v) =>
       v.startsWith('co-') || v === 'nm-uni-str' || v === 'nm-shi',
     [TargetDepsys.bmrbdep]: (v) =>
