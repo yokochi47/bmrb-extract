@@ -21,6 +21,7 @@ type BmrbValidationState = 'idle' | 'validating' | 'valid';
 
 interface BmrbEntryInfo {
   title: string;
+  submitDate: string;
   releaseDate: string;
   authors: string;
 }
@@ -260,11 +261,16 @@ export class Upload implements OnInit {
         return;
       }
 
-      // Step 3: Fetch title, release date, and author list in parallel
-      const [titleResp, dateResp, authorsResp] = await Promise.all([
+      // Step 3: Fetch title, submission date, release date, and author list in parallel
+      const [titleResp, submitDateResp, releaseDateResp, authorsResp] = await Promise.all([
         firstValueFrom(
           this.http
             .get<Record<string, unknown>>(`${this.BMRB_API}/entry/${id}?tag=Entry.Title`)
+            .pipe(timeout(10_000)),
+        ),
+        firstValueFrom(
+          this.http
+            .get<Record<string, unknown>>(`${this.BMRB_API}/entry/${id}?tag=Entry.Submission_date`)
             .pipe(timeout(10_000)),
         ),
         firstValueFrom(
@@ -284,7 +290,8 @@ export class Upload implements OnInit {
 
       this.bmrbEntryInfo.set({
         title: this.extractScalar(titleResp, id, 'Entry.Title'),
-        releaseDate: this.extractScalar(dateResp, id, 'Entry.Original_release_date'),
+        submitDate: this.extractScalar(submitDateResp, id, 'Entry.Submission_date'),
+        releaseDate: this.extractScalar(releaseDateResp, id, 'Entry.Original_release_date'),
         authors: this.extractAuthors(authorsResp, id),
       });
       this.bmrbValidationState.set('valid');
@@ -337,7 +344,7 @@ export class Upload implements OnInit {
         const family = familyRaw !== '.' ? familyRaw : '';
         const given = givenRaw !== '.' ? givenRaw : '';
         const initial = given ? given.charAt(0) : '';
-        return initial ? `${family} ${initial}.` : family;
+        return initial ? `${family} ${initial}.` : family;
       })
       .filter(Boolean)
       .join(', ');
