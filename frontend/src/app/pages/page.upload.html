@@ -21,9 +21,7 @@
               (ngModelChange)="setTargetDepsys($event)"
               [inputId]="'dep-' + opt.value"
             />
-            <label [for]="'dep-' + opt.value" class="text-base cursor-pointer">
-              {{ opt.label }}
-            </label>
+            <label [for]="'dep-' + opt.value" class="text-base cursor-pointer" [innerHTML]="opt.label"></label>
           </div>
         }
       </div>
