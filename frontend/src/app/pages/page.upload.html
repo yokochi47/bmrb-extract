@@ -4,9 +4,8 @@
   <!-- Deposition system selection (hidden once conversion ID is issued) -->
   @if (showSetupSection()) {
     <div class="mb-6">
-      <p class="text-base mb-4">
-        File upload requirements vary depending on the deposition system selected below. Once you
-        press the <strong>Process Selected Files</strong> button, you cannot change your selection.
+      <p class="text-xl mb-4">
+        File upload requirements vary depending on the deposition system selected as follows.
       </p>
       <div class="font-semibold text-lg mb-3">
         What deposition system will you be using the converted NMR data files with?
@@ -134,7 +133,7 @@
           <li>
             If the specified BMRB ID is valid, the assigned chemical shifts and other data will be
             retrieved from BMRB. Generally, if the data is correct, you do not need to upload the
-            assigned chemical shift.
+            assigned chemical shift file.
           </li>
         </ul>
       </p-card>
@@ -199,14 +198,23 @@
         the file type from the pull-down list. If you have uploaded more than one file of each type,
         use the check box to select which file should be used.
       </li>
-      <li>
-        After pressing <strong>Process selected files</strong>, you must review the summary page
-        carefully as it will tell you whether your data has been uploaded and interpreted correctly.
-      </li>
       <li>All uploaded files should be in plain text and uncompressed.</li>
       <li>
-        Once the uploaded files are processed, the system issues a conversion ID, and you will no
-        longer be able to change the selected target storage system.
+        Once after pressing <strong>Process selected files</strong>, the system issues a conversion
+        ID, and you will no longer be able to change the selected target deposition system.
+      </li>
+      <li>
+        Then, you must review the <strong><a routerLink="/summary">Upload summary</a></strong> page
+        carefully as it will tell you whether your data has been uploaded and interpreted correctly.
+        If there are any warnings, you must explicitly acknowledge them.
+      </li>
+      <li>
+        In addition, you must acknowledge data conversion statistics and various validation metrics
+        displayed in the <strong><a routerLink="/download">Download</a></strong> page.
+      </li>
+      <li>
+        You can achieve the desired summary and the validation metrics by re-uploading files until
+        actual output file is downloaded.
       </li>
     </ul>
   </p-card>
