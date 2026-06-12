@@ -28,3 +28,9 @@ FAILURE_VALIDITY_PERIOD_IN_DAYS = ${FAILURE_VALIDITY_PERIOD_IN_DAYS}
 ARCHIVE_BASE_PATH = '/archive'
 WORKSPACE_BASE_PATH = '/workspace'
 
+# BMRB FTP entry directory base. The assigned chemical shifts for a valid
+# related BMRB ID (onedep conventional mode) are downloaded from
+# {BMRB_ENTRY_DIR_URL}/bmr{ID}/bmr{ID}_3.str. Both production sites fetch from
+# bmrb.io; point this at a mirror if needed.
+BMRB_ENTRY_DIR_URL = 'https://bmrb.io/ftp/pub/bmrb/entry_directories'
+

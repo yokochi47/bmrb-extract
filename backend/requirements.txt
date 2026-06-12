@@ -3,3 +3,4 @@ gunicorn
 SQLAlchemy[asyncio]
 asyncpg
 gitpython
+httpx

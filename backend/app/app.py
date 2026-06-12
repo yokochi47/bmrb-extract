@@ -1,8 +1,10 @@
+import hashlib
 import json
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import httpx
 from flask import Flask, request
 from git import Actor, InvalidGitRepositoryError, Repo
 from sqlalchemy import func, select, update
@@ -14,12 +16,15 @@ from core.models import (
     SessionStatusCode,
     TargetDepsysCode,
     UploadFile,
+    UploadFileSource,
+    UploadFileType,
     Workflow,
     WfStatusCode,
     WfTaskCode,
 )
 from core.site_config import (
     ARCHIVE_BASE_PATH,
+    BMRB_ENTRY_DIR_URL,
     CONV_ID_RANGE_BEGIN,
     CONV_ID_RANGE_END,
     FAILURE_VALIDITY_PERIOD_IN_DAYS,
@@ -63,6 +68,18 @@ def _commit_run(repo: Repo, run_number: int) -> str:
     return commit.hexsha
 
 
+async def _fetch_bmrb_entry(bmrb_id: int) -> bytes:
+    """Download the NMR-STAR V3 entry file (assigned chemical shifts) for a BMRB
+    ID. Raises on any network/HTTP error or an empty body."""
+    url = f'{BMRB_ENTRY_DIR_URL}/bmr{bmrb_id}/bmr{bmrb_id}_3.str'
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+        resp = await client.get(url)
+    resp.raise_for_status()
+    if not resp.content:
+        raise ValueError('empty BMRB entry file')
+    return resp.content
+
+
 # ── Health ────────────────────────────────────────────────────────────────────
 
 @app.route('/')
@@ -91,7 +108,7 @@ async def get_session():
         return {
             'conversion_id': session_row.conversion_id,
             'expired': expired,
-            'target_depsys': session_row.target_depsys.value,
+            'target_depsys': session_row.target_depsys,
             'related_bmrb_id': session_row.related_bmrb_id,
         }
 
@@ -306,9 +323,83 @@ async def process():
                 UploadFile.selected == True,
             )
         )
-        selected_files = result.scalars().all()
+        selected_files = list(result.scalars().all())
         if not selected_files:
             return {'error': 'no files selected'}, 400
+
+        # OneDep conventional mode: when a valid related BMRB ID is provided and
+        # no user chemical-shift file is selected, fetch the assigned chemical
+        # shifts (NMR-STAR V3 entry) from BMRB and add it to the archive as a
+        # selected file so it participates in the run like any uploaded file.
+        # Combined mode (an nm-uni-* file is selected) ignores the BMRB ID here.
+        bmrb_id = session_row.related_bmrb_id
+        has_uni = any(f.file_type.startswith('nm-uni-') for f in selected_files)
+        has_user_shifts = any(
+            f.file_type.startswith('nm-shi') and f.source != UploadFileSource.bmrb.value
+            for f in selected_files
+        )
+        use_bmrb = (
+            session_row.target_depsys == TargetDepsysCode.onedep
+            and bmrb_id is not None
+            and not has_uni
+            and not has_user_shifts
+        )
+        bmrb_name = f'bmr{bmrb_id}_3.str' if bmrb_id is not None else None
+
+        # Invariant: a BMRB-derived shift file is selected iff this run uses BMRB
+        # shifts. Files accumulate across runs, so reuse a matching one and
+        # deselect any stale BMRB file (wrong ID, or superseded by user-uploaded
+        # shifts / combined mode). Reused/deselected rows are also synced into
+        # the in-memory selected_files used to build the manifest below.
+        existing_bmrb = (
+            await db.execute(
+                select(UploadFile).where(
+                    UploadFile.token == token,
+                    UploadFile.source == UploadFileSource.bmrb.value,
+                )
+            )
+        ).scalars().all()
+        reuse = None
+        for row in existing_bmrb:
+            if use_bmrb and row.original_name == bmrb_name and os.path.exists(row.stored_path):
+                reuse = row
+            elif row.selected:
+                row.selected = False
+                if row in selected_files:
+                    selected_files.remove(row)
+
+        if use_bmrb and reuse is not None:
+            reuse.selected = True
+            if reuse not in selected_files:
+                selected_files.append(reuse)
+        elif use_bmrb:
+            try:
+                content = await _fetch_bmrb_entry(bmrb_id)
+            except Exception as exc:
+                return {'error': f'failed to download BMRB entry {bmrb_id}: {exc}'}, 502
+            session_dir = Path(ARCHIVE_BASE_PATH) / str(token)
+            session_dir.mkdir(parents=True, exist_ok=True)
+            result = await db.execute(
+                select(func.max(UploadFile.ordinal)).where(UploadFile.token == token)
+            )
+            ordinal = (result.scalar_one_or_none() or 0) + 1
+            stored_path = str(session_dir / f'{ordinal}_{bmrb_name}')
+            Path(stored_path).write_bytes(content)
+            _open_repo(session_dir)
+            bmrb_row = UploadFile(
+                token=token,
+                ordinal=ordinal,
+                run_number=session_row.latest_run_number + 1,
+                original_name=bmrb_name,
+                stored_path=stored_path,
+                file_size=len(content),
+                checksum=hashlib.sha256(content).hexdigest(),
+                file_type=UploadFileType.nm_shi.value,
+                selected=True,
+                source=UploadFileSource.bmrb.value,
+            )
+            db.add(bmrb_row)
+            selected_files.append(bmrb_row)
 
         # Issue conversion_id on first processing run
         conversion_id = session_row.conversion_id
@@ -343,7 +434,7 @@ async def process():
             'conversion_id': conversion_id,
             'run_number': run_number,
             'timestamp': datetime.now().isoformat(timespec='seconds'),
-            'target_depsys': session_row.target_depsys.value,
+            'target_depsys': session_row.target_depsys,
             'files': [
                 {
                     'ordinal': f.ordinal,
@@ -351,6 +442,7 @@ async def process():
                     'stored_path': f.stored_path,
                     'file_type': f.file_type,
                     'selected': f.selected,
+                    'source': f.source,
                 }
                 for f in selected_files
             ],

@@ -92,6 +92,9 @@ export class Upload {
   /** Non-null when an error dialog should be shown; cleared on dialog close. */
   bmrbErrorMessage = signal<string | null>(null);
 
+  /** Controls the "which assigned chemical shifts are authoritative?" dialog. */
+  bmrbShiftConflict = signal(false);
+
   /** True when a value is present but outside the 5-digit range (10000–99999). */
   isBmrbIdInvalidFormat = computed(() => {
     const id = this.bmrbId();
@@ -267,9 +270,24 @@ export class Upload {
       // file with its topology; XEASY pairs its spectral peak list with the
       // .prot topology (nm-aux-xea).
       const TOPOLOGY_PAIRS = [
-        { main: 'nm-res-amb', aux: 'nm-aux-amb', topo: 'AMBER topology file', mainKind: 'AMBER restraint' },
-        { main: 'nm-res-cha', aux: 'nm-aux-cha', topo: 'CHARMM topology file', mainKind: 'CHARMM restraint' },
-        { main: 'nm-res-gro', aux: 'nm-aux-gro', topo: 'GROMACS topology file', mainKind: 'GROMACS restraint' },
+        {
+          main: 'nm-res-amb',
+          aux: 'nm-aux-amb',
+          topo: 'AMBER topology file',
+          mainKind: 'AMBER restraint',
+        },
+        {
+          main: 'nm-res-cha',
+          aux: 'nm-aux-cha',
+          topo: 'CHARMM topology file',
+          mainKind: 'CHARMM restraint',
+        },
+        {
+          main: 'nm-res-gro',
+          aux: 'nm-aux-gro',
+          topo: 'GROMACS topology file',
+          mainKind: 'GROMACS restraint',
+        },
         {
           main: 'nm-pea-xea',
           aux: 'nm-aux-xea',
@@ -683,7 +701,46 @@ export class Upload {
     return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${units[i]}`;
   }
 
+  /**
+   * OneDep conventional mode only: a valid related BMRB ID supplies assigned
+   * chemical shifts, but the user has also selected their own chemical-shift
+   * file(s). Only the user can say which is authoritative. Combined mode (a
+   * selected nm-uni-* file) ignores the BMRB ID, so there is no conflict.
+   */
+  private hasShiftConflict(): boolean {
+    if (this.state().targetDepsys !== TargetDepsys.onedep) return false;
+    if (this.state().relatedBmrbId === null) return false;
+    const selected = this.rows().filter((r) => r.selected);
+    if (selected.some((r) => r.fileType?.startsWith('nm-uni-'))) return false;
+    return selected.some((r) => r.fileType?.startsWith('nm-shi'));
+  }
+
   processFiles(): void {
+    if (this.hasShiftConflict()) {
+      this.bmrbShiftConflict.set(true);
+      return;
+    }
+    this.submitProcessing();
+  }
+
+  /** BMRB archive chosen: deselect the user's own chemical-shift files so the
+   * BMRB-downloaded shifts are the sole source, then process. */
+  useBmrbShifts(): void {
+    this.rows.update((prev) =>
+      prev.map((r) => (r.fileType?.startsWith('nm-shi') ? { ...r, selected: false } : r)),
+    );
+    this.bmrbShiftConflict.set(false);
+    this.submitProcessing();
+  }
+
+  /** Own file chosen: keep the selection; the backend then skips the BMRB
+   * download because a user chemical-shift file remains selected. */
+  useOwnShifts(): void {
+    this.bmrbShiftConflict.set(false);
+    this.submitProcessing();
+  }
+
+  private submitProcessing(): void {
     // TODO: POST selected files to /api/upload with session token
     console.log(
       'Processing files:',

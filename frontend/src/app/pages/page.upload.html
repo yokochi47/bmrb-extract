@@ -358,3 +358,28 @@
     <p-button label="OK" (click)="onBmrbErrorClose()" />
   </ng-template>
 </p-dialog>
+
+<!-- Authoritative chemical-shift source dialog (BMRB ID + own file both present) -->
+<p-dialog
+  header="Which one is authoritative?"
+  [visible]="bmrbShiftConflict()"
+  [modal]="true"
+  [closable]="false"
+  [dismissableMask]="false"
+  [style]="{ width: '34rem' }"
+>
+  <p class="text-base leading-relaxed">
+    You provided a valid related BMRB ID and also selected your own assigned
+    chemical shift file(s). Only you can decide which version is authoritative:
+    the chemical shifts from the BMRB archive entry, or your own uploaded file(s)?
+  </p>
+  <ng-template pTemplate="footer">
+    <p-button label="BMRB archive file" icon="pi pi-database" (click)="useBmrbShifts()" />
+    <p-button
+      label="My own file(s)"
+      icon="pi pi-file"
+      severity="secondary"
+      (click)="useOwnShifts()"
+    />
+  </ng-template>
+</p-dialog>
