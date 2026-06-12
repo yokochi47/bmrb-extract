@@ -159,12 +159,10 @@ networks:
     driver: bridge
 
 volumes:
+  # Created by setup.sh (bind volume at ${POSTGRES_DATA_VOL_DIR}); compose only
+  # references it. external: true silences the "not created by Compose" warning.
   postgres_data:
     name: ${POSTGRES_DATA_VOL_LABEL}
-    driver: local
-    driver_opts:
-      type: none
-      device: ${POSTGRES_DATA_VOL_DIR}
-      o: bind
+    external: true
   nginx_logs:
 
