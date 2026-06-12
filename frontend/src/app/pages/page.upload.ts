@@ -123,12 +123,11 @@ export class Upload {
     { label: 'Coordinates (PDBx/mmCIF format)', value: 'co-cif' },
     { label: 'Coordinates (PDB format)', value: 'co-pdb' },
     // NMR unified data
-    { label: 'NMR unified data (NMR-STAR V3 format)', value: 'nm-uni-str' },
     { label: 'NMR unified data (NEF: NMR Exchange Format)', value: 'nm-uni-nef' },
+    { label: 'NMR unified data (NMR-STAR V3 format)', value: 'nm-uni-str' },
     // Assigned chemical shifts
     { label: 'Assigned chemical shifts (NMR-STAR V3 format)', value: 'nm-shi' },
     { label: 'Assigned chemical shifts (ARIA format)', value: 'nm-shi-ari' },
-    { label: 'Assigned chemical shifts (WSV/TSV/CSV; residue per line, atom per line, or SPARKY\'s list)', value: 'nm-shi-bar' },
     { label: 'Assigned chemical shifts (GARRET format)', value: 'nm-shi-gar' },
     { label: 'Assigned chemical shifts (NMRPIPE format)', value: 'nm-shi-npi' },
     { label: 'Assigned chemical shifts (OLIVIA format)', value: 'nm-shi-oli' },
@@ -136,46 +135,60 @@ export class Upload {
     { label: 'Assigned chemical shifts (NMRVIEW/CAMRA format)', value: 'nm-shi-ppm' },
     { label: 'Assigned chemical shifts (NMR-STAR V2 format - a loop only)', value: 'nm-shi-st2' },
     { label: 'Assigned chemical shifts (XEASY format, aka. prot)', value: 'nm-shi-xea' },
+    {
+      label:
+        "Assigned chemical shifts (WSV/TSV/CSV; residue per line, atom per line, or SPARKY's list)",
+      value: 'nm-shi-bar',
+    },
     // Spectral peak lists
-    { label: 'Spectral peak list (any plane text format, auto format detection)', value: 'nm-pea-any' },
     { label: 'Spectral peak list (ARIA format)', value: 'nm-pea-ari' },
-    { label: 'Spectral peak list (WSV/TSV with a header)', value: 'nm-pea-bar' },
     { label: 'Spectral peak list (CCPN format)', value: 'nm-pea-ccp' },
     { label: 'Spectral peak list (OLIVIA format)', value: 'nm-pea-oli' },
     { label: 'Spectral peak list (NMRPIPE/PIPP format)', value: 'nm-pea-pip' },
     { label: 'Spectral peak list (PONDEROSA format)', value: 'nm-pea-pon' },
     { label: 'Spectral peak list (SPARKY format)', value: 'nm-pea-spa' },
-    { label: 'Spectral peak list (SPARKY\'s save format, aka. ornament)', value: 'nm-pea-sps' },
+    { label: "Spectral peak list (SPARKY's save format, aka. ornament)", value: 'nm-pea-sps' },
     { label: 'Spectral peak list (TOPSPIN format)', value: 'nm-pea-top' },
     { label: 'Spectral peak list (NMRVIEW format)', value: 'nm-pea-vie' },
     { label: 'Spectral peak list (VNMR format)', value: 'nm-pea-vnm' },
     { label: 'Spectral peak list (XEASY format)', value: 'nm-pea-xea' },
     { label: 'Spectral peak list (XWINNMR format)', value: 'nm-pea-xwi' },
+    { label: 'Spectral peak list (WSV/TSV with a header)', value: 'nm-pea-bar' },
+    {
+      label: 'Spectral peak list (any plane text format, auto format detection)',
+      value: 'nm-pea-any',
+    },
     // Restraints
-    { label: 'Restraint file (AMBER format)', value: 'nm-res-amb' },
-    { label: 'Restraint file (ARIA text format)', value: 'nm-res-ari' },
-    { label: 'Restraint file (ARIA XML format)', value: 'nm-res-arx' },
-    { label: 'Restraint file (WSV/TSV/CSV with a header; MARDIGAS, AQUA\'s NOE, or User defined)', value: 'nm-res-bar' },
-    { label: 'Restraint file (BIOSYM format, incl. INSIGHT-II)', value: 'nm-res-bio' },
-    { label: 'Restraint file (CHARMM format)', value: 'nm-res-cha' },
-    { label: 'Restraint file (CNS format)', value: 'nm-res-cns' },
-    { label: 'Restraint file (CYANA format)', value: 'nm-res-cya' },
-    { label: 'Restraint file (DYNAMO/PALES/TALOS format)', value: 'nm-res-dyn' },
-    { label: 'Restraint file (GROMACS format)', value: 'nm-res-gro' },
-    { label: 'Restraint file (ISD format)', value: 'nm-res-isd' },
-    { label: 'Restraint file (CYANA NOE assignment format, aka. noa)', value: 'nm-res-noa' },
-    { label: 'Restraint file (other plane text format)', value: 'nm-res-oth' },
-    { label: 'Restraint file (ROSETTA format)', value: 'nm-res-ros' },
-    { label: 'Restraint file (SAXS profile containing columns for q, I(q), σ(I))', value: 'nm-res-sax' },
-    { label: 'Restraint file (Schröginder/ASL format)', value: 'nm-res-sch' },
-    { label: 'Restraint file (SYBYL format)', value: 'nm-res-syb' },
-    { label: 'Restraint file (XPLOR-NIH format)', value: 'nm-res-xpl' },
+    { label: 'Restraints (AMBER format)', value: 'nm-res-amb' },
+    { label: 'Restraints (ARIA format)', value: 'nm-res-ari' },
+    { label: 'Restraints (ARIA XML format)', value: 'nm-res-arx' },
+    {
+      label: "Restraints (WSV/TSV/CSV with a header; MARDIGAS, AQUA's NOE, or User defined)",
+      value: 'nm-res-bar',
+    },
+    { label: 'Restraints (BIOSYM format, incl. INSIGHT-II)', value: 'nm-res-bio' },
+    { label: 'Restraints (CHARMM format)', value: 'nm-res-cha' },
+    { label: 'Restraints (CNS format)', value: 'nm-res-cns' },
+    { label: 'Restraints (CYANA format)', value: 'nm-res-cya' },
+    { label: 'Restraints (DYNAMO/PALES/TALOS format)', value: 'nm-res-dyn' },
+    { label: 'Restraints (GROMACS format)', value: 'nm-res-gro' },
+    { label: 'Restraints (ISD format)', value: 'nm-res-isd' },
+    { label: 'Restraints (CYANA NOE assignment format, aka. noa)', value: 'nm-res-noa' },
+    { label: 'Restraints (ROSETTA format)', value: 'nm-res-ros' },
+    {
+      label: 'Restraints (SAXS profile containing three columns for q, I(q), σ(I))',
+      value: 'nm-res-sax',
+    },
+    { label: 'Restraints (Schröginder/ASL format)', value: 'nm-res-sch' },
+    { label: 'Restraints (SYBYL format)', value: 'nm-res-syb' },
+    { label: 'Restraints (XPLOR-NIH format)', value: 'nm-res-xpl' },
+    { label: 'Restraints (other plane text format)', value: 'nm-res-oth' },
     // Topology
-    { label: 'Topology file (AMBER format)', value: 'nm-aux-amb' },
-    { label: 'Topology file (CHARMM format)', value: 'nm-aux-cha' },
-    { label: 'Topology file (GROMACS format)', value: 'nm-aux-gro' },
-    { label: 'Topology file (PDB format)', value: 'nm-aux-pdb' },
-    { label: 'Topology file (XEASY format, aka. prot)', value: 'nm-aux-xea' },
+    { label: 'Topology (AMBER format)', value: 'nm-aux-amb' },
+    { label: 'Topology (CHARMM format)', value: 'nm-aux-cha' },
+    { label: 'Topology (GROMACS format)', value: 'nm-aux-gro' },
+    { label: 'Topology (PDB format)', value: 'nm-aux-pdb' },
+    { label: 'Topology (XEASY format, aka. prot)', value: 'nm-aux-xea' },
   ];
 
   /**
@@ -193,8 +206,7 @@ export class Upload {
       v.startsWith('nm-pea-') ||
       v.startsWith('nm-res-') ||
       v.startsWith('nm-aux-'),
-    [TargetDepsys.repl_cs]: (v) =>
-      v.startsWith('co-') || v === 'nm-uni-str' || v === 'nm-shi',
+    [TargetDepsys.repl_cs]: (v) => v.startsWith('co-') || v === 'nm-uni-str' || v === 'nm-shi',
     [TargetDepsys.bmrbdep]: (v) =>
       v.startsWith('nm-uni-') ||
       v === 'nm-shi' ||
