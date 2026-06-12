@@ -304,29 +304,43 @@
       </table>
     </div>
 
-    <!-- Requirements check -->
-    <div class="mb-6 text-sm">
-      @if (requirementsMet()) {
-        <span class="text-green-600 font-medium">
-          <i class="pi pi-check-circle mr-1"></i>File requirements are met.
-        </span>
+    <!-- Requirement check messages (errors / warnings block processing) -->
+    @if (checks(); as c) {
+      @if (c.errors.length || c.warnings.length || c.recommendations.length) {
+        <div class="mb-6 flex flex-col gap-2">
+          @for (msg of c.errors; track msg) {
+            <p-message severity="error" [closable]="false" styleClass="w-full">
+              <i class="pi pi-times-circle mr-2"></i>{{ msg }}
+            </p-message>
+          }
+          @for (msg of c.warnings; track msg) {
+            <p-message severity="warn" [closable]="false" styleClass="w-full">
+              <i class="pi pi-exclamation-triangle mr-2"></i>{{ msg }}
+            </p-message>
+          }
+          @for (msg of c.recommendations; track msg) {
+            <p-message severity="info" [closable]="false" styleClass="w-full">
+              <i class="pi pi-info-circle mr-2"></i>{{ msg }}
+            </p-message>
+          }
+        </div>
       } @else {
-        <span class="text-surface-400">
-          <i class="pi pi-info-circle mr-1"></i>Select at least one file and assign a file type to
-          all selected files.
-        </span>
+        <div class="mb-6 text-sm">
+          <span class="text-green-600 font-medium">
+            <i class="pi pi-check-circle mr-1"></i>File requirements are met.
+          </span>
+        </div>
       }
-    </div>
-
-    <!-- Process selected files (shown only when requirements are met) -->
-    @if (requirementsMet()) {
-      <p-button
-        label="Process selected files"
-        icon="pi pi-cog"
-        severity="success"
-        (click)="processFiles()"
-      />
     }
+
+    <!-- Process selected files (disabled until there are no errors or warnings) -->
+    <p-button
+      label="Process selected files"
+      icon="pi pi-cog"
+      severity="success"
+      [disabled]="!canProcess()"
+      (click)="processFiles()"
+    />
   }
 </div>
 
