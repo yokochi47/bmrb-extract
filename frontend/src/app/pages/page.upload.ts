@@ -33,6 +33,13 @@ interface FileRow {
   fileType: string | null;
 }
 
+/** Outcome of the file requirement check for the selected deposition system. */
+interface CheckResult {
+  errors: string[];
+  warnings: string[];
+  recommendations: string[];
+}
+
 @Component({
   selector: 'app-upload',
   imports: [
@@ -85,6 +92,9 @@ export class Upload {
   /** Non-null when an error dialog should be shown; cleared on dialog close. */
   bmrbErrorMessage = signal<string | null>(null);
 
+  /** Controls the "which assigned chemical shifts are authoritative?" dialog. */
+  bmrbShiftConflict = signal(false);
+
   /** True when a value is present but outside the 5-digit range (10000–99999). */
   isBmrbIdInvalidFormat = computed(() => {
     const id = this.bmrbId();
@@ -96,9 +106,231 @@ export class Upload {
 
   rows = signal<FileRow[]>([]);
 
-  requirementsMet = computed(() => {
-    const selected = this.rows().filter((r) => r.selected);
-    return selected.length > 0 && selected.every((r) => r.fileType !== null);
+  /**
+   * File extensions we refuse: tar archives and known compressed / binary
+   * formats. Uploaded files must be plain text and uncompressed. Matched
+   * case-insensitively against the trailing part of the file name.
+   */
+  private readonly FORBIDDEN_SUFFIXES = [
+    '.tar',
+    '.tar.gz',
+    '.tgz',
+    '.tar.bz2',
+    '.tbz',
+    '.tbz2',
+    '.tar.xz',
+    '.txz',
+    '.tar.z',
+    '.gz',
+    '.gzip',
+    '.bz2',
+    '.xz',
+    '.lz',
+    '.lzma',
+    '.zst',
+    '.z',
+    '.zip',
+    '.7z',
+    '.rar',
+    '.cab',
+    '.arj',
+    '.ace',
+  ];
+
+  /**
+   * Per-deposition-system file requirement check. Produces error, warning, and
+   * recommendation messages displayed above the "Process selected files"
+   * button. Errors and warnings block processing; recommendations are advisory.
+   * NMR-data-specific conditions will be added here per target system.
+   */
+  checks = computed<CheckResult>(() => {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    const recommendations: string[] = [];
+
+    const rows = this.rows();
+    const selected = rows.filter((r) => r.selected);
+
+    // 1. No tar archives, compressed, or other binary files.
+    const hasForbidden = rows.some((r) => {
+      const lower = r.name.toLowerCase();
+      return this.FORBIDDEN_SUFFIXES.some((s) => lower.endsWith(s));
+    });
+    if (hasForbidden) {
+      errors.push('You cannot upload tar archive, compressed or other binary files.');
+    }
+
+    // 2. Every uploaded file must have a file type assigned.
+    if (rows.some((r) => r.fileType === null)) {
+      errors.push('Please define the types for all files.');
+    }
+
+    // 3. Coordinate file: OneDep and Replacing-CS require exactly one active
+    //    (selected) coordinate file (co-cif or co-pdb).
+    const target = this.state().targetDepsys;
+    if (target === TargetDepsys.onedep || target === TargetDepsys.repl_cs) {
+      const coordCount = selected.filter((r) => r.fileType?.startsWith('co-')).length;
+      if (coordCount === 0) {
+        errors.push('Please provide/select one coordinate file.');
+      } else if (coordCount > 1) {
+        errors.push('Please select one coordinate file only.');
+      }
+    }
+
+    // 4. NMR unified data: at most one active (selected) nm-uni-* file is allowed.
+    const uniCount = selected.filter((r) => r.fileType?.startsWith('nm-uni-')).length;
+    if (uniCount > 1) {
+      errors.push('You can upload a single NMR unified data file.');
+    }
+
+    // 5. Replacing-CS: requires exactly one NMR-STAR V3 unified data file
+    //    (processed by OneDep); NEF is not supported.
+    if (target === TargetDepsys.repl_cs) {
+      const hasNef = selected.some((r) => r.fileType === 'nm-uni-nef');
+      if (hasNef) {
+        errors.push(
+          'Only NMR-STAR format data file processed by OneDep can be uploaded, NEF is not supported.',
+        );
+      }
+      const starCount = selected.filter((r) => r.fileType === 'nm-uni-str').length;
+      if (starCount === 0) {
+        errors.push('Please provide/select one NMR unified data file (NMR-STAR V3 format).');
+      }
+      // At least one assigned chemical shift file is mandatory (multiple allowed).
+      const shiftCount = selected.filter((r) => r.fileType?.startsWith('nm-shi')).length;
+      if (shiftCount === 0) {
+        warnings.push('Please upload correct assigned chemical shifts in NMR-STAR V3 format.');
+      }
+      // Coordinate file should be PDBx/mmCIF, not legacy PDB.
+      if (selected.some((r) => r.fileType === 'co-pdb')) {
+        recommendations.push(
+          'To preserve consistency between coordinates and NMR data, we strongly recommended uploading coordinate file in PDBx/mmCIF format processed with OneDep.',
+        );
+      }
+    }
+
+    // 6. BMRBdep: at least one assigned chemical shift file is mandatory; a
+    //    topology file is optional but at most one is accepted.
+    if (target === TargetDepsys.bmrbdep) {
+      const shiftCount = selected.filter((r) => r.fileType?.startsWith('nm-shi')).length;
+      if (shiftCount === 0) {
+        warnings.push('Please upload at least one assigned chemical shift file.');
+      }
+      const topoCount = selected.filter((r) => r.fileType?.startsWith('nm-aux-')).length;
+      if (topoCount > 1) {
+        errors.push('Please select only one topology file.');
+      }
+    }
+
+    // 7. OneDep combined deposition is exclusive: a selected NMR unified data
+    //    file (alongside coordinates) cannot be mixed with separated chemical
+    //    shift, restraint, peak list, or topology files.
+    if (target === TargetDepsys.onedep && uniCount > 0) {
+      const hasSeparated = selected.some(
+        (r) =>
+          r.fileType?.startsWith('nm-shi') ||
+          r.fileType?.startsWith('nm-res-') ||
+          r.fileType?.startsWith('nm-pea-') ||
+          r.fileType?.startsWith('nm-aux-'),
+      );
+      if (hasSeparated) {
+        errors.push(
+          'Combined deposition allows only the coordinate file and a single NMR unified data file; separated chemical shift, restraint, peak list, or topology files are not allowed alongside it.',
+        );
+      }
+    }
+
+    // 8. OneDep conventional deposition (no NMR unified data file): requires
+    //    assigned chemical shifts and at least one restraint file.
+    if (target === TargetDepsys.onedep && uniCount === 0) {
+      // Assigned chemical shifts are mandatory, unless a valid related BMRB ID
+      // supplies them (downloaded from BMRB).
+      const hasShifts = selected.some((r) => r.fileType?.startsWith('nm-shi'));
+      const bmrbProvidesShifts = this.state().relatedBmrbId !== null;
+      if (!hasShifts && !bmrbProvidesShifts) {
+        errors.push(
+          'Deposition of assigned chemical shifts is mandatory. Please upload them in NMR-STAR V3 format, or specify a valid related BMRB ID.',
+        );
+      }
+      const hasRestraint = selected.some((r) => r.fileType?.startsWith('nm-res-'));
+      if (!hasRestraint) {
+        errors.push(
+          'Deposition of NMR restraints is mandatory. Please upload each type of restraints in a separate file.',
+        );
+      }
+      const hasPeak = selected.some((r) => r.fileType?.startsWith('nm-pea-'));
+      if (!hasPeak) {
+        recommendations.push('Deposition of spectral peak list is strongly encouraged.');
+      }
+
+      // Topology files are optional auxiliary data but strongly coupled with
+      // their data type. When the coupled data file is present, exactly one
+      // matching topology file is required; a topology file with no matching
+      // data file is likewise rejected. AMBER/CHARMM/GROMACS pair a restraint
+      // file with its topology; XEASY pairs its spectral peak list with the
+      // .prot topology (nm-aux-xea).
+      const TOPOLOGY_PAIRS = [
+        {
+          main: 'nm-res-amb',
+          aux: 'nm-aux-amb',
+          topo: 'AMBER topology file',
+          mainKind: 'AMBER restraint',
+        },
+        {
+          main: 'nm-res-cha',
+          aux: 'nm-aux-cha',
+          topo: 'CHARMM topology file',
+          mainKind: 'CHARMM restraint',
+        },
+        {
+          main: 'nm-res-gro',
+          aux: 'nm-aux-gro',
+          topo: 'GROMACS topology file',
+          mainKind: 'GROMACS restraint',
+        },
+        {
+          main: 'nm-pea-xea',
+          aux: 'nm-aux-xea',
+          topo: 'XEASY topology file (aka. prot)',
+          mainKind: 'XEASY spectral peak list',
+        },
+      ];
+      for (const { main, aux, topo, mainKind } of TOPOLOGY_PAIRS) {
+        const mainCount = selected.filter((r) => r.fileType === main).length;
+        const auxCount = selected.filter((r) => r.fileType === aux).length;
+        if (mainCount > 0) {
+          if (auxCount === 0) {
+            errors.push(`Please upload one ${topo}.`);
+          } else if (auxCount > 1) {
+            errors.push(`Please select only one ${topo}.`);
+          }
+        } else if (auxCount > 0) {
+          errors.push(`Please upload at least one ${mainKind} file.`);
+        }
+      }
+
+      // Schrödinger/ASL is exceptional: its topology is a PDB-format file
+      // (nm-aux-pdb). When the selected coordinate file is legacy PDB (co-pdb),
+      // it already serves that purpose, so no separate topology is required.
+      const hasSch = selected.some((r) => r.fileType === 'nm-res-sch');
+      const coordIsLegacyPdb = selected.some((r) => r.fileType === 'co-pdb');
+      if (hasSch && !coordIsLegacyPdb) {
+        const pdbTopoCount = selected.filter((r) => r.fileType === 'nm-aux-pdb').length;
+        if (pdbTopoCount === 0) {
+          errors.push('Please upload one PDB topology file.');
+        } else if (pdbTopoCount > 1) {
+          errors.push('Please select only one PDB topology file.');
+        }
+      }
+    }
+
+    return { errors, warnings, recommendations };
+  });
+
+  /** Processing is allowed only when there are no errors and no warnings. */
+  canProcess = computed(() => {
+    const c = this.checks();
+    return this.rows().length > 0 && c.errors.length === 0 && c.warnings.length === 0;
   });
 
   readonly depSystemOptions = [
@@ -170,7 +402,7 @@ export class Upload {
     { label: 'NMR restraints (CHARMM format)', value: 'nm-res-cha' },
     { label: 'NMR restraints (CNS format)', value: 'nm-res-cns' },
     { label: 'NMR restraints (CYANA format)', value: 'nm-res-cya' },
-    { label: "NMR restraints (CYANA NOA format, aka. noe assignment)", value: 'nm-res-noa' },
+    { label: 'NMR restraints (CYANA NOA format, aka. noe assignment)', value: 'nm-res-noa' },
     { label: 'NMR restraints (DYNAMO/PALES/TALOS format)', value: 'nm-res-dyn' },
     { label: 'NMR restraints (GROMACS format)', value: 'nm-res-gro' },
     { label: 'NMR restraints (ISD format)', value: 'nm-res-isd' },
@@ -196,7 +428,13 @@ export class Upload {
    * prefix match). Keep in sync with the file upload requirements cards.
    * - onedep : co-*, nm-uni-*, nm-shi, nm-pea-*, nm-res-*, nm-aux-*
    * - repl_cs: co-*, nm-uni-str, nm-shi
-   * - bmrbdep: nm-uni-*, nm-shi, nm-shi-*, nm-aux-*
+   * - bmrbdep: nm-uni-*, nm-shi, nm-shi-*, nm-aux-* (except nm-aux-xea)
+   *
+   * The XEASY .prot file carries both topology and chemical shifts, so
+   * nm-aux-xea and nm-shi-xea are the same file. To avoid a redundant menu
+   * entry, nm-aux-xea is offered only under OneDep (where nm-shi-xea is not
+   * accepted and the XEASY peak list needs a topology); elsewhere the file is
+   * uploaded as nm-shi-xea.
    */
   private readonly DEPSYS_FILE_TYPES: Record<TargetDepsys, (value: string) => boolean> = {
     [TargetDepsys.onedep]: (v) =>
@@ -211,7 +449,7 @@ export class Upload {
       v.startsWith('nm-uni-') ||
       v === 'nm-shi' ||
       v.startsWith('nm-shi-') ||
-      v.startsWith('nm-aux-'),
+      (v.startsWith('nm-aux-') && v !== 'nm-aux-xea'),
   };
 
   /** File type options suitable for the currently selected target deposition system. */
@@ -463,7 +701,46 @@ export class Upload {
     return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${units[i]}`;
   }
 
+  /**
+   * OneDep conventional mode only: a valid related BMRB ID supplies assigned
+   * chemical shifts, but the user has also selected their own chemical-shift
+   * file(s). Only the user can say which is authoritative. Combined mode (a
+   * selected nm-uni-* file) ignores the BMRB ID, so there is no conflict.
+   */
+  private hasShiftConflict(): boolean {
+    if (this.state().targetDepsys !== TargetDepsys.onedep) return false;
+    if (this.state().relatedBmrbId === null) return false;
+    const selected = this.rows().filter((r) => r.selected);
+    if (selected.some((r) => r.fileType?.startsWith('nm-uni-'))) return false;
+    return selected.some((r) => r.fileType?.startsWith('nm-shi'));
+  }
+
   processFiles(): void {
+    if (this.hasShiftConflict()) {
+      this.bmrbShiftConflict.set(true);
+      return;
+    }
+    this.submitProcessing();
+  }
+
+  /** BMRB archive chosen: deselect the user's own chemical-shift files so the
+   * BMRB-downloaded shifts are the sole source, then process. */
+  useBmrbShifts(): void {
+    this.rows.update((prev) =>
+      prev.map((r) => (r.fileType?.startsWith('nm-shi') ? { ...r, selected: false } : r)),
+    );
+    this.bmrbShiftConflict.set(false);
+    this.submitProcessing();
+  }
+
+  /** Own file chosen: keep the selection; the backend then skips the BMRB
+   * download because a user chemical-shift file remains selected. */
+  useOwnShifts(): void {
+    this.bmrbShiftConflict.set(false);
+    this.submitProcessing();
+  }
+
+  private submitProcessing(): void {
     // TODO: POST selected files to /api/upload with session token
     console.log(
       'Processing files:',

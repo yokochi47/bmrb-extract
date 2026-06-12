@@ -72,6 +72,12 @@ CREATE TYPE upload_file_type AS ENUM (
     --
 );
 
+DROP TYPE IF EXISTS upload_file_source;
+CREATE TYPE upload_file_source AS ENUM (
+    'user',  -- uploaded by the user
+    'bmrb'   -- downloaded from BMRB for a valid related_bmrb_id (onedep conventional mode)
+);
+
 --
 -- Uploaded files.
 --
@@ -96,6 +102,8 @@ CREATE TABLE IF NOT EXISTS upload_file (
     file_type       upload_file_type NOT NULL,
 
     selected        BOOLEAN NOT NULL DEFAULT TRUE,  -- selected files will be used for the conversion process.
+
+    source          upload_file_source NOT NULL DEFAULT 'user',  -- 'bmrb' rows are fetched from BMRB, not uploaded by the user.
 
     uploaded_at     TIMESTAMP DEFAULT now(),
 

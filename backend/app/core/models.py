@@ -4,12 +4,34 @@ import sqlalchemy as sa
 from sqlalchemy.ext.declarative import declarative_base
 from enum import Enum
 from sqlalchemy.sql import func
-from sqlalchemy.dialects.postgresql import UUID, INET
+from sqlalchemy.dialects.postgresql import UUID, INET, ENUM
 
 from core.site_config import SERVICE_DOMAIN
 
 
 Base = declarative_base()
+
+
+class EnumStr(sa.types.TypeDecorator):
+    """Map a native PostgreSQL ENUM column as a plain Python str.
+
+    Hand-added (not produced by omymodels): the generator emits sa.Text() for
+    these enum columns, but asyncpg refuses to send a text value into a native
+    enum column. impl=Text keeps reads as str (manifest JSON and the
+    file_type.startswith checks rely on this); bind_expression casts bound
+    values to the enum type in SQL so writes succeed. Re-apply after
+    regenerating this file.
+    """
+
+    impl = sa.Text
+    cache_ok = True
+
+    def __init__(self, pg_type_name, **kwargs):
+        self._pg_type_name = pg_type_name
+        super().__init__(**kwargs)
+
+    def bind_expression(self, bindvalue):
+        return sa.cast(bindvalue, ENUM(name=self._pg_type_name, create_type=False))
 
 
 class ProcessingSiteCode(str, Enum):
@@ -90,6 +112,12 @@ class UploadFileType(str, Enum):
     nm_uni_str = 'nm-uni-str'
 
 
+class UploadFileSource(str, Enum):
+
+    user = 'user'
+    bmrb = 'bmrb'
+
+
 class OutputFileType(str, Enum):
 
     compressed = 'compressed'
@@ -133,15 +161,15 @@ class Session(Base):
 
     __tablename__ = 'session'
 
-    processing_site = sa.Column(sa.Text(), server_default=SERVICE_DOMAIN)
+    processing_site = sa.Column(EnumStr('processing_site_code'), server_default=SERVICE_DOMAIN)
     token = sa.Column(UUID, server_default='uuidv7()', primary_key=True)
     token_admin = sa.Column(UUID, server_default='gen_random_uuid()')
     token_expiry = sa.Column(sa.TIMESTAMP(), nullable=False)
     consented = sa.Column(sa.Boolean(), nullable=False, server_default='FALSE')
     client_ip = sa.Column(INET())
     user_agent = sa.Column(sa.Text())
-    status = sa.Column(sa.Enum(SessionStatusCode), nullable=False, server_default='created')
-    target_depsys = sa.Column(sa.Enum(TargetDepsysCode), nullable=False, server_default='onedep')
+    status = sa.Column(EnumStr('session_status_code'), nullable=False, server_default='created')
+    target_depsys = sa.Column(EnumStr('target_depsys_code'), nullable=False, server_default='onedep')
     related_bmrb_id = sa.Column(sa.Integer())
     latest_run_number = sa.Column(sa.Integer(), nullable=False, server_default='0')
     conversion_id = sa.Column(sa.Integer(), unique=True)
@@ -165,8 +193,9 @@ class UploadFile(Base):
     stored_path = sa.Column(sa.Text(), nullable=False)
     file_size = sa.Column(sa.BigInteger())
     checksum = sa.Column(sa.Text())
-    file_type = sa.Column(sa.Text(), nullable=False)
+    file_type = sa.Column(EnumStr('upload_file_type'), nullable=False)
     selected = sa.Column(sa.Boolean(), nullable=False, server_default='TRUE')
+    source = sa.Column(EnumStr('upload_file_source'), nullable=False, server_default='user')
     uploaded_at = sa.Column(sa.TIMESTAMP(), server_default=func.now())
 
 
@@ -180,7 +209,7 @@ class OutputFile(Base):
     stored_path = sa.Column(sa.Text(), nullable=False)
     file_size = sa.Column(sa.BigInteger())
     checksum = sa.Column(sa.Text())
-    file_type = sa.Column(sa.Text(), nullable=False)
+    file_type = sa.Column(EnumStr('output_file_type'), nullable=False)
     downloaded = sa.Column(sa.Boolean(), nullable=False, server_default='TRUE')
     downloaded_at = sa.Column(sa.TIMESTAMP(), server_default=func.now())
     client_ip = sa.Column(INET())
@@ -196,7 +225,7 @@ class Notification(Base):
     subject = sa.Column(sa.Text(), nullable=False)
     content = sa.Column(sa.Text(), nullable=False)
     sent_at = sa.Column(sa.TIMESTAMP(), server_default=func.now())
-    delivery_status = sa.Column(sa.Enum(DeliveryStatusCode))
+    delivery_status = sa.Column(EnumStr('delivery_status_code'))
 
 
 class Communication(Base):
@@ -209,7 +238,7 @@ class Communication(Base):
     content = sa.Column(sa.Text(), nullable=False)
     email_address = sa.Column(sa.Text(), nullable=False)
     sent_at = sa.Column(sa.TIMESTAMP(), server_default=func.now())
-    delivery_status = sa.Column(sa.Enum(DeliveryStatusCode))
+    delivery_status = sa.Column(EnumStr('delivery_status_code'))
 
 
 class Workflow(Base):
@@ -219,8 +248,8 @@ class Workflow(Base):
     conversion_id = sa.Column(sa.Integer(), sa.ForeignKey('session.conversion_id'), primary_key=True)
     run_number = sa.Column(sa.Integer(), primary_key=True, server_default='1')
     ordinal = sa.Column(sa.Integer(), primary_key=True)
-    task = sa.Column(sa.Enum(WfTaskCode), nullable=False)
-    status = sa.Column(sa.Enum(WfStatusCode), nullable=False, server_default='created')
+    task = sa.Column(EnumStr('wf_task_code'), nullable=False)
+    status = sa.Column(EnumStr('wf_status_code'), nullable=False, server_default='created')
     log_path = sa.Column(sa.Text(), nullable=False)
     created_at = sa.Column(sa.TIMESTAMP(), server_default=func.now())
     started_at = sa.Column(sa.TIMESTAMP())

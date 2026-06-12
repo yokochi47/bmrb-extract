@@ -101,7 +101,7 @@
       <p-card header="File upload requirements for OneDep deposition" styleClass="mb-6">
         <ul class="leading-normal list-disc pl-8 text-base mb-4">
           <li>Coordinate file (PDBx/mmCIF or legacy PDB format)</li>
-          <p class="text-sm italic underline">As to conventional separated file deposition</p>
+          <p class="text-base italic underline">As to conventional separated file deposition</p>
           <ul class="leading-normal list-disc pl-8 text-base">
             <li>
               Assigned chemical shift files (NMR-STAR V3, NEF, other supported formats, or existing
@@ -111,7 +111,7 @@
             <li>Optionally, spectral peak list files (Software-native format)</li>
           </ul>
           or
-          <p class="text-sm italic underline">As to combined single file deposition</p>
+          <p class="text-base italic underline">As to combined single file deposition</p>
           <ul class="leading-normal list-disc pl-8 text-base mb-4">
             <li>
               NMR unified data file (NMR-STAR V3 or NEF) containing assigned chemical shifts and
@@ -139,10 +139,8 @@
       </p-card>
     }
     @case (TargetDepsys.repl_cs) {
-      <p-card
-        header="File upload requirements for ongoing OneDep deposition — Replacing assigned chemical shifts"
-        styleClass="mb-6"
-      >
+      <p-card header="File upload requirements for ongoing OneDep deposition" styleClass="mb-6">
+        <p class="text-base italic underline ml-2">Replacing assigned chemical shifts</p>
         <ul class="leading-normal list-disc pl-8 text-base mb-4">
           <li>Coordinate file processed by OneDep (PDBx/mmCIF)</li>
           <li>
@@ -172,19 +170,18 @@
     }
     @case (TargetDepsys.bmrbdep) {
       <p-card header="File upload requirements for BMRBdep deposition" styleClass="mb-6">
+        <p class="text-base italic underline ml-2">BMRB Only</p>
         <ul class="leading-normal list-disc pl-8 text-base mb-4">
           <li>Assigned chemical shift files (NMR-STAR, NEF, or other supported formats)</li>
           Optionally
-          <ul class="leading-normal list-disc pl-8 text-base mb-4">
-            <li>
-              Other data files in NMR-STAR V3 format (e.g. relaxation, kinetic, thermodynamic
-              parameters)
-            </li>
-            <li>
-              Topology file, which describes a molecular assembly (a complete sequence of molecules
-              and ligands) and is used when it is not in the primary data file
-            </li>
-          </ul>
+          <li>
+            Other data files in NMR-STAR V3 format (e.g. relaxation, kinetic, thermodynamic
+            parameters)
+          </li>
+          <li>
+            Topology file, which describes a molecular assembly (a complete sequence of molecules
+            and ligands) and is used when it is not in the primary data file
+          </li>
         </ul>
       </p-card>
     }
@@ -307,29 +304,43 @@
       </table>
     </div>
 
-    <!-- Requirements check -->
-    <div class="mb-6 text-sm">
-      @if (requirementsMet()) {
-        <span class="text-green-600 font-medium">
-          <i class="pi pi-check-circle mr-1"></i>File requirements are met.
-        </span>
+    <!-- Requirement check messages (errors / warnings block processing) -->
+    @if (checks(); as c) {
+      @if (c.errors.length || c.warnings.length || c.recommendations.length) {
+        <div class="mb-6 flex flex-col gap-2">
+          @for (msg of c.errors; track msg) {
+            <p-message severity="error" [closable]="false" styleClass="w-full">
+              <i class="pi pi-times-circle mr-2"></i>{{ msg }}
+            </p-message>
+          }
+          @for (msg of c.warnings; track msg) {
+            <p-message severity="warn" [closable]="false" styleClass="w-full">
+              <i class="pi pi-exclamation-triangle mr-2"></i>{{ msg }}
+            </p-message>
+          }
+          @for (msg of c.recommendations; track msg) {
+            <p-message severity="info" [closable]="false" styleClass="w-full">
+              <i class="pi pi-info-circle mr-2"></i>{{ msg }}
+            </p-message>
+          }
+        </div>
       } @else {
-        <span class="text-surface-400">
-          <i class="pi pi-info-circle mr-1"></i>Select at least one file and assign a file type to
-          all selected files.
-        </span>
+        <div class="mb-6 text-sm">
+          <span class="text-green-600 font-medium">
+            <i class="pi pi-check-circle mr-1"></i>File requirements are met.
+          </span>
+        </div>
       }
-    </div>
-
-    <!-- Process selected files (shown only when requirements are met) -->
-    @if (requirementsMet()) {
-      <p-button
-        label="Process selected files"
-        icon="pi pi-cog"
-        severity="success"
-        (click)="processFiles()"
-      />
     }
+
+    <!-- Process selected files (disabled until there are no errors or warnings) -->
+    <p-button
+      label="Process selected files"
+      icon="pi pi-cog"
+      severity="success"
+      [disabled]="!canProcess()"
+      (click)="processFiles()"
+    />
   }
 </div>
 
@@ -345,5 +356,30 @@
   <p class="text-base leading-relaxed">{{ bmrbErrorMessage() }}</p>
   <ng-template pTemplate="footer">
     <p-button label="OK" (click)="onBmrbErrorClose()" />
+  </ng-template>
+</p-dialog>
+
+<!-- Authoritative chemical-shift source dialog (BMRB ID + own file both present) -->
+<p-dialog
+  header="Which one is authoritative?"
+  [visible]="bmrbShiftConflict()"
+  [modal]="true"
+  [closable]="false"
+  [dismissableMask]="false"
+  [style]="{ width: '34rem' }"
+>
+  <p class="text-base leading-relaxed">
+    You provided a valid related BMRB ID and also selected your own assigned
+    chemical shift file(s). Only you can decide which version is authoritative:
+    the chemical shifts from the BMRB archive entry, or your own uploaded file(s)?
+  </p>
+  <ng-template pTemplate="footer">
+    <p-button label="BMRB archive file" icon="pi pi-database" (click)="useBmrbShifts()" />
+    <p-button
+      label="My own file(s)"
+      icon="pi pi-file"
+      severity="secondary"
+      (click)="useOwnShifts()"
+    />
   </ng-template>
 </p-dialog>
