@@ -58,6 +58,16 @@ if [[ -n "${ARCHIVE_VOL_DIR}" ]] && [[ ! -d "${ARCHIVE_VOL_DIR}" ]] ; then
 fi
 
 #
+# Create a directory for the conversion workspace
+#
+if [[ -n "${WORKSPACE_VOL_DIR}" ]] && [[ ! -d "${WORKSPACE_VOL_DIR}" ]] ; then
+
+  sudo mkdir -p ${WORKSPACE_VOL_DIR}
+  sudo chown ${USER}:${USER} ${WORKSPACE_VOL_DIR}
+
+fi
+
+#
 # Create a directory for Docker volume (nginx_logs)
 #
 if [[ -n "${NGINX_LOG_VOL_DIR}" ]] && [[ ! -d "${NGINX_LOG_VOL_DIR}" ]] ; then
@@ -209,6 +219,7 @@ for repo in "${ACTION_RUNNER_REPOS[@]}" ; do
   docker service ps $repo > /dev/null || \
     (docker service create -q --replicas 3 --name $repo --update-delay 20s \
       --mount type=bind,source=${ARCHIVE_VOL_DIR},target=/archive \
+      --mount type=bind,source=${WORKSPACE_VOL_DIR},target=/workspace \
       $container_repo &)
 
 done

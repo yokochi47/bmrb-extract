@@ -26,6 +26,7 @@ from core.site_config import (
     SERVICE_ADMIN_EMAIL,
     SERVICE_DATABASE_URL,
     SERVICE_HOST,
+    WORKSPACE_BASE_PATH,
 )
 
 app = Flask(__name__)
@@ -363,6 +364,10 @@ async def process():
 
         # Insert Workflow task records for this run. Ordinals reset to 1..3 per run;
         # the composite PK (conversion_id, run_number, ordinal) keeps re-runs distinct.
+        # Logs live in the per-run conversion workspace (kept out of the git archive);
+        # the workspace dirs themselves are created by the flow's issue_conversion task.
+        # This path scheme mirrors prefect/flows/core/workspace.py — keep them in sync.
+        log_dir = Path(WORKSPACE_BASE_PATH) / str(conversion_id) / str(run_number) / 'log'
         for i, task_code in enumerate(
             [WfTaskCode.issue_conversion, WfTaskCode.convert_model, WfTaskCode.convert_nmr_data],
             start=1,
@@ -374,7 +379,7 @@ async def process():
                     ordinal=i,
                     task=task_code,
                     status=WfStatusCode.pending,
-                    log_path=str(session_dir / f'run-{run_number}_{task_code.value}.log'),
+                    log_path=str(log_dir / f'{task_code.value}.log'),
                 )
             )
 

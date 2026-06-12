@@ -24,6 +24,7 @@ FLASK_API_URL = '${FLASK_API_URL}'
 SUCCESS_VALIDITY_PERIOD_IN_DAYS = ${SUCCESS_VALIDITY_PERIOD_IN_DAYS}
 FAILURE_VALIDITY_PERIOD_IN_DAYS = ${FAILURE_VALIDITY_PERIOD_IN_DAYS}
 
-# Mounted a host directory in the container
+# Mounted host directories in the container
 ARCHIVE_BASE_PATH = '/archive'
+WORKSPACE_BASE_PATH = '/workspace'
 

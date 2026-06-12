@@ -14,6 +14,7 @@ services:
     volumes:
       - ./backend/app:/app
       - ${ARCHIVE_VOL_DIR}:/archive
+      - ${WORKSPACE_VOL_DIR}:/workspace
     expose:
       - "8000"
     networks:
@@ -114,6 +115,7 @@ services:
       - internal
     volumes:
       - ${ARCHIVE_VOL_DIR}:/archive
+      - ${WORKSPACE_VOL_DIR}:/workspace
 
   nginx:
     build: ./nginx
