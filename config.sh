@@ -129,7 +129,7 @@ token_regex='^[0-9A-Z]{29}\n$'
 if [[ -z "${MAXIT_CCD_SELF_RUNNER_TOKEN}" ]] ; then
 
 
-  echo "Enter GitHub Action Runner token of ${MAXIT_CCD_REPO} repositor: [29 charactors string]"
+  echo "Enter GitHub Action Runner token of ${MAXIT_CCD_REPO} repo: [29 charactors string]"
 
   read ans
 
@@ -144,7 +144,7 @@ fi
 
 if [[ -z "${UTILS_NMR_SELF_RUNNER_TOKEN}" ]] ; then
 
-  echo "Enter GitHub Action Runner token of ${UTILS_NMR_REPO} repositor: [29 charactors string]"
+  echo "Enter GitHub Action Runner token of ${UTILS_NMR_REPO} repo: [29 charactors string]"
 
   read ans
 
