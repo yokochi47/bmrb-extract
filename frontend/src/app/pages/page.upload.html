@@ -101,7 +101,7 @@
       <p-card header="File upload requirements for OneDep deposition" styleClass="mb-6">
         <ul class="leading-normal list-disc pl-8 text-base mb-4">
           <li>Coordinate file (PDBx/mmCIF or legacy PDB format)</li>
-          <p class="text-sm italic underline">As to conventional separated file deposition</p>
+          <p class="text-base italic underline">As to conventional separated file deposition</p>
           <ul class="leading-normal list-disc pl-8 text-base">
             <li>
               Assigned chemical shift files (NMR-STAR V3, NEF, other supported formats, or existing
@@ -111,7 +111,7 @@
             <li>Optionally, spectral peak list files (Software-native format)</li>
           </ul>
           or
-          <p class="text-sm italic underline">As to combined single file deposition</p>
+          <p class="text-base italic underline">As to combined single file deposition</p>
           <ul class="leading-normal list-disc pl-8 text-base mb-4">
             <li>
               NMR unified data file (NMR-STAR V3 or NEF) containing assigned chemical shifts and
@@ -139,10 +139,8 @@
       </p-card>
     }
     @case (TargetDepsys.repl_cs) {
-      <p-card
-        header="File upload requirements for ongoing OneDep deposition — Replacing assigned chemical shifts"
-        styleClass="mb-6"
-      >
+      <p-card header="File upload requirements for ongoing OneDep deposition" styleClass="mb-6">
+        <p class="text-base italic underline ml-2">Replacing assigned chemical shifts</p>
         <ul class="leading-normal list-disc pl-8 text-base mb-4">
           <li>Coordinate file processed by OneDep (PDBx/mmCIF)</li>
           <li>
@@ -172,19 +170,18 @@
     }
     @case (TargetDepsys.bmrbdep) {
       <p-card header="File upload requirements for BMRBdep deposition" styleClass="mb-6">
+        <p class="text-base italic underline ml-2">BMRB Only</p>
         <ul class="leading-normal list-disc pl-8 text-base mb-4">
           <li>Assigned chemical shift files (NMR-STAR, NEF, or other supported formats)</li>
           Optionally
-          <ul class="leading-normal list-disc pl-8 text-base mb-4">
-            <li>
-              Other data files in NMR-STAR V3 format (e.g. relaxation, kinetic, thermodynamic
-              parameters)
-            </li>
-            <li>
-              Topology file, which describes a molecular assembly (a complete sequence of molecules
-              and ligands) and is used when it is not in the primary data file
-            </li>
-          </ul>
+          <li>
+            Other data files in NMR-STAR V3 format (e.g. relaxation, kinetic, thermodynamic
+            parameters)
+          </li>
+          <li>
+            Topology file, which describes a molecular assembly (a complete sequence of molecules
+            and ligands) and is used when it is not in the primary data file
+          </li>
         </ul>
       </p-card>
     }

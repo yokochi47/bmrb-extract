@@ -170,7 +170,7 @@ export class Upload {
     { label: 'NMR restraints (CHARMM format)', value: 'nm-res-cha' },
     { label: 'NMR restraints (CNS format)', value: 'nm-res-cns' },
     { label: 'NMR restraints (CYANA format)', value: 'nm-res-cya' },
-    { label: "NMR restraints (CYANA NOA format, aka. noe assignment)", value: 'nm-res-noa' },
+    { label: 'NMR restraints (CYANA NOA format, aka. noe assignment)', value: 'nm-res-noa' },
     { label: 'NMR restraints (DYNAMO/PALES/TALOS format)', value: 'nm-res-dyn' },
     { label: 'NMR restraints (GROMACS format)', value: 'nm-res-gro' },
     { label: 'NMR restraints (ISD format)', value: 'nm-res-isd' },
