@@ -85,9 +85,11 @@
                       class="leading-normal list-none m-0 pl-2 text-sm max-w-fit text-green-600 break-words"
                     >
                       <li><strong>Entry title:</strong> {{ info.title }}</li>
-                      <li><strong>Submission date:</strong> {{ info.submitDate }}</li>
-                      <li><strong>Release date:</strong> {{ info.releaseDate }}</li>
                       <li><strong>Entry authors:</strong> {{ info.authors }}</li>
+                      <li>
+                        <strong>Submission date:</strong> {{ info.submitDate }},
+                        <strong>Release date:</strong> {{ info.releaseDate }}
+                      </li>
                     </ul>
                   }
                 }
