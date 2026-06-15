@@ -27,6 +27,28 @@ from prefect import flow, task
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import workspace as ws  # noqa: E402
 
+# Reuse the backend service ORM + config: prefect/flows/shared/core is a symlink
+# to backend/app/core (mounted read-only in the worker). Inserted at the front so
+# `core` resolves to the shared package, not the flow's own core/ directory.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'shared'))
+
+import asyncio  # noqa: E402
+import smtplib  # noqa: E402
+from datetime import datetime  # noqa: E402
+from email.message import EmailMessage  # noqa: E402
+
+from sqlalchemy import func, select  # noqa: E402
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine  # noqa: E402
+from sqlalchemy.pool import NullPool  # noqa: E402
+
+from core.models import Notification  # noqa: E402
+from core.site_config import (  # noqa: E402
+    SERVICE_ADMIN_EMAIL,
+    SERVICE_DATABASE_URL,
+    SERVICE_HOST,
+    SMTP_SERVER,
+)
+
 
 @task(name='issue-conversion', retries=1)
 def issue_conversion(
@@ -127,6 +149,93 @@ def nmr_data_conversion(
     return True
 
 
+async def _record_notification(
+    conversion_id: int, subject: str, content: str, delivery_status: str
+) -> None:
+    """Insert one row into the service DB `notification` table (async engine,
+    same pattern as the backend)."""
+    engine = create_async_engine(SERVICE_DATABASE_URL, poolclass=NullPool)
+    try:
+        async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+            max_ord = (
+                await db.execute(
+                    select(func.max(Notification.ordinal)).where(
+                        Notification.conversion_id == conversion_id
+                    )
+                )
+            ).scalar_one_or_none()
+            db.add(
+                Notification(
+                    conversion_id=conversion_id,
+                    ordinal=(max_ord or 0) + 1,
+                    subject=subject,
+                    content=content,
+                    delivery_status=delivery_status,
+                )
+            )
+            await db.commit()
+    finally:
+        await engine.dispose()
+
+
+@task(name='notify-new-conversion', retries=0)
+def notify_new_conversion(
+    token: str,
+    conversion_id: int,
+    run_number: int,
+    archive_base: str = '/archive',
+) -> str:
+    """Email the site admin that a new conversion was issued and record the
+    message in the service DB `notification` table.
+
+    Best-effort: any mail or DB error is logged and swallowed so a notification
+    problem never aborts the conversion. Returns the delivery status.
+    """
+    # Pull a few details for the body; tolerate a missing/unreadable manifest.
+    target_depsys, n_files = 'unknown', 0
+    try:
+        manifest = json.loads((Path(archive_base) / token / 'manifest.json').read_text())
+        target_depsys = manifest.get('target_depsys', 'unknown')
+        n_files = len(manifest.get('files', []))
+    except Exception as exc:  # noqa: BLE001
+        print(f'[{conversion_id}] notify: could not read manifest ({exc})')
+
+    subject = f'[bmrb-extract:{SERVICE_HOST}] New conversion C_{conversion_id} issued'
+    content = (
+        f'A new conversion has been issued on {SERVICE_HOST}.\n\n'
+        f'Conversion ID : C_{conversion_id}\n'
+        f'Session token : {token}\n'
+        f'Run number    : {run_number}\n'
+        f'Target depsys : {target_depsys}\n'
+        f'Selected files: {n_files}\n'
+        f'Issued at     : {datetime.now().isoformat(timespec="seconds")}\n'
+    )
+
+    # Send the admin email (best-effort; plain internal relay on port 25).
+    delivery_status = 'sent'
+    try:
+        msg = EmailMessage()
+        msg['Subject'] = subject
+        msg['From'] = SERVICE_ADMIN_EMAIL
+        msg['To'] = SERVICE_ADMIN_EMAIL
+        msg.set_content(content)
+        with smtplib.SMTP(SMTP_SERVER, 25, timeout=30) as smtp:
+            smtp.send_message(msg)
+        print(f'[{conversion_id}] notify: admin email sent to {SERVICE_ADMIN_EMAIL}')
+    except Exception as exc:  # noqa: BLE001
+        delivery_status = 'failed'
+        print(f'[{conversion_id}] notify: admin email FAILED ({exc})')
+
+    # Record the message regardless of email outcome (best-effort).
+    try:
+        asyncio.run(_record_notification(conversion_id, subject, content, delivery_status))
+        print(f'[{conversion_id}] notify: recorded notification (delivery_status={delivery_status})')
+    except Exception as exc:  # noqa: BLE001
+        print(f'[{conversion_id}] notify: DB record FAILED ({exc})')
+
+    return delivery_status
+
+
 @flow(name='process-session')
 def process_session(
     token: str,
@@ -159,6 +268,9 @@ def process_session(
 
     try:
         issue_conversion(token, conversion_id, run_number, archive_base, workspace_base)
+        # First run only: notify the admin that a new conversion was issued.
+        if run_number == 1:
+            notify_new_conversion(token, conversion_id, run_number, archive_base)
         coord_ok = coordinate_conversion(token, conversion_id, run_number, archive_base, workspace_base)
         nmr_ok = nmr_data_conversion(token, conversion_id, run_number, archive_base, workspace_base)
         success = coord_ok and nmr_ok
