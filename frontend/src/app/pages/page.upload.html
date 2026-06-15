@@ -36,59 +36,65 @@
         <div class="font-semibold text-lg mb-3">
           Has the associated NMR experimental data been deposited to BMRB previously?
         </div>
-        <div class="flex flex-col gap-3 pl-2">
-          <div class="flex flex-wrap items-center gap-3">
-            <p-radiobutton
-              name="importBmrb"
-              [value]="true"
-              [ngModel]="importBmrbEntry()"
-              (ngModelChange)="onImportBmrbChange($event)"
-              inputId="import-yes"
-            />
-            <label for="import-yes" class="text-base cursor-pointer">Yes</label>
-            @if (importBmrbEntry()) {
-              <p-inputNumber
-                [ngModel]="bmrbId()"
-                (ngModelChange)="onBmrbIdChange($event)"
-                (onBlur)="onBmrbIdBlur()"
-                [useGrouping]="false"
-                [maxFractionDigits]="0"
-                placeholder="BMRB ID (5 digits)"
-                [invalid]="isBmrbIdInvalidFormat()"
-                inputStyleClass="w-40"
+        <div class="flex flex-row gap-3">
+          <div class="flex flex-col gap-3 pl-2">
+            <div class="flex flex-wrap items-center gap-3">
+              <p-radiobutton
+                name="importBmrb"
+                [value]="true"
+                [ngModel]="importBmrbEntry()"
+                (ngModelChange)="onImportBmrbChange($event)"
+                inputId="import-yes"
               />
+              <label for="import-yes" class="text-base cursor-pointer">Yes</label>
+              @if (importBmrbEntry()) {
+                <p-inputNumber
+                  [ngModel]="bmrbId()"
+                  (ngModelChange)="onBmrbIdChange($event)"
+                  (onBlur)="onBmrbIdBlur()"
+                  [useGrouping]="false"
+                  [maxFractionDigits]="0"
+                  placeholder="BMRB ID (5 digits)"
+                  [invalid]="isBmrbIdInvalidFormat()"
+                  inputStyleClass="w-40"
+                />
+              }
+            </div>
+            <div class="flex items-center gap-3">
+              <p-radiobutton
+                name="importBmrb"
+                [value]="false"
+                [ngModel]="importBmrbEntry()"
+                (ngModelChange)="onImportBmrbChange($event)"
+                inputId="import-no"
+              />
+              <label for="import-no" class="text-base cursor-pointer">No</label>
+            </div>
+          </div>
+          <div class="mt-0">
+            @if (importBmrbEntry()) {
               @switch (bmrbValidationState()) {
                 @case ('validating') {
                   <span class="text-sm text-surface-400">
-                    <i class="pi pi-spin pi-spinner mr-1"></i>Validating&hellip;
+                    <i class="pi pi-spin pi-spinner mt-2 mr-4"></i>Validating&hellip;
                   </span>
                 }
                 @case ('valid') {
                   @if (bmrbEntryInfo(); as info) {
                     <ul
-                      class="leading-normal list-none pl-8 text-sm text-green-600 max-w-fit break-words"
+                      class="leading-normal list-none m-0 pl-2 text-sm max-w-fit text-green-600 break-words"
                     >
+                      <li><strong>Entry title:</strong> {{ info.title }}</li>
+                      <li><strong>Entry authors:</strong> {{ info.authors }}</li>
                       <li>
-                        <strong>Entry title:</strong> {{ info.title }},
                         <strong>Submission date:</strong> {{ info.submitDate }},
                         <strong>Release date:</strong> {{ info.releaseDate }}
                       </li>
-                      <li><strong>Entry authors:</strong> {{ info.authors }}</li>
                     </ul>
                   }
                 }
               }
             }
-          </div>
-          <div class="flex items-center gap-3">
-            <p-radiobutton
-              name="importBmrb"
-              [value]="false"
-              [ngModel]="importBmrbEntry()"
-              (ngModelChange)="onImportBmrbChange($event)"
-              inputId="import-no"
-            />
-            <label for="import-no" class="text-base cursor-pointer">No</label>
           </div>
         </div>
       </div>
@@ -147,9 +153,7 @@
             NMR unified data file processed by OneDep (NMR-STAR V3) containing assigned chemical
             shifts and restraints.
           </li>
-          <li>
-            Correct assigned chemical shift files (NMR-STAR V3 formats).
-          </li>
+          <li>Correct assigned chemical shift files (NMR-STAR V3 formats).</li>
         </ul>
         Note
         <ul class="leading-normal list-none pl-8 text-base mb-4">
@@ -369,9 +373,9 @@
   [style]="{ width: '34rem' }"
 >
   <p class="text-base leading-relaxed">
-    You provided a valid related BMRB ID and also selected your own assigned
-    chemical shift file(s). Only you can decide which version is authoritative:
-    the chemical shifts from the BMRB archive entry, or your own uploaded file(s)?
+    You provided a valid related BMRB ID and also selected your own assigned chemical shift file(s).
+    Only you can decide which version is authoritative: the chemical shifts from the BMRB archive
+    entry, or your own uploaded file(s)?
   </p>
   <ng-template pTemplate="footer">
     <p-button label="BMRB archive file" icon="pi pi-database" (click)="useBmrbShifts()" />
