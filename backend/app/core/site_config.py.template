@@ -40,3 +40,8 @@ BMRB_ENTRY_DIR_URL = 'https://bmrb.io/ftp/pub/bmrb/entry_directories'
 MAXIT_CCD_IMAGE = 'ghcr.io/yokochi47/maxit-ccd:main'
 MAXIT_MEMORY_LIMIT = '16g'
 
+# py-wwpdb_utils_nmr NMR data conversion (NmrDpUtility). The nmr_data_conversion
+# task runs this image via `docker run python <driver>` to validate and convert
+# the NMR data to NMR-STAR against the model mmCIF.
+UTILS_NMR_IMAGE = 'ghcr.io/yokochi47/py-wwpdb_utils_nmr:main'
+
