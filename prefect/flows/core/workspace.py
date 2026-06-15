@@ -17,7 +17,7 @@ Keep the two in sync.
 import shutil
 from pathlib import Path
 
-WORKSPACE_BASE_PATH = '/workspace'
+from core.site_config import WORKSPACE_BASE_PATH
 
 SUBDIRS = ('input', 'output', 'work', 'log')
 

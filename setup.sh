@@ -182,10 +182,10 @@ for repo in "${ACTION_RUNNER_REPOS[@]}" ; do
 
   case $repo in
     ${MAXIT_CCD_REPO})
-      container_repo=${MAXIT_CCD_CONTAINER_REPO}
+      container_image=${MAXIT_CCD_IMAGE}
       ;;
     ${UTILS_NMR_REPO})
-      container_repo=${UTILS_NMR_CONTAINER_REPO}
+      container_image=${UTILS_NMR_IMAGE}
       ;;
     *)
       echo "Error: ${repo} is unknown repository."
@@ -193,7 +193,7 @@ for repo in "${ACTION_RUNNER_REPOS[@]}" ; do
       ;;
   esac
 
-  [[ `docker images -q $container_repo | wc -l` = 0 ]] && docker pull $container_repo
+  [[ `docker images -q $container_image | wc -l` = 0 ]] && docker pull $container_image
 
 done
 
@@ -205,10 +205,10 @@ for repo in "${ACTION_RUNNER_REPOS[@]}" ; do
 
   case $repo in
     ${MAXIT_CCD_REPO})
-      container_repo=${MAXIT_CCD_CONTAINER_REPO}
+      container_image=${MAXIT_CCD_IMAGE}
       ;;
     ${UTILS_NMR_REPO})
-      container_repo=${UTILS_NMR_CONTAINER_REPO}
+      container_image=${UTILS_NMR_IMAGE}
       ;;
     *)
       echo "Error: ${repo} is unknown repository."
@@ -218,9 +218,9 @@ for repo in "${ACTION_RUNNER_REPOS[@]}" ; do
 
   docker service ps $repo > /dev/null || \
     (docker service create -q --replicas 3 --name $repo --update-delay 20s \
-      --mount type=bind,source=${ARCHIVE_VOL_DIR},target=/archive \
-      --mount type=bind,source=${WORKSPACE_VOL_DIR},target=/workspace \
-      $container_repo &)
+      --mount type=bind,source=${ARCHIVE_VOL_DIR},target=${ARCHIVE_BASE_PATH} \
+      --mount type=bind,source=${WORKSPACE_VOL_DIR},target=${WORKSPACE_BASE_PATH} \
+      $container_image &)
 
 done
 

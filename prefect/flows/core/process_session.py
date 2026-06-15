@@ -10,8 +10,8 @@ Then trigger via the Prefect API or directly:
       --param token=<uuid> --param conversion_id=<int> --param run_number=<int>
 
 Active (selected) upload files are copied out of the git-managed archive
-(/archive/<token>) into a per-run conversion workspace
-(/workspace/<conversion_id>/<run_number>) before any conversion runs, so the
+(<archive_base>/<token>) into a per-run conversion workspace
+(<workspace_base>/<conversion_id>/<run_number>) before any conversion runs, so the
 conversions — which may edit input files in place — never touch the archive.
 """
 
@@ -52,6 +52,8 @@ from core.site_config import (  # noqa: E402
     SERVICE_DATABASE_URL,
     SERVICE_HOST,
     SMTP_SERVER,
+    ARCHIVE_BASE_PATH,
+    WORKSPACE_BASE_PATH,
 )
 
 
@@ -60,12 +62,12 @@ def issue_conversion(
     token: str,
     conversion_id: int,
     run_number: int,
-    archive_base: str = '/archive',
-    workspace_base: str = ws.WORKSPACE_BASE_PATH,
+    archive_base: str = ARCHIVE_BASE_PATH,
+    workspace_base: str = WORKSPACE_BASE_PATH,
 ) -> list:
     """Prepare the per-run workspace and copy active inputs out of the archive.
 
-    Creates /workspace/<conversion_id>/<run_number>/{input,output,work,log} and
+    Creates /<workspace_base>/<conversion_id>/<run_number>/{input,output,work,log} and
     copies every file listed in the run's manifest.json (the selected uploads)
     from the archive into input/. Idempotent under retry: input/ and work/ are
     cleared first so a re-run starts clean.
@@ -140,8 +142,8 @@ def coordinate_conversion(
     token: str,
     conversion_id: int,
     run_number: int,
-    archive_base: str = '/archive',
-    workspace_base: str = ws.WORKSPACE_BASE_PATH,
+    archive_base: str = ARCHIVE_BASE_PATH,
+    workspace_base: str = WORKSPACE_BASE_PATH,
 ) -> bool:
     """Convert the uploaded coordinate file to mmCIF with maxit-ccd.
 
@@ -179,7 +181,7 @@ def coordinate_conversion(
         started=True, log_path=str(log_path),
     ))
 
-    # maxit-ccd mounts the host workspace volume at /workspace — the same path the
+    # maxit-ccd mounts the host workspace volume at <workspace_base> — the same path the
     # worker uses — so the in-container paths above are valid inside maxit too.
     # Run maxit as the worker's own uid:gid: issue_conversion (this worker) created
     # the run dirs, so maxit must share that uid to write output/log into them.
@@ -190,7 +192,7 @@ def coordinate_conversion(
             'docker', 'run', '--rm',
             '-m', MAXIT_MEMORY_LIMIT, '--memory-swap', MAXIT_MEMORY_LIMIT,
             '-u', f'{os.getuid()}:{os.getgid()}',
-            '-v', f'{os.environ["WORKSPACE_VOL_DIR"]}:/workspace',
+            '-v', f'{os.environ["WORKSPACE_VOL_DIR"]}:{os.environ["WORKSPACE_BASE_PATH"]}',
             MAXIT_CCD_IMAGE,
             'maxit', '-input', str(in_path), '-output', str(out_path),
             '-o', str(o_flag), '-log', str(log_path),
@@ -286,8 +288,8 @@ def nmr_data_conversion(
     token: str,
     conversion_id: int,
     run_number: int,
-    archive_base: str = '/archive',
-    workspace_base: str = ws.WORKSPACE_BASE_PATH,
+    archive_base: str = ARCHIVE_BASE_PATH,
+    workspace_base: str = WORKSPACE_BASE_PATH,
 ) -> bool:
     """Convert NMR data to NMR-STAR with py-wwpdb_utils_nmr (NmrDpUtility).
 
@@ -348,7 +350,7 @@ def nmr_data_conversion(
         cmd = [
             'docker', 'run', '--rm',
             '-u', f'{os.getuid()}:{os.getgid()}',
-            '-v', f'{os.environ["WORKSPACE_VOL_DIR"]}:/workspace',
+            '-v', f'{os.environ["WORKSPACE_VOL_DIR"]}:${os.environ["WORKSPACE_BASE_PATH"]}',
             UTILS_NMR_IMAGE,
             'python', str(driver),
         ]
@@ -457,7 +459,7 @@ def notify_new_conversion(
     token: str,
     conversion_id: int,
     run_number: int,
-    archive_base: str = '/archive',
+    archive_base: str = ARCHIVE_BASE_PATH,
 ) -> str:
     """Email the site admin that a new conversion was issued and record the
     message in the service DB `notification` table.
@@ -504,12 +506,12 @@ def process_session(
     token: str,
     conversion_id: int,
     run_number: int,
-    archive_base: str = '/archive',
-    workspace_base: str = ws.WORKSPACE_BASE_PATH,
+    archive_base: str = ARCHIVE_BASE_PATH,
+    workspace_base: str = WORKSPACE_BASE_PATH,
 ) -> dict:
     """Orchestrate NMR data conversion for one session run.
 
-    Reads /archive/<token>/manifest.json (written by POST /api/process), copies
+    Reads <archive_base>/<token>/manifest.json (written by POST /api/process), copies
     the active inputs into the per-run workspace, then runs the coordinate and
     NMR data conversion pipelines against those copies. The archive directory is
     a git repo; each POST /api/process call creates one commit tagged run-<N>.
@@ -518,8 +520,8 @@ def process_session(
         token:          Session token (UUID string) — the archive subdirectory name.
         conversion_id:  Numeric conversion ID (e.g. C_8000001 → 8000001).
         run_number:     The processing run this invocation handles.
-        archive_base:   Base directory of the archive volume (default /archive).
-        workspace_base: Base directory of the workspace volume (default /workspace).
+        archive_base:   Base directory of the archive volume (default ARCHIVE_BASE_PATH).
+        workspace_base: Base directory of the workspace volume (default WORKSPACE_BASE_PATH).
     """
     session_dir = Path(archive_base) / token
     manifest = json.loads((session_dir / 'manifest.json').read_text())

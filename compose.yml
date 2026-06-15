@@ -13,8 +13,8 @@ services:
         condition: service_healthy
     volumes:
       - ./backend/app:/app
-      - ${ARCHIVE_VOL_DIR}:/archive
-      - ${WORKSPACE_VOL_DIR}:/workspace
+      - ${ARCHIVE_VOL_DIR}:${ARCHIVE_BASE_PATH}
+      - ${WORKSPACE_VOL_DIR}:${WORKSPACE_BASE_PATH}
     expose:
       - "8000"
     networks:
@@ -117,8 +117,8 @@ services:
     networks:
       - internal
     volumes:
-      - ${ARCHIVE_VOL_DIR}:/archive
-      - ${WORKSPACE_VOL_DIR}:/workspace
+      - ${ARCHIVE_VOL_DIR}:${ARCHIVE_BASE_PATH}
+      - ${WORKSPACE_VOL_DIR}:${WORKSPACE_BASE_PATH}
       - ./prefect/flows:/flows
       # Read-only backend source so flows can reuse the service ORM models via
       # the prefect/flows/shared/core symlink (-> backend/app/core).
