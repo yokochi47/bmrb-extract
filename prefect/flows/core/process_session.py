@@ -222,7 +222,7 @@ def coordinate_conversion(
 
 
 def _nmr_driver_script(
-    *, is_nef: bool, src: str, cif: str, consistency_log: str, deposit_log: str,
+    *, is_nef: bool, src: str, cif: str, consist_log: str, deposit_log: str,
     out_str: str, next_src: str, entry_id: str,
 ) -> str:
     """Build the NmrDpUtility driver run inside the py-wwpdb_utils_nmr image.
@@ -251,13 +251,10 @@ def _nmr_driver_script(
         deposit_out = "u.setDestination(OUT_STR)\n"
     return (
         "import sys\n"
-        "try:\n"
-        "    from wwpdb.utils.nmr.NmrDpUtility import NmrDpUtility\n"
-        "except ImportError:\n"
-        "    from nmr.NmrDpUtility import NmrDpUtility\n"
+        "from nmr.NmrDpUtility import NmrDpUtility\n"
         f"SRC = {src!r}\n"
         f"CIF = {cif!r}\n"
-        f"CONS_LOG = {consistency_log!r}\n"
+        f"CONS_LOG = {consist_log!r}\n"
         f"DEP_LOG = {deposit_log!r}\n"
         f"OUT_STR = {out_str!r}\n"
         f"NEXT_SRC = {next_src!r}\n"
@@ -267,15 +264,15 @@ def _nmr_driver_script(
         "u.setSource(SRC)\n"
         f"{common_inputs}"
         "u.setLog(CONS_LOG)\n"
-        "u.setVerbose(False)\n"
+        "u.addInput(name='remediation', value=True, type='param')\n"
+        "u.setVerbose(True)\n"
         f"u.op({op_check!r})\n"
         "# Step 2: deposit (convert to NMR-STAR) reusing the consistency report\n"
-        "u = NmrDpUtility()\n"
         "u.setSource(SRC)\n"
         f"{common_inputs}"
         "u.addInput(name='report_file_path', value=CONS_LOG, type='file')\n"
         "u.setLog(DEP_LOG)\n"
-        "u.setVerbose(False)\n"
+        "u.setVerbose(True)\n"
         f"{deposit_out}"
         "u.addOutput(name='entry_id', value=ENTRY_ID, type='param')\n"
         "u.addOutput(name='leave_intl_note', value=False, type='param')\n"
@@ -298,7 +295,7 @@ def nmr_data_conversion(
     `docker run python <driver>` against the model mmCIF produced by
     coordinate_conversion (output/C_<id>_model.cif). Writes
     output/C_<id>-nmr-data.str plus two JSON reports
-    (C_<id>-nmr-data-consistency-check.log, C_<id>-nmr-data-deposit.log) and
+    (C_<id>-nmr-data-consist.log, C_<id>-nmr-data-deposit.log) and
     drives the convert_nmr_data workflow row (processing -> completed/failed).
 
     Returns True on success (and when there is no nm-uni-* file — separated /
@@ -317,10 +314,10 @@ def nmr_data_conversion(
     log_d = ws.log_dir(conversion_id, run_number, workspace_base)
     work_d = ws.work_dir(conversion_id, run_number, workspace_base)
     model_cif = out_dir / f'C_{conversion_id}_model.cif'
-    consistency_log = log_d / f'C_{conversion_id}-nmr-data-consistency-check.log'
+    consist_log = log_d / f'C_{conversion_id}-nmr-data-consist.log'
     deposit_log = log_d / f'C_{conversion_id}-nmr-data-deposit.log'
     out_str = out_dir / f'C_{conversion_id}-nmr-data.str'
-    next_src = work_d / f'C_{conversion_id}-next.{"nef" if is_nef else "str"}'
+    next_src = work_d / f'C_{conversion_id}-nmr-data-next.{"nef" if is_nef else "str"}'
     entry_id = f'C_{conversion_id}'
 
     if not model_cif.exists():
@@ -341,7 +338,7 @@ def nmr_data_conversion(
     driver = work_d / 'nmr_driver.py'
     driver.write_text(_nmr_driver_script(
         is_nef=is_nef, src=str(src), cif=str(model_cif),
-        consistency_log=str(consistency_log), deposit_log=str(deposit_log),
+        consist_log=str(consist_log), deposit_log=str(deposit_log),
         out_str=str(out_str), next_src=str(next_src), entry_id=entry_id,
     ))
 
