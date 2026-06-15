@@ -107,6 +107,7 @@ services:
     container_name: bmrb-extract-prefect-worker
     restart: on-failure
     env_file: .env
+    working_dir: /flows
     command: prefect worker start --pool "local-pool" --type "process"
     depends_on:
       prefect-services:
@@ -116,6 +117,10 @@ services:
     volumes:
       - ${ARCHIVE_VOL_DIR}:/archive
       - ${WORKSPACE_VOL_DIR}:/workspace
+      - ./prefect/flows:/flows
+      # Read-only backend source so flows can reuse the service ORM models via
+      # the prefect/flows/shared/core symlink (-> backend/app/core).
+      - ./backend/app:/backend/app:ro
 
   nginx:
     build: ./nginx
