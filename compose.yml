@@ -103,7 +103,9 @@ services:
       - internal
 
   prefect-worker:
-    image: prefecthq/prefect:3-latest
+    build:
+      context: .
+      dockerfile: prefect/Dockerfile
     container_name: bmrb-extract-prefect-worker
     restart: on-failure
     env_file: .env
@@ -121,6 +123,9 @@ services:
       # Read-only backend source so flows can reuse the service ORM models via
       # the prefect/flows/shared/core symlink (-> backend/app/core).
       - ./backend/app:/backend/app:ro
+      # The coordinate_conversion task runs maxit-ccd via `docker run` against
+      # the host daemon (per the maxit-ccd README's memory-limited invocation).
+      - /var/run/docker.sock:/var/run/docker.sock
 
   nginx:
     build: ./nginx

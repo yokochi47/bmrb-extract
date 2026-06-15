@@ -34,3 +34,9 @@ WORKSPACE_BASE_PATH = '/workspace'
 # bmrb.io; point this at a mirror if needed.
 BMRB_ENTRY_DIR_URL = 'https://bmrb.io/ftp/pub/bmrb/entry_directories'
 
+# maxit-ccd coordinate conversion. The prefect coordinate_conversion task runs
+# this image via `docker run` with a memory limit (malformed PDB input leaks
+# memory); on OOM / no output the convert_model workflow row is marked failed.
+MAXIT_CCD_IMAGE = 'ghcr.io/yokochi47/maxit-ccd:main'
+MAXIT_MEMORY_LIMIT = '16g'
+

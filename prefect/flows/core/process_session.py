@@ -16,7 +16,9 @@ conversions — which may edit input files in place — never touch the archive.
 """
 
 import json
+import os
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -37,12 +39,14 @@ import smtplib  # noqa: E402
 from datetime import datetime  # noqa: E402
 from email.message import EmailMessage  # noqa: E402
 
-from sqlalchemy import func, select  # noqa: E402
+from sqlalchemy import func, select, update  # noqa: E402
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine  # noqa: E402
 from sqlalchemy.pool import NullPool  # noqa: E402
 
-from core.models import Notification  # noqa: E402
+from core.models import Notification, Workflow, WfStatusCode, WfTaskCode  # noqa: E402
 from core.site_config import (  # noqa: E402
+    MAXIT_CCD_IMAGE,
+    MAXIT_MEMORY_LIMIT,
     SERVICE_ADMIN_EMAIL,
     SERVICE_DATABASE_URL,
     SERVICE_HOST,
@@ -84,7 +88,53 @@ def issue_conversion(
     return copied
 
 
-@task(name='coordinate-conversion', retries=1)
+async def _update_workflow_status(
+    conversion_id: int,
+    run_number: int,
+    task: WfTaskCode,
+    status: WfStatusCode,
+    *,
+    started: bool = False,
+    finished: bool = False,
+    log_path: str | None = None,
+    detail: str | None = None,
+) -> None:
+    """Update one workflow row's status (matched by task code) for this run.
+
+    Whenever a task is set to `failed`, an admin failure notification (email +
+    notification table row) is sent automatically. Mark every task failure via
+    this helper so the rule applies to all current and future flow tasks; pass
+    `detail` for a human-readable failure reason in the notification.
+    """
+    values = {'status': status}
+    if started:
+        values['started_at'] = func.now()
+    if finished:
+        values['finished_at'] = func.now()
+    if log_path is not None:
+        values['log_path'] = log_path
+    engine = create_async_engine(SERVICE_DATABASE_URL, poolclass=NullPool)
+    try:
+        async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+            await db.execute(
+                update(Workflow)
+                .where(
+                    Workflow.conversion_id == conversion_id,
+                    Workflow.run_number == run_number,
+                    Workflow.task == task,
+                )
+                .values(**values)
+            )
+            await db.commit()
+    finally:
+        await engine.dispose()
+
+    # Notify the admin on any task failure (best-effort, never raises).
+    if status == WfStatusCode.failed:
+        await _notify_admin_failure(conversion_id, run_number, task, detail, log_path)
+
+
+@task(name='coordinate-conversion', retries=0)
 def coordinate_conversion(
     token: str,
     conversion_id: int,
@@ -92,27 +142,79 @@ def coordinate_conversion(
     archive_base: str = '/archive',
     workspace_base: str = ws.WORKSPACE_BASE_PATH,
 ) -> bool:
-    """Convert coordinate file using the maxit-ccd Docker Swarm service.
+    """Convert the uploaded coordinate file to mmCIF with maxit-ccd.
 
-    Operates entirely inside the workspace: reads coordinate files from input/,
-    writes results to output/ and any scratch to work/.
+    Runs the maxit-ccd image via `docker run` against the host daemon, capped at
+    MAXIT_MEMORY_LIMIT (malformed PDB input leaks memory). Reads the coordinate
+    file from the run workspace input/, writes output/C_<id>_model.cif and
+    log/C_<id>_model-check.log, and updates the convert_model workflow row
+    (processing -> completed, or failed on OOM / non-zero exit / missing output).
 
-    TODO: implement HTTP call to maxit-ccd service (pass workspace paths).
+    Returns True on success (and when there is no coordinate file, e.g. bmrbdep),
+    False on failure.
     """
-    session_dir = Path(archive_base) / token
-    manifest = json.loads((session_dir / 'manifest.json').read_text())
-    in_dir = ws.input_dir(conversion_id, run_number, workspace_base)
-
-    coord_files = [
-        in_dir / f['original_name']
-        for f in manifest['files']
-        if f['file_type'].startswith('co-')
-    ]
-    if not coord_files:
-        print(f'[{conversion_id}] No coordinate file found — skipping coordinate conversion')
+    manifest = json.loads((Path(archive_base) / token / 'manifest.json').read_text())
+    coord = next((f for f in manifest['files'] if f['file_type'].startswith('co-')), None)
+    if coord is None:
+        print(f'[{conversion_id}] No coordinate file — skipping coordinate conversion')
+        asyncio.run(_update_workflow_status(
+            conversion_id, run_number, WfTaskCode.convert_model, WfStatusCode.completed,
+            started=True, finished=True,
+        ))
         return True
 
-    print(f'[{conversion_id}] TODO: call maxit-ccd for {[p.name for p in coord_files]}')
+    # maxit -o conversion code (verified against the maxit-ccd image):
+    #   co-pdb (legacy PDB)   -> -o 1  (PDB  -> mmCIF)
+    #   co-cif (PDBx/mmCIF)   -> -o 8  (mmCIF -> mmCIF)
+    # (PDB input with -o 8 is rejected as a CIF syntax error and yields no output.)
+    o_flag = 1 if coord['file_type'] == 'co-pdb' else 8
+
+    in_path = ws.input_dir(conversion_id, run_number, workspace_base) / coord['original_name']
+    out_path = ws.output_dir(conversion_id, run_number, workspace_base) / f'C_{conversion_id}_model.cif'
+    log_path = ws.log_dir(conversion_id, run_number, workspace_base) / f'C_{conversion_id}_model-check.log'
+
+    asyncio.run(_update_workflow_status(
+        conversion_id, run_number, WfTaskCode.convert_model, WfStatusCode.processing,
+        started=True, log_path=str(log_path),
+    ))
+
+    # maxit-ccd mounts the host workspace volume at /workspace — the same path the
+    # worker uses — so the in-container paths above are valid inside maxit too.
+    # Run maxit as the worker's own uid:gid: issue_conversion (this worker) created
+    # the run dirs, so maxit must share that uid to write output/log into them.
+    # A leaky/malformed conversion is killed by the -m memory cap (OOM -> exit 137).
+    failed_reason = None
+    try:
+        cmd = [
+            'docker', 'run', '--rm',
+            '-m', MAXIT_MEMORY_LIMIT, '--memory-swap', MAXIT_MEMORY_LIMIT,
+            '-u', f'{os.getuid()}:{os.getgid()}',
+            '-v', f'{os.environ["WORKSPACE_VOL_DIR"]}:/workspace',
+            MAXIT_CCD_IMAGE,
+            'maxit', '-input', str(in_path), '-output', str(out_path),
+            '-o', str(o_flag), '-log', str(log_path),
+        ]
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+        if proc.returncode != 0:
+            failed_reason = f'maxit exit {proc.returncode}: {(proc.stderr or "").strip()[:300]}'
+    except subprocess.TimeoutExpired:
+        failed_reason = 'maxit timed out (possible memory leak / hang)'
+    except Exception as exc:  # noqa: BLE001
+        failed_reason = f'docker run error: {exc}'
+
+    if failed_reason is None and (not out_path.exists() or out_path.stat().st_size == 0):
+        failed_reason = 'maxit produced no output file'
+
+    status = WfStatusCode.failed if failed_reason else WfStatusCode.completed
+    asyncio.run(_update_workflow_status(
+        conversion_id, run_number, WfTaskCode.convert_model, status,
+        finished=True, log_path=str(log_path), detail=failed_reason,
+    ))
+
+    if failed_reason:
+        print(f'[{conversion_id}] coordinate conversion FAILED — {failed_reason}')
+        return False
+    print(f'[{conversion_id}] coordinate conversion ok -> {out_path.name}')
     return True
 
 
@@ -149,6 +251,23 @@ def nmr_data_conversion(
     return True
 
 
+def _send_admin_email(subject: str, content: str) -> str:
+    """Send a plain-text email to the site admin (best-effort; plain internal
+    relay on port 25). Returns 'sent' or 'failed'."""
+    try:
+        msg = EmailMessage()
+        msg['Subject'] = subject
+        msg['From'] = SERVICE_ADMIN_EMAIL
+        msg['To'] = SERVICE_ADMIN_EMAIL
+        msg.set_content(content)
+        with smtplib.SMTP(SMTP_SERVER, 25, timeout=30) as smtp:
+            smtp.send_message(msg)
+        return 'sent'
+    except Exception as exc:  # noqa: BLE001
+        print(f'admin email FAILED ({exc})')
+        return 'failed'
+
+
 async def _record_notification(
     conversion_id: int, subject: str, content: str, delivery_status: str
 ) -> None:
@@ -176,6 +295,36 @@ async def _record_notification(
             await db.commit()
     finally:
         await engine.dispose()
+
+
+async def _notify_admin_failure(
+    conversion_id: int,
+    run_number: int,
+    task: WfTaskCode,
+    detail: str | None,
+    log_path: str | None,
+) -> None:
+    """Email the admin and record a notification row when a workflow task ends
+    with failure status. Best-effort: never raises."""
+    try:
+        subject = (
+            f'[bmrb-extract:{SERVICE_HOST}] FAILED: {task.value} '
+            f'(C_{conversion_id} run #{run_number})'
+        )
+        content = (
+            f'A workflow task ended with failure status on {SERVICE_HOST}.\n\n'
+            f'Task          : {task.value}\n'
+            f'Conversion ID : C_{conversion_id}\n'
+            f'Run number    : {run_number}\n'
+            f'Detail        : {detail or "(none)"}\n'
+            f'Log           : {log_path or "(none)"}\n'
+            f'Time          : {datetime.now().isoformat(timespec="seconds")}\n'
+        )
+        delivery_status = _send_admin_email(subject, content)
+        await _record_notification(conversion_id, subject, content, delivery_status)
+        print(f'[{conversion_id}] failure notification for {task.value} (delivery={delivery_status})')
+    except Exception as exc:  # noqa: BLE001
+        print(f'[{conversion_id}] failure notification FAILED ({exc})')
 
 
 @task(name='notify-new-conversion', retries=0)
@@ -212,19 +361,8 @@ def notify_new_conversion(
     )
 
     # Send the admin email (best-effort; plain internal relay on port 25).
-    delivery_status = 'sent'
-    try:
-        msg = EmailMessage()
-        msg['Subject'] = subject
-        msg['From'] = SERVICE_ADMIN_EMAIL
-        msg['To'] = SERVICE_ADMIN_EMAIL
-        msg.set_content(content)
-        with smtplib.SMTP(SMTP_SERVER, 25, timeout=30) as smtp:
-            smtp.send_message(msg)
-        print(f'[{conversion_id}] notify: admin email sent to {SERVICE_ADMIN_EMAIL}')
-    except Exception as exc:  # noqa: BLE001
-        delivery_status = 'failed'
-        print(f'[{conversion_id}] notify: admin email FAILED ({exc})')
+    delivery_status = _send_admin_email(subject, content)
+    print(f'[{conversion_id}] notify: admin email {delivery_status} ({SERVICE_ADMIN_EMAIL})')
 
     # Record the message regardless of email outcome (best-effort).
     try:
@@ -272,7 +410,17 @@ def process_session(
         if run_number == 1:
             notify_new_conversion(token, conversion_id, run_number, archive_base)
         coord_ok = coordinate_conversion(token, conversion_id, run_number, archive_base, workspace_base)
-        nmr_ok = nmr_data_conversion(token, conversion_id, run_number, archive_base, workspace_base)
+        if coord_ok:
+            nmr_ok = nmr_data_conversion(token, conversion_id, run_number, archive_base, workspace_base)
+        else:
+            # Model conversion failed: the NMR step needs C_<id>_model.cif, so
+            # short-circuit and mark convert_nmr_data aborted.
+            print(f'[{conversion_id}] Coordinate conversion failed — skipping NMR data conversion')
+            asyncio.run(_update_workflow_status(
+                conversion_id, run_number, WfTaskCode.convert_nmr_data, WfStatusCode.aborted,
+                finished=True,
+            ))
+            nmr_ok = False
         success = coord_ok and nmr_ok
     finally:
         # work/ is pure scratch — drop it whether the run succeeded or failed.
