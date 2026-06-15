@@ -10,13 +10,14 @@ Then trigger via the Prefect API or directly:
       --param token=<uuid> --param conversion_id=<int> --param run_number=<int>
 
 Active (selected) upload files are copied out of the git-managed archive
-(/archive/<token>) into a per-run conversion workspace
-(/workspace/<conversion_id>/<run_number>) before any conversion runs, so the
+(<archive_base>/<token>) into a per-run conversion workspace
+(<workspace_base>/<conversion_id>/<run_number>) before any conversion runs, so the
 conversions — which may edit input files in place — never touch the archive.
 """
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -24,16 +25,14 @@ from pathlib import Path
 
 from prefect import flow, task
 
-# core/ is not a package and the flow is loaded by file path, so make the
-# sibling workspace helper importable regardless of how Prefect loads us.
+# Make both the flow's sibling modules (workspace) and the shared service ORM +
+# config (prefect/flows/shared/core -> backend/app/core, mounted read-only in the
+# worker) importable before importing them. workspace itself imports from
+# core.site_config, so the shared-core path must be on sys.path before workspace.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import workspace as ws  # noqa: E402
-
-# Reuse the backend service ORM + config: prefect/flows/shared/core is a symlink
-# to backend/app/core (mounted read-only in the worker). Inserted at the front so
-# `core` resolves to the shared package, not the flow's own core/ directory.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'shared'))
 
+import workspace as ws  # noqa: E402
 import asyncio  # noqa: E402
 import smtplib  # noqa: E402
 from datetime import datetime  # noqa: E402
@@ -52,6 +51,8 @@ from core.site_config import (  # noqa: E402
     SERVICE_DATABASE_URL,
     SERVICE_HOST,
     SMTP_SERVER,
+    ARCHIVE_BASE_PATH,
+    WORKSPACE_BASE_PATH,
 )
 
 
@@ -60,12 +61,12 @@ def issue_conversion(
     token: str,
     conversion_id: int,
     run_number: int,
-    archive_base: str = '/archive',
-    workspace_base: str = ws.WORKSPACE_BASE_PATH,
+    archive_base: str = ARCHIVE_BASE_PATH,
+    workspace_base: str = WORKSPACE_BASE_PATH,
 ) -> list:
     """Prepare the per-run workspace and copy active inputs out of the archive.
 
-    Creates /workspace/<conversion_id>/<run_number>/{input,output,work,log} and
+    Creates /<workspace_base>/<conversion_id>/<run_number>/{input,output,work,log} and
     copies every file listed in the run's manifest.json (the selected uploads)
     from the archive into input/. Idempotent under retry: input/ and work/ are
     cleared first so a re-run starts clean.
@@ -140,8 +141,8 @@ def coordinate_conversion(
     token: str,
     conversion_id: int,
     run_number: int,
-    archive_base: str = '/archive',
-    workspace_base: str = ws.WORKSPACE_BASE_PATH,
+    archive_base: str = ARCHIVE_BASE_PATH,
+    workspace_base: str = WORKSPACE_BASE_PATH,
 ) -> bool:
     """Convert the uploaded coordinate file to mmCIF with maxit-ccd.
 
@@ -179,7 +180,7 @@ def coordinate_conversion(
         started=True, log_path=str(log_path),
     ))
 
-    # maxit-ccd mounts the host workspace volume at /workspace — the same path the
+    # maxit-ccd mounts the host workspace volume at <workspace_base> — the same path the
     # worker uses — so the in-container paths above are valid inside maxit too.
     # Run maxit as the worker's own uid:gid: issue_conversion (this worker) created
     # the run dirs, so maxit must share that uid to write output/log into them.
@@ -190,7 +191,7 @@ def coordinate_conversion(
             'docker', 'run', '--rm',
             '-m', MAXIT_MEMORY_LIMIT, '--memory-swap', MAXIT_MEMORY_LIMIT,
             '-u', f'{os.getuid()}:{os.getgid()}',
-            '-v', f'{os.environ["WORKSPACE_VOL_DIR"]}:/workspace',
+            '-v', f'{os.environ["WORKSPACE_VOL_DIR"]}:{os.environ["WORKSPACE_BASE_PATH"]}',
             MAXIT_CCD_IMAGE,
             'maxit', '-input', str(in_path), '-output', str(out_path),
             '-o', str(o_flag), '-log', str(log_path),
@@ -220,7 +221,7 @@ def coordinate_conversion(
 
 
 def _nmr_driver_script(
-    *, is_nef: bool, src: str, cif: str, consistency_log: str, deposit_log: str,
+    *, is_nef: bool, src: str, cif: str, consist_log: str, deposit_log: str,
     out_str: str, next_src: str, entry_id: str,
 ) -> str:
     """Build the NmrDpUtility driver run inside the py-wwpdb_utils_nmr image.
@@ -249,13 +250,10 @@ def _nmr_driver_script(
         deposit_out = "u.setDestination(OUT_STR)\n"
     return (
         "import sys\n"
-        "try:\n"
-        "    from wwpdb.utils.nmr.NmrDpUtility import NmrDpUtility\n"
-        "except ImportError:\n"
-        "    from nmr.NmrDpUtility import NmrDpUtility\n"
+        "from nmr.NmrDpUtility import NmrDpUtility\n"
         f"SRC = {src!r}\n"
         f"CIF = {cif!r}\n"
-        f"CONS_LOG = {consistency_log!r}\n"
+        f"CONS_LOG = {consist_log!r}\n"
         f"DEP_LOG = {deposit_log!r}\n"
         f"OUT_STR = {out_str!r}\n"
         f"NEXT_SRC = {next_src!r}\n"
@@ -265,15 +263,15 @@ def _nmr_driver_script(
         "u.setSource(SRC)\n"
         f"{common_inputs}"
         "u.setLog(CONS_LOG)\n"
-        "u.setVerbose(False)\n"
+        "u.addInput(name='remediation', value=True, type='param')\n"
+        "u.setVerbose(True)\n"
         f"u.op({op_check!r})\n"
         "# Step 2: deposit (convert to NMR-STAR) reusing the consistency report\n"
-        "u = NmrDpUtility()\n"
         "u.setSource(SRC)\n"
         f"{common_inputs}"
         "u.addInput(name='report_file_path', value=CONS_LOG, type='file')\n"
         "u.setLog(DEP_LOG)\n"
-        "u.setVerbose(False)\n"
+        "u.setVerbose(True)\n"
         f"{deposit_out}"
         "u.addOutput(name='entry_id', value=ENTRY_ID, type='param')\n"
         "u.addOutput(name='leave_intl_note', value=False, type='param')\n"
@@ -281,55 +279,89 @@ def _nmr_driver_script(
     )
 
 
-@task(name='nmr-data-conversion', retries=0)
-def nmr_data_conversion(
-    token: str,
-    conversion_id: int,
-    run_number: int,
-    archive_base: str = '/archive',
-    workspace_base: str = ws.WORKSPACE_BASE_PATH,
-) -> bool:
-    """Convert NMR data to NMR-STAR with py-wwpdb_utils_nmr (NmrDpUtility).
+# NMR-STAR / STAR structural tokens, used to decide whether an 'nm-res-oth' file
+# is actually NMR-STAR V3 (data block, saveframe open/close, loop open/close).
+_NMR_STAR_TOKEN_RE = re.compile(r'\s*(?:data_\S+|save_\S+|save_|loop_|stop_)\s*')
 
-    Pilot scope: OneDep *combined* deposition — a single NMR unified data file
-    (nm-uni-nef or nm-uni-str). Runs the py-wwpdb_utils_nmr image via
-    `docker run python <driver>` against the model mmCIF produced by
-    coordinate_conversion (output/C_<id>_model.cif). Writes
-    output/C_<id>-nmr-data.str plus two JSON reports
-    (C_<id>-nmr-data-consistency-check.log, C_<id>-nmr-data-deposit.log) and
-    drives the convert_nmr_data workflow row (processing -> completed/failed).
 
-    Returns True on success (and when there is no nm-uni-* file — separated /
-    bmrbdep NMR conversion is not implemented in this pilot), False on failure.
+def _looks_like_nmr_star(path: Path) -> bool:
+    """True if any line of the file matches an NMR-STAR structural token."""
+    try:
+        with open(path, 'r', errors='ignore') as fh:
+            for line in fh:
+                if _NMR_STAR_TOKEN_RE.match(line):
+                    return True
+    except OSError:
+        pass
+    return False
+
+
+def _nmr_merge_driver_script(
+    *, cif: str, cs_list: list, atypical_list: list, restraint_list: list,
+    merge_log: str, merged_str: str, deposit_log: str, out_str: str, entry_id: str,
+) -> str:
+    """Driver for OneDep conventional *separated* deposition: nmr-cs-mr-merge
+    (merge chemical shifts + restraints/topology/peak lists against the
+    coordinates into one NMR-STAR) then nmr-str2str-deposit on the merged file
+    (same settings as the combined str case). The merge writes its JSON log
+    (setLog) and the merged NMR-STAR (setDestination); the deposit consumes both.
     """
-    manifest = json.loads((Path(archive_base) / token / 'manifest.json').read_text())
-    uni = next((f for f in manifest['files'] if f['file_type'].startswith('nm-uni-')), None)
-    if uni is None:
-        print(f'[{conversion_id}] No NMR unified data file — separated/bmrbdep NMR '
-              f'conversion not implemented in this pilot; skipping')
-        return True
+    restraint_input = (
+        "u.addInput(name='restraint_file_path_list', value=RESTRAINT, type='file_dict_list')\n"
+        if restraint_list else ""
+    )
+    return (
+        "from nmr.NmrDpUtility import NmrDpUtility\n"
+        f"CIF = {cif!r}\n"
+        f"CS_LIST = {cs_list!r}\n"
+        f"ATYPICAL = {atypical_list!r}\n"
+        f"RESTRAINT = {restraint_list!r}\n"
+        f"MERGE_LOG = {merge_log!r}\n"
+        f"MERGED_STR = {merged_str!r}\n"
+        f"DEP_LOG = {deposit_log!r}\n"
+        f"OUT_STR = {out_str!r}\n"
+        f"ENTRY_ID = {entry_id!r}\n"
+        "# Step 1: merge chemical shifts + restraints/topology/peaks into NMR-STAR\n"
+        "u = NmrDpUtility()\n"
+        "u.addInput(name='chem_shift_file_path_list', value=CS_LIST, type='file_dict_list')\n"
+        "u.addInput(name='atypical_restraint_file_path_list', value=ATYPICAL, type='file_dict_list')\n"
+        f"{restraint_input}"
+        "u.addInput(name='coordinate_file_path', value=CIF, type='file')\n"
+        "u.addInput(name='nonblk_anomalous_cs', value=True, type='param')\n"
+        "u.addInput(name='nonblk_bad_nterm', value=True, type='param')\n"
+        "u.addInput(name='resolve_conflict', value=True, type='param')\n"
+        "u.addInput(name='check_mandatory_tag', value=False, type='param')\n"
+        "u.addInput(name='remediation', value=True, type='param')\n"
+        "u.setLog(MERGE_LOG)\n"
+        "u.setDestination(MERGED_STR)\n"
+        "u.setVerbose(True)\n"
+        "u.op('nmr-cs-mr-merge')\n"
+        "# Step 2: deposit the merged NMR-STAR (same as the combined str case)\n"
+        "u = NmrDpUtility()\n"
+        "u.setSource(MERGED_STR)\n"
+        "u.addInput(name='coordinate_file_path', value=CIF, type='file')\n"
+        "u.addInput(name='report_file_path', value=MERGE_LOG, type='file')\n"
+        "u.addInput(name='nonblk_anomalous_cs', value=True, type='param')\n"
+        "u.addInput(name='nonblk_bad_nterm', value=True, type='param')\n"
+        "u.addInput(name='resolve_conflict', value=True, type='param')\n"
+        "u.addInput(name='check_mandatory_tag', value=True, type='param')\n"
+        "u.setLog(DEP_LOG)\n"
+        "u.setDestination(OUT_STR)\n"
+        "u.addOutput(name='entry_id', value=ENTRY_ID, type='param')\n"
+        "u.addOutput(name='leave_intl_note', value=False, type='param')\n"
+        "u.setVerbose(True)\n"
+        "u.op('nmr-str2str-deposit')\n"
+    )
 
-    is_nef = uni['file_type'] == 'nm-uni-nef'
-    src = ws.input_dir(conversion_id, run_number, workspace_base) / uni['original_name']
-    out_dir = ws.output_dir(conversion_id, run_number, workspace_base)
-    log_d = ws.log_dir(conversion_id, run_number, workspace_base)
-    work_d = ws.work_dir(conversion_id, run_number, workspace_base)
-    model_cif = out_dir / f'C_{conversion_id}_model.cif'
-    consistency_log = log_d / f'C_{conversion_id}-nmr-data-consistency-check.log'
-    deposit_log = log_d / f'C_{conversion_id}-nmr-data-deposit.log'
-    out_str = out_dir / f'C_{conversion_id}-nmr-data.str'
-    next_src = work_d / f'C_{conversion_id}-next.{"nef" if is_nef else "str"}'
-    entry_id = f'C_{conversion_id}'
 
-    if not model_cif.exists():
-        reason = 'model mmCIF (C_<id>_model.cif) not found — coordinate conversion did not produce it'
-        print(f'[{conversion_id}] NMR data conversion FAILED — {reason}')
-        asyncio.run(_update_workflow_status(
-            conversion_id, run_number, WfTaskCode.convert_nmr_data, WfStatusCode.failed,
-            finished=True, log_path=str(deposit_log), detail=reason,
-        ))
-        return False
-
+def _run_nmr_driver(
+    conversion_id: int, run_number: int, workspace_base: str,
+    work_d: Path, driver_text: str, out_str: Path, deposit_log: Path,
+) -> bool:
+    """Mark convert_nmr_data processing, run the NmrDpUtility driver in the
+    py-wwpdb_utils_nmr image (docker run python <driver>), then mark
+    completed/failed by the exit code and whether the NMR-STAR output exists.
+    Shared by the combined and separated branches."""
     asyncio.run(_update_workflow_status(
         conversion_id, run_number, WfTaskCode.convert_nmr_data, WfStatusCode.processing,
         started=True, log_path=str(deposit_log),
@@ -337,18 +369,14 @@ def nmr_data_conversion(
 
     work_d.mkdir(parents=True, exist_ok=True)
     driver = work_d / 'nmr_driver.py'
-    driver.write_text(_nmr_driver_script(
-        is_nef=is_nef, src=str(src), cif=str(model_cif),
-        consistency_log=str(consistency_log), deposit_log=str(deposit_log),
-        out_str=str(out_str), next_src=str(next_src), entry_id=entry_id,
-    ))
+    driver.write_text(driver_text)
 
     failed_reason = None
     try:
         cmd = [
             'docker', 'run', '--rm',
             '-u', f'{os.getuid()}:{os.getgid()}',
-            '-v', f'{os.environ["WORKSPACE_VOL_DIR"]}:/workspace',
+            '-v', f'{os.environ["WORKSPACE_VOL_DIR"]}:{WORKSPACE_BASE_PATH}',
             UTILS_NMR_IMAGE,
             'python', str(driver),
         ]
@@ -374,6 +402,104 @@ def nmr_data_conversion(
         return False
     print(f'[{conversion_id}] NMR data conversion ok -> {out_str.name}')
     return True
+
+
+@task(name='nmr-data-conversion', retries=0)
+def nmr_data_conversion(
+    token: str,
+    conversion_id: int,
+    run_number: int,
+    archive_base: str = ARCHIVE_BASE_PATH,
+    workspace_base: str = WORKSPACE_BASE_PATH,
+) -> bool:
+    """Convert NMR data to NMR-STAR with py-wwpdb_utils_nmr (NmrDpUtility).
+
+    OneDep deposition, validated against the model mmCIF from
+    coordinate_conversion (output/C_<id>_model.cif), producing
+    output/C_<id>-nmr-data.str via `docker run python <driver>`:
+
+    - Combined: a single NMR unified data file (nm-uni-nef/str) ->
+      nmr-(nef/str)-consistency-check then nmr-(nef/str)2str-deposit.
+    - Separated: chemical shifts (nm-shi) + restraints (nm-res-*), topology
+      (nm-aux-*) and peak lists (nm-pea-*) -> nmr-cs-mr-merge (into one NMR-STAR)
+      then nmr-str2str-deposit. An 'nm-res-oth' file goes to
+      restraint_file_path_list (file_type 'nmr-star') when its syntax looks like
+      NMR-STAR, else stays in atypical_restraint_file_path_list as 'nm-res-oth'.
+
+    Drives the convert_nmr_data workflow row (processing -> completed/failed).
+    Returns True on success (and when there is nothing to convert), False on
+    failure. Non-OneDep targets (bmrbdep) are not implemented in this pilot.
+    """
+    manifest = json.loads((Path(archive_base) / token / 'manifest.json').read_text())
+    target = manifest.get('target_depsys')
+    files = manifest['files']
+    uni = next((f for f in files if f['file_type'].startswith('nm-uni-')), None)
+    cs_files = [f for f in files if f['file_type'] == 'nm-shi']
+    aux_files = [f for f in files if f['file_type'].startswith(('nm-res-', 'nm-aux-', 'nm-pea-'))]
+
+    if target != 'onedep':
+        print(f'[{conversion_id}] NMR conversion for target={target} not implemented '
+              f'in this pilot; skipping')
+        return True
+    if uni is None and not cs_files and not aux_files:
+        print(f'[{conversion_id}] No NMR data files — skipping NMR conversion')
+        return True
+
+    in_dir = ws.input_dir(conversion_id, run_number, workspace_base)
+    out_dir = ws.output_dir(conversion_id, run_number, workspace_base)
+    log_d = ws.log_dir(conversion_id, run_number, workspace_base)
+    work_d = ws.work_dir(conversion_id, run_number, workspace_base)
+    model_cif = out_dir / f'C_{conversion_id}_model.cif'
+    deposit_log = log_d / f'C_{conversion_id}-nmr-data-deposit.log'
+    out_str = out_dir / f'C_{conversion_id}-nmr-data.str'
+    entry_id = f'C_{conversion_id}'
+
+    if not model_cif.exists():
+        reason = 'model mmCIF (C_<id>_model.cif) not found — coordinate conversion did not produce it'
+        print(f'[{conversion_id}] NMR data conversion FAILED — {reason}')
+        asyncio.run(_update_workflow_status(
+            conversion_id, run_number, WfTaskCode.convert_nmr_data, WfStatusCode.failed,
+            finished=True, log_path=str(deposit_log), detail=reason,
+        ))
+        return False
+
+    if uni is not None:
+        # Combined: single NMR unified data file.
+        is_nef = uni['file_type'] == 'nm-uni-nef'
+        consist_log = log_d / f'C_{conversion_id}-nmr-data-consist.log'
+        next_src = work_d / f'C_{conversion_id}-nmr-data-next.{"nef" if is_nef else "str"}'
+        driver_text = _nmr_driver_script(
+            is_nef=is_nef, src=str(in_dir / uni['original_name']), cif=str(model_cif),
+            consist_log=str(consist_log), deposit_log=str(deposit_log),
+            out_str=str(out_str), next_src=str(next_src), entry_id=entry_id,
+        )
+    else:
+        # Separated: merge chemical shifts + restraints/topology/peaks, then deposit.
+        merge_log = log_d / f'C_{conversion_id}-merge.log'
+        merged_str = work_d / f'C_{conversion_id}-cs-mr-merged.str'
+        cs_list = [
+            {'file_name': str(in_dir / f['original_name']), 'file_type': 'nmr-star',
+             'original_file_name': f['original_name']}
+            for f in cs_files
+        ]
+        atypical_list, restraint_list = [], []
+        for f in aux_files:
+            name = f['original_name']
+            entry = {'file_name': str(in_dir / name), 'original_file_name': name}
+            if f['file_type'] == 'nm-res-oth' and _looks_like_nmr_star(in_dir / name):
+                restraint_list.append({**entry, 'file_type': 'nmr-star'})
+            else:
+                atypical_list.append({**entry, 'file_type': f['file_type']})
+        driver_text = _nmr_merge_driver_script(
+            cif=str(model_cif), cs_list=cs_list, atypical_list=atypical_list,
+            restraint_list=restraint_list, merge_log=str(merge_log),
+            merged_str=str(merged_str), deposit_log=str(deposit_log),
+            out_str=str(out_str), entry_id=entry_id,
+        )
+
+    return _run_nmr_driver(
+        conversion_id, run_number, workspace_base, work_d, driver_text, out_str, deposit_log,
+    )
 
 
 def _send_admin_email(subject: str, content: str) -> str:
@@ -457,7 +583,7 @@ def notify_new_conversion(
     token: str,
     conversion_id: int,
     run_number: int,
-    archive_base: str = '/archive',
+    archive_base: str = ARCHIVE_BASE_PATH,
 ) -> str:
     """Email the site admin that a new conversion was issued and record the
     message in the service DB `notification` table.
@@ -504,12 +630,12 @@ def process_session(
     token: str,
     conversion_id: int,
     run_number: int,
-    archive_base: str = '/archive',
-    workspace_base: str = ws.WORKSPACE_BASE_PATH,
+    archive_base: str = ARCHIVE_BASE_PATH,
+    workspace_base: str = WORKSPACE_BASE_PATH,
 ) -> dict:
     """Orchestrate NMR data conversion for one session run.
 
-    Reads /archive/<token>/manifest.json (written by POST /api/process), copies
+    Reads <archive_base>/<token>/manifest.json (written by POST /api/process), copies
     the active inputs into the per-run workspace, then runs the coordinate and
     NMR data conversion pipelines against those copies. The archive directory is
     a git repo; each POST /api/process call creates one commit tagged run-<N>.
@@ -518,8 +644,8 @@ def process_session(
         token:          Session token (UUID string) — the archive subdirectory name.
         conversion_id:  Numeric conversion ID (e.g. C_8000001 → 8000001).
         run_number:     The processing run this invocation handles.
-        archive_base:   Base directory of the archive volume (default /archive).
-        workspace_base: Base directory of the workspace volume (default /workspace).
+        archive_base:   Base directory of the archive volume (default ARCHIVE_BASE_PATH).
+        workspace_base: Base directory of the workspace volume (default WORKSPACE_BASE_PATH).
     """
     session_dir = Path(archive_base) / token
     manifest = json.loads((session_dir / 'manifest.json').read_text())

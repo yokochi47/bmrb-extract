@@ -25,8 +25,8 @@ SUCCESS_VALIDITY_PERIOD_IN_DAYS = ${SUCCESS_VALIDITY_PERIOD_IN_DAYS}
 FAILURE_VALIDITY_PERIOD_IN_DAYS = ${FAILURE_VALIDITY_PERIOD_IN_DAYS}
 
 # Mounted host directories in the container
-ARCHIVE_BASE_PATH = '/archive'
-WORKSPACE_BASE_PATH = '/workspace'
+ARCHIVE_BASE_PATH = '${ARCHIVE_BASE_PATH}'
+WORKSPACE_BASE_PATH = '${WORKSPACE_BASE_PATH}'
 
 # BMRB FTP entry directory base. The assigned chemical shifts for a valid
 # related BMRB ID (onedep conventional mode) are downloaded from
@@ -37,11 +37,11 @@ BMRB_ENTRY_DIR_URL = 'https://bmrb.io/ftp/pub/bmrb/entry_directories'
 # maxit-ccd coordinate conversion. The prefect coordinate_conversion task runs
 # this image via `docker run` with a memory limit (malformed PDB input leaks
 # memory); on OOM / no output the convert_model workflow row is marked failed.
-MAXIT_CCD_IMAGE = 'ghcr.io/yokochi47/maxit-ccd:main'
+MAXIT_CCD_IMAGE = '${MAXIT_CCD_IMAGE}'
 MAXIT_MEMORY_LIMIT = '16g'
 
 # py-wwpdb_utils_nmr NMR data conversion (NmrDpUtility). The nmr_data_conversion
 # task runs this image via `docker run python <driver>` to validate and convert
 # the NMR data to NMR-STAR against the model mmCIF.
-UTILS_NMR_IMAGE = 'ghcr.io/yokochi47/py-wwpdb_utils_nmr:main'
+UTILS_NMR_IMAGE = '${UTILS_NMR_IMAGE}'
 
