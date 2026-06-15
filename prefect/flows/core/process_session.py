@@ -47,6 +47,7 @@ from core.models import Notification, Workflow, WfStatusCode, WfTaskCode  # noqa
 from core.site_config import (  # noqa: E402
     MAXIT_CCD_IMAGE,
     MAXIT_MEMORY_LIMIT,
+    UTILS_NMR_IMAGE,
     SERVICE_ADMIN_EMAIL,
     SERVICE_DATABASE_URL,
     SERVICE_HOST,
@@ -218,7 +219,69 @@ def coordinate_conversion(
     return True
 
 
-@task(name='nmr-data-conversion', retries=1)
+def _nmr_driver_script(
+    *, is_nef: bool, src: str, cif: str, consistency_log: str, deposit_log: str,
+    out_str: str, next_src: str, entry_id: str,
+) -> str:
+    """Build the NmrDpUtility driver run inside the py-wwpdb_utils_nmr image.
+
+    Two ops in sequence (per the README's single-file deposition example, adapted
+    to the *2str* deposit used by bmrb_extract): consistency-check writes its JSON
+    report, then the deposit op reuses it via report_file_path and emits NMR-STAR.
+    The NMR-STAR result is addOutput('nmr-star_file_path') for NEF input, and
+    setDestination() for NMR-STAR input. (nmr_cif_file_path output is omitted.)
+    """
+    op_check = 'nmr-nef-consistency-check' if is_nef else 'nmr-str-consistency-check'
+    op_deposit = 'nmr-nef2str-deposit' if is_nef else 'nmr-str2str-deposit'
+    common_inputs = (
+        "u.addInput(name='coordinate_file_path', value=CIF, type='file')\n"
+        "u.addInput(name='nonblk_anomalous_cs', value=True, type='param')\n"
+        "u.addInput(name='nonblk_bad_nterm', value=True, type='param')\n"
+        "u.addInput(name='resolve_conflict', value=True, type='param')\n"
+        "u.addInput(name='check_mandatory_tag', value=True, type='param')\n"
+    )
+    if is_nef:
+        deposit_out = (
+            "u.setDestination(NEXT_SRC)\n"
+            "u.addOutput(name='nmr-star_file_path', value=OUT_STR, type='file')\n"
+        )
+    else:
+        deposit_out = "u.setDestination(OUT_STR)\n"
+    return (
+        "import sys\n"
+        "try:\n"
+        "    from wwpdb.utils.nmr.NmrDpUtility import NmrDpUtility\n"
+        "except ImportError:\n"
+        "    from nmr.NmrDpUtility import NmrDpUtility\n"
+        f"SRC = {src!r}\n"
+        f"CIF = {cif!r}\n"
+        f"CONS_LOG = {consistency_log!r}\n"
+        f"DEP_LOG = {deposit_log!r}\n"
+        f"OUT_STR = {out_str!r}\n"
+        f"NEXT_SRC = {next_src!r}\n"
+        f"ENTRY_ID = {entry_id!r}\n"
+        "# Step 1: consistency check\n"
+        "u = NmrDpUtility()\n"
+        "u.setSource(SRC)\n"
+        f"{common_inputs}"
+        "u.setLog(CONS_LOG)\n"
+        "u.setVerbose(False)\n"
+        f"u.op({op_check!r})\n"
+        "# Step 2: deposit (convert to NMR-STAR) reusing the consistency report\n"
+        "u = NmrDpUtility()\n"
+        "u.setSource(SRC)\n"
+        f"{common_inputs}"
+        "u.addInput(name='report_file_path', value=CONS_LOG, type='file')\n"
+        "u.setLog(DEP_LOG)\n"
+        "u.setVerbose(False)\n"
+        f"{deposit_out}"
+        "u.addOutput(name='entry_id', value=ENTRY_ID, type='param')\n"
+        "u.addOutput(name='leave_intl_note', value=False, type='param')\n"
+        f"u.op({op_deposit!r})\n"
+    )
+
+
+@task(name='nmr-data-conversion', retries=0)
 def nmr_data_conversion(
     token: str,
     conversion_id: int,
@@ -226,28 +289,90 @@ def nmr_data_conversion(
     archive_base: str = '/archive',
     workspace_base: str = ws.WORKSPACE_BASE_PATH,
 ) -> bool:
-    """Convert NMR data files using the py-wwpdb_utils_nmr Docker Swarm service.
+    """Convert NMR data to NMR-STAR with py-wwpdb_utils_nmr (NmrDpUtility).
 
-    Operates entirely inside the workspace: reads NMR files from input/ (which it
-    may edit in place to fix minor format issues — safe, they are copies), writes
-    results to output/ and any scratch to work/.
+    Pilot scope: OneDep *combined* deposition — a single NMR unified data file
+    (nm-uni-nef or nm-uni-str). Runs the py-wwpdb_utils_nmr image via
+    `docker run python <driver>` against the model mmCIF produced by
+    coordinate_conversion (output/C_<id>_model.cif). Writes
+    output/C_<id>-nmr-data.str plus two JSON reports
+    (C_<id>-nmr-data-consistency-check.log, C_<id>-nmr-data-deposit.log) and
+    drives the convert_nmr_data workflow row (processing -> completed/failed).
 
-    TODO: implement HTTP call to py-wwpdb_utils_nmr service (pass workspace paths).
+    Returns True on success (and when there is no nm-uni-* file — separated /
+    bmrbdep NMR conversion is not implemented in this pilot), False on failure.
     """
-    session_dir = Path(archive_base) / token
-    manifest = json.loads((session_dir / 'manifest.json').read_text())
-    in_dir = ws.input_dir(conversion_id, run_number, workspace_base)
-
-    nmr_files = [
-        in_dir / f['original_name']
-        for f in manifest['files']
-        if not f['file_type'].startswith('co-')
-    ]
-    if not nmr_files:
-        print(f'[{conversion_id}] No NMR data files found — skipping NMR conversion')
+    manifest = json.loads((Path(archive_base) / token / 'manifest.json').read_text())
+    uni = next((f for f in manifest['files'] if f['file_type'].startswith('nm-uni-')), None)
+    if uni is None:
+        print(f'[{conversion_id}] No NMR unified data file — separated/bmrbdep NMR '
+              f'conversion not implemented in this pilot; skipping')
         return True
 
-    print(f'[{conversion_id}] TODO: call py-wwpdb_utils_nmr for {[p.name for p in nmr_files]}')
+    is_nef = uni['file_type'] == 'nm-uni-nef'
+    src = ws.input_dir(conversion_id, run_number, workspace_base) / uni['original_name']
+    out_dir = ws.output_dir(conversion_id, run_number, workspace_base)
+    log_d = ws.log_dir(conversion_id, run_number, workspace_base)
+    work_d = ws.work_dir(conversion_id, run_number, workspace_base)
+    model_cif = out_dir / f'C_{conversion_id}_model.cif'
+    consistency_log = log_d / f'C_{conversion_id}-nmr-data-consistency-check.log'
+    deposit_log = log_d / f'C_{conversion_id}-nmr-data-deposit.log'
+    out_str = out_dir / f'C_{conversion_id}-nmr-data.str'
+    next_src = work_d / f'C_{conversion_id}-next.{"nef" if is_nef else "str"}'
+    entry_id = f'C_{conversion_id}'
+
+    if not model_cif.exists():
+        reason = 'model mmCIF (C_<id>_model.cif) not found — coordinate conversion did not produce it'
+        print(f'[{conversion_id}] NMR data conversion FAILED — {reason}')
+        asyncio.run(_update_workflow_status(
+            conversion_id, run_number, WfTaskCode.convert_nmr_data, WfStatusCode.failed,
+            finished=True, log_path=str(deposit_log), detail=reason,
+        ))
+        return False
+
+    asyncio.run(_update_workflow_status(
+        conversion_id, run_number, WfTaskCode.convert_nmr_data, WfStatusCode.processing,
+        started=True, log_path=str(deposit_log),
+    ))
+
+    work_d.mkdir(parents=True, exist_ok=True)
+    driver = work_d / 'nmr_driver.py'
+    driver.write_text(_nmr_driver_script(
+        is_nef=is_nef, src=str(src), cif=str(model_cif),
+        consistency_log=str(consistency_log), deposit_log=str(deposit_log),
+        out_str=str(out_str), next_src=str(next_src), entry_id=entry_id,
+    ))
+
+    failed_reason = None
+    try:
+        cmd = [
+            'docker', 'run', '--rm',
+            '-u', f'{os.getuid()}:{os.getgid()}',
+            '-v', f'{os.environ["WORKSPACE_VOL_DIR"]}:/workspace',
+            UTILS_NMR_IMAGE,
+            'python', str(driver),
+        ]
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
+        if proc.returncode != 0:
+            failed_reason = f'NmrDpUtility exit {proc.returncode}: {(proc.stderr or "").strip()[-400:]}'
+    except subprocess.TimeoutExpired:
+        failed_reason = 'NMR data conversion timed out'
+    except Exception as exc:  # noqa: BLE001
+        failed_reason = f'docker run error: {exc}'
+
+    if failed_reason is None and (not out_str.exists() or out_str.stat().st_size == 0):
+        failed_reason = 'no NMR-STAR output produced'
+
+    status = WfStatusCode.failed if failed_reason else WfStatusCode.completed
+    asyncio.run(_update_workflow_status(
+        conversion_id, run_number, WfTaskCode.convert_nmr_data, status,
+        finished=True, log_path=str(deposit_log), detail=failed_reason,
+    ))
+
+    if failed_reason:
+        print(f'[{conversion_id}] NMR data conversion FAILED — {failed_reason}')
+        return False
+    print(f'[{conversion_id}] NMR data conversion ok -> {out_str.name}')
     return True
 
 
