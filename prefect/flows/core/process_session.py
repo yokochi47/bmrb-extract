@@ -222,7 +222,7 @@ def coordinate_conversion(
 
 def _nmr_driver_script(
     *, is_nef: bool, src: str, cif: str, consist_log: str, deposit_log: str,
-    out_str: str, next_src: str, entry_id: str,
+    out_str: str, next_src: str, entry_id: str, work_dir: str, cache_dir: str,
 ) -> str:
     """Build the NmrDpUtility driver run inside the py-wwpdb_utils_nmr image.
 
@@ -258,8 +258,11 @@ def _nmr_driver_script(
         f"OUT_STR = {out_str!r}\n"
         f"NEXT_SRC = {next_src!r}\n"
         f"ENTRY_ID = {entry_id!r}\n"
+        f"WORK_DIR = {work_dir!r}\n"
+        f"CACHE_DIR = {cache_dir!r}\n"
         "# Step 1: consistency check\n"
         "u = NmrDpUtility()\n"
+        "u.setWorkspace(WORK_DIR, CACHE_DIR)\n"
         "u.setSource(SRC)\n"
         f"{common_inputs}"
         "u.setLog(CONS_LOG)\n"
@@ -299,6 +302,7 @@ def _looks_like_nmr_star(path: Path) -> bool:
 def _nmr_merge_driver_script(
     *, cif: str, cs_list: list, atypical_list: list, restraint_list: list,
     merge_log: str, merged_str: str, deposit_log: str, out_str: str, entry_id: str,
+    work_dir: str, cache_dir: str,
 ) -> str:
     """Driver for OneDep conventional *separated* deposition: nmr-cs-mr-merge
     (merge chemical shifts + restraints/topology/peak lists against the
@@ -321,8 +325,11 @@ def _nmr_merge_driver_script(
         f"DEP_LOG = {deposit_log!r}\n"
         f"OUT_STR = {out_str!r}\n"
         f"ENTRY_ID = {entry_id!r}\n"
+        f"WORK_DIR = {work_dir!r}\n"
+        f"CACHE_DIR = {cache_dir!r}\n"
         "# Step 1: merge chemical shifts + restraints/topology/peaks into NMR-STAR\n"
         "u = NmrDpUtility()\n"
+        "u.setWorkspace(WORK_DIR, CACHE_DIR)\n"
         "u.addInput(name='chem_shift_file_path_list', value=CS_LIST, type='file_dict_list')\n"
         "u.addInput(name='atypical_restraint_file_path_list', value=ATYPICAL, type='file_dict_list')\n"
         f"{restraint_input}"
@@ -338,6 +345,7 @@ def _nmr_merge_driver_script(
         "u.op('nmr-cs-mr-merge')\n"
         "# Step 2: deposit the merged NMR-STAR (same as the combined str case)\n"
         "u = NmrDpUtility()\n"
+        "u.setWorkspace(WORK_DIR, CACHE_DIR)\n"
         "u.setSource(MERGED_STR)\n"
         "u.addInput(name='coordinate_file_path', value=CIF, type='file')\n"
         "u.addInput(name='report_file_path', value=MERGE_LOG, type='file')\n"
@@ -449,6 +457,7 @@ def nmr_data_conversion(
     out_dir = ws.output_dir(conversion_id, run_number, workspace_base)
     log_d = ws.log_dir(conversion_id, run_number, workspace_base)
     work_d = ws.work_dir(conversion_id, run_number, workspace_base)
+    cache_d = ws.cache_dir(conversion_id, workspace_base)
     model_cif = out_dir / f'C_{conversion_id}_model.cif'
     deposit_log = log_d / f'C_{conversion_id}-nmr-data-deposit.log'
     out_str = out_dir / f'C_{conversion_id}-nmr-data.str'
@@ -472,6 +481,7 @@ def nmr_data_conversion(
             is_nef=is_nef, src=str(in_dir / uni['original_name']), cif=str(model_cif),
             consist_log=str(consist_log), deposit_log=str(deposit_log),
             out_str=str(out_str), next_src=str(next_src), entry_id=entry_id,
+            work_dir=str(work_d), cache_dir=str(cache_d),
         )
     else:
         # Separated: merge chemical shifts + restraints/topology/peaks, then deposit.
@@ -495,6 +505,7 @@ def nmr_data_conversion(
             restraint_list=restraint_list, merge_log=str(merge_log),
             merged_str=str(merged_str), deposit_log=str(deposit_log),
             out_str=str(out_str), entry_id=entry_id,
+            work_dir=str(work_d), cache_dir=str(cache_d),
         )
 
     return _run_nmr_driver(
