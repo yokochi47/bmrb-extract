@@ -362,6 +362,40 @@ def _nmr_merge_driver_script(
     )
 
 
+def _nmr_replace_cs_driver_script(
+    *, src: str, cif: str, cs_list: list, report_log: str, out_str: str,
+    work_dir: str, cache_dir: str,
+) -> str:
+    """Driver for OneDep repl_cs (replacing assigned chemical shifts): replace the
+    chemical shifts in the OneDep-processed NMR-STAR unified data file (setSource)
+    with the correct ones (chem_shift_file_path_list), against the coordinates,
+    writing the report (setLog) and the resulting NMR-STAR (setDestination). A
+    single op: nmr-str-replace-cs. Same input params as the OneDep case."""
+    return (
+        "from nmr.NmrDpUtility import NmrDpUtility\n"
+        f"SRC = {src!r}\n"
+        f"CIF = {cif!r}\n"
+        f"CS_LIST = {cs_list!r}\n"
+        f"REPORT_LOG = {report_log!r}\n"
+        f"OUT_STR = {out_str!r}\n"
+        f"WORK_DIR = {work_dir!r}\n"
+        f"CACHE_DIR = {cache_dir!r}\n"
+        "u = NmrDpUtility()\n"
+        "u.setWorkspace(WORK_DIR, CACHE_DIR)\n"
+        "u.setSource(SRC)\n"
+        "u.addInput(name='chem_shift_file_path_list', value=CS_LIST, type='file_dict_list')\n"
+        "u.addInput(name='coordinate_file_path', value=CIF, type='file')\n"
+        "u.addInput(name='nonblk_anomalous_cs', value=True, type='param')\n"
+        "u.addInput(name='nonblk_bad_nterm', value=True, type='param')\n"
+        "u.addInput(name='resolve_conflict', value=True, type='param')\n"
+        "u.addInput(name='check_mandatory_tag', value=True, type='param')\n"
+        "u.setLog(REPORT_LOG)\n"
+        "u.setDestination(OUT_STR)\n"
+        "u.setVerbose(True)\n"
+        "u.op('nmr-str-replace-cs')\n"
+    )
+
+
 def _run_nmr_driver(
     conversion_id: int, run_number: int, workspace_base: str,
     work_d: Path, driver_text: str, out_str: Path, deposit_log: Path,
@@ -422,21 +456,24 @@ def nmr_data_conversion(
 ) -> bool:
     """Convert NMR data to NMR-STAR with py-wwpdb_utils_nmr (NmrDpUtility).
 
-    OneDep deposition, validated against the model mmCIF from
+    OneDep / Replacing-CS deposition, validated against the model mmCIF from
     coordinate_conversion (output/C_<id>_model.cif), producing
     output/C_<id>-nmr-data.str via `docker run python <driver>`:
 
-    - Combined: a single NMR unified data file (nm-uni-nef/str) ->
+    - OneDep combined: a single NMR unified data file (nm-uni-nef/str) ->
       nmr-(nef/str)-consistency-check then nmr-(nef/str)2str-deposit.
-    - Separated: chemical shifts (nm-shi) + restraints (nm-res-*), topology
+    - OneDep separated: chemical shifts (nm-shi) + restraints (nm-res-*), topology
       (nm-aux-*) and peak lists (nm-pea-*) -> nmr-cs-mr-merge (into one NMR-STAR)
       then nmr-str2str-deposit. An 'nm-res-oth' file goes to
       restraint_file_path_list (file_type 'nmr-star') when its syntax looks like
       NMR-STAR, else stays in atypical_restraint_file_path_list as 'nm-res-oth'.
+    - repl_cs: replace the assigned chemical shifts in the OneDep-processed
+      NMR-STAR unified data file (nm-uni-str, setSource) with the correct nm-shi
+      files -> single op nmr-str-replace-cs.
 
     Drives the convert_nmr_data workflow row (processing -> completed/failed).
     Returns True on success (and when there is nothing to convert), False on
-    failure. Non-OneDep targets (bmrbdep) are not implemented in this pilot.
+    failure. bmrbdep is not implemented in this pilot.
     """
     manifest = json.loads((Path(archive_base) / token / 'manifest.json').read_text())
     target = manifest.get('target_depsys')
@@ -445,7 +482,7 @@ def nmr_data_conversion(
     cs_files = [f for f in files if f['file_type'] == 'nm-shi']
     aux_files = [f for f in files if f['file_type'].startswith(('nm-res-', 'nm-aux-', 'nm-pea-'))]
 
-    if target != 'onedep':
+    if target not in ('onedep', 'repl_cs'):
         print(f'[{conversion_id}] NMR conversion for target={target} not implemented '
               f'in this pilot; skipping')
         return True
@@ -459,7 +496,7 @@ def nmr_data_conversion(
     work_d = ws.work_dir(conversion_id, run_number, workspace_base)
     cache_d = ws.cache_dir(conversion_id, workspace_base)
     model_cif = out_dir / f'C_{conversion_id}_model.cif'
-    deposit_log = log_d / f'C_{conversion_id}-nmr-data-deposit.log'
+    deposit_log = log_d / f'C_{conversion_id}-nmr-data-str_deposit.log'
     out_str = out_dir / f'C_{conversion_id}-nmr-data.str'
     entry_id = f'C_{conversion_id}'
 
@@ -472,10 +509,37 @@ def nmr_data_conversion(
         ))
         return False
 
-    if uni is not None:
-        # Combined: single NMR unified data file.
+    def _cs_dict_list(shift_files):
+        return [
+            {'file_name': str(in_dir / f['original_name']), 'file_type': 'nmr-star',
+             'original_file_name': f['original_name']}
+            for f in shift_files
+        ]
+
+    if target == 'repl_cs':
+        # Replacing CS: replace the assigned chemical shifts in the OneDep-processed
+        # NMR-STAR unified data file (nm-uni-str) with the correct ones (nm-shi),
+        # against the coordinates. Single op: nmr-str-replace-cs.
+        nmr_log = log_d / f'C_{conversion_id}-nmr-data-repl_cs.log'
+        if uni is None or uni['file_type'] != 'nm-uni-str' or not cs_files:
+            reason = ('repl_cs requires an NMR-STAR unified data file (nm-uni-str) '
+                      'and at least one assigned chemical shift (nm-shi) file')
+            print(f'[{conversion_id}] NMR data conversion FAILED — {reason}')
+            asyncio.run(_update_workflow_status(
+                conversion_id, run_number, WfTaskCode.convert_nmr_data, WfStatusCode.failed,
+                finished=True, log_path=str(nmr_log), detail=reason,
+            ))
+            return False
+        driver_text = _nmr_replace_cs_driver_script(
+            src=str(in_dir / uni['original_name']), cif=str(model_cif),
+            cs_list=_cs_dict_list(cs_files), report_log=str(nmr_log),
+            out_str=str(out_str), work_dir=str(work_d), cache_dir=str(cache_d),
+        )
+    elif uni is not None:
+        # OneDep combined: single NMR unified data file.
+        nmr_log = deposit_log
         is_nef = uni['file_type'] == 'nm-uni-nef'
-        consist_log = log_d / f'C_{conversion_id}-nmr-data-consist.log'
+        consist_log = log_d / f'C_{conversion_id}-nmr-data-{"nef" if is_nef else "str"}_consist.log'
         next_src = work_d / f'C_{conversion_id}-nmr-data-next.{"nef" if is_nef else "str"}'
         driver_text = _nmr_driver_script(
             is_nef=is_nef, src=str(in_dir / uni['original_name']), cif=str(model_cif),
@@ -484,14 +548,10 @@ def nmr_data_conversion(
             work_dir=str(work_d), cache_dir=str(cache_d),
         )
     else:
-        # Separated: merge chemical shifts + restraints/topology/peaks, then deposit.
-        merge_log = log_d / f'C_{conversion_id}-merge.log'
+        # OneDep separated: merge chemical shifts + restraints/topology/peaks, then deposit.
+        nmr_log = deposit_log
+        merge_log = log_d / f'C_{conversion_id}-cs_mr_merge.log'
         merged_str = work_d / f'C_{conversion_id}-cs-mr-merged.str'
-        cs_list = [
-            {'file_name': str(in_dir / f['original_name']), 'file_type': 'nmr-star',
-             'original_file_name': f['original_name']}
-            for f in cs_files
-        ]
         atypical_list, restraint_list = [], []
         for f in aux_files:
             name = f['original_name']
@@ -501,7 +561,7 @@ def nmr_data_conversion(
             else:
                 atypical_list.append({**entry, 'file_type': f['file_type']})
         driver_text = _nmr_merge_driver_script(
-            cif=str(model_cif), cs_list=cs_list, atypical_list=atypical_list,
+            cif=str(model_cif), cs_list=_cs_dict_list(cs_files), atypical_list=atypical_list,
             restraint_list=restraint_list, merge_log=str(merge_log),
             merged_str=str(merged_str), deposit_log=str(deposit_log),
             out_str=str(out_str), entry_id=entry_id,
@@ -509,7 +569,7 @@ def nmr_data_conversion(
         )
 
     return _run_nmr_driver(
-        conversion_id, run_number, workspace_base, work_d, driver_text, out_str, deposit_log,
+        conversion_id, run_number, workspace_base, work_d, driver_text, out_str, nmr_log,
     )
 
 
