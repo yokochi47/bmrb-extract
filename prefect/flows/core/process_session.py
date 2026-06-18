@@ -502,6 +502,39 @@ def _nmr_bmrbdep_driver_script(
     )
 
 
+def _nmr_nef_release_driver_script(
+    *, src: str, cif: str, report_log: str, out_nef: str, entry_id: str,
+    work_dir: str, cache_dir: str,
+) -> str:
+    """Driver for releasing a NEF file from a converted NMR-STAR (OneDep combined /
+    repl_cs). Single op: nmr-str2nef-release. The converted NMR-STAR is the source
+    and the coordinates / params mirror the OneDep deposit; the NEF and its report
+    are addOutput targets."""
+    return (
+        "from nmr.NmrDpUtility import NmrDpUtility\n"
+        f"SRC = {src!r}\n"
+        f"CIF = {cif!r}\n"
+        f"REPORT_LOG = {report_log!r}\n"
+        f"OUT_NEF = {out_nef!r}\n"
+        f"ENTRY_ID = {entry_id!r}\n"
+        f"WORK_DIR = {work_dir!r}\n"
+        f"CACHE_DIR = {cache_dir!r}\n"
+        "u = NmrDpUtility()\n"
+        "u.setSource(SRC)\n"
+        "u.addInput(name='coordinate_file_path', value=CIF, type='file')\n"
+        "u.addInput(name='nonblk_anomalous_cs', value=True, type='param')\n"
+        "u.addInput(name='nonblk_bad_nterm', value=True, type='param')\n"
+        "u.addInput(name='resolve_conflict', value=True, type='param')\n"
+        "u.addInput(name='check_mandatory_tag', value=True, type='param')\n"
+        "u.addOutput(name='nef_file_path', value=OUT_NEF, type='file')\n"
+        "u.addOutput(name='report_file_path', value=REPORT_LOG, type='file')\n"
+        "u.addOutput(name='entry_id', value=ENTRY_ID, type='param')\n"
+        "u.setWorkspace(WORK_DIR, CACHE_DIR)\n"
+        "u.setVerbose(True)\n"
+        "u.op('nmr-str2nef-release')\n"
+    )
+
+
 # Warning types that NmrDpUtility may report but which are safe to ignore (not
 # surfaced to the user). From the prototype error/warning message generator.
 _IGNORABLE_WARNING_TYPES = (
@@ -527,6 +560,23 @@ _BLOCKING_ERROR_TYPES = (
     'atom_not_found',
     'hydrogen_not_instantiated',
 )
+
+# A converted NMR-STAR can be released as NEF only when every content_subtype it
+# carries is NEF-representable. If the final report's first input source is
+# 'nmr-data-str' and all its content_subtype keys fall in this set, we emit a NEF
+# release file as an additional output (OneDep combined / repl_cs only).
+_NEF_RELEASE_CONTENT_SUBTYPES = frozenset((
+    'entry_info',
+    'poly_seq',
+    'entity',
+    'chem_shift',
+    'chem_shift_ref',
+    'dist_restraint',
+    'dihed_restraint',
+    'rdc_restraint',
+    'spectral_peak',
+    'spectral_peak_alt',
+))
 
 
 def _analyze_report(report_path: Path, onedep_combined: bool, conversion_id: int):
@@ -602,12 +652,13 @@ def _run_nmr_driver(
     conversion_id: int, run_number: int, workspace_base: str,
     work_d: Path, driver_text: str, out_str: Path, deposit_log: Path,
     report_path: Path, onedep_combined: bool,
-) -> bool:
+) -> tuple[bool, str | None]:
     """Mark convert_nmr_data processing, run the NmrDpUtility driver in the
     py-wwpdb_utils_nmr image (docker run python <driver>), then mark
     completed/failed by the exit code and whether the NMR-STAR output exists.
     On success, analyze the first-task JSON report (report_path) and record the
-    report_status/report_summary on the workflow row. Shared by all branches."""
+    report_status/report_summary on the workflow row. Shared by all branches.
+    Returns (success, report_status) — report_status is None on failure."""
     asyncio.run(_update_workflow_status(
         conversion_id, run_number, WfTaskCode.convert_nmr_data, WfStatusCode.processing,
         started=True, log_path=str(deposit_log),
@@ -649,7 +700,7 @@ def _run_nmr_driver(
             finished=True, log_path=str(deposit_log), detail=failed_reason,
         ))
         print(f'[{conversion_id}] NMR data conversion FAILED — {failed_reason}')
-        return False
+        return False, None
 
     # Conversion ran: analyze the first-task report for user-facing errors/warnings.
     report_status, report_summary = _analyze_report(report_path, onedep_combined, conversion_id)
@@ -660,7 +711,74 @@ def _run_nmr_driver(
     ))
     print(f'[{conversion_id}] NMR data conversion ok -> {out_str.name} '
           f'(report_status={report_status})')
-    return True
+    return True, report_status
+
+
+def _nef_release_eligible(report_path: Path, conversion_id: int) -> bool:
+    """True if the converted NMR-STAR can be released as NEF: the final report's
+    first input source is 'nmr-data-str' and every content_subtype it carries is
+    NEF-representable (_NEF_RELEASE_CONTENT_SUBTYPES). Best-effort — a missing or
+    unexpected report returns False so NEF release is simply skipped."""
+    try:
+        report = json.loads(report_path.read_text())
+    except Exception as exc:  # noqa: BLE001
+        print(f'[{conversion_id}] NEF eligibility skipped ({report_path.name}: {exc})')
+        return False
+    sources = report.get('information', {}).get('input_sources')
+    if not isinstance(sources, list) or not sources:
+        return False
+    first = sources[0]
+    if not isinstance(first, dict) or first.get('content_type') != 'nmr-data-str':
+        return False
+    subtype = first.get('content_subtype')
+    if not isinstance(subtype, dict) or not subtype:
+        return False
+    return all(key in _NEF_RELEASE_CONTENT_SUBTYPES for key in subtype)
+
+
+def _generate_nef_release(
+    conversion_id: int, run_number: int, workspace_base: str, *,
+    src: Path, cif: Path, out_dir: Path, log_d: Path, work_d: Path, cache_d: Path,
+    entry_id: str,
+) -> Path | None:
+    """Release a NEF file from the converted NMR-STAR via nmr-str2nef-release.
+    Writes out_dir/C_<id>-nmr-data.nef and log/C_<id>-nmr-data-nef_release.json.
+    Best-effort: a failure is logged and returns None (the NMR-STAR is the primary
+    output, so this never affects the run's success)."""
+    out_nef = out_dir / f'C_{conversion_id}-nmr-data.nef'
+    nef_report = log_d / f'C_{conversion_id}-nmr-data-nef_release.json'
+    driver_text = _nmr_nef_release_driver_script(
+        src=str(src), cif=str(cif), report_log=str(nef_report), out_nef=str(out_nef),
+        entry_id=entry_id, work_dir=str(work_d), cache_dir=str(cache_d),
+    )
+    work_d.mkdir(parents=True, exist_ok=True)
+    driver = work_d / 'nef_release_driver.py'
+    driver.write_text(driver_text)
+
+    stdout_log = log_d / f'C_{conversion_id}-nmr-data-nef_release.stdout.log'
+    try:
+        cmd = [
+            'docker', 'run', '--rm',
+            '-u', f'{os.getuid()}:{os.getgid()}',
+            '-v', f'{os.environ["WORKSPACE_VOL_DIR"]}:{WORKSPACE_BASE_PATH}',
+            UTILS_NMR_IMAGE,
+            'python', '-u', str(driver),
+        ]
+        with open(stdout_log, 'w') as fh:
+            proc = subprocess.run(cmd, stdout=fh, stderr=subprocess.STDOUT, text=True, timeout=3600)
+        if proc.returncode != 0:
+            tail = stdout_log.read_text(errors='ignore')[-400:].strip() if stdout_log.exists() else ''
+            print(f'[{conversion_id}] NEF release FAILED (exit {proc.returncode}): {tail}')
+            return None
+    except Exception as exc:  # noqa: BLE001
+        print(f'[{conversion_id}] NEF release docker error: {exc}')
+        return None
+
+    if not out_nef.exists() or out_nef.stat().st_size == 0:
+        print(f'[{conversion_id}] NEF release produced no output file')
+        return None
+    print(f'[{conversion_id}] NEF release ok -> {out_nef.name}')
+    return out_nef
 
 
 @task(name='nmr-data-conversion', retries=0)
@@ -836,10 +954,26 @@ def nmr_data_conversion(
             work_dir=str(work_d), cache_dir=str(cache_d),
         )
 
-    return _run_nmr_driver(
+    ok, report_status = _run_nmr_driver(
         conversion_id, run_number, workspace_base, work_d, driver_text, out_str, nmr_log,
         report_path, onedep_combined,
     )
+
+    # OneDep combined and repl_cs (onedep_combined): when the run produced a clean
+    # (non-blocking) NMR-STAR whose content is fully NEF-representable, also emit a
+    # NEF release file as an additional output. nmr_log is the *final* report here
+    # (str_deposit.json / repl_cs.json). Best-effort — never affects run success.
+    if ok and report_status != 'Error' and onedep_combined:
+        if _nef_release_eligible(nmr_log, conversion_id):
+            _generate_nef_release(
+                conversion_id, run_number, workspace_base,
+                src=out_str, cif=model_cif, out_dir=out_dir, log_d=log_d,
+                work_d=work_d, cache_d=cache_d, entry_id=entry_id,
+            )
+        else:
+            print(f'[{conversion_id}] NEF release skipped (content not fully NEF-representable)')
+
+    return ok
 
 
 def _send_admin_email(subject: str, content: str) -> str:
