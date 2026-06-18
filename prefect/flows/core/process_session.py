@@ -396,6 +396,54 @@ def _nmr_replace_cs_driver_script(
     )
 
 
+def _nmr_bmrbdep_driver_script(
+    *, cs_list: list, atypical_cs_list: list, atypical_restraint_list: list,
+    bmrb_id: int, log: str, out_str: str, work_dir: str, cache_dir: str,
+) -> str:
+    """Driver for BMRBdep (BMRB-only) deposition: merge chemical shifts (NMR-STAR
+    nm-uni-str/nm-shi and NEF nm-uni-nef in chem_shift_file_path_list, plus any
+    nm-shi-* variants in atypical_chem_shift_file_path_list) and optional topology
+    (nm-aux-* in atypical_restraint_file_path_list) into one NMR-STAR. No
+    coordinates. Single op: nmr-cs-mr-merge with conversion_server=True."""
+    atypical_cs_input = (
+        "u.addInput(name='atypical_chem_shift_file_path_list', value=ATYPICAL_CS, type='file_dict_list')\n"
+        if atypical_cs_list else ""
+    )
+    atypical_r_input = (
+        "u.addInput(name='atypical_restraint_file_path_list', value=ATYPICAL_R, type='file_dict_list')\n"
+        if atypical_restraint_list else ""
+    )
+    return (
+        "from nmr.NmrDpUtility import NmrDpUtility\n"
+        f"CS_LIST = {cs_list!r}\n"
+        f"ATYPICAL_CS = {atypical_cs_list!r}\n"
+        f"ATYPICAL_R = {atypical_restraint_list!r}\n"
+        f"BMRB_ID = {bmrb_id!r}\n"
+        f"LOG = {log!r}\n"
+        f"OUT_STR = {out_str!r}\n"
+        f"WORK_DIR = {work_dir!r}\n"
+        f"CACHE_DIR = {cache_dir!r}\n"
+        "u = NmrDpUtility()\n"
+        "u.setWorkspace(WORK_DIR, CACHE_DIR)\n"
+        "u.addInput(name='chem_shift_file_path_list', value=CS_LIST, type='file_dict_list')\n"
+        f"{atypical_cs_input}"
+        f"{atypical_r_input}"
+        "u.addInput(name='nonblk_anomalous_cs', value=True, type='param')\n"
+        "u.addInput(name='nonblk_bad_nterm', value=True, type='param')\n"
+        "u.addInput(name='resolve_conflict', value=True, type='param')\n"
+        "u.addInput(name='check_mandatory_tag', value=False, type='param')\n"
+        "u.addInput(name='remediation', value=True, type='param')\n"
+        "u.addInput(name='conversion_server', value=True, type='param')\n"
+        # conversion_server mode derives entry_id = C_<conversion_id> from this
+        # (the conversion_id matches CNV_ID_PAT ^C_[1-9]\\d{6}$ as C_<id>).
+        "u.addInput(name='bmrb_id', value=BMRB_ID, type='param')\n"
+        "u.setLog(LOG)\n"
+        "u.setDestination(OUT_STR)\n"
+        "u.setVerbose(True)\n"
+        "u.op('nmr-cs-mr-merge')\n"
+    )
+
+
 def _run_nmr_driver(
     conversion_id: int, run_number: int, workspace_base: str,
     work_d: Path, driver_text: str, out_str: Path, deposit_log: Path,
@@ -470,23 +518,27 @@ def nmr_data_conversion(
     - repl_cs: replace the assigned chemical shifts in the OneDep-processed
       NMR-STAR unified data file (nm-uni-str, setSource) with the correct nm-shi
       files -> single op nmr-str-replace-cs.
+    - bmrbdep (BMRB-only, no coordinates): merge chemical shifts (nm-uni-*,
+      nm-shi, nm-shi-*) and optional topology (nm-aux-*) -> single op
+      nmr-cs-mr-merge with conversion_server=True.
 
     Drives the convert_nmr_data workflow row (processing -> completed/failed).
     Returns True on success (and when there is nothing to convert), False on
-    failure. bmrbdep is not implemented in this pilot.
+    failure.
     """
     manifest = json.loads((Path(archive_base) / token / 'manifest.json').read_text())
     target = manifest.get('target_depsys')
     files = manifest['files']
     uni = next((f for f in files if f['file_type'].startswith('nm-uni-')), None)
     cs_files = [f for f in files if f['file_type'] == 'nm-shi']
+    shi_variant_files = [f for f in files if f['file_type'].startswith('nm-shi-')]
     aux_files = [f for f in files if f['file_type'].startswith(('nm-res-', 'nm-aux-', 'nm-pea-'))]
 
-    if target not in ('onedep', 'repl_cs'):
+    if target not in ('onedep', 'repl_cs', 'bmrbdep'):
         print(f'[{conversion_id}] NMR conversion for target={target} not implemented '
               f'in this pilot; skipping')
         return True
-    if uni is None and not cs_files and not aux_files:
+    if uni is None and not cs_files and not shi_variant_files and not aux_files:
         print(f'[{conversion_id}] No NMR data files — skipping NMR conversion')
         return True
 
@@ -500,7 +552,8 @@ def nmr_data_conversion(
     out_str = out_dir / f'C_{conversion_id}-nmr-data.str'
     entry_id = f'C_{conversion_id}'
 
-    if not model_cif.exists():
+    # OneDep / repl_cs validate against coordinates; bmrbdep has none.
+    if target in ('onedep', 'repl_cs') and not model_cif.exists():
         reason = 'model mmCIF (C_<id>_model.cif) not found — coordinate conversion did not produce it'
         print(f'[{conversion_id}] NMR data conversion FAILED — {reason}')
         asyncio.run(_update_workflow_status(
@@ -516,7 +569,45 @@ def nmr_data_conversion(
             for f in shift_files
         ]
 
-    if target == 'repl_cs':
+    def _dict_list(file_list, *, file_type=None):
+        return [
+            {'file_name': str(in_dir / f['original_name']),
+             'file_type': file_type or f['file_type'],
+             'original_file_name': f['original_name']}
+            for f in file_list
+        ]
+
+    if target == 'bmrbdep':
+        # BMRB-only: merge chemical shifts (+ optional topology) into NMR-STAR with
+        # no coordinates. Single op: nmr-cs-mr-merge with conversion_server=True.
+        nmr_log = log_d / f'C_{conversion_id}-nmr-data-bmrb_only.log'
+        cs_list = []
+        for f in files:
+            ft = f['file_type']
+            if ft in ('nm-uni-str', 'nm-shi'):
+                cs_list.append({'file_name': str(in_dir / f['original_name']),
+                                'file_type': 'nmr-star', 'original_file_name': f['original_name']})
+            elif ft == 'nm-uni-nef':
+                cs_list.append({'file_name': str(in_dir / f['original_name']),
+                                'file_type': 'nef', 'original_file_name': f['original_name']})
+        atypical_cs_list = _dict_list(shi_variant_files)  # nm-shi-* kept as-is
+        atypical_restraint_list = _dict_list(
+            [f for f in files if f['file_type'].startswith('nm-aux-')])  # topology, as-is
+        if not cs_list and not atypical_cs_list:
+            reason = 'bmrbdep requires at least one assigned chemical shift file (nm-uni-*, nm-shi, or nm-shi-*)'
+            print(f'[{conversion_id}] NMR data conversion FAILED — {reason}')
+            asyncio.run(_update_workflow_status(
+                conversion_id, run_number, WfTaskCode.convert_nmr_data, WfStatusCode.failed,
+                finished=True, log_path=str(nmr_log), detail=reason,
+            ))
+            return False
+        driver_text = _nmr_bmrbdep_driver_script(
+            cs_list=cs_list, atypical_cs_list=atypical_cs_list,
+            atypical_restraint_list=atypical_restraint_list, bmrb_id=conversion_id,
+            log=str(nmr_log), out_str=str(out_str),
+            work_dir=str(work_d), cache_dir=str(cache_d),
+        )
+    elif target == 'repl_cs':
         # Replacing CS: replace the assigned chemical shifts in the OneDep-processed
         # NMR-STAR unified data file (nm-uni-str) with the correct ones (nm-shi),
         # against the coordinates. Single op: nmr-str-replace-cs.
