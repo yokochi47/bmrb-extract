@@ -49,6 +49,7 @@ from core.site_config import (  # noqa: E402
     UTILS_NMR_IMAGE,
     SERVICE_ADMIN_EMAIL,
     SERVICE_DATABASE_URL,
+    SERVICE_HELP_EMAIL,
     SERVICE_HOST,
     SMTP_SERVER,
     ARCHIVE_BASE_PATH,
@@ -100,6 +101,8 @@ async def _update_workflow_status(
     finished: bool = False,
     log_path: str | None = None,
     detail: str | None = None,
+    report_status: str | None = None,
+    report_summary: str | None = None,
 ) -> None:
     """Update one workflow row's status (matched by task code) for this run.
 
@@ -107,6 +110,7 @@ async def _update_workflow_status(
     notification table row) is sent automatically. Mark every task failure via
     this helper so the rule applies to all current and future flow tasks; pass
     `detail` for a human-readable failure reason in the notification.
+    `report_status`/`report_summary` carry the NmrDpUtility report analysis.
     """
     values = {'status': status}
     if started:
@@ -115,6 +119,10 @@ async def _update_workflow_status(
         values['finished_at'] = func.now()
     if log_path is not None:
         values['log_path'] = log_path
+    if report_status is not None:
+        values['report_status'] = report_status
+    if report_summary is not None:
+        values['report_summary'] = report_summary
     engine = create_async_engine(SERVICE_DATABASE_URL, poolclass=NullPool)
     try:
         async with async_sessionmaker(engine, expire_on_commit=False)() as db:
@@ -444,14 +452,112 @@ def _nmr_bmrbdep_driver_script(
     )
 
 
+# Warning types that NmrDpUtility may report but which are safe to ignore (not
+# surfaced to the user). From the prototype error/warning message generator.
+_IGNORABLE_WARNING_TYPES = (
+    'atom_nomenclature_mismatch',
+    'auth_atom_nomenclature_mismatch',
+    'ccd_mismatch',
+    'corrected_format_issue',
+    'disordered_index',
+    'enum_mismatch_ignorable',
+    'skipped_saveframe_category',
+    'skipped_loop_category',
+)
+
+# Error types that block a non-combined deposition (conventional separated,
+# repl_cs, bmrbdep). OneDep combined treats ANY error as a blocker.
+# (Key spelling verified against the py-wwpdb_utils_nmr source.)
+_BLOCKING_ERROR_TYPES = (
+    'format_issue',
+    'coordinate_issue',
+    'content_mismatch',
+    'missing_mandatory_content',
+    'sequence_mismatch',
+    'atom_not_found',
+    'hydrogen_not_instantiated',
+)
+
+
+def _analyze_report(report_path: Path, onedep_combined: bool, conversion_id: int):
+    """Analyze an NmrDpUtility JSON report and return (report_status, report_summary).
+
+    report_status is 'OK' | 'Warning' | 'Error' (Error = blocker: the user must
+    fix the reported errors and re-upload). report_summary is an HTML error/warning
+    summary for the frontend (None when there is nothing to surface). Best-effort:
+    a missing/unparseable report returns (None, None) so analysis never breaks the
+    run. Logic follows misc/error_warning_messge_generator.py.
+    """
+    try:
+        report = json.loads(report_path.read_text())
+    except Exception as exc:  # noqa: BLE001
+        print(f'[{conversion_id}] report analysis skipped ({report_path.name}: {exc})')
+        return None, None
+
+    if report.get('information', {}).get('status') == 'OK':
+        return 'OK', None
+
+    parts = []
+    blocker = False
+
+    err = report.get('error')
+    if err and err.get('total', 0) > 0:
+        total = err['total']
+        if onedep_combined:
+            blocker = True
+        else:
+            blocker = any(err.get(t) for t in _BLOCKING_ERROR_TYPES)
+        parts.append(f"Found total {total} {'errors' if blocker else 'potential errors'} in NMR data<br />")
+        for etype, items in err.items():
+            if etype == 'total' or items is None:
+                continue
+            if etype == 'internal_error':
+                parts.append(
+                    'Sorry for the inconvenience, please contact us via the "Help Desk" page '
+                    f'or the email address {SERVICE_HELP_EMAIL}, making sure to include your '
+                    f'conversion ID: C_{conversion_id}.<ul>'
+                    + ''.join(f'<li>Internal error: {msg}</li>' for msg in items)
+                    + '</ul>'
+                )
+            else:
+                title = etype[0].upper() + etype[1:].replace('_', ' ')
+                lis = ''.join(
+                    f"<li>{title}: {msg['description']}</li>"
+                    for msg in items if isinstance(msg, dict) and 'description' in msg
+                )
+                if lis:
+                    parts.append(f'<ul>{lis}</ul>')
+
+    warn = report.get('warning')
+    if warn:
+        total = warn.get('total', 0)
+        for wtype in _IGNORABLE_WARNING_TYPES:
+            if warn.get(wtype):
+                total -= len(warn[wtype])
+        if total > 0:
+            parts.append(f"Found total {total} warnings in NMR data<br /><ul>")
+            for wtype, items in warn.items():
+                if wtype == 'total' or wtype in _IGNORABLE_WARNING_TYPES or items is None:
+                    continue
+                title = wtype[0].upper() + wtype[1:].replace('_', ' ')
+                parts.append(f'<li>Total of {len(items)} {title} found.</li>')
+            parts.append('</ul>')
+
+    summary = ''.join(parts) or None
+    report_status = 'Error' if blocker else ('Warning' if summary else 'OK')
+    return report_status, summary
+
+
 def _run_nmr_driver(
     conversion_id: int, run_number: int, workspace_base: str,
     work_d: Path, driver_text: str, out_str: Path, deposit_log: Path,
+    report_path: Path, onedep_combined: bool,
 ) -> bool:
     """Mark convert_nmr_data processing, run the NmrDpUtility driver in the
     py-wwpdb_utils_nmr image (docker run python <driver>), then mark
     completed/failed by the exit code and whether the NMR-STAR output exists.
-    Shared by the combined and separated branches."""
+    On success, analyze the first-task JSON report (report_path) and record the
+    report_status/report_summary on the workflow row. Shared by all branches."""
     asyncio.run(_update_workflow_status(
         conversion_id, run_number, WfTaskCode.convert_nmr_data, WfStatusCode.processing,
         started=True, log_path=str(deposit_log),
@@ -481,16 +587,23 @@ def _run_nmr_driver(
     if failed_reason is None and (not out_str.exists() or out_str.stat().st_size == 0):
         failed_reason = 'no NMR-STAR output produced'
 
-    status = WfStatusCode.failed if failed_reason else WfStatusCode.completed
-    asyncio.run(_update_workflow_status(
-        conversion_id, run_number, WfTaskCode.convert_nmr_data, status,
-        finished=True, log_path=str(deposit_log), detail=failed_reason,
-    ))
-
     if failed_reason:
+        asyncio.run(_update_workflow_status(
+            conversion_id, run_number, WfTaskCode.convert_nmr_data, WfStatusCode.failed,
+            finished=True, log_path=str(deposit_log), detail=failed_reason,
+        ))
         print(f'[{conversion_id}] NMR data conversion FAILED — {failed_reason}')
         return False
-    print(f'[{conversion_id}] NMR data conversion ok -> {out_str.name}')
+
+    # Conversion ran: analyze the first-task report for user-facing errors/warnings.
+    report_status, report_summary = _analyze_report(report_path, onedep_combined, conversion_id)
+    asyncio.run(_update_workflow_status(
+        conversion_id, run_number, WfTaskCode.convert_nmr_data, WfStatusCode.completed,
+        finished=True, log_path=str(deposit_log),
+        report_status=report_status, report_summary=report_summary,
+    ))
+    print(f'[{conversion_id}] NMR data conversion ok -> {out_str.name} '
+          f'(report_status={report_status})')
     return True
 
 
@@ -577,10 +690,15 @@ def nmr_data_conversion(
             for f in file_list
         ]
 
+    # OneDep combined treats any report error as a blocker; other modes only the
+    # selected error types. report_path is the FIRST-task report to analyze.
+    onedep_combined = target == 'onedep' and uni is not None
+
     if target == 'bmrbdep':
         # BMRB-only: merge chemical shifts (+ optional topology) into NMR-STAR with
         # no coordinates. Single op: nmr-cs-mr-merge with conversion_server=True.
         nmr_log = log_d / f'C_{conversion_id}-nmr-data-bmrb_only.json'
+        report_path = nmr_log
         cs_list = []
         for f in files:
             ft = f['file_type']
@@ -612,6 +730,7 @@ def nmr_data_conversion(
         # NMR-STAR unified data file (nm-uni-str) with the correct ones (nm-shi),
         # against the coordinates. Single op: nmr-str-replace-cs.
         nmr_log = log_d / f'C_{conversion_id}-nmr-data-repl_cs.json'
+        report_path = nmr_log
         if uni is None or uni['file_type'] != 'nm-uni-str' or not cs_files:
             reason = ('repl_cs requires an NMR-STAR unified data file (nm-uni-str) '
                       'and at least one assigned chemical shift (nm-shi) file')
@@ -631,6 +750,7 @@ def nmr_data_conversion(
         nmr_log = deposit_log
         is_nef = uni['file_type'] == 'nm-uni-nef'
         consist_log = log_d / f'C_{conversion_id}-nmr-data-{"nef" if is_nef else "str"}_consist.json'
+        report_path = consist_log  # first task (consistency-check) report
         next_src = work_d / f'C_{conversion_id}-nmr-data-next.{"nef" if is_nef else "str"}'
         driver_text = _nmr_driver_script(
             is_nef=is_nef, src=str(in_dir / uni['original_name']), cif=str(model_cif),
@@ -642,6 +762,7 @@ def nmr_data_conversion(
         # OneDep separated: merge chemical shifts + restraints/topology/peaks, then deposit.
         nmr_log = deposit_log
         merge_log = log_d / f'C_{conversion_id}-cs_mr_merge.json'
+        report_path = merge_log  # first task (cs-mr-merge) report
         merged_str = work_d / f'C_{conversion_id}-cs-mr-merged.str'
         atypical_list, restraint_list = [], []
         for f in aux_files:
@@ -661,6 +782,7 @@ def nmr_data_conversion(
 
     return _run_nmr_driver(
         conversion_id, run_number, workspace_base, work_d, driver_text, out_str, nmr_log,
+        report_path, onedep_combined,
     )
 
 

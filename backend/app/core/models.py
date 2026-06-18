@@ -251,6 +251,8 @@ class Workflow(Base):
     task = sa.Column(EnumStr('wf_task_code'), nullable=False)
     status = sa.Column(EnumStr('wf_status_code'), nullable=False, server_default='created')
     log_path = sa.Column(sa.Text(), nullable=False)
+    report_status = sa.Column(sa.Text())
+    report_summary = sa.Column(sa.Text())
     created_at = sa.Column(sa.TIMESTAMP(), server_default=func.now())
     started_at = sa.Column(sa.TIMESTAMP())
     finished_at = sa.Column(sa.TIMESTAMP())

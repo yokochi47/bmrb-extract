@@ -204,6 +204,12 @@ CREATE TABLE IF NOT EXISTS workflow (
     status          wf_status_code NOT NULL DEFAULT 'created',
     log_path        TEXT NOT NULL,
 
+    -- NmrDpUtility report analysis (convert_nmr_data): OK | Warning | Error.
+    -- 'Error' is a blocker (user must fix and re-upload). report_summary holds the
+    -- HTML error/warning summary for the frontend (NULL when status is OK).
+    report_status   TEXT,
+    report_summary  TEXT,
+
     created_at      TIMESTAMP DEFAULT now(),
     started_at      TIMESTAMP,
     finished_at     TIMESTAMP,
