@@ -548,7 +548,7 @@ def nmr_data_conversion(
     work_d = ws.work_dir(conversion_id, run_number, workspace_base)
     cache_d = ws.cache_dir(conversion_id, workspace_base)
     model_cif = out_dir / f'C_{conversion_id}_model.cif'
-    deposit_log = log_d / f'C_{conversion_id}-nmr-data-str_deposit.log'
+    deposit_log = log_d / f'C_{conversion_id}-nmr-data-str_deposit.json'
     out_str = out_dir / f'C_{conversion_id}-nmr-data.str'
     entry_id = f'C_{conversion_id}'
 
@@ -580,7 +580,7 @@ def nmr_data_conversion(
     if target == 'bmrbdep':
         # BMRB-only: merge chemical shifts (+ optional topology) into NMR-STAR with
         # no coordinates. Single op: nmr-cs-mr-merge with conversion_server=True.
-        nmr_log = log_d / f'C_{conversion_id}-nmr-data-bmrb_only.log'
+        nmr_log = log_d / f'C_{conversion_id}-nmr-data-bmrb_only.json'
         cs_list = []
         for f in files:
             ft = f['file_type']
@@ -611,7 +611,7 @@ def nmr_data_conversion(
         # Replacing CS: replace the assigned chemical shifts in the OneDep-processed
         # NMR-STAR unified data file (nm-uni-str) with the correct ones (nm-shi),
         # against the coordinates. Single op: nmr-str-replace-cs.
-        nmr_log = log_d / f'C_{conversion_id}-nmr-data-repl_cs.log'
+        nmr_log = log_d / f'C_{conversion_id}-nmr-data-repl_cs.json'
         if uni is None or uni['file_type'] != 'nm-uni-str' or not cs_files:
             reason = ('repl_cs requires an NMR-STAR unified data file (nm-uni-str) '
                       'and at least one assigned chemical shift (nm-shi) file')
@@ -630,7 +630,7 @@ def nmr_data_conversion(
         # OneDep combined: single NMR unified data file.
         nmr_log = deposit_log
         is_nef = uni['file_type'] == 'nm-uni-nef'
-        consist_log = log_d / f'C_{conversion_id}-nmr-data-{"nef" if is_nef else "str"}_consist.log'
+        consist_log = log_d / f'C_{conversion_id}-nmr-data-{"nef" if is_nef else "str"}_consist.json'
         next_src = work_d / f'C_{conversion_id}-nmr-data-next.{"nef" if is_nef else "str"}'
         driver_text = _nmr_driver_script(
             is_nef=is_nef, src=str(in_dir / uni['original_name']), cif=str(model_cif),
@@ -641,7 +641,7 @@ def nmr_data_conversion(
     else:
         # OneDep separated: merge chemical shifts + restraints/topology/peaks, then deposit.
         nmr_log = deposit_log
-        merge_log = log_d / f'C_{conversion_id}-cs_mr_merge.log'
+        merge_log = log_d / f'C_{conversion_id}-cs_mr_merge.json'
         merged_str = work_d / f'C_{conversion_id}-cs-mr-merged.str'
         atypical_list, restraint_list = [], []
         for f in aux_files:
