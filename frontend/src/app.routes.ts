@@ -80,7 +80,11 @@ export const appRoutes: Routes = [
         canActivate: [tokenGuard],
         loadComponent: () => import('./app/pages/page.upload').then((m) => m.Upload),
       },
-      // { path: 'summary',  canActivate: [tokenGuard], loadComponent: ... },
+      {
+        path: 'summary',
+        canActivate: [tokenGuard],
+        loadComponent: () => import('./app/pages/page.summary').then((m) => m.Summary),
+      },
       // { path: 'download', canActivate: [tokenGuard], loadComponent: ... },
       // { path: 'help',     canActivate: [tokenGuard], loadComponent: ... },
     ],

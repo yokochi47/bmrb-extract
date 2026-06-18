@@ -390,3 +390,86 @@
     />
   </ng-template>
 </p-dialog>
+
+<!-- Processing progress dialog (polls /api/progress while a run is in flight) -->
+<p-dialog
+  header="Processing…"
+  [visible]="processing()"
+  [modal]="true"
+  [closable]="progressDone()"
+  [dismissableMask]="false"
+  (onHide)="closeProgress()"
+  [style]="{ width: '44rem' }"
+>
+  <p class="text-base leading-relaxed mb-4">
+    Your files are being converted. This can take several minutes — you may keep this dialog open to
+    follow the progress, or close it and return later.
+  </p>
+
+  <div class="flex flex-col gap-3">
+    @for (t of progressTasks(); track t.task) {
+      <div class="border border-surface-200 dark:border-surface-700 rounded-md">
+        <!-- Task header row -->
+        <div class="flex items-center gap-3 px-3 py-2">
+          <i [class]="taskIcon(t.status)" class="text-lg"></i>
+          <span class="font-medium flex-1">{{ t.label }}</span>
+          @if (t.report_status && t.report_status !== 'OK') {
+            <span
+              class="text-xs font-semibold px-2 py-0.5 rounded"
+              [class]="
+                t.report_status === 'Error'
+                  ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200'
+                  : 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-200'
+              "
+            >
+              {{ t.report_status }}
+            </span>
+          }
+          <button
+            type="button"
+            class="text-sm text-primary-500 hover:underline flex items-center gap-1"
+            (click)="toggleLog(t.task)"
+          >
+            <i
+              class="pi"
+              [class.pi-chevron-right]="expandedTask() !== t.task"
+              [class.pi-chevron-down]="expandedTask() === t.task"
+            ></i>
+            Show log file
+          </button>
+        </div>
+
+        <!-- Expandable log tail -->
+        @if (expandedTask() === t.task) {
+          <pre
+            class="m-0 px-3 py-2 text-xs leading-snug overflow-auto max-h-72 whitespace-pre-wrap break-words border-t border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900"
+            >{{ taskLog() || 'No log output yet…' }}</pre
+          >
+        }
+
+        <!-- Error / warning summary -->
+        @if (t.report_summary) {
+          <div
+            class="px-3 py-2 text-sm border-t border-surface-200 dark:border-surface-700"
+            [class]="
+              t.report_status === 'Error'
+                ? 'bg-red-50 dark:bg-red-950'
+                : 'bg-amber-50 dark:bg-amber-950'
+            "
+            [innerHTML]="t.report_summary"
+          ></div>
+        }
+      </div>
+    }
+  </div>
+
+  <ng-template pTemplate="footer">
+    @if (progressDone()) {
+      <p-button label="Close" (click)="closeProgress()" />
+    } @else {
+      <span class="text-sm text-surface-500"
+        ><i class="pi pi-spin pi-spinner mr-2"></i>Working…</span
+      >
+    }
+  </ng-template>
+</p-dialog>

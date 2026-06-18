@@ -118,6 +118,112 @@ async def get_session():
         }
 
 
+# ── Processing progress (for the upload "Processing…" dialog) ───────────────────
+
+# Tasks surfaced to the dialog, in display order, with their label and the
+# human-readable log file (under the run's log/ dir) shown by "Show log file".
+_PROGRESS_TASKS = [
+    (WfTaskCode.convert_model, 'Coordinate conversion'),
+    (WfTaskCode.convert_nmr_data, 'NMR data conversion'),
+]
+_TASK_LOG_FILE = {
+    'convert_model': 'C_{cid}_model-check.log',
+    'convert_nmr_data': 'C_{cid}-nmr-data.stdout.log',
+}
+_LOG_TAIL_BYTES = 64 * 1024
+
+
+@app.route('/api/progress', methods=['GET'])
+async def get_progress():
+    """Per-task status of the session's latest processing run, for the dialog.
+
+    Returns the convert_model / convert_nmr_data workflow statuses (plus the
+    NmrDpUtility report_status/report_summary on convert_nmr_data) and a `done`
+    flag. Token-scoped to the caller's own conversion.
+    """
+    token = request.args.get('token')
+    if not token:
+        return {'error': 'token is required'}, 400
+    async with async_session_factory() as db:
+        session_row = (
+            await db.execute(select(Session).where(Session.token == token))
+        ).scalar_one_or_none()
+        if session_row is None:
+            return {'error': 'session not found'}, 404
+        conversion_id = session_row.conversion_id
+        run_number = session_row.latest_run_number
+        tasks = []
+        if conversion_id is not None and run_number > 0:
+            rows = {
+                w.task: w
+                for w in (
+                    await db.execute(
+                        select(Workflow).where(
+                            Workflow.conversion_id == conversion_id,
+                            Workflow.run_number == run_number,
+                        )
+                    )
+                ).scalars().all()
+            }
+            for code, label in _PROGRESS_TASKS:
+                w = rows.get(code.value)
+                entry = {'task': code.value, 'label': label, 'status': w.status if w else None}
+                if code is WfTaskCode.convert_nmr_data and w is not None:
+                    entry['report_status'] = w.report_status
+                    entry['report_summary'] = w.report_summary
+                tasks.append(entry)
+        done = bool(tasks) and all(t['status'] in ('completed', 'failed') for t in tasks)
+        return {
+            'conversion_id': conversion_id,
+            'run_number': run_number,
+            'session_status': session_row.status,
+            'tasks': tasks,
+            'done': done,
+        }
+
+
+@app.route('/api/log', methods=['GET'])
+async def get_log():
+    """Tail (~64 KB) of a task's human-readable log file, for "Show log file".
+
+    `task` is restricted to a fixed allow-list mapped to a fixed filename built
+    from the integer conversion_id, so there is no user-controlled path.
+    """
+    token = request.args.get('token')
+    task = request.args.get('task')
+    if not token or not task:
+        return {'error': 'token and task are required'}, 400
+    if task not in _TASK_LOG_FILE:
+        return {'error': 'unknown task'}, 400
+    async with async_session_factory() as db:
+        session_row = (
+            await db.execute(select(Session).where(Session.token == token))
+        ).scalar_one_or_none()
+        if session_row is None:
+            return {'error': 'session not found'}, 404
+        conversion_id = session_row.conversion_id
+        run_number = session_row.latest_run_number
+
+    if conversion_id is None or run_number < 1:
+        return {'text': ''}
+    log_dir = Path(WORKSPACE_BASE_PATH) / str(conversion_id) / str(run_number) / 'log'
+    fpath = log_dir / _TASK_LOG_FILE[task].format(cid=conversion_id)
+    text = ''
+    try:
+        if fpath.is_file():
+            size = fpath.stat().st_size
+            with open(fpath, 'rb') as fh:
+                if size > _LOG_TAIL_BYTES:
+                    fh.seek(size - _LOG_TAIL_BYTES)
+                data = fh.read()
+            text = data.decode('utf-8', errors='ignore')
+            if size > _LOG_TAIL_BYTES:
+                text = text.split('\n', 1)[-1]  # drop the partial leading line
+    except OSError:
+        text = ''
+    return {'text': text}
+
+
 @app.route('/api/session', methods=['PATCH'])
 async def update_session():
     body = request.get_json(silent=True) or {}
