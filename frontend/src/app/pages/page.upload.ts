@@ -2,8 +2,9 @@ import { Component, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
-import { firstValueFrom, TimeoutError } from 'rxjs';
-import { timeout } from 'rxjs/operators';
+import { Router } from '@angular/router';
+import { firstValueFrom, Subscription, timer, TimeoutError } from 'rxjs';
+import { switchMap, timeout } from 'rxjs/operators';
 import { ButtonModule } from 'primeng/button';
 import { CardModule } from 'primeng/card';
 import { CheckboxModule } from 'primeng/checkbox';
@@ -40,6 +41,15 @@ interface CheckResult {
   recommendations: string[];
 }
 
+/** One row in the processing dialog (mirrors GET /api/progress task entries). */
+interface ProgressTask {
+  task: string;
+  label: string;
+  status: string | null;
+  report_status?: string | null;
+  report_summary?: string | null;
+}
+
 @Component({
   selector: 'app-upload',
   imports: [
@@ -62,6 +72,7 @@ export class Upload {
 
   private pageService = inject(PageService);
   private http = inject(HttpClient);
+  private router = inject(Router);
   readonly state = this.pageService.pageState;
 
   constructor() {
@@ -771,10 +782,105 @@ export class Upload {
   }
 
   private submitProcessing(): void {
-    // TODO: POST selected files to /api/upload with session token
-    console.log(
-      'Processing files:',
-      this.rows().filter((r) => r.selected),
-    );
+    // TODO (separate task): POST the selected files to /api/upload and then
+    // /api/process to trigger the conversion. Once triggered, the progress
+    // dialog below polls /api/progress for the session's latest run.
+    this.openProgress();
+  }
+
+  // ── Processing progress dialog ───────────────────────────────────────────────
+  processing = signal(false);
+  progressTasks = signal<ProgressTask[]>([]);
+  progressDone = signal(false);
+  expandedTask = signal<string | null>(null);
+  taskLog = signal<string>('');
+  private pollSub?: Subscription;
+  private logSub?: Subscription;
+
+  /** Open the dialog and poll task progress (~2.5s) until all tasks finish. */
+  private openProgress(): void {
+    const token = this.state().tokenBase;
+    if (!token) return;
+    this.processing.set(true);
+    this.progressDone.set(false);
+    this.expandedTask.set(null);
+    this.taskLog.set('');
+    this.pollSub?.unsubscribe();
+    this.pollSub = timer(0, 2500)
+      .pipe(
+        switchMap(() =>
+          this.http.get<{ tasks: ProgressTask[]; done: boolean }>(API_URL + 'progress', {
+            params: { token },
+          }),
+        ),
+      )
+      .subscribe({
+        next: (res) => {
+          this.progressTasks.set(res.tasks ?? []);
+          if (res.done) {
+            this.progressDone.set(true);
+            this.pollSub?.unsubscribe();
+            const tasks = res.tasks ?? [];
+            const nmr = tasks.find((t) => t.task === 'convert_nmr_data');
+            const failed = tasks.some((t) => t.status === 'failed');
+            const blocked = nmr?.report_status === 'Error';
+            // Genuine success → close and transfer to the Upload summary tab.
+            // Failure or a blocking report → keep the dialog open with the logs.
+            if (!failed && !blocked) {
+              this.closeProgress();
+              this.router.navigate(['/summary'], { queryParamsHandling: 'preserve' });
+            }
+          }
+        },
+        error: (err) => console.error('Failed to poll progress', err),
+      });
+  }
+
+  /** Close the dialog and stop all polling. */
+  closeProgress(): void {
+    this.processing.set(false);
+    this.pollSub?.unsubscribe();
+    this.logSub?.unsubscribe();
+  }
+
+  /** Expand/collapse a task's log; while expanded (and not done) tail it live. */
+  toggleLog(task: string): void {
+    this.logSub?.unsubscribe();
+    if (this.expandedTask() === task) {
+      this.expandedTask.set(null);
+      return;
+    }
+    this.expandedTask.set(task);
+    this.taskLog.set('');
+    const token = this.state().tokenBase;
+    if (!token) return;
+    this.logSub = timer(0, 2500)
+      .pipe(
+        switchMap(() =>
+          this.http.get<{ text: string }>(API_URL + 'log', { params: { token, task } }),
+        ),
+      )
+      .subscribe({
+        next: (res) => {
+          this.taskLog.set(res.text || '');
+          if (this.progressDone()) this.logSub?.unsubscribe();
+        },
+        error: (err) => console.error('Failed to fetch log', err),
+      });
+  }
+
+  /** PrimeNG icon class for a workflow task status. */
+  taskIcon(status: string | null): string {
+    switch (status) {
+      case 'completed':
+        return 'pi pi-check-circle text-teal-500';
+      case 'processing':
+        return 'pi pi-spin pi-spinner text-surface-500';
+      case 'failed':
+      case 'aborted':
+        return 'pi pi-times-circle text-red-500';
+      default:
+        return 'pi pi-clock text-surface-300';
+    }
   }
 }

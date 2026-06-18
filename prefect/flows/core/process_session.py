@@ -567,6 +567,10 @@ def _run_nmr_driver(
     driver = work_d / 'nmr_driver.py'
     driver.write_text(driver_text)
 
+    # Stream the driver's combined stdout+stderr to a tailable log so the
+    # progress dialog can show NmrDpUtility output live during the long run.
+    # `python -u` keeps the child unbuffered so lines land in the file as emitted.
+    stdout_log = ws.log_dir(conversion_id, run_number, workspace_base) / f'C_{conversion_id}-nmr-data.stdout.log'
     failed_reason = None
     try:
         cmd = [
@@ -574,11 +578,13 @@ def _run_nmr_driver(
             '-u', f'{os.getuid()}:{os.getgid()}',
             '-v', f'{os.environ["WORKSPACE_VOL_DIR"]}:{WORKSPACE_BASE_PATH}',
             UTILS_NMR_IMAGE,
-            'python', str(driver),
+            'python', '-u', str(driver),
         ]
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
+        with open(stdout_log, 'w') as fh:
+            proc = subprocess.run(cmd, stdout=fh, stderr=subprocess.STDOUT, text=True, timeout=3600)
         if proc.returncode != 0:
-            failed_reason = f'NmrDpUtility exit {proc.returncode}: {(proc.stderr or "").strip()[-400:]}'
+            tail = stdout_log.read_text(errors='ignore')[-400:].strip() if stdout_log.exists() else ''
+            failed_reason = f'NmrDpUtility exit {proc.returncode}: {tail}'
     except subprocess.TimeoutExpired:
         failed_reason = 'NMR data conversion timed out'
     except Exception as exc:  # noqa: BLE001
