@@ -454,10 +454,38 @@ export class Upload {
       (v.startsWith('nm-aux-') && v !== 'nm-aux-xea'),
   };
 
-  /** File type options suitable for the currently selected target deposition system. */
+  /**
+   * Menu sub-groups for the file-type select, in display order. The value
+   * prefixes are mutually exclusive; 'nm-shi' covers both 'nm-shi' and 'nm-shi-*'.
+   */
+  private readonly FILE_TYPE_GROUPS: { label: string; match: (value: string) => boolean }[] = [
+    { label: 'Coordinates', match: (v) => v.startsWith('co-') },
+    { label: 'NMR unified data', match: (v) => v.startsWith('nm-uni-') },
+    { label: 'Assigned chemical shifts', match: (v) => v.startsWith('nm-shi') },
+    { label: 'NMR restraints', match: (v) => v.startsWith('nm-res-') },
+    { label: 'Topology', match: (v) => v.startsWith('nm-aux-') },
+    { label: 'Spectral peak lists', match: (v) => v.startsWith('nm-pea-') },
+  ];
+
+  /** Drop the redundant category prefix, keeping the in-parentheses descriptor
+   * (greedy to the last ')', so nested parens are preserved). */
+  private shortLabel(label: string): string {
+    const m = label.match(/^[^(]*\((.*)\)\s*$/);
+    return m ? m[1] : label;
+  }
+
+  /**
+   * File type options for the current target deposition system, grouped under
+   * the category headers with shortened item labels; empty groups are omitted.
+   */
   fileTypeOptions = computed(() => {
     const allowed = this.DEPSYS_FILE_TYPES[this.state().targetDepsys];
-    return this.FILE_TYPE_OPTIONS.filter((opt) => allowed(opt.value));
+    return this.FILE_TYPE_GROUPS.map((g) => ({
+      label: g.label,
+      items: this.FILE_TYPE_OPTIONS.filter((opt) => g.match(opt.value) && allowed(opt.value)).map(
+        (opt) => ({ label: this.shortLabel(opt.label), value: opt.value }),
+      ),
+    })).filter((g) => g.items.length > 0);
   });
 
   setTargetDepsys(value: TargetDepsys): void {
