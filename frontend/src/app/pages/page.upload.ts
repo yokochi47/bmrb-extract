@@ -1,7 +1,7 @@
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { firstValueFrom, Subscription, timer, TimeoutError } from 'rxjs';
 import { switchMap, timeout } from 'rxjs/operators';
@@ -32,6 +32,11 @@ interface FileRow {
   name: string;
   size: number;
   fileType: string | null;
+  /** Local blob, used to upload the file to the server at process time. */
+  file: File;
+  /** Server-assigned ordinal; set once the file has been uploaded so a
+   * re-process does not upload it again. */
+  ordinal?: number;
 }
 
 /** Outcome of the file requirement check for the selected deposition system. */
@@ -718,6 +723,7 @@ export class Upload {
       name: f.name,
       size: f.size,
       fileType: null,
+      file: f,
     }));
     this.rows.update((prev) => [...prev, ...added]);
     input.value = '';
@@ -781,11 +787,58 @@ export class Upload {
     this.submitProcessing();
   }
 
-  private submitProcessing(): void {
-    // TODO (separate task): POST the selected files to /api/upload and then
-    // /api/process to trigger the conversion. Once triggered, the progress
-    // dialog below polls /api/progress for the session's latest run.
-    this.openProgress();
+  /** True while files are being uploaded and the run is being triggered. */
+  submitting = signal(false);
+  /** Non-null when upload/trigger failed; surfaced as an error message. */
+  submitError = signal<string | null>(null);
+
+  /**
+   * Upload the selected files to the session archive, then commit the run and
+   * trigger the conversion workflow. File types are assigned in the UI before
+   * processing, so files are uploaded here (at process time) rather than on
+   * selection. Already-uploaded rows (with an ordinal) are skipped so a
+   * re-process does not duplicate them. On success the progress dialog opens
+   * and polls /api/progress for the new run.
+   */
+  private async submitProcessing(): Promise<void> {
+    const token = this.state().tokenBase;
+    if (!token || this.submitting()) return;
+    this.submitError.set(null);
+    this.submitting.set(true);
+    try {
+      const rows = this.rows();
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row.selected || row.ordinal != null || !row.fileType) continue;
+        const form = new FormData();
+        form.append('token', token);
+        form.append('file_type', row.fileType);
+        form.append('file', row.file, row.name);
+        const res = await firstValueFrom(
+          this.http.post<{ ordinal: number }>(API_URL + 'upload', form),
+        );
+        // Tag the row with its server ordinal so re-processing skips it.
+        this.rows.update((prev) =>
+          prev.map((r, idx) => (idx === i ? { ...r, ordinal: res.ordinal } : r)),
+        );
+      }
+
+      const res = await firstValueFrom(
+        this.http.post<{ conversion_id: number; run_number: number }>(API_URL + 'process', {
+          token,
+        }),
+      );
+      this.pageService.pageState.update((prev) => ({ ...prev, conversionId: res.conversion_id }));
+      this.submitting.set(false);
+      this.openProgress();
+    } catch (err) {
+      this.submitting.set(false);
+      const msg =
+        (err as HttpErrorResponse)?.error?.error ??
+        'Failed to start processing. Please try again.';
+      this.submitError.set(msg);
+      console.error('Processing failed', err);
+    }
   }
 
   // ── Processing progress dialog ───────────────────────────────────────────────

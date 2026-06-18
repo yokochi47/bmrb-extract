@@ -345,9 +345,16 @@
       label="Process selected files"
       icon="pi pi-cog"
       severity="success"
-      [disabled]="!canProcess()"
+      [loading]="submitting()"
+      [disabled]="!canProcess() || submitting()"
       (click)="processFiles()"
     />
+
+    @if (submitError()) {
+      <p-message severity="error" [closable]="false" styleClass="mt-4 w-full">
+        <i class="pi pi-times-circle mr-2"></i>{{ submitError() }}
+      </p-message>
+    }
   }
 </div>
 
