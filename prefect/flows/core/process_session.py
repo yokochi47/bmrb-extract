@@ -151,6 +151,28 @@ async def _update_workflow_status(
         await _notify_admin_failure(conversion_id, run_number, task, detail, log_path)
 
 
+async def _nmr_report_status(conversion_id: int, run_number: int) -> str | None:
+    """Return the convert_nmr_data report_status for this run (None if unset).
+
+    Set by _run_nmr_driver via the NmrDpUtility report analysis; 'Error' means a
+    blocking, user-critical issue. Used to mark the session failed even though
+    the conversion task itself completed.
+    """
+    engine = create_async_engine(SERVICE_DATABASE_URL, poolclass=NullPool)
+    try:
+        async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+            result = await db.execute(
+                select(Workflow.report_status).where(
+                    Workflow.conversion_id == conversion_id,
+                    Workflow.run_number == run_number,
+                    Workflow.task == WfTaskCode.convert_nmr_data,
+                )
+            )
+            return result.scalar_one_or_none()
+    finally:
+        await engine.dispose()
+
+
 async def _update_session_status(token: str, status: SessionStatusCode) -> None:
     """Set the session's lifecycle status and finish time when a run ends.
 
@@ -1000,12 +1022,25 @@ def process_session(
 
     print(f'[{conversion_id}] Run #{run_number} complete — success={success}')
 
+    # A blocking NMR report (report_status='Error') flags critical, user-blocking
+    # issues: treat it as a failed run even though the conversion task completed.
+    # (The blocker detail lives on the convert_nmr_data workflow row and is also
+    # surfaced to the user via /api/progress.)
+    blocked = False
+    if success:
+        try:
+            blocked = asyncio.run(_nmr_report_status(conversion_id, run_number)) == 'Error'
+        except Exception as exc:  # noqa: BLE001
+            print(f'[{conversion_id}] could not read NMR report status ({exc})')
+
     # Record the session lifecycle outcome for this run (best-effort: the run is
     # already done, so a DB hiccup here is logged rather than masking the result).
-    session_status = SessionStatusCode.completed if success else SessionStatusCode.failed
+    session_status = (
+        SessionStatusCode.completed if (success and not blocked) else SessionStatusCode.failed
+    )
     try:
         asyncio.run(_update_session_status(token, session_status))
-        print(f'[{conversion_id}] session status -> {session_status.value}')
+        print(f'[{conversion_id}] session status -> {session_status.value} (blocked={blocked})')
     except Exception as exc:  # noqa: BLE001
         print(f'[{conversion_id}] session status update FAILED ({exc})')
 
