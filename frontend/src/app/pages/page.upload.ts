@@ -224,7 +224,7 @@ export class Upload {
       }
     }
 
-    // 7. OneDep combined deposition is exclusive: a selected NMR unified data
+    // 7. OneDep combined single file deposition is exclusive: a selected NMR unified data
     //    file (alongside coordinates) cannot be mixed with separated chemical
     //    shift, restraint, peak list, or topology files.
     if (target === TargetDepsys.onedep && uniCount > 0) {
@@ -237,12 +237,12 @@ export class Upload {
       );
       if (hasSeparated) {
         errors.push(
-          'Combined deposition allows only the coordinate file and a single NMR unified data file; separated chemical shift, restraint, peak list, or topology files are not allowed alongside it.',
+          'Combined single file deposition allows only the coordinate file and the NMR unified data file; separated chemical shift, restraint, peak list, or topology files are not allowed alongside it.',
         );
       }
     }
 
-    // 8. OneDep conventional deposition (no NMR unified data file): requires
+    // 8. OneDep conventional separated file deposition (no NMR unified data file): requires
     //    assigned chemical shifts and at least one restraint file.
     if (target === TargetDepsys.onedep && uniCount === 0) {
       // Assigned chemical shifts are mandatory, unless a valid related BMRB ID
@@ -338,7 +338,7 @@ export class Upload {
   readonly depSystemOptions = [
     {
       label:
-        'OneDep (<span class="italic underline">Conventional</span>: coordinates, assigned chemical shifts, NMR restraints) or (<span class="italic underline">Combined</span>: coordinates, NMR unified data)',
+        'OneDep (<span class="italic underline">Conventional seperated</span>: coordinates, assigned chemical shifts, NMR restraints) or (<span class="italic underline">Combined single</span>: coordinates, NMR unified data)',
       value: TargetDepsys.onedep,
     },
     {
@@ -422,7 +422,7 @@ export class Upload {
     {
       label: 'Spectral peak list (any plane text format, auto format detection)',
       value: 'nm-pea-any',
-    }, 
+    },
   ];
 
   /**
@@ -732,9 +732,9 @@ export class Upload {
   }
 
   /**
-   * OneDep conventional mode only: a valid related BMRB ID supplies assigned
+   * OneDep conventional separated file deposition mode only: a valid related BMRB ID supplies assigned
    * chemical shifts, but the user has also selected their own chemical-shift
-   * file(s). Only the user can say which is authoritative. Combined mode (a
+   * file(s). Only the user can say which is authoritative. Combined single file mode (a
    * selected nm-uni-* file) ignores the BMRB ID, so there is no conflict.
    */
   private hasShiftConflict(): boolean {
