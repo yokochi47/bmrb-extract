@@ -42,7 +42,14 @@ from sqlalchemy import func, select, update  # noqa: E402
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine  # noqa: E402
 from sqlalchemy.pool import NullPool  # noqa: E402
 
-from core.models import Notification, Workflow, WfStatusCode, WfTaskCode  # noqa: E402
+from core.models import (  # noqa: E402
+    Notification,
+    Session,
+    SessionStatusCode,
+    Workflow,
+    WfStatusCode,
+    WfTaskCode,
+)
 from core.site_config import (  # noqa: E402
     MAXIT_CCD_IMAGE,
     MAXIT_MEMORY_LIMIT,
@@ -142,6 +149,27 @@ async def _update_workflow_status(
     # Notify the admin on any task failure (best-effort, never raises).
     if status == WfStatusCode.failed:
         await _notify_admin_failure(conversion_id, run_number, task, detail, log_path)
+
+
+async def _update_session_status(token: str, status: SessionStatusCode) -> None:
+    """Set the session's lifecycle status and finish time when a run ends.
+
+    Called once per run with `completed` (the pipeline ran to completion, even
+    if the NMR report flags user-facing errors) or `failed` (a task failed or
+    was aborted). Clearing `processing` also lets the user start another run.
+    Per-task detail lives on the workflow rows; this is the session-level outcome.
+    """
+    engine = create_async_engine(SERVICE_DATABASE_URL, poolclass=NullPool)
+    try:
+        async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+            await db.execute(
+                update(Session)
+                .where(Session.token == token)
+                .values(status=status, finished_at=func.now())
+            )
+            await db.commit()
+    finally:
+        await engine.dispose()
 
 
 @task(name='coordinate-conversion', retries=0)
@@ -972,7 +1000,15 @@ def process_session(
 
     print(f'[{conversion_id}] Run #{run_number} complete — success={success}')
 
-    # TODO: update session status in DB (completed / failed) and insert output_file rows
-    #       with run_number=run_number (PK = conversion_id, run_number, ordinal),
-    #       stored_path pointing under the workspace output/ dir.
+    # Record the session lifecycle outcome for this run (best-effort: the run is
+    # already done, so a DB hiccup here is logged rather than masking the result).
+    session_status = SessionStatusCode.completed if success else SessionStatusCode.failed
+    try:
+        asyncio.run(_update_session_status(token, session_status))
+        print(f'[{conversion_id}] session status -> {session_status.value}')
+    except Exception as exc:  # noqa: BLE001
+        print(f'[{conversion_id}] session status update FAILED ({exc})')
+
+    # TODO: insert output_file rows with run_number=run_number (PK = conversion_id,
+    #       run_number, ordinal), stored_path pointing under the workspace output/ dir.
     return {'success': success, 'run_number': run_number}
