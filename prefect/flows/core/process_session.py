@@ -746,9 +746,9 @@ def nmr_data_conversion(
             for f in file_list
         ]
 
-    # OneDep combined treats any report error as a blocker; other modes only the
+    # Both OneDep combined and repl_cs treat any report error as a blocker; other modes only the
     # selected error types. report_path is the FIRST-task report to analyze.
-    onedep_combined = target == 'onedep' and uni is not None
+    onedep_combined = (target == 'onedep' and uni is not None) or target == 'repl_cs'
 
     if target == 'bmrbdep':
         # BMRB-only: merge chemical shifts (+ optional topology) into NMR-STAR with
