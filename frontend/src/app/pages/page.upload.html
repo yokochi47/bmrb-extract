@@ -221,22 +221,32 @@
   </p-card>
 
   <!-- ── Previous upload status banner ──────────────────────────────────────── -->
-  <!-- TODO: drive from session status once it is tracked in PageState.
-  @if (previousFailed) {
+  <!-- Reflects the latest run's outcome (from GET /api/progress). Clicking a
+       banner re-opens the processing dialog to review that run's status/log. -->
+  @if (previousStatus() === 'failed') {
     <p-message severity="error" styleClass="mb-4 w-full" [closable]="false">
-      <span class="cursor-pointer" (click)="openLog()">
-        <i class="pi pi-times-circle mr-1"></i>Previous file upload failed. See detailed log.
-      </span>
+      <button type="button" class="cursor-pointer bg-transparent border-0 p-0 text-left text-inherit" (click)="reopenProgress()">
+        <i class="pi pi-times-circle mr-1"></i>The previous conversion needs attention. Click to
+        view the status and log.
+      </button>
     </p-message>
   }
-  @if (previousSucceeded) {
+  @if (previousStatus() === 'success') {
     <p-message severity="success" styleClass="mb-4 w-full" [closable]="false">
-      <span class="cursor-pointer" (click)="openLog()">
-        <i class="pi pi-check-circle mr-1"></i>Previous file conversion was successful. See detailed log.
-      </span>
+      <button type="button" class="cursor-pointer bg-transparent border-0 p-0 text-left text-inherit" (click)="reopenProgress()">
+        <i class="pi pi-check-circle mr-1"></i>The previous conversion completed successfully. Click
+        to view the status and log.
+      </button>
     </p-message>
   }
-  -->
+  @if (previousStatus() === 'processing') {
+    <p-message severity="info" styleClass="mb-4 w-full" [closable]="false">
+      <button type="button" class="cursor-pointer bg-transparent border-0 p-0 text-left text-inherit" (click)="reopenProgress()">
+        <i class="pi pi-spin pi-spinner mr-1"></i>A conversion is in progress. Click to view the
+        live status.
+      </button>
+    </p-message>
+  }
 
   <!-- ── File chooser ────────────────────────────────────────────────────────── -->
   <div class="mb-6">

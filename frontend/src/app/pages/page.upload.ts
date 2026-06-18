@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, OnDestroy, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
@@ -72,13 +72,16 @@ interface ProgressTask {
   ],
   templateUrl: './page.upload.html',
 })
-export class Upload {
+export class Upload implements OnDestroy {
   protected readonly TargetDepsys = TargetDepsys;
 
   private pageService = inject(PageService);
   private http = inject(HttpClient);
   private router = inject(Router);
   readonly state = this.pageService.pageState;
+
+  /** Guards the one-shot previous-status fetch so it runs once per component. */
+  private previousChecked = false;
 
   constructor() {
     // Restore BMRB import section when the component is created and a related
@@ -90,6 +93,23 @@ export class Upload {
         void this.onBmrbIdChange(relatedBmrbId);
       }
     });
+
+    // Once a conversion ID is known (a run has been started in this session,
+    // including after a page refresh / resume), fetch the latest run's status
+    // so the previous-upload banner reflects it. Skipped while the dialog is
+    // already live from a fresh submit.
+    effect(() => {
+      const conversionId = this.state().conversionId;
+      if (conversionId !== null && !this.previousChecked && !this.processing()) {
+        this.previousChecked = true;
+        this.checkPreviousStatus();
+      }
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.pollSub?.unsubscribe();
+    this.logSub?.unsubscribe();
   }
 
   /** Hidden once conversion ID is issued. */
@@ -847,13 +867,57 @@ export class Upload {
   progressDone = signal(false);
   expandedTask = signal<string | null>(null);
   taskLog = signal<string>('');
+  /** Outcome of the latest run, driving the previous-upload status banner. */
+  previousStatus = signal<'processing' | 'success' | 'failed' | null>(null);
+  /** True when the dialog was opened to inspect a previous run (via the
+   * banner): suppresses the auto-navigate-on-success behaviour. */
+  private inspecting = signal(false);
   private pollSub?: Subscription;
   private logSub?: Subscription;
 
-  /** Open the dialog and poll task progress (~2.5s) until all tasks finish. */
-  private openProgress(): void {
+  /** Classify a finished run from its task statuses: a task failure or a
+   * blocking NMR report (report_status === 'Error') is a failure; otherwise
+   * the run succeeded. */
+  private computeOutcome(tasks: ProgressTask[]): 'success' | 'failed' {
+    const nmr = tasks.find((t) => t.task === 'convert_nmr_data');
+    const failed = tasks.some((t) => t.status === 'failed');
+    const blocked = nmr?.report_status === 'Error';
+    return failed || blocked ? 'failed' : 'success';
+  }
+
+  /** One-shot fetch of the latest run's status to drive the banner on load. */
+  private checkPreviousStatus(): void {
+    const token = this.state().tokenBase;
+    if (!token || this.state().conversionId === null) return;
+    this.http
+      .get<{
+        tasks: ProgressTask[];
+        done: boolean;
+      }>(API_URL + 'progress', { params: { token } })
+      .subscribe({
+        next: (res) => {
+          const tasks = res.tasks ?? [];
+          this.progressTasks.set(tasks);
+          this.progressDone.set(res.done);
+          this.previousStatus.set(res.done ? this.computeOutcome(tasks) : 'processing');
+        },
+        error: (err) => console.error('Failed to load previous status', err),
+      });
+  }
+
+  /** Re-open the dialog to inspect the previous run's status and logs (from
+   * the banner) without auto-navigating away on success. */
+  reopenProgress(): void {
+    this.openProgress(true);
+  }
+
+  /** Open the dialog and poll task progress (~2.5s) until all tasks finish.
+   * When `inspect` is set the dialog stays open on success instead of
+   * navigating to the summary (used when reviewing a previous run). */
+  private openProgress(inspect = false): void {
     const token = this.state().tokenBase;
     if (!token) return;
+    this.inspecting.set(inspect);
     this.processing.set(true);
     this.progressDone.set(false);
     this.expandedTask.set(null);
@@ -873,13 +937,12 @@ export class Upload {
           if (res.done) {
             this.progressDone.set(true);
             this.pollSub?.unsubscribe();
-            const tasks = res.tasks ?? [];
-            const nmr = tasks.find((t) => t.task === 'convert_nmr_data');
-            const failed = tasks.some((t) => t.status === 'failed');
-            const blocked = nmr?.report_status === 'Error';
+            const outcome = this.computeOutcome(res.tasks ?? []);
+            this.previousStatus.set(outcome);
             // Genuine success → close and transfer to the Upload summary tab.
-            // Failure or a blocking report → keep the dialog open with the logs.
-            if (!failed && !blocked) {
+            // A failure / blocking report, or inspect mode → keep the dialog
+            // open with the logs.
+            if (outcome === 'success' && !this.inspecting()) {
               this.closeProgress();
               this.router.navigate(['/summary'], { queryParamsHandling: 'preserve' });
             }
@@ -892,8 +955,13 @@ export class Upload {
   /** Close the dialog and stop all polling. */
   closeProgress(): void {
     this.processing.set(false);
+    this.inspecting.set(false);
     this.pollSub?.unsubscribe();
     this.logSub?.unsubscribe();
+    // Leave the banner reflecting the finished run's outcome.
+    if (this.progressDone()) {
+      this.previousStatus.set(this.computeOutcome(this.progressTasks()));
+    }
   }
 
   /** Expand/collapse a task's log; while expanded (and not done) tail it live. */
