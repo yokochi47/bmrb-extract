@@ -15,6 +15,7 @@ Active (selected) upload files are copied out of the git-managed archive
 conversions — which may edit input files in place — never touch the archive.
 """
 
+import hashlib
 import json
 import os
 import re
@@ -44,6 +45,7 @@ from sqlalchemy.pool import NullPool  # noqa: E402
 
 from core.models import (  # noqa: E402
     Notification,
+    OutputFile,
     Session,
     SessionStatusCode,
     Workflow,
@@ -192,6 +194,91 @@ async def _update_session_status(token: str, status: SessionStatusCode) -> None:
             await db.commit()
     finally:
         await engine.dispose()
+
+
+# Converted result files produced in the run's output/ dir, mapped to their
+# output_file_type. The converted coordinate (pdbx) exists only for OneDep /
+# repl_cs (bmrbdep has none); the NEF is optional (NEF-release step). Names
+# mirror coordinate_conversion / nmr_data_conversion / _generate_nef_release.
+_OUTPUT_FILE_SPECS = (
+    ('C_{cid}_model.cif', 'pdbx'),
+    ('C_{cid}-nmr-data.str', 'nmr-star'),
+    ('C_{cid}-nmr-data.nef', 'nef'),
+)
+
+# Report files produced in the run's log/ dir: maxit-ccd's coordinate-check log
+# (text_report) and every NmrDpUtility JSON report (json_report). The captured
+# *.stdout.log progress logs are not harvested (surfaced live via /api/log).
+
+
+def _file_digest(path: Path) -> tuple[str, int]:
+    """Stream a file to compute (sha256 hex, size) without loading it whole."""
+    h = hashlib.sha256()
+    size = 0
+    with open(path, 'rb') as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b''):
+            h.update(chunk)
+            size += len(chunk)
+    return h.hexdigest(), size
+
+
+async def _record_output_files(conversion_id: int, run_number: int, files: list) -> None:
+    """Replace this run's output_file rows with the harvested set (idempotent for
+    a re-run of the same run_number). Ordinals are assigned 1..N in list order;
+    sha256 checksum + size are recorded. downloaded=False / downloaded_at=NULL
+    until the user actually fetches the file (set by the future download path)."""
+    engine = create_async_engine(SERVICE_DATABASE_URL, poolclass=NullPool)
+    try:
+        async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+            await db.execute(
+                OutputFile.__table__.delete().where(
+                    OutputFile.conversion_id == conversion_id,
+                    OutputFile.run_number == run_number,
+                )
+            )
+            for ordinal, (path, file_type) in enumerate(files, start=1):
+                checksum, size = _file_digest(path)
+                await db.execute(
+                    OutputFile.__table__.insert().values(
+                        conversion_id=conversion_id,
+                        run_number=run_number,
+                        ordinal=ordinal,
+                        stored_path=str(path),
+                        file_size=size,
+                        checksum=checksum,
+                        file_type=file_type,
+                        downloaded=False,
+                        downloaded_at=None,
+                    )
+                )
+            await db.commit()
+    finally:
+        await engine.dispose()
+
+
+def _harvest_output_files(conversion_id: int, run_number: int, workspace_base: str) -> list:
+    """Record the conversion outputs into the output_file table: from output/ the
+    converted coordinate (pdbx), the generated NMR-STAR, and the optional NEF;
+    from log/ the maxit-ccd coordinate-check log (text_report) and every
+    NmrDpUtility JSON report (json_report). Returns the harvested file names."""
+    out_dir = ws.output_dir(conversion_id, run_number, workspace_base)
+    log_d = ws.log_dir(conversion_id, run_number, workspace_base)
+    found = []
+    # Converted result files (fixed names).
+    for name_tpl, file_type in _OUTPUT_FILE_SPECS:
+        path = out_dir / name_tpl.format(cid=conversion_id)
+        if path.exists() and path.stat().st_size > 0:
+            found.append((path, file_type))
+    # maxit-ccd coordinate-check log (text_report).
+    maxit_log = log_d / f'C_{conversion_id}_model-check.log'
+    if maxit_log.exists() and maxit_log.stat().st_size > 0:
+        found.append((maxit_log, 'text_report'))
+    # NmrDpUtility JSON reports (json_report), sorted for stable ordinals.
+    for report in sorted(log_d.glob('*.json')):
+        if report.stat().st_size > 0:
+            found.append((report, 'json_report'))
+    asyncio.run(_record_output_files(conversion_id, run_number, found))
+    return [path.name for path, _ in found]
 
 
 @task(name='coordinate-conversion', retries=0)
@@ -1155,6 +1242,15 @@ def process_session(
             shutil.rmtree(scratch, ignore_errors=True)
 
     print(f'[{conversion_id}] Run #{run_number} complete — success={success}')
+
+    # Harvest the produced output files (converted coordinate, NMR-STAR, optional
+    # NEF) into the output_file table (best-effort: independent of the run outcome,
+    # so the user can still download whatever partial output exists).
+    try:
+        harvested = _harvest_output_files(conversion_id, run_number, workspace_base)
+        print(f'[{conversion_id}] harvested {len(harvested)} output file(s): {harvested}')
+    except Exception as exc:  # noqa: BLE001
+        print(f'[{conversion_id}] output harvest FAILED ({exc})')
 
     # A blocking NMR report (report_status='Error') flags critical, user-blocking
     # issues: treat it as a failed run even though the conversion task completed.
