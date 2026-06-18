@@ -42,7 +42,14 @@ from sqlalchemy import func, select, update  # noqa: E402
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine  # noqa: E402
 from sqlalchemy.pool import NullPool  # noqa: E402
 
-from core.models import Notification, Workflow, WfStatusCode, WfTaskCode  # noqa: E402
+from core.models import (  # noqa: E402
+    Notification,
+    Session,
+    SessionStatusCode,
+    Workflow,
+    WfStatusCode,
+    WfTaskCode,
+)
 from core.site_config import (  # noqa: E402
     MAXIT_CCD_IMAGE,
     MAXIT_MEMORY_LIMIT,
@@ -142,6 +149,49 @@ async def _update_workflow_status(
     # Notify the admin on any task failure (best-effort, never raises).
     if status == WfStatusCode.failed:
         await _notify_admin_failure(conversion_id, run_number, task, detail, log_path)
+
+
+async def _nmr_report_status(conversion_id: int, run_number: int) -> str | None:
+    """Return the convert_nmr_data report_status for this run (None if unset).
+
+    Set by _run_nmr_driver via the NmrDpUtility report analysis; 'Error' means a
+    blocking, user-critical issue. Used to mark the session failed even though
+    the conversion task itself completed.
+    """
+    engine = create_async_engine(SERVICE_DATABASE_URL, poolclass=NullPool)
+    try:
+        async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+            result = await db.execute(
+                select(Workflow.report_status).where(
+                    Workflow.conversion_id == conversion_id,
+                    Workflow.run_number == run_number,
+                    Workflow.task == WfTaskCode.convert_nmr_data,
+                )
+            )
+            return result.scalar_one_or_none()
+    finally:
+        await engine.dispose()
+
+
+async def _update_session_status(token: str, status: SessionStatusCode) -> None:
+    """Set the session's lifecycle status and finish time when a run ends.
+
+    Called once per run with `completed` (the pipeline ran to completion, even
+    if the NMR report flags user-facing errors) or `failed` (a task failed or
+    was aborted). Clearing `processing` also lets the user start another run.
+    Per-task detail lives on the workflow rows; this is the session-level outcome.
+    """
+    engine = create_async_engine(SERVICE_DATABASE_URL, poolclass=NullPool)
+    try:
+        async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+            await db.execute(
+                update(Session)
+                .where(Session.token == token)
+                .values(status=status, finished_at=func.now())
+            )
+            await db.commit()
+    finally:
+        await engine.dispose()
 
 
 @task(name='coordinate-conversion', retries=0)
@@ -972,7 +1022,28 @@ def process_session(
 
     print(f'[{conversion_id}] Run #{run_number} complete — success={success}')
 
-    # TODO: update session status in DB (completed / failed) and insert output_file rows
-    #       with run_number=run_number (PK = conversion_id, run_number, ordinal),
-    #       stored_path pointing under the workspace output/ dir.
+    # A blocking NMR report (report_status='Error') flags critical, user-blocking
+    # issues: treat it as a failed run even though the conversion task completed.
+    # (The blocker detail lives on the convert_nmr_data workflow row and is also
+    # surfaced to the user via /api/progress.)
+    blocked = False
+    if success:
+        try:
+            blocked = asyncio.run(_nmr_report_status(conversion_id, run_number)) == 'Error'
+        except Exception as exc:  # noqa: BLE001
+            print(f'[{conversion_id}] could not read NMR report status ({exc})')
+
+    # Record the session lifecycle outcome for this run (best-effort: the run is
+    # already done, so a DB hiccup here is logged rather than masking the result).
+    session_status = (
+        SessionStatusCode.completed if (success and not blocked) else SessionStatusCode.failed
+    )
+    try:
+        asyncio.run(_update_session_status(token, session_status))
+        print(f'[{conversion_id}] session status -> {session_status.value} (blocked={blocked})')
+    except Exception as exc:  # noqa: BLE001
+        print(f'[{conversion_id}] session status update FAILED ({exc})')
+
+    # TODO: insert output_file rows with run_number=run_number (PK = conversion_id,
+    #       run_number, ordinal), stored_path pointing under the workspace output/ dir.
     return {'success': success, 'run_number': run_number}
