@@ -1,6 +1,50 @@
 <div class="card">
   <div class="font-semibold text-2xl mb-6">Upload summary</div>
-  <p class="text-base">
-    Your files have been processed. A detailed conversion summary will appear here.
+  <p class="text-xl mb-4">
+    This page contains a summary of the uploaded data.
+    <strong
+      >Please check that the data content here is correct before proceeding and upload corrected
+      files if required.</strong
+    >
   </p>
+
+  <p-card header="Upload file summary" styleClass="mb-6">
+    <p class="text-base mb-4">
+      You uploaded {{ files().length }} file{{ files().length === 1 ? '' : 's' }} to the system.
+    </p>
+
+    <p-table [value]="files()" styleClass="p-datatable-sm" [tableStyle]="{ 'min-width': '50rem' }">
+      <ng-template pTemplate="header">
+        <tr>
+          <th class="w-16">Ordinal</th>
+          <th>Original file name</th>
+          <th class="w-28">Size</th>
+          <th>File type</th>
+          <th class="w-44">Upload time (UTC)</th>
+          @if (showSource()) {
+            <th class="w-24">Source</th>
+          }
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-file let-i="rowIndex">
+        <tr>
+          <td>{{ i + 1 }}</td>
+          <td class="font-mono break-all">{{ file.original_name }}</td>
+          <td>{{ formatSize(file.file_size) }}</td>
+          <td>{{ typeLabel(file.file_type) }}</td>
+          <td>{{ file.uploaded_at }}</td>
+          @if (showSource()) {
+            <td>{{ sourceLabel(file.source) }}</td>
+          }
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td [attr.colspan]="showSource() ? 6 : 5" class="text-center text-surface-500 py-4">
+            No files found for this conversion.
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </p-card>
 </div>
