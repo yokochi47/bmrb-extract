@@ -47,6 +47,11 @@ async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_o
 
 _GIT_ACTOR = Actor(SERVICE_HOST, SERVICE_ADMIN_EMAIL)
 
+# Prefect REST API (the worker/server image, reached over the internal network).
+# PREFECT_API_URL is set in .env (Prefect standard); fall back to the service name.
+PREFECT_API_URL = os.environ.get('PREFECT_API_URL', 'http://prefect-server:4200/api')
+PREFECT_DEPLOYMENT = 'process-session/default'
+
 
 def _open_repo(session_dir: Path) -> Repo:
     """Return the git Repo for a session directory, initialising it on first use."""
@@ -480,16 +485,31 @@ async def process():
         session_row.latest_run_number = run_number
         await db.commit()
 
-    # TODO: trigger Prefect flow run via Prefect API
-    # from prefect.client.orchestration import get_client
-    # async with get_client() as client:
-    #     await client.create_flow_run_from_deployment(
-    #         deployment_name='process-session/default',
-    #         parameters={
-    #             'token': token,
-    #             'conversion_id': conversion_id,
-    #             'run_number': run_number,
-    #         },
-    #     )
+    # Trigger the Prefect flow run for this conversion+run via the Prefect REST
+    # API (the backend has no prefect package). Best-effort: the run is already
+    # committed, so a trigger failure is logged rather than failing the request —
+    # the workflow rows stay 'pending' and the run can be re-triggered.
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            dep = await client.get(f'{PREFECT_API_URL}/deployments/name/{PREFECT_DEPLOYMENT}')
+            dep.raise_for_status()
+            run = await client.post(
+                f'{PREFECT_API_URL}/deployments/{dep.json()["id"]}/create_flow_run',
+                json={'parameters': {
+                    'token': str(token),
+                    'conversion_id': conversion_id,
+                    'run_number': run_number,
+                }},
+            )
+            run.raise_for_status()
+        app.logger.info(
+            'triggered Prefect flow run %s for C_%s run %s',
+            run.json().get('id'), conversion_id, run_number,
+        )
+    except Exception as exc:  # noqa: BLE001
+        app.logger.error(
+            'failed to trigger Prefect flow for C_%s run %s: %s',
+            conversion_id, run_number, exc,
+        )
 
     return {'conversion_id': conversion_id, 'run_number': run_number, 'commit_sha': commit_sha}, 202

@@ -1,0 +1,19 @@
+# Prefect deployment for the NMR conversion flow.
+#
+# Registered with the Prefect server by setup.sh (and re-runnable any time):
+#   docker compose exec prefect-worker sh -c "cd /flows && prefect deploy --all"
+#
+# The flow runs in-place on the worker (process pool): the pull step just sets
+# the working directory to /flows (the ./prefect/flows mount), so the entrypoint
+# core/process_session.py resolves with __file__ at /flows/core/... — keeping the
+# flow's relative sys.path inserts (workspace, ../shared/core) valid. No remote
+# code storage / temp checkout.
+
+deployments:
+  - name: default
+    entrypoint: core/process_session.py:process_session
+    work_pool:
+      name: local-pool
+    pull:
+      - prefect.deployments.steps.set_working_directory:
+          directory: /flows
