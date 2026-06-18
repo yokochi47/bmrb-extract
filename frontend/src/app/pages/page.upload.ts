@@ -162,7 +162,7 @@ export class Upload {
 
     // 2. Every uploaded file must have a file type assigned.
     if (rows.some((r) => r.fileType === null)) {
-      errors.push('Please define the types for all files.');
+      warnings.push('Please define the types for all files.');
     }
 
     // 3. Coordinate file: OneDep and Replacing-CS require exactly one active
@@ -212,7 +212,9 @@ export class Upload {
     // 6. BMRBdep: at least one assigned chemical shift file is mandatory; a
     //    topology file is optional but at most one is accepted.
     if (target === TargetDepsys.bmrbdep) {
-      const shiftCount = selected.filter((r) => r.fileType?.startsWith('nm-shi')).length;
+      const shiftCount = selected.filter(
+        (r) => r.fileType?.startsWith('nm-uni-') || r.fileType?.startsWith('nm-shi'),
+      ).length;
       if (shiftCount === 0) {
         warnings.push('Please upload at least one assigned chemical shift file.');
       }
@@ -372,24 +374,6 @@ export class Upload {
         "Assigned chemical shifts (WSV/TSV/CSV; Residue per line, Atom per line, or SPARKY's list)",
       value: 'nm-shi-bar',
     },
-    // Spectral peak lists
-    { label: 'Spectral peak list (ARIA format)', value: 'nm-pea-ari' },
-    { label: 'Spectral peak list (CCPN format)', value: 'nm-pea-ccp' },
-    { label: 'Spectral peak list (OLIVIA format)', value: 'nm-pea-oli' },
-    { label: 'Spectral peak list (NMRPIPE/PIPP format)', value: 'nm-pea-pip' },
-    { label: 'Spectral peak list (PONDEROSA format)', value: 'nm-pea-pon' },
-    { label: 'Spectral peak list (SPARKY format)', value: 'nm-pea-spa' },
-    { label: "Spectral peak list (SPARKY's save format, aka. ornament)", value: 'nm-pea-sps' },
-    { label: 'Spectral peak list (TOPSPIN format)', value: 'nm-pea-top' },
-    { label: 'Spectral peak list (NMRVIEW format)', value: 'nm-pea-vie' },
-    { label: 'Spectral peak list (VNMR format)', value: 'nm-pea-vnm' },
-    { label: 'Spectral peak list (XEASY format)', value: 'nm-pea-xea' },
-    { label: 'Spectral peak list (XWINNMR format)', value: 'nm-pea-xwi' },
-    { label: 'Spectral peak list (WSV/TSV with a header)', value: 'nm-pea-bar' },
-    {
-      label: 'Spectral peak list (any plane text format, auto format detection)',
-      value: 'nm-pea-any',
-    },
     // NMR restraints
     { label: 'NMR restraints (AMBER format)', value: 'nm-res-amb' },
     { label: 'NMR restraints (ARIA format)', value: 'nm-res-ari' },
@@ -421,6 +405,24 @@ export class Upload {
     { label: 'Topology (GROMACS format)', value: 'nm-aux-gro' },
     { label: 'Topology (PDB format)', value: 'nm-aux-pdb' },
     { label: 'Topology (XEASY format, aka. prot)', value: 'nm-aux-xea' },
+    // Spectral peak lists
+    { label: 'Spectral peak list (ARIA format)', value: 'nm-pea-ari' },
+    { label: 'Spectral peak list (CCPN format)', value: 'nm-pea-ccp' },
+    { label: 'Spectral peak list (OLIVIA format)', value: 'nm-pea-oli' },
+    { label: 'Spectral peak list (NMRPIPE/PIPP format)', value: 'nm-pea-pip' },
+    { label: 'Spectral peak list (PONDEROSA format)', value: 'nm-pea-pon' },
+    { label: 'Spectral peak list (SPARKY format)', value: 'nm-pea-spa' },
+    { label: "Spectral peak list (SPARKY's save format, aka. ornament)", value: 'nm-pea-sps' },
+    { label: 'Spectral peak list (TOPSPIN format)', value: 'nm-pea-top' },
+    { label: 'Spectral peak list (NMRVIEW format)', value: 'nm-pea-vie' },
+    { label: 'Spectral peak list (VNMR format)', value: 'nm-pea-vnm' },
+    { label: 'Spectral peak list (XEASY format)', value: 'nm-pea-xea' },
+    { label: 'Spectral peak list (XWINNMR format)', value: 'nm-pea-xwi' },
+    { label: 'Spectral peak list (WSV/TSV with a header)', value: 'nm-pea-bar' },
+    {
+      label: 'Spectral peak list (any plane text format, auto format detection)',
+      value: 'nm-pea-any',
+    }, 
   ];
 
   /**
@@ -452,10 +454,38 @@ export class Upload {
       (v.startsWith('nm-aux-') && v !== 'nm-aux-xea'),
   };
 
-  /** File type options suitable for the currently selected target deposition system. */
+  /**
+   * Menu sub-groups for the file-type select, in display order. The value
+   * prefixes are mutually exclusive; 'nm-shi' covers both 'nm-shi' and 'nm-shi-*'.
+   */
+  private readonly FILE_TYPE_GROUPS: { label: string; match: (value: string) => boolean }[] = [
+    { label: 'Coordinates', match: (v) => v.startsWith('co-') },
+    { label: 'NMR unified data', match: (v) => v.startsWith('nm-uni-') },
+    { label: 'Assigned chemical shifts', match: (v) => v.startsWith('nm-shi') },
+    { label: 'NMR restraints', match: (v) => v.startsWith('nm-res-') },
+    { label: 'Topology', match: (v) => v.startsWith('nm-aux-') },
+    { label: 'Spectral peak lists', match: (v) => v.startsWith('nm-pea-') },
+  ];
+
+  /** Drop the redundant category prefix, keeping the in-parentheses descriptor
+   * (greedy to the last ')', so nested parens are preserved). */
+  private shortLabel(label: string): string {
+    const m = label.match(/^[^(]*\((.*)\)\s*$/);
+    return m ? m[1] : label;
+  }
+
+  /**
+   * File type options for the current target deposition system, grouped under
+   * the category headers with shortened item labels; empty groups are omitted.
+   */
   fileTypeOptions = computed(() => {
     const allowed = this.DEPSYS_FILE_TYPES[this.state().targetDepsys];
-    return this.FILE_TYPE_OPTIONS.filter((opt) => allowed(opt.value));
+    return this.FILE_TYPE_GROUPS.map((g) => ({
+      label: g.label,
+      items: this.FILE_TYPE_OPTIONS.filter((opt) => g.match(opt.value) && allowed(opt.value)).map(
+        (opt) => ({ label: this.shortLabel(opt.label), value: opt.value }),
+      ),
+    })).filter((g) => g.items.length > 0);
   });
 
   setTargetDepsys(value: TargetDepsys): void {
