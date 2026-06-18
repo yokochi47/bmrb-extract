@@ -118,6 +118,64 @@ async def get_session():
         }
 
 
+@app.route('/api/files', methods=['GET'])
+async def get_files():
+    """Return the selected upload files participating in the latest run.
+
+    Query: token
+
+    Files accumulate across runs; `selected` marks the set used by the current
+    (latest) conversion. Ordered by upload time so the client renumbers them
+    1..N. `uploaded_at` is converted to UTC: the column stores naive local time
+    in the DB session timezone, so it is reinterpreted from that zone into UTC
+    wall-clock time (site-independent).
+    Returns: { files: [{ original_name, file_size, file_type, source, uploaded_at }] }
+    """
+    token = request.args.get('token')
+    if not token:
+        return {'error': 'token is required'}, 400
+
+    async with async_session_factory() as db:
+        session_row = (
+            await db.execute(select(Session).where(Session.token == token))
+        ).scalar_one_or_none()
+        if session_row is None:
+            return {'error': 'session not found'}, 404
+
+        # naive_local AT TIME ZONE <db tz>  -> timestamptz (interpret as local)
+        # ... AT TIME ZONE 'UTC'            -> naive UTC wall-clock time
+        uploaded_at_utc = func.timezone(
+            'UTC', func.timezone(func.current_setting('TIMEZONE'), UploadFile.uploaded_at)
+        )
+        result = await db.execute(
+            select(
+                UploadFile.original_name,
+                UploadFile.file_size,
+                UploadFile.file_type,
+                UploadFile.source,
+                uploaded_at_utc.label('uploaded_at_utc'),
+            )
+            .where(UploadFile.token == token, UploadFile.selected == True)  # noqa: E712
+            .order_by(UploadFile.uploaded_at.asc(), UploadFile.ordinal.asc())
+        )
+        files = [
+            {
+                'original_name': row.original_name,
+                'file_size': row.file_size,
+                'file_type': row.file_type,
+                'source': row.source,
+                'uploaded_at': (
+                    row.uploaded_at_utc.isoformat(sep=' ', timespec='minutes')
+                    if row.uploaded_at_utc is not None
+                    else None
+                ),
+            }
+            for row in result.all()
+        ]
+
+    return {'files': files}, 200
+
+
 # ── Processing progress (for the upload "Processing…" dialog) ───────────────────
 
 # Tasks surfaced to the dialog, in display order, with their label and the
