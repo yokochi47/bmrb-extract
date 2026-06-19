@@ -45,6 +45,33 @@ interface ValidationMetric {
   nested?: boolean;
 }
 
+/** One row of an NMR error/warning table (location + description are HTML). */
+interface NmrRow {
+  location: string;
+  description: string;
+  active: boolean;
+}
+
+/** An NMR error group (one error type) — see GET /api/nmr_validation. */
+interface NmrErrorGroup {
+  type: string;
+  title: string;
+  real: boolean;
+  count: number;
+  rows: NmrRow[];
+}
+
+/** An NMR warning group (one warning type), with severity level + color. */
+interface NmrWarningGroup {
+  type: string;
+  title: string;
+  level: number;
+  color: string;
+  count: number;
+  corrected: boolean;
+  rows: NmrRow[];
+}
+
 @Component({
   selector: 'app-summary',
   imports: [CardModule, TableModule, PanelModule],
@@ -77,11 +104,20 @@ export class Summary implements OnDestroy {
   /** True when the converted coordinate carried at least one outlier metric. */
   hasOutliers = computed(() => this.validationMetrics().length > 0);
 
+  /** NMR data validation (all modes): null = loading, false = no report yet. */
+  nmrAvailable = signal<boolean | null>(null);
+  nmrStatus = signal<string | null>(null);
+  nmrErrors = signal<NmrErrorGroup[]>([]);
+  nmrWarnings = signal<NmrWarningGroup[]>([]);
+  /** True when the NMR report carried at least one error or warning group. */
+  hasNmrIssues = computed(() => this.nmrErrors().length > 0 || this.nmrWarnings().length > 0);
+
   /** Host element for the Mol* canvas (only present while showViewer()). */
   private coordinateHost = viewChild<ElementRef<HTMLDivElement>>('molstarHost');
 
   private fetched = false;
   private validationFetched = false;
+  private nmrFetched = false;
   private viewerInit = false;
   private viewer: MolstarViewer | null = null;
 
@@ -118,6 +154,14 @@ export class Summary implements OnDestroy {
       this.validationFetched = true;
       this.loadValidation(token);
     });
+
+    // Load the NMR data validation report once the token is known (all modes).
+    effect(() => {
+      const token = this.pageService.pageState().tokenBase;
+      if (!token || this.nmrFetched) return;
+      this.nmrFetched = true;
+      this.loadNmrValidation(token);
+    });
   }
 
   ngOnDestroy(): void {
@@ -147,6 +191,28 @@ export class Summary implements OnDestroy {
         error: (err) => {
           console.error('Failed to load coordinate validation', err);
           this.validationAvailable.set(false);
+        },
+      });
+  }
+
+  private loadNmrValidation(token: string): void {
+    this.http
+      .get<{
+        available: boolean;
+        status: string | null;
+        errors: NmrErrorGroup[];
+        warnings: NmrWarningGroup[];
+      }>(API_URL + 'nmr_validation', { params: { token } })
+      .subscribe({
+        next: (res) => {
+          this.nmrErrors.set(res.errors ?? []);
+          this.nmrWarnings.set(res.warnings ?? []);
+          this.nmrStatus.set(res.status ?? null);
+          this.nmrAvailable.set(res.available);
+        },
+        error: (err) => {
+          console.error('Failed to load NMR validation', err);
+          this.nmrAvailable.set(false);
         },
       });
   }
