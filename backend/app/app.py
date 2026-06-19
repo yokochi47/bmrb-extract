@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -334,6 +335,309 @@ async def get_coordinate():
         download_name=f'C_{conversion_id}_model.cif',
         conditional=True,
     )
+
+
+# ── Coordinate geometry validation (pdbx_validate_* outliers in the converted mmCIF) ──
+
+# Display order + friendly labels for the geometry-outlier categories maxit writes
+# into the converted coordinate. Categories absent from a given file are skipped.
+# pdbx_validate_planes_atom is folded into pdbx_validate_planes (nested atoms), so
+# it is not listed here as a standalone metric.
+_VALIDATE_METRICS = [
+    ('pdbx_validate_close_contact', 'Close contacts'),
+    ('pdbx_validate_symm_contact', 'Symmetry contacts'),
+    ('pdbx_validate_rmsd_bond', 'Bond length outliers'),
+    ('pdbx_validate_rmsd_angle', 'Bond angle outliers'),
+    ('pdbx_validate_torsion', 'Torsion (Ramachandran) outliers'),
+    ('pdbx_validate_peptide_omega', 'Peptide omega outliers'),
+    ('pdbx_validate_main_chain_plane', 'Main-chain planarity outliers'),
+    ('pdbx_validate_planes', 'Planarity outliers'),
+    ('pdbx_validate_chiral', 'Chirality outliers'),
+    ('pdbx_validate_polymer_linkage', 'Polymer linkage outliers'),
+]
+
+_MMCIF_TOKEN_RE = re.compile(r"'[^']*'|\"[^\"]*\"|\S+")
+
+
+def _mmcif_tokens(line):
+    """Tokenize an mmCIF data line, honoring '...'/"..." quoting; map ?/. to ''."""
+    out = []
+    for tok in _MMCIF_TOKEN_RE.findall(line):
+        if len(tok) >= 2 and tok[0] in "'\"" and tok[-1] == tok[0]:
+            tok = tok[1:-1]
+        elif tok in ('?', '.'):
+            tok = ''
+        out.append(tok)
+    return out
+
+
+def _parse_validation_categories(path):
+    """Extract pdbx_validate_* categories from an mmCIF file into
+    {category: {'columns': [item...], 'rows': [[val...]]}}.
+
+    Pure-Python and line-oriented; handles both loop_ tables and single-row
+    key-value categories. These categories carry no multiline (;...;) text fields,
+    so a whitespace tokenizer with quote handling is sufficient. Rows in a loop_
+    may wrap across physical lines, so the data section is read as a flat token
+    stream and chunked into rows of len(columns).
+    """
+    cats = {}
+    try:
+        lines = Path(path).read_text(errors='ignore').splitlines()
+    except OSError:
+        return cats
+    _STOP = ('_', '#', ';')
+    i, n = 0, len(lines)
+    while i < n:
+        stripped = lines[i].strip()
+        if stripped == 'loop_':
+            i += 1
+            headers = []
+            while i < n and lines[i].lstrip().startswith('_'):
+                headers.append(lines[i].strip().split()[0])
+                i += 1
+            cat = headers[0].split('.', 1)[0].lstrip('_') if headers else ''
+            items = [h.split('.', 1)[1] for h in headers if '.' in h]
+            target = cat.startswith('pdbx_validate_')
+            toks = []
+            while i < n:
+                ds = lines[i].strip()
+                if not ds or ds[0] in _STOP or ds in ('loop_', 'stop_') or ds.startswith(('data_', 'save_')):
+                    if ds == '':
+                        i += 1
+                        continue
+                    break
+                if target:
+                    toks.extend(_mmcif_tokens(lines[i]))
+                i += 1
+            if target and items:
+                ncol = len(items)
+                cats[cat] = {
+                    'columns': items,
+                    'rows': [toks[j:j + ncol] for j in range(0, len(toks) - ncol + 1, ncol)],
+                }
+        elif stripped.startswith('_pdbx_validate_'):
+            # single-row key-value form: "_cat.item  value" (value may wrap to next line)
+            toks = _mmcif_tokens(lines[i])
+            tag = toks[0]
+            cat = tag.split('.', 1)[0].lstrip('_')
+            item = tag.split('.', 1)[1] if '.' in tag else tag
+            if len(toks) > 1:
+                val = toks[1]
+            else:
+                val = ''
+                if i + 1 < n and not lines[i + 1].lstrip().startswith('_'):
+                    nxt = _mmcif_tokens(lines[i + 1])
+                    if nxt:
+                        val = nxt[0]
+                        i += 1
+            d = cats.setdefault(cat, {'columns': [], 'rows': [[]]})
+            d['columns'].append(item)
+            d['rows'][0].append(val)
+            i += 1
+        else:
+            i += 1
+    return cats
+
+
+def _join(get, *items, sep=' '):
+    """Join non-empty item values into one cell (e.g. 'A ASP 84 OD1')."""
+    return sep.join(v for v in (get(it) for it in items) if v).strip()
+
+
+# Curated columns per metric: (headers, [builder(get)->str ...]). `get(item)`
+# returns a cell value for the current row. Metrics not listed fall back to the
+# generic all-populated-columns renderer.
+_CURATION = {
+    'pdbx_validate_close_contact': (
+        ['Model', 'Atom 1', 'Atom 2', 'Distance (Å)'],
+        [
+            lambda g: g('PDB_model_num'),
+            lambda g: _join(g, 'auth_asym_id_1', 'auth_comp_id_1', 'auth_seq_id_1', 'auth_atom_id_1'),
+            lambda g: _join(g, 'auth_asym_id_2', 'auth_comp_id_2', 'auth_seq_id_2', 'auth_atom_id_2'),
+            lambda g: g('dist'),
+        ],
+    ),
+    'pdbx_validate_rmsd_bond': (
+        ['Model', 'Chain', 'Bond', 'Value', 'Deviation'],
+        [
+            lambda g: g('PDB_model_num'),
+            lambda g: g('auth_asym_id_1'),
+            lambda g: f"{_join(g, 'auth_comp_id_1', 'auth_seq_id_1')}: "
+                      f"{g('auth_atom_id_1')}–{g('auth_atom_id_2')}",
+            lambda g: g('bond_value'),
+            lambda g: g('bond_deviation'),
+        ],
+    ),
+    'pdbx_validate_rmsd_angle': (
+        ['Model', 'Chain', 'Residue', 'Atoms', 'Value', 'Deviation'],
+        [
+            lambda g: g('PDB_model_num'),
+            lambda g: g('auth_asym_id_1'),
+            lambda g: _join(g, 'auth_comp_id_1', 'auth_seq_id_1'),
+            lambda g: f"{g('auth_atom_id_1')}-{g('auth_atom_id_2')}-{g('auth_atom_id_3')}",
+            lambda g: g('angle_value'),
+            lambda g: g('angle_deviation'),
+        ],
+    ),
+    'pdbx_validate_torsion': (
+        ['Model', 'Chain', 'Residue', 'Phi', 'Psi'],
+        [
+            lambda g: g('PDB_model_num'),
+            lambda g: g('auth_asym_id'),
+            lambda g: _join(g, 'auth_comp_id', 'auth_seq_id'),
+            lambda g: g('phi'),
+            lambda g: g('psi'),
+        ],
+    ),
+    'pdbx_validate_peptide_omega': (
+        ['Model', 'Chain', 'Residues', 'Omega'],
+        [
+            lambda g: g('PDB_model_num'),
+            lambda g: g('auth_asym_id_1'),
+            lambda g: f"{_join(g, 'auth_comp_id_1', 'auth_seq_id_1')}–"
+                      f"{_join(g, 'auth_comp_id_2', 'auth_seq_id_2')}",
+            lambda g: g('omega'),
+        ],
+    ),
+    'pdbx_validate_main_chain_plane': (
+        ['Model', 'Chain', 'Residue', 'Improper torsion'],
+        [
+            lambda g: g('PDB_model_num'),
+            lambda g: g('auth_asym_id'),
+            lambda g: _join(g, 'auth_comp_id', 'auth_seq_id'),
+            lambda g: g('improper_torsion_angle'),
+        ],
+    ),
+    'pdbx_validate_planes': (
+        ['Model', 'Chain', 'Residue', 'RMSD', 'Type'],
+        [
+            lambda g: g('PDB_model_num'),
+            lambda g: g('auth_asym_id'),
+            lambda g: _join(g, 'auth_comp_id', 'auth_seq_id'),
+            lambda g: g('rmsd'),
+            lambda g: g('type'),
+        ],
+    ),
+}
+
+
+def _row_getter(data):
+    """Return a function(row_index) -> get(item) for the parsed category `data`."""
+    idx = {item: k for k, item in enumerate(data['columns'])}
+    rows = data['rows']
+
+    def for_row(r):
+        row = rows[r]
+        return lambda item: row[idx[item]] if item in idx and idx[item] < len(row) else ''
+
+    return for_row
+
+
+def _generic_columns(data):
+    """All populated columns of a category (drop columns empty in every row, but
+    keep 'id'); returns (columns, rows)."""
+    items, rows = data['columns'], data['rows']
+    keep = [
+        k for k, item in enumerate(items)
+        if item == 'id' or any(k < len(row) and row[k] for row in rows)
+    ]
+    cols = [items[k] for k in keep]
+    out = [[row[k] if k < len(row) else '' for k in keep] for row in rows]
+    return cols, out
+
+
+def _plane_atoms(cats):
+    """Map a pdbx_validate_planes id -> [atom labels] from pdbx_validate_planes_atom
+    (the child category), if present. The child references the parent plane id via
+    an item whose name contains 'planes_id'/'plane_id'."""
+    data = cats.get('pdbx_validate_planes_atom')
+    if not data:
+        return {}
+    cols = data['columns']
+    link = next((c for c in cols if 'planes_id' in c or 'plane_id' in c), None)
+    atom = next((c for c in cols if c in ('auth_atom_id', 'label_atom_id')), None)
+    if link is None or atom is None:
+        return {}
+    li, ai = cols.index(link), cols.index(atom)
+    mapping = {}
+    for row in data['rows']:
+        if li < len(row) and ai < len(row) and row[ai]:
+            mapping.setdefault(row[li], []).append(row[ai])
+    return mapping
+
+
+def _curate_metrics(cats):
+    """Build the ordered, present-only list of curated metric tables from parsed
+    categories. pdbx_validate_planes gets its atoms nested from planes_atom."""
+    metrics = []
+    plane_atoms = _plane_atoms(cats)
+    for cat, label in _VALIDATE_METRICS:
+        data = cats.get(cat)
+        if not data or not data['rows']:
+            continue
+        spec = _CURATION.get(cat)
+        if spec:
+            columns, builders = spec
+            get_for = _row_getter(data)
+            rows = [[b(get_for(r)) for b in builders] for r in range(len(data['rows']))]
+        else:
+            columns, rows = _generic_columns(data)
+        metric = {'key': cat[len('pdbx_validate_'):], 'label': label,
+                  'count': len(rows), 'columns': columns}
+        if cat == 'pdbx_validate_planes' and plane_atoms:
+            id_idx = data['columns'].index('id') if 'id' in data['columns'] else None
+            nested = []
+            for r, cells in enumerate(rows):
+                pid = data['rows'][r][id_idx] if id_idx is not None and id_idx < len(data['rows'][r]) else None
+                nested.append({'cells': cells, 'atoms': plane_atoms.get(pid, [])})
+            metric['nested'] = True
+            metric['rows'] = nested
+        else:
+            metric['rows'] = rows
+        metrics.append(metric)
+    return metrics
+
+
+@app.route('/api/coordinate_validation', methods=['GET'])
+async def get_coordinate_validation():
+    """Geometry-outlier tables parsed from the session's latest-run converted mmCIF.
+
+    Token-scoped, read-only (SELECT + file read; mutates nothing). Always 200
+    except 400 for a missing token: `available` distinguishes "no coordinate"
+    (bmrbdep / not converted) from "converted, zero outliers" (available + empty
+    metrics). See _VALIDATE_METRICS for the categories surfaced.
+    """
+    token = request.args.get('token')
+    if not token:
+        return {'error': 'token is required'}, 400
+
+    async with async_session_factory() as db:
+        session_row = (
+            await db.execute(select(Session).where(Session.token == token))
+        ).scalar_one_or_none()
+        if session_row is None:
+            return {'error': 'session not found'}, 404
+        conversion_id = session_row.conversion_id
+        run_number = session_row.latest_run_number
+        if conversion_id is None or run_number < 1:
+            return {'available': False, 'metrics': []}
+
+        output_row = (
+            await db.execute(
+                select(OutputFile).where(
+                    OutputFile.conversion_id == conversion_id,
+                    OutputFile.run_number == run_number,
+                    OutputFile.file_type == OutputFileType.pdbx.value,
+                )
+            )
+        ).scalar_one_or_none()
+
+    if output_row is None or not Path(output_row.stored_path).is_file():
+        return {'available': False, 'metrics': []}
+
+    cats = _parse_validation_categories(output_row.stored_path)
+    return {'available': True, 'metrics': _curate_metrics(cats)}
 
 
 @app.route('/api/session', methods=['PATCH'])
