@@ -8,5 +8,8 @@ set -eu
 docker compose down nginx
 docker compose build frontend
 docker compose build nginx
-docker compose up nginx --remove-orphans
+# Detached: nginx serves the rebuilt frontend in the background and the script
+# returns cleanly. (Previously this ran attached/foreground, which had to be
+# manually killed to end the script — an error-prone step.)
+docker compose up -d nginx --remove-orphans
 
