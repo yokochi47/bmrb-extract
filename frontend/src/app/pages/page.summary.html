@@ -64,5 +64,94 @@
         <p class="text-surface-500 py-4">A coordinate preview is not available for this conversion.</p>
       }
     </p-card>
+
+    <p-panel header="Validation for coordinates" [toggleable]="true" styleClass="mb-6">
+      @if (validationAvailable() === null) {
+        <p class="text-surface-500 py-2"><i class="pi pi-spin pi-spinner mr-2"></i>Loading…</p>
+      } @else if (!validationAvailable()) {
+        <p class="text-surface-500 py-2">Coordinate validation is not available for this conversion.</p>
+      } @else if (!hasOutliers()) {
+        <p class="py-2"><i class="pi pi-check-circle text-teal-500 mr-2"></i>Not found geometry issue.</p>
+      } @else {
+        <p class="text-base mb-4">
+          Geometric outliers found in the converted coordinate file, by validation metric. Expand a
+          metric to review its outliers.
+        </p>
+        <div class="flex flex-col gap-3">
+          @for (m of validationMetrics(); track m.key) {
+            <p-panel [header]="m.label + ' — ' + m.count" [toggleable]="true" [collapsed]="true">
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm border-collapse">
+                  <thead>
+                    <tr>
+                      @if (m.nested) {
+                        <th class="w-8"></th>
+                      }
+                      @for (col of m.columns; track $index) {
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                        >
+                          {{ col }}
+                        </th>
+                      }
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @if (m.nested) {
+                      @for (row of nestedRows(m); track $index) {
+                        <tr class="border-b border-surface-100 dark:border-surface-800">
+                          <td class="px-2 py-1 align-top">
+                            @if (row.atoms.length) {
+                              <button
+                                type="button"
+                                class="cursor-pointer bg-transparent border-0 p-0"
+                                [attr.aria-label]="isPlaneExpanded($index) ? 'Collapse atoms' : 'Expand atoms'"
+                                (click)="togglePlane($index)"
+                              >
+                                <i
+                                  class="pi"
+                                  [class.pi-chevron-right]="!isPlaneExpanded($index)"
+                                  [class.pi-chevron-down]="isPlaneExpanded($index)"
+                                ></i>
+                              </button>
+                            }
+                          </td>
+                          @for (cell of row.cells; track $index) {
+                            <td class="px-2 py-1 whitespace-nowrap">{{ cell }}</td>
+                          }
+                        </tr>
+                        @if (row.atoms.length && isPlaneExpanded($index)) {
+                          <tr class="bg-surface-50 dark:bg-surface-900">
+                            <td></td>
+                            <td
+                              [attr.colspan]="m.columns.length"
+                              class="px-2 py-1 text-surface-600 dark:text-surface-300"
+                            >
+                              Atoms: {{ row.atoms.join(', ') }}
+                            </td>
+                          </tr>
+                        }
+                      }
+                    } @else {
+                      @for (row of flatRows(m); track $index) {
+                        <tr class="border-b border-surface-100 dark:border-surface-800">
+                          @for (cell of row; track $index) {
+                            <td class="px-2 py-1 whitespace-nowrap">{{ cell }}</td>
+                          }
+                        </tr>
+                      }
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </p-panel>
+          }
+        </div>
+      }
+    </p-panel>
   }
+
+  <p-card header="Validation for NMR data" styleClass="mb-6">
+  <!-- TODO -->
+  </p-card>
 </div>
