@@ -1,4 +1,5 @@
 import hashlib
+import html
 import json
 import os
 import re
@@ -118,6 +119,8 @@ async def get_session():
             'expired': expired,
             'target_depsys': session_row.target_depsys,
             'related_bmrb_id': session_row.related_bmrb_id,
+            'approved': bool(session_row.approved),
+            'downloaded': bool(session_row.downloaded),
         }
 
 
@@ -640,6 +643,239 @@ async def get_coordinate_validation():
     return {'available': True, 'metrics': _curate_metrics(cats)}
 
 
+# ── NMR data validation (NmrDpUtility error/warning report) ────────────────────
+
+# Error types that block a deposition (the "real" errors). Mirrors the flow's
+# _BLOCKING_ERROR_TYPES / utils_nmr.nmr_dp_report_is_real_error.
+_NMR_BLOCKING_ERROR_TYPES = (
+    'format_issue',
+    'coordinate_issue',
+    'content_mismatch',
+    'missing_mandatory_content',
+    'sequence_mismatch',
+    'atom_not_found',
+    'hydrogen_not_instantiated',
+)
+
+# Warnings already auto-remediated (level 0). Mirrors the flow's
+# _IGNORABLE_WARNING_TYPES / utils_nmr.ignorable_warning_types.
+_NMR_IGNORABLE_WARNING_TYPES = (
+    'atom_nomenclature_mismatch',
+    'auth_atom_nomenclature_mismatch',
+    'ccd_mismatch',
+    'corrected_format_issue',
+    'disordered_index',
+    'enum_mismatch_ignorable',
+    'skipped_saveframe_category',
+    'skipped_loop_category',
+)
+
+_NMR_WARNING_LEVEL_3 = (
+    'concatenated_sequence', 'not_superimposed_model', 'exactly_overlaid_model',
+    'conflicted_data', 'conflicted_mr_data', 'conflicted_peak_list',
+    'encouragement', 'unsupported_mr_data', 'unsupported_peak_list',
+)
+
+# Level → header color (0 added vs the Django original; user's scheme).
+_NMR_WARNING_COLORS = {0: 'lightgray', 1: 'lightyellow', 2: 'khaki', 3: 'gold', 4: 'orange'}
+
+
+def _nmr_warning_level(wtype):
+    """Port of utils_nmr.nmr_dp_report_get_warning_level."""
+    if wtype == 'total' or wtype in _NMR_IGNORABLE_WARNING_TYPES:
+        return 0
+    if 'missing' in wtype or 'anomalous' in wtype:
+        return 4
+    if wtype in _NMR_WARNING_LEVEL_3:
+        return 3
+    if wtype in ('unusual/rare_data', 'insufficient_data', 'unsupported_mr_data', 'unsupported_peak_list'):
+        return 1
+    if 'data' in wtype or 'skipped' in wtype or wtype == 'inconsistent_peak_list':
+        return 2
+    return 1
+
+
+def _nmr_title(item):
+    """Port of utils_nmr.nmr_dp_report_title (constraint->restraint, capitalize)."""
+    s = item.replace('constraint', 'restraint')
+    return s[0].upper() + s[1:].replace('_', ' ') if s else s
+
+
+def _nmr_loc(item, model_file_name):
+    """Port of utils_nmr.nmr_dp_report_loc -> location HTML for one item. Values are
+    HTML-escaped; <b> labels and newlines preserved."""
+    e = html.escape
+    ret = ''
+    rl = item.get('row_locations')
+    rl1 = item.get('row_location')
+    if isinstance(rl, dict):
+        for k, v in rl.items():
+            ret += '<b>' + e(str(k)) + ':</b>&nbsp;'
+            for r in v:
+                ret += e(str(r)) + ' and '
+            ret = ret[:-5] + ', '
+    elif isinstance(rl1, dict):
+        for k, v in rl1.items():
+            ret += '<b>' + e(str(k)) + ':</b>&nbsp;' + e(str(v)) + ', '
+    if 'category' in item:
+        if ret:
+            ret += '\n'
+        ret += '<b>Category:</b>&nbsp;' + e(str(item['category'])) + ', '
+    if 'sf_framecode' in item:
+        if ret:
+            ret += '\n'
+        sf = item['sf_framecode']
+        ret += '<b>Saveframe:</b>&nbsp;' + (e(str(sf)) if sf else '?') + ', '
+    if 'file_name' in item:
+        fn = e(str(item['file_name']))
+        if 'inheritable' in item:
+            ret += '<b>Uploaded&nbsp;exptl.&nbsp;file:</b>&nbsp;' + fn + ', '
+        elif item['file_name'] == model_file_name:
+            if ret:
+                ret += '\n'
+            ret += '<b>Coordinate&nbsp;file:</b>&nbsp;' + fn + ', '
+        elif not ret:
+            ret += '<b>NMR&nbsp;data&nbsp;file:</b>&nbsp;' + fn + ', '
+    return ret[:-2] if ret else ''
+
+
+def _nmr_describe(item, is_error):
+    """Description cell HTML: optional Subtotal label + description; for errors wrap a
+    trailing '[Syntax error]…' in <pre> (port of nmr_dp_report_handle_syntax_error)."""
+    parts = ''
+    subtotal = item.get('subtotal')
+    if isinstance(subtotal, int) and subtotal > 1:
+        parts += f'<b>Subtotal:</b> {subtotal}<br />'
+    desc = str(item.get('description', ''))
+    if is_error and 'Syntax error' in desc:
+        idx = desc.index('[Syntax error]')
+        parts += html.escape(desc[:idx]) + '<pre>' + html.escape(desc[idx:]) + '</pre>'
+    else:
+        parts += html.escape(desc)
+    return parts
+
+
+def _nmr_model_file_name(report):
+    """Coordinate file name from the report's input_sources (content_type=='model')."""
+    for src in (report.get('information', {}).get('input_sources') or []):
+        if isinstance(src, dict) and src.get('content_type') == 'model':
+            return src.get('file_name')
+    return None
+
+
+def _parse_nmr_report(report, unified, model_file_name):
+    """Build (errors, warnings) groups from an NmrDpUtility JSON report. errors:
+    every type except 'total' (real = unified or designated type). warnings: from
+    `warning` grouped by level, plus `corrected_warning` as level 0 (corrected)."""
+    errors = []
+    for etype, items in (report.get('error') or {}).items():
+        if etype == 'total' or not items:
+            continue
+        real = unified or etype in _NMR_BLOCKING_ERROR_TYPES
+        if etype == 'internal_error':
+            rows = [{'location': '', 'description': html.escape(str(m)), 'active': True}
+                    for m in items]
+        else:
+            rows = [{'location': _nmr_loc(m, model_file_name),
+                     'description': _nmr_describe(m, True), 'active': real}
+                    for m in items if isinstance(m, dict)]
+        errors.append({'type': etype, 'title': _nmr_title(etype), 'real': real,
+                       'count': len(items), 'rows': rows})
+    errors.sort(key=lambda g: not g['real'])  # real errors first
+
+    def _warn_groups(src, corrected):
+        out = []
+        for wtype, items in (src or {}).items():
+            if wtype == 'total' or not items:
+                continue
+            level = 0 if corrected else _nmr_warning_level(wtype)
+            rows = [{'location': _nmr_loc(m, model_file_name),
+                     'description': _nmr_describe(m, False),
+                     'active': m.get('status') == 'A'}
+                    for m in items if isinstance(m, dict)]
+            out.append({'type': wtype, 'title': _nmr_title(wtype), 'level': level,
+                        'color': _NMR_WARNING_COLORS[level], 'count': len(items),
+                        'corrected': corrected, 'rows': rows})
+        return out
+
+    warnings = _warn_groups(report.get('warning'), False) + \
+        _warn_groups(report.get('corrected_warning'), True)
+    warnings.sort(key=lambda g: (-g['level'], g['corrected']))
+    return errors, warnings
+
+
+def _nmr_unified_dep(token, target_depsys):
+    """NMR_UNIFIED_DEP = (onedep & nm-uni-* present) | repl_cs — same as the flow's
+    onedep_combined; the uni-file check reads the run's manifest."""
+    if target_depsys == TargetDepsysCode.repl_cs.value:
+        return True
+    if target_depsys != TargetDepsysCode.onedep.value:
+        return False
+    try:
+        manifest = json.loads((Path(ARCHIVE_BASE_PATH) / str(token) / 'manifest.json').read_text())
+        return any(
+            str(f.get('file_type', '')).startswith('nm-uni-') for f in manifest.get('files', [])
+        )
+    except Exception:  # noqa: BLE001
+        return False
+
+
+@app.route('/api/nmr_validation', methods=['GET'])
+async def get_nmr_validation():
+    """Error/warning tables from the session's latest-run final NmrDpUtility report.
+
+    The report is the convert_nmr_data workflow row's log_path (the last task's JSON
+    per mode). Token-scoped, read-only (SELECT + file read; mutates nothing). Always
+    200 (400 only for a missing token); `available` is false when there is no NMR
+    report yet (not processed).
+    """
+    token = request.args.get('token')
+    if not token:
+        return {'error': 'token is required'}, 400
+
+    async with async_session_factory() as db:
+        session_row = (
+            await db.execute(select(Session).where(Session.token == token))
+        ).scalar_one_or_none()
+        if session_row is None:
+            return {'error': 'session not found'}, 404
+        conversion_id = session_row.conversion_id
+        run_number = session_row.latest_run_number
+        target_depsys = session_row.target_depsys
+        if conversion_id is None or run_number < 1:
+            return {'available': False}
+
+        wf = (
+            await db.execute(
+                select(Workflow).where(
+                    Workflow.conversion_id == conversion_id,
+                    Workflow.run_number == run_number,
+                    Workflow.task == WfTaskCode.convert_nmr_data.value,
+                )
+            )
+        ).scalar_one_or_none()
+
+    if wf is None or not wf.log_path:
+        return {'available': False}
+    report_path = Path(wf.log_path)
+    if not report_path.is_file():
+        return {'available': False}
+    try:
+        report = json.loads(report_path.read_text())
+    except Exception:  # noqa: BLE001
+        return {'available': False}
+
+    unified = _nmr_unified_dep(token, target_depsys)
+    errors, warnings = _parse_nmr_report(report, unified, _nmr_model_file_name(report))
+    return {
+        'available': True,
+        'status': report.get('information', {}).get('status'),
+        'unified': unified,
+        'errors': errors,
+        'warnings': warnings,
+    }
+
+
 @app.route('/api/session', methods=['PATCH'])
 async def update_session():
     body = request.get_json(silent=True) or {}
@@ -665,6 +901,38 @@ async def update_session():
         session_row.related_bmrb_id = related_bmrb_id
         await db.commit()
     return {}, 200
+
+
+@app.route('/api/approve', methods=['POST'])
+async def approve_session():
+    """Set session.approved — the user's acknowledgment of all warnings (Terms #7),
+    which gates download. The frontend computes the value (all acknowledgeable
+    validation tables checked, no blocking error); this only persists it.
+
+    JSON body: { token, approved }. 400 missing token / non-bool; 404 no session;
+    409 before processing (no conversion_id) or after download (locked).
+    """
+    body = request.get_json(silent=True) or {}
+    token = body.get('token')
+    approved = body.get('approved')
+
+    if not token or not isinstance(approved, bool):
+        return {'error': 'token and boolean approved are required'}, 400
+
+    async with async_session_factory() as db:
+        session_row = (
+            await db.execute(select(Session).where(Session.token == token))
+        ).scalar_one_or_none()
+        if session_row is None:
+            return {'error': 'session not found'}, 404
+        if session_row.conversion_id is None:
+            return {'error': 'session not yet processed'}, 409
+        if session_row.downloaded:
+            return {'error': 'session is locked after download'}, 409
+        session_row.approved = approved
+        await db.commit()
+
+    return {'approved': approved}, 200
 
 
 # ── Consent ───────────────────────────────────────────────────────────────────
@@ -746,10 +1014,11 @@ async def upload():
             selected=True,
         ))
 
+        # Reset approval: new files invalidate any prior warning acknowledgment.
         await db.execute(
             update(Session)
             .where(Session.token == token)
-            .values(status=SessionStatusCode.uploading)
+            .values(status=SessionStatusCode.uploading, approved=False)
         )
         await db.commit()
 
