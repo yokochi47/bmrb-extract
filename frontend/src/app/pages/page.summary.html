@@ -47,4 +47,22 @@
       </ng-template>
     </p-table>
   </p-card>
+
+  @if (showViewer()) {
+    <p-card header="Coordinate preview" styleClass="mb-6">
+      <p class="text-base mb-4">
+        A 3D view of the converted coordinate file. Drag to rotate, scroll to zoom; use the expand
+        control for a fullscreen view.
+      </p>
+      @if (!viewerError()) {
+        <!-- Mol* fills this host; it must have a non-zero size and be positioned. -->
+        <div
+          #molstarHost
+          class="relative w-full h-[32rem] rounded overflow-hidden border border-surface-200 dark:border-surface-700"
+        ></div>
+      } @else {
+        <p class="text-surface-500 py-4">A coordinate preview is not available for this conversion.</p>
+      }
+    </p-card>
+  }
 </div>
