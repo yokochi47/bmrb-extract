@@ -28,6 +28,16 @@
               {
                 "glob": "**/*",
                 "input": "public"
+              },
+              {
+                "glob": "molstar.js",
+                "input": "node_modules/molstar/build/viewer",
+                "output": "molstar"
+              },
+              {
+                "glob": "molstar.css",
+                "input": "node_modules/molstar/build/viewer",
+                "output": "molstar"
               }
             ],
             "styles": ["src/assets/styles.scss", "src/assets/tailwind.css"]

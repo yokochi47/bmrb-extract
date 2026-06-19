@@ -5,13 +5,15 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import httpx
-from flask import Flask, request
+from flask import Flask, request, send_file
 from git import Actor, InvalidGitRepositoryError, Repo
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from core.models import (
+    OutputFile,
+    OutputFileType,
     Session,
     SessionStatusCode,
     TargetDepsysCode,
@@ -280,6 +282,58 @@ async def get_log():
     except OSError:
         text = ''
     return {'text': text}
+
+
+@app.route('/api/coordinate', methods=['GET'])
+async def get_coordinate():
+    """Stream the session's latest-run converted mmCIF (output/C_<cid>_model.cif)
+    for in-browser Mol* preview. Token-scoped.
+
+    This is a PREVIEW, not the official download: it is read-only (SELECT +
+    send_file) and never mutates output_file.downloaded / downloaded_at /
+    client_ip / user_agent, nor locks the session. 404 when there is no pdbx
+    output (bmrbdep, or not yet converted).
+    """
+    token = request.args.get('token')
+    if not token:
+        return {'error': 'token is required'}, 400
+
+    async with async_session_factory() as db:
+        session_row = (
+            await db.execute(select(Session).where(Session.token == token))
+        ).scalar_one_or_none()
+        if session_row is None:
+            return {'error': 'session not found'}, 404
+        conversion_id = session_row.conversion_id
+        run_number = session_row.latest_run_number
+        if conversion_id is None or run_number < 1:
+            return {'error': 'no coordinate available'}, 404
+
+        output_row = (
+            await db.execute(
+                select(OutputFile).where(
+                    OutputFile.conversion_id == conversion_id,
+                    OutputFile.run_number == run_number,
+                    OutputFile.file_type == OutputFileType.pdbx.value,
+                )
+            )
+        ).scalar_one_or_none()
+
+    if output_row is None:
+        return {'error': 'no coordinate available'}, 404
+    fpath = Path(output_row.stored_path)
+    if not fpath.is_file():
+        return {'error': 'coordinate file missing'}, 404
+
+    # Inline (not as_attachment) — Mol* fetches it; conditional adds ETag/Range so
+    # the browser caches the multi-MB file across summary re-entry.
+    return send_file(
+        str(fpath),
+        mimetype='chemical/x-mmcif',
+        as_attachment=False,
+        download_name=f'C_{conversion_id}_model.cif',
+        conditional=True,
+    )
 
 
 @app.route('/api/session', methods=['PATCH'])

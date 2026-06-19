@@ -20,6 +20,7 @@
     "@angular/router": "^21.2.6",
     "@primeuix/themes": "^2.0.3",
     "@tailwindcss/postcss": "^4.2.2",
+    "molstar": "^5.10.1",
     "postcss": "^8.5.9",
     "primeicons": "^7.0.0",
     "primeng": "^21.1.5",
