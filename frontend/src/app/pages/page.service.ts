@@ -22,6 +22,10 @@ export interface PageState {
   adminUser: boolean;
   tokenBase: string | null;
   conversionId: number | null;
+  /** User has acknowledged all warnings (Terms #7) — gates download. */
+  approved: boolean;
+  /** Conversion results have been downloaded — session is read-only. */
+  downloaded: boolean;
 }
 
 @Injectable({
@@ -46,6 +50,8 @@ export class PageService {
     adminUser: false,
     tokenBase: null,
     conversionId: null,
+    approved: false,
+    downloaded: false,
   });
 
   private initialized = false;
@@ -84,9 +90,11 @@ export class PageService {
           expired: boolean;
           target_depsys: string;
           related_bmrb_id: number | null;
+          approved: boolean;
+          downloaded: boolean;
         }>(API_URL + 'session', { params: { token } })
         .subscribe({
-          next: ({ conversion_id, expired, target_depsys, related_bmrb_id }) => {
+          next: ({ conversion_id, expired, target_depsys, related_bmrb_id, approved, downloaded }) => {
             if (expired) {
               this.tokenValidation.set('expired');
               this.pageState.update((prev) => ({ ...prev, expiredSession: true }));
@@ -98,6 +106,8 @@ export class PageService {
                 targetDepsys:
                   TargetDepsys[target_depsys as keyof typeof TargetDepsys] ?? TargetDepsys.onedep,
                 relatedBmrbId: related_bmrb_id,
+                approved: !!approved,
+                downloaded: !!downloaded,
               }));
             }
           },

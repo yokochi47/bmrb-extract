@@ -119,6 +119,8 @@ async def get_session():
             'expired': expired,
             'target_depsys': session_row.target_depsys,
             'related_bmrb_id': session_row.related_bmrb_id,
+            'approved': bool(session_row.approved),
+            'downloaded': bool(session_row.downloaded),
         }
 
 
@@ -901,6 +903,38 @@ async def update_session():
     return {}, 200
 
 
+@app.route('/api/approve', methods=['POST'])
+async def approve_session():
+    """Set session.approved — the user's acknowledgment of all warnings (Terms #7),
+    which gates download. The frontend computes the value (all acknowledgeable
+    validation tables checked, no blocking error); this only persists it.
+
+    JSON body: { token, approved }. 400 missing token / non-bool; 404 no session;
+    409 before processing (no conversion_id) or after download (locked).
+    """
+    body = request.get_json(silent=True) or {}
+    token = body.get('token')
+    approved = body.get('approved')
+
+    if not token or not isinstance(approved, bool):
+        return {'error': 'token and boolean approved are required'}, 400
+
+    async with async_session_factory() as db:
+        session_row = (
+            await db.execute(select(Session).where(Session.token == token))
+        ).scalar_one_or_none()
+        if session_row is None:
+            return {'error': 'session not found'}, 404
+        if session_row.conversion_id is None:
+            return {'error': 'session not yet processed'}, 409
+        if session_row.downloaded:
+            return {'error': 'session is locked after download'}, 409
+        session_row.approved = approved
+        await db.commit()
+
+    return {'approved': approved}, 200
+
+
 # ── Consent ───────────────────────────────────────────────────────────────────
 
 @app.route('/api/new_consent', methods=['POST'])
@@ -980,10 +1014,11 @@ async def upload():
             selected=True,
         ))
 
+        # Reset approval: new files invalidate any prior warning acknowledgment.
         await db.execute(
             update(Session)
             .where(Session.token == token)
-            .values(status=SessionStatusCode.uploading)
+            .values(status=SessionStatusCode.uploading, approved=False)
         )
         await db.commit()
 

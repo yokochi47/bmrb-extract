@@ -9,9 +9,11 @@ import {
   viewChild,
 } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { FormsModule } from '@angular/forms';
 import { CardModule } from 'primeng/card';
 import { TableModule } from 'primeng/table';
 import { PanelModule } from 'primeng/panel';
+import { CheckboxModule } from 'primeng/checkbox';
 
 import { PageService, TargetDepsys } from './page.service';
 import { API_URL } from '../../site.config';
@@ -74,7 +76,7 @@ interface NmrWarningGroup {
 
 @Component({
   selector: 'app-summary',
-  imports: [CardModule, TableModule, PanelModule],
+  imports: [FormsModule, CardModule, TableModule, PanelModule, CheckboxModule],
   templateUrl: './page.summary.html',
 })
 export class Summary implements OnDestroy {
@@ -112,12 +114,55 @@ export class Summary implements OnDestroy {
   /** True when the NMR report carried at least one error or warning group. */
   hasNmrIssues = computed(() => this.nmrErrors().length > 0 || this.nmrWarnings().length > 0);
 
+  // ── Warning acknowledgment / download approval (Terms #7) ───────────────────
+  /** Keys of the tables the user has acknowledged. */
+  private acknowledged = signal<Set<string>>(new Set());
+
+  /** An NMR error group is acknowledgeable only when it is a *potential* (non-real)
+   * error; real/blocking errors must be fixed, not acknowledged. */
+  nmrErrAck(g: NmrErrorGroup): boolean {
+    return !g.real;
+  }
+  /** An NMR warning group is acknowledgeable for levels 1–4 (level 0 = already
+   * remediated, nothing to acknowledge). */
+  nmrWarnAck(g: NmrWarningGroup): boolean {
+    return g.level >= 1;
+  }
+
+  /** Stable acknowledgment keys for every acknowledgeable table on the page. */
+  private acknowledgeableKeys = computed<string[]>(() => {
+    const keys: string[] = [];
+    if (this.showViewer()) {
+      for (const m of this.validationMetrics()) keys.push('geo:' + m.key);
+    }
+    for (const g of this.nmrErrors()) if (this.nmrErrAck(g)) keys.push('nmrerr:' + g.type);
+    for (const g of this.nmrWarnings()) if (this.nmrWarnAck(g)) keys.push('nmrwarn:' + g.type);
+    return keys;
+  });
+
+  /** A real (blocking) NMR error is present → download is blocked; cannot approve. */
+  hasBlockingError = computed(() => this.nmrErrors().some((g) => g.real));
+
+  /** Download is allowed: no blocking error and every acknowledgeable table checked. */
+  canApprove = computed(
+    () =>
+      !this.hasBlockingError() &&
+      this.acknowledgeableKeys().every((k) => this.acknowledged().has(k)),
+  );
+
+  /** Read-only after download. */
+  locked = computed(() => this.pageService.pageState().downloaded);
+
+  /** A conversion run exists (the validation/approval UI only applies then). */
+  processed = computed(() => this.pageService.pageState().conversionId !== null);
+
   /** Host element for the Mol* canvas (only present while showViewer()). */
   private coordinateHost = viewChild<ElementRef<HTMLDivElement>>('molstarHost');
 
   private fetched = false;
   private validationFetched = false;
   private nmrFetched = false;
+  private ackInitialized = false;
   private viewerInit = false;
   private viewer: MolstarViewer | null = null;
 
@@ -161,6 +206,22 @@ export class Summary implements OnDestroy {
       if (!token || this.nmrFetched) return;
       this.nmrFetched = true;
       this.loadNmrValidation(token);
+    });
+
+    // Initialise acknowledgment state once the run is processed and both
+    // validation reports have resolved: restore checks from session.approved, or
+    // (OK case) approve immediately when there is nothing to acknowledge.
+    effect(() => {
+      const state = this.pageService.pageState();
+      const geoReady = !this.showViewer() || this.validationAvailable() !== null;
+      const nmrReady = this.nmrAvailable() !== null;
+      if (state.conversionId === null || !geoReady || !nmrReady || this.ackInitialized) return;
+      this.ackInitialized = true;
+      if (state.approved) {
+        this.acknowledged.set(new Set(this.acknowledgeableKeys()));
+      } else if (this.acknowledgeableKeys().length === 0 && !this.hasBlockingError()) {
+        this.patchApproved(true);
+      }
     });
   }
 
@@ -214,6 +275,38 @@ export class Summary implements OnDestroy {
           console.error('Failed to load NMR validation', err);
           this.nmrAvailable.set(false);
         },
+      });
+  }
+
+  /** Whether a table (by key) has been acknowledged. */
+  isAcked(key: string): boolean {
+    return this.acknowledged().has(key);
+  }
+
+  /** Toggle a table's acknowledgment and persist the resulting approval state.
+   * No-op once the session is locked (downloaded). */
+  toggleAck(key: string): void {
+    if (this.locked()) return;
+    const next = new Set(this.acknowledged());
+    if (next.has(key)) {
+      next.delete(key);
+    } else {
+      next.add(key);
+    }
+    this.acknowledged.set(next);
+    this.patchApproved(this.canApprove());
+  }
+
+  /** Persist session.approved (POST /api/approve) and reflect it in page state. */
+  private patchApproved(value: boolean): void {
+    const token = this.pageService.pageState().tokenBase;
+    if (!token || this.pageService.pageState().approved === value) return;
+    this.http
+      .post(API_URL + 'approve', { token, approved: value })
+      .subscribe({
+        next: () =>
+          this.pageService.pageState.update((prev) => ({ ...prev, approved: value })),
+        error: (err) => console.error('Failed to update approval', err),
       });
   }
 
