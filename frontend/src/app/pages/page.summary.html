@@ -219,6 +219,33 @@
         </div>
       }
 
+      <!-- Restraint summary -->
+      @if (previewRestraints().length) {
+        <div class="mb-6 overflow-x-auto">
+          <div class="font-medium mb-2">Restraint summary</div>
+          <table class="w-full text-sm border-collapse">
+            <thead>
+              <tr>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Type</th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Saveframe</th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Restraints</th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Range</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (rr of previewRestraints(); track $index) {
+                <tr class="border-b border-surface-100 dark:border-surface-800">
+                  <td class="px-2 py-1">{{ rr.type }}</td>
+                  <td class="px-2 py-1 font-mono break-all">{{ rr.name }}</td>
+                  <td class="px-2 py-1">{{ rr.total }}</td>
+                  <td class="px-2 py-1">{{ rr.range }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
       <!-- Chemical-shift completeness per chain -->
       @if (previewCompleteness().length) {
         <div class="mb-6">
@@ -267,6 +294,18 @@
         </div>
       }
       @for (p of distPanels(); track $index) {
+        <div class="mb-6">
+          <div class="font-medium mb-1">{{ p.title }}</div>
+          <app-echart [option]="p.option" [height]="380" />
+        </div>
+      }
+      @for (p of discrepancyPanels(); track $index) {
+        <div class="mb-6">
+          <div class="font-medium mb-1">{{ p.title }}</div>
+          <app-echart [option]="p.option" [height]="360" />
+        </div>
+      }
+      @for (p of perResiduePanels(); track $index) {
         <div class="mb-6">
           <div class="font-medium mb-1">{{ p.title }}</div>
           <app-echart [option]="p.option" [height]="380" />
