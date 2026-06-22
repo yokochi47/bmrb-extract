@@ -3,11 +3,13 @@ import html
 import json
 import os
 import re
+import traceback
 from datetime import datetime, timedelta
 from pathlib import Path
 
 import httpx
 from flask import Flask, request, send_file
+from werkzeug.exceptions import HTTPException
 from git import Actor, InvalidGitRepositoryError, Repo
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -50,6 +52,21 @@ engine = create_async_engine(SERVICE_DATABASE_URL, echo=True, poolclass=NullPool
 async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 _GIT_ACTOR = Actor(SERVICE_HOST, SERVICE_ADMIN_EMAIL)
+
+
+@app.errorhandler(Exception)
+def handle_unexpected_error(exc):
+    """Return unhandled server-side errors as JSON ({error: '<type>: <msg>'})
+    instead of Flask's default HTML 500, so the frontend can surface an
+    actionable detail. The full traceback is logged for backend debugging.
+    Werkzeug HTTP errors (404, 405, ...) keep their standard responses."""
+    if isinstance(exc, HTTPException):
+        return exc
+    app.logger.error(
+        'unhandled error on %s %s:\n%s',
+        request.method, request.path, traceback.format_exc(),
+    )
+    return {'error': f'{type(exc).__name__}: {exc}'}, 500
 
 # Prefect REST API (the worker/server image, reached over the internal network).
 # PREFECT_API_URL is set in .env (Prefect standard); fall back to the service name.

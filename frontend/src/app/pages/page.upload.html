@@ -315,7 +315,14 @@
                   filterPlaceholder="Search file types..."
                   appendTo="body"
                   styleClass="w-full"
-                />
+                >
+                  <ng-template let-group pTemplate="group">
+                    <span class="italic underline">{{ group.label }}</span>
+                  </ng-template>
+                  <ng-template let-item pTemplate="selectedItem">
+                    {{ item.selectedLabel }}
+                  </ng-template>
+                </p-select>
               </td>
               <td class="py-2 px-2 text-center">
                 <p-button

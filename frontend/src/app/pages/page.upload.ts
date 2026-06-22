@@ -451,7 +451,12 @@ export class Upload implements OnDestroy {
     return this.FILE_TYPE_GROUPS.map((g) => ({
       label: g.label,
       items: this.FILE_TYPE_OPTIONS.filter((opt) => g.match(opt.value) && allowed(opt.value)).map(
-        (opt) => ({ label: this.shortLabel(opt.label), value: opt.value }),
+        (opt) => {
+          const short = this.shortLabel(opt.label);
+          // Item list shows the short label; the closed select shows the
+          // '{group} - {short}' selected label (e.g. 'Coordinates - PDBx/mmCIF format').
+          return { label: short, selectedLabel: `${g.label} - ${short}`, value: opt.value };
+        },
       ),
     })).filter((g) => g.items.length > 0);
   });
@@ -757,11 +762,15 @@ export class Upload implements OnDestroy {
     if (!token || this.submitting()) return;
     this.submitError.set(null);
     this.submitting.set(true);
+    // Tracks the operation in flight so a failure can name the exact step
+    // (which file upload, or the conversion trigger) in the error message.
+    let step = 'starting processing';
     try {
       const rows = this.rows();
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
         if (!row.selected || row.ordinal != null || !row.fileType) continue;
+        step = `uploading "${row.name}"`;
         const form = new FormData();
         form.append('token', token);
         form.append('file_type', row.fileType);
@@ -775,6 +784,7 @@ export class Upload implements OnDestroy {
         );
       }
 
+      step = 'starting conversion';
       const res = await firstValueFrom(
         this.http.post<{ conversion_id: number; run_number: number }>(API_URL + 'process', {
           token,
@@ -785,11 +795,39 @@ export class Upload implements OnDestroy {
       this.openProgress();
     } catch (err) {
       this.submitting.set(false);
-      const msg =
-        (err as HttpErrorResponse)?.error?.error ?? 'Failed to start processing. Please try again.';
-      this.submitError.set(msg);
-      console.error('Processing failed', err);
+      const detail = this.describeHttpError(err);
+      this.submitError.set(`Failed while ${step}: ${detail}`);
+      console.error(`Processing failed while ${step}`, err);
     }
+  }
+
+  /**
+   * Build a debugging-friendly description of a failed HTTP call: the backend's
+   * JSON error message when present, otherwise the HTTP status, a connection
+   * diagnosis for status 0, or a snippet of a non-JSON (e.g. HTML 500) body.
+   */
+  private describeHttpError(err: unknown): string {
+    if (err instanceof TimeoutError) return 'the request timed out';
+    if (err instanceof HttpErrorResponse) {
+      const status = err.status ? `HTTP ${err.status} ${err.statusText}`.trim() : null;
+      const body = err.error;
+      // Backend errors are { error: '<message>' }; surface that as the primary text.
+      if (body && typeof body === 'object' && typeof body.error === 'string') {
+        return status ? `${body.error} (${status})` : body.error;
+      }
+      // Network/connection failure: no response was received at all.
+      if (err.status === 0) {
+        return 'could not reach the server (network or connection error)';
+      }
+      // Non-JSON response body (HTML error page, plain text): include a snippet.
+      if (typeof body === 'string' && body.trim()) {
+        const snippet = body.trim().slice(0, 300);
+        return status ? `${status} — ${snippet}` : snippet;
+      }
+      return status ?? err.message ?? 'unknown HTTP error';
+    }
+    if (err instanceof Error) return err.message;
+    return String(err);
   }
 
   // ── Processing progress dialog ───────────────────────────────────────────────

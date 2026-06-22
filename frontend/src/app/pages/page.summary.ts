@@ -300,8 +300,16 @@ export class Summary implements OnDestroy {
   dihedralPanels = computed<ChartPanel[]>(() => {
     const panels: ChartPanel[] = [];
     for (const d of this.nmrPreview()?.charts.dihedral ?? []) {
-      if (d.phi_psi) panels.push({ title: 'φ / ψ dihedral angles', option: this.dihedralOption(d.phi_psi, 'φ', 'ψ') });
-      if (d.chi1_chi2) panels.push({ title: 'χ1 / χ2 dihedral angles', option: this.dihedralOption(d.chi1_chi2, 'χ1', 'χ2') });
+      if (d.phi_psi)
+        panels.push({
+          title: 'φ / ψ dihedral angles',
+          option: this.dihedralOption(d.phi_psi, 'φ', 'ψ'),
+        });
+      if (d.chi1_chi2)
+        panels.push({
+          title: 'χ1 / χ2 dihedral angles',
+          option: this.dihedralOption(d.chi1_chi2, 'χ1', 'χ2'),
+        });
     }
     return panels;
   });
@@ -501,12 +509,10 @@ export class Summary implements OnDestroy {
   }
 
   private loadFiles(token: string): void {
-    this.http
-      .get<{ files: UploadFileRow[] }>(API_URL + 'files', { params: { token } })
-      .subscribe({
-        next: (res) => this.files.set(res.files ?? []),
-        error: (err) => console.error('Failed to load upload files', err),
-      });
+    this.http.get<{ files: UploadFileRow[] }>(API_URL + 'files', { params: { token } }).subscribe({
+      next: (res) => this.files.set(res.files ?? []),
+      error: (err) => console.error('Failed to load upload files', err),
+    });
   }
 
   private loadValidation(token: string): void {
@@ -550,18 +556,16 @@ export class Summary implements OnDestroy {
   }
 
   private loadNmrPreview(token: string): void {
-    this.http
-      .get<NmrPreview>(API_URL + 'nmr_preview', { params: { token } })
-      .subscribe({
-        next: (res) => {
-          this.nmrPreview.set(res);
-          this.nmrPreviewAvailable.set(res.available);
-        },
-        error: (err) => {
-          console.error('Failed to load NMR preview', err);
-          this.nmrPreviewAvailable.set(false);
-        },
-      });
+    this.http.get<NmrPreview>(API_URL + 'nmr_preview', { params: { token } }).subscribe({
+      next: (res) => {
+        this.nmrPreview.set(res);
+        this.nmrPreviewAvailable.set(res.available);
+      },
+      error: (err) => {
+        console.error('Failed to load NMR preview', err);
+        this.nmrPreviewAvailable.set(false);
+      },
+    });
   }
 
   /** ECharts option for a stacked-bar histogram. */
@@ -650,7 +654,11 @@ export class Summary implements OnDestroy {
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
       legend: { bottom: 0, type: 'scroll' },
       grid: { left: 48, right: 16, top: 24, bottom: 72, containLabel: true },
-      xAxis: { type: 'category', data: c.categories, axisLabel: { interval, rotate: -75, fontSize: 8 } },
+      xAxis: {
+        type: 'category',
+        data: c.categories,
+        axisLabel: { interval, rotate: -75, fontSize: 8 },
+      },
       yAxis: { type: 'value', name: '# restraints', minInterval: 1 },
       series: c.series.map((s, idx) => ({
         name: s.name,
@@ -665,7 +673,13 @@ export class Summary implements OnDestroy {
   /** ECharts option for a symmetric contact map: scatter of [seq1, seq2] points
    * sized by restraint count, on a square residue×residue grid (y inverted). */
   private contactMapOption(c: ContactMapChart): object {
-    const axis = (name: string) => ({ type: 'value' as const, name, min: c.min, max: c.max, minInterval: 1 });
+    const axis = (name: string) => ({
+      type: 'value' as const,
+      name,
+      min: c.min,
+      max: c.max,
+      minInterval: 1,
+    });
     return {
       tooltip: {
         trigger: 'item',
@@ -692,7 +706,9 @@ export class Summary implements OnDestroy {
       tooltip: {
         trigger: 'item',
         formatter: (p: { data?: number[] }) =>
-          p.data ? `${c.chain1}:${p.data[0]} ↔ ${c.chain2}:${p.data[1]}<br/>count: ${p.data[2]}` : '',
+          p.data
+            ? `${c.chain1}:${p.data[0]} ↔ ${c.chain2}:${p.data[1]}<br/>count: ${p.data[2]}`
+            : '',
       },
       legend: { bottom: 0, type: 'scroll' },
       grid: { left: 48, right: 24, top: 16, bottom: 48, containLabel: true },
@@ -720,14 +736,22 @@ export class Summary implements OnDestroy {
     };
     const markLine =
       c.threshold !== null
-        ? { silent: true, symbol: 'none', data: [{ yAxis: c.threshold }],
-            lineStyle: { color: '#dc2626', type: 'dashed' } }
+        ? {
+            silent: true,
+            symbol: 'none',
+            data: [{ yAxis: c.threshold }],
+            lineStyle: { color: '#dc2626', type: 'dashed' },
+          }
         : undefined;
     return {
       tooltip: { trigger: 'axis' },
       legend: { bottom: 0, type: 'scroll' },
       grid: { left: 52, right: 16, top: 24, bottom: 64, containLabel: true },
-      xAxis: { type: 'category', data: c.categories, axisLabel: { interval, rotate: -75, fontSize: 8 } },
+      xAxis: {
+        type: 'category',
+        data: c.categories,
+        axisLabel: { interval, rotate: -75, fontSize: 8 },
+      },
       yAxis: {
         type: 'value',
         ...(c.ymin !== null ? { min: c.ymin } : {}),
@@ -789,13 +813,10 @@ export class Summary implements OnDestroy {
   private patchApproved(value: boolean): void {
     const token = this.pageService.pageState().tokenBase;
     if (!token || this.pageService.pageState().approved === value) return;
-    this.http
-      .post(API_URL + 'approve', { token, approved: value })
-      .subscribe({
-        next: () =>
-          this.pageService.pageState.update((prev) => ({ ...prev, approved: value })),
-        error: (err) => console.error('Failed to update approval', err),
-      });
+    this.http.post(API_URL + 'approve', { token, approved: value }).subscribe({
+      next: () => this.pageService.pageState.update((prev) => ({ ...prev, approved: value })),
+      error: (err) => console.error('Failed to update approval', err),
+    });
   }
 
   /** Typed row accessors for the template (rows is a flat/nested union). */

@@ -94,7 +94,14 @@ export class PageService {
           downloaded: boolean;
         }>(API_URL + 'session', { params: { token } })
         .subscribe({
-          next: ({ conversion_id, expired, target_depsys, related_bmrb_id, approved, downloaded }) => {
+          next: ({
+            conversion_id,
+            expired,
+            target_depsys,
+            related_bmrb_id,
+            approved,
+            downloaded,
+          }) => {
             if (expired) {
               this.tokenValidation.set('expired');
               this.pageState.update((prev) => ({ ...prev, expiredSession: true }));
