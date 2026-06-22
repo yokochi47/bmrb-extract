@@ -1120,6 +1120,99 @@ def _spectral_peaks(stat_list):
     return summary, dims
 
 
+_ANGLE_LABELS = {'phi': 'φ', 'psi': 'ψ', 'chi1': 'χ1', 'chi2': 'χ2', 'chi3': 'χ3', 'chi4': 'χ4'}
+
+
+def _angle_label(key):
+    """Per-residue value-series label: 'phi_angle_constraints' → φ,
+    'H-N_bond_vectors' → H-N, etc."""
+    base = key.replace('_angle_constraints', '').replace('_bond_vectors', '').replace('_constraints', '')
+    return _ANGLE_LABELS.get(base, base.replace('_', ' '))
+
+
+def _per_residue_value_charts(stat_list, ymin=None, ymax=None):
+    """Per-chain per-residue VALUE line charts (e.g. dihedral angles, observed RDC)
+    from `constraints_per_residue`. None values are kept (line gaps)."""
+    charts = []
+    for st in stat_list or []:
+        for pr in st.get('constraints_per_residue') or []:
+            seq = pr.get('seq_id') or []
+            comp = pr.get('comp_id') or []
+            if not seq:
+                continue
+            cats = [f"{comp[i] if i < len(comp) else ''} {seq[i]}".strip() for i in range(len(seq))]
+            series = [
+                {'name': _angle_label(k), 'data': v}
+                for k, v in pr.items()
+                if k not in _PER_RESIDUE_SKIP and isinstance(v, list)
+                and any(x is not None for x in v)
+            ]
+            if series:
+                charts.append({
+                    'chain': pr.get('chain_id'), 'label': st.get('sf_framecode', ''),
+                    'categories': cats, 'series': series,
+                    'bands': _struct_conf_bands(pr.get('struct_conf')),
+                    'ymin': ymin, 'ymax': ymax, 'threshold': None,
+                })
+    return charts
+
+
+def _asym_contact_map_charts(stat_list):
+    """Asymmetric (inter-chain) contact maps from `constraints_on_asym_contact_map`:
+    distinct x (chain 1) and y (chain 2) residue ranges."""
+    charts = []
+    for st in stat_list or []:
+        for cm in st.get('constraints_on_asym_contact_map') or []:
+            s1 = cm.get('seq_id_1') or []
+            s2 = cm.get('seq_id_2') or []
+            if not s1 or not s2:
+                continue
+            series = []
+            for k, v in cm.items():
+                if isinstance(v, list) and v and isinstance(v[0], dict) and 'seq_id_1' in v[0]:
+                    pts = [[d['seq_id_1'], d['seq_id_2'], d.get('total', 1)] for d in v]
+                    if pts:
+                        series.append({'name': _constraint_label(k), 'points': pts})
+            if series:
+                charts.append({
+                    'chain1': cm.get('chain_id_1'), 'chain2': cm.get('chain_id_2'),
+                    'label': st.get('sf_framecode', ''),
+                    'xmin': min(s1), 'xmax': max(s1), 'ymin': min(s2), 'ymax': max(s2),
+                    'series': series,
+                })
+    return charts
+
+
+def _rci_charts(chem_shift_list):
+    """RCI/S² (0–1) and NMR-RMSD (Å, with well-defined-region threshold) per-residue
+    line charts from `random_coil_index`."""
+    charts = []
+    for st in chem_shift_list or []:
+        for rci in st.get('random_coil_index') or []:
+            seq = rci.get('seq_id') or []
+            comp = rci.get('comp_id') or []
+            if not seq:
+                continue
+            cats = [f"{comp[i] if i < len(comp) else ''} {seq[i]}".strip() for i in range(len(seq))]
+            bands = _struct_conf_bands(rci.get('struct_conf'))
+            chain = rci.get('chain_id')
+            order = [
+                {'name': nm, 'data': rci[k]}
+                for k, nm in (('rci', 'RCI'), ('s2', 'S²'))
+                if isinstance(rci.get(k), list) and any(x is not None for x in rci[k])
+            ]
+            sf = st.get('sf_framecode', '')
+            if order:
+                charts.append({'chain': chain, 'label': 'RCI / S²', 'sf': sf, 'categories': cats,
+                               'series': order, 'bands': bands, 'ymin': 0, 'ymax': 1, 'threshold': None})
+            rmsd = rci.get('nmr_rmsd')
+            if isinstance(rmsd, list) and any(x is not None for x in rmsd):
+                charts.append({'chain': chain, 'label': 'NMR RMSD (Å)', 'sf': sf, 'categories': cats,
+                               'series': [{'name': 'NMR RMSD', 'data': rmsd}], 'bands': bands,
+                               'ymin': 0, 'ymax': None, 'threshold': rci.get('rmsd_in_well_defined_region')})
+    return charts
+
+
 def _nmr_preview_data(report):
     """Extract Phase-1 chart/table data from an NmrDpUtility report. Aggregates
     per-subtype stats (stats_of_exptl_data) across input sources."""
@@ -1179,6 +1272,10 @@ def _nmr_preview_data(report):
             'dihedral': _dihedral_charts(dihed_restraint),
             'per_residue': _per_residue_charts(dist_restraint),
             'contact_maps': _contact_map_charts(dist_restraint),
+            'asym_contact_maps': _asym_contact_map_charts(dist_restraint),
+            'dihedral_per_residue': _per_residue_value_charts(dihed_restraint, -180, 180),
+            'rdc_per_residue': _per_residue_value_charts(rdc_restraint),
+            'rci': _rci_charts(chem_shift),
         },
         'restraints': _restraint_summary(dist_restraint, dihed_restraint, rdc_restraint),
         'spectral_peaks': dict(zip(('summary', 'dims'), _spectral_peaks(spectral_peak))),
