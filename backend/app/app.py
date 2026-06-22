@@ -967,6 +967,100 @@ def _dihedral_charts(stat_list):
     return charts
 
 
+_STRUCT_CONF_TYPES = {'HELX': 'helix', 'STRN': 'strand', 'TURN': 'turn'}
+_PER_RESIDUE_SKIP = {'chain_id', 'seq_id', 'comp_id', 'struct_conf'}
+
+
+def _sc_type(sc):
+    """Secondary-structure class from a struct_conf token (e.g. 'HELX_P:AA1')."""
+    if not sc:
+        return None
+    head = re.split(r'[_:]', str(sc), 1)[0].upper()
+    return _STRUCT_CONF_TYPES.get(head)
+
+
+def _struct_conf_bands(struct_conf):
+    """Collapse runs of the same struct_conf value into colored bands
+    [{start, end, type}] (indices into the residue list)."""
+    bands = []
+    sc_list = struct_conf or []
+    i, n = 0, len(sc_list)
+    while i < n:
+        typ = _sc_type(sc_list[i])
+        if typ is None:
+            i += 1
+            continue
+        j = i
+        while j + 1 < n and sc_list[j + 1] == sc_list[i]:
+            j += 1
+        bands.append({'start': i, 'end': j, 'type': typ})
+        i = j + 1
+    return bands
+
+
+def _constraint_label(key):
+    """Prettify a constraint-type key, e.g. 'medium_range_constraints_backbone-backbone'
+    → 'Medium range backbone-backbone'."""
+    s = key.replace('_constraints', '').replace('_', ' ').strip()
+    return s[:1].upper() + s[1:] if s else key
+
+
+def _per_residue_charts(stat_list):
+    """Per-chain stacked per-residue constraint counts from `constraints_per_residue`,
+    with secondary-structure bands. All-zero metrics are dropped."""
+    charts = []
+    for st in stat_list or []:
+        for pr in st.get('constraints_per_residue') or []:
+            seq = pr.get('seq_id') or []
+            comp = pr.get('comp_id') or []
+            if not seq:
+                continue
+            cats = [f"{comp[i] if i < len(comp) else ''} {seq[i]}".strip() for i in range(len(seq))]
+            series = [
+                {'name': _constraint_label(k), 'data': v}
+                for k, v in pr.items()
+                if k not in _PER_RESIDUE_SKIP and isinstance(v, list)
+                and any(isinstance(x, (int, float)) and x for x in v)
+            ]
+            if not series:
+                continue
+            charts.append({
+                'chain': pr.get('chain_id'),
+                'label': st.get('sf_framecode', ''),
+                'categories': cats,
+                'series': series,
+                'bands': _struct_conf_bands(pr.get('struct_conf')),
+            })
+    return charts
+
+
+def _discrepancy_charts(stat_list):
+    """Histogram charts from `histogram_of_discrepancy` (same shape as `histogram`)."""
+    out = []
+    for st in stat_list or []:
+        hd = st.get('histogram_of_discrepancy')
+        if isinstance(hd, dict) and hd.get('range_of_values'):
+            out.extend(_histogram_chart([{'sf_framecode': st.get('sf_framecode', ''), 'histogram': hd}]))
+    return out
+
+
+def _restraint_summary(dist_list, dihed_list):
+    """Summary rows (type, saveframe, total constraints, value range)."""
+    def total(d):
+        return sum(v for v in (d or {}).values() if isinstance(v, (int, float)))
+    rows = []
+    for st in dist_list or []:
+        rng = st.get('range') or {}
+        rtext = (f"{rng.get('min_value')}–{rng.get('max_value')} Å"
+                 if rng.get('min_value') is not None else '')
+        rows.append({'type': 'Distance restraints', 'name': st.get('sf_framecode', ''),
+                     'total': total(st.get('number_of_constraints')), 'range': rtext})
+    for st in dihed_list or []:
+        rows.append({'type': 'Dihedral angle restraints', 'name': st.get('sf_framecode', ''),
+                     'total': total(st.get('number_of_constraints')), 'range': ''})
+    return rows
+
+
 def _nmr_preview_data(report):
     """Extract Phase-1 chart/table data from an NmrDpUtility report. Aggregates
     per-subtype stats (stats_of_exptl_data) across input sources."""
@@ -1018,8 +1112,11 @@ def _nmr_preview_data(report):
         'charts': {
             'chem_shift_histogram': _histogram_chart(chem_shift),
             'dist_histogram': _histogram_chart(dist_restraint),
+            'dist_discrepancy': _discrepancy_charts(dist_restraint),
             'dihedral': _dihedral_charts(dihed_restraint),
+            'per_residue': _per_residue_charts(dist_restraint),
         },
+        'restraints': _restraint_summary(dist_restraint, dihed_restraint),
         'completeness': completeness,
     }
 

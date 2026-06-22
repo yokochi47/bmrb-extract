@@ -101,14 +101,31 @@ interface NmrCompleteness {
   coverage_pct: number | null;
   groups: { group: string; target: number; assigned: number; pct: number }[];
 }
+/** Per-chain per-residue stacked counts + secondary-structure bands. */
+interface PerResidueChart {
+  chain: string;
+  label: string;
+  categories: string[];
+  series: { name: string; data: number[] }[];
+  bands: { start: number; end: number; type: string }[];
+}
+interface RestraintRow {
+  type: string;
+  name: string;
+  total: number;
+  range: string;
+}
 interface NmrPreview {
   available: boolean;
   sources: NmrPreviewSource[];
   charts: {
     chem_shift_histogram: HistogramChart[];
     dist_histogram: HistogramChart[];
+    dist_discrepancy: HistogramChart[];
     dihedral: DihedralChart[];
+    per_residue: PerResidueChart[];
   };
+  restraints: RestraintRow[];
   completeness: NmrCompleteness[];
 }
 
@@ -162,9 +179,10 @@ export class Summary implements OnDestroy {
   nmrPreviewAvailable = signal<boolean | null>(null);
   private nmrPreview = signal<NmrPreview | null>(null);
 
-  /** Data-summary / completeness tables. */
+  /** Data-summary / completeness / restraint tables. */
   previewSources = computed(() => this.nmrPreview()?.sources ?? []);
   previewCompleteness = computed(() => this.nmrPreview()?.completeness ?? []);
+  previewRestraints = computed(() => this.nmrPreview()?.restraints ?? []);
 
   /** ECharts panels (built from the endpoint data). */
   chemShiftPanels = computed<ChartPanel[]>(() =>
@@ -187,14 +205,29 @@ export class Summary implements OnDestroy {
     }
     return panels;
   });
+  discrepancyPanels = computed<ChartPanel[]>(() =>
+    (this.nmrPreview()?.charts.dist_discrepancy ?? []).map((h) => ({
+      title: 'Discrepancy in redundant distance restraints',
+      option: this.histogramOption(h, 'Normalized discrepancy (%)', '# of redundant restraints'),
+    })),
+  );
+  perResiduePanels = computed<ChartPanel[]>(() =>
+    (this.nmrPreview()?.charts.per_residue ?? []).map((c) => ({
+      title: `Distance restraints per residue — chain ${c.chain}`,
+      option: this.perResidueOption(c),
+    })),
+  );
 
   /** True when the preview has any chart or table content to show. */
   hasPreviewContent = computed(
     () =>
       this.chemShiftPanels().length > 0 ||
       this.distPanels().length > 0 ||
+      this.discrepancyPanels().length > 0 ||
       this.dihedralPanels().length > 0 ||
+      this.perResiduePanels().length > 0 ||
       this.previewCompleteness().length > 0 ||
+      this.previewRestraints().length > 0 ||
       this.previewSources().length > 0,
   );
 
@@ -446,6 +479,41 @@ export class Summary implements OnDestroy {
           data: plot.points.map((pt) => ({ name: pt.name, value: [pt.x, pt.y] })),
         },
       ],
+    };
+  }
+
+  /** Translucent background color for a secondary-structure band. */
+  private bandColor(type: string): string {
+    if (type === 'helix') return 'rgba(204,47,0,0.12)';
+    if (type === 'strand') return 'rgba(0,156,209,0.12)';
+    if (type === 'turn') return 'rgba(200,204,0,0.18)';
+    return 'rgba(120,120,120,0.08)';
+  }
+
+  /** ECharts option for a per-residue stacked-count bar with secondary-structure
+   * bands drawn as markAreas. */
+  private perResidueOption(c: PerResidueChart): object {
+    const markArea = {
+      silent: true,
+      data: c.bands.map((b) => [
+        { xAxis: c.categories[b.start], itemStyle: { color: this.bandColor(b.type) } },
+        { xAxis: c.categories[b.end] },
+      ]),
+    };
+    const interval = Math.max(0, Math.ceil(c.categories.length / 24) - 1);
+    return {
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      legend: { bottom: 0, type: 'scroll' },
+      grid: { left: 48, right: 16, top: 24, bottom: 72, containLabel: true },
+      xAxis: { type: 'category', data: c.categories, axisLabel: { interval, rotate: -75, fontSize: 8 } },
+      yAxis: { type: 'value', name: '# restraints', minInterval: 1 },
+      series: c.series.map((s, idx) => ({
+        name: s.name,
+        type: 'bar',
+        stack: 'total',
+        data: s.data,
+        ...(idx === 0 ? { markArea } : {}),
+      })),
     };
   }
 
