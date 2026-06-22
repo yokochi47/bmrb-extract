@@ -1044,7 +1044,7 @@ def _discrepancy_charts(stat_list):
     return out
 
 
-def _restraint_summary(dist_list, dihed_list):
+def _restraint_summary(dist_list, dihed_list, rdc_list):
     """Summary rows (type, saveframe, total constraints, value range)."""
     def total(d):
         return sum(v for v in (d or {}).values() if isinstance(v, (int, float)))
@@ -1058,7 +1058,66 @@ def _restraint_summary(dist_list, dihed_list):
     for st in dihed_list or []:
         rows.append({'type': 'Dihedral angle restraints', 'name': st.get('sf_framecode', ''),
                      'total': total(st.get('number_of_constraints')), 'range': ''})
+    for st in rdc_list or []:
+        rng = st.get('range') or {}
+        rtext = (f"{rng.get('min_value')}–{rng.get('max_value')} Hz"
+                 if rng.get('min_value') is not None else '')
+        rows.append({'type': 'RDC restraints', 'name': st.get('sf_framecode', ''),
+                     'total': total(st.get('number_of_constraints')), 'range': rtext})
     return rows
+
+
+def _contact_map_charts(stat_list):
+    """Symmetric contact maps from `constraints_on_contact_map`: per chain, one
+    series per constraint type with points [seq_id_1, seq_id_2, total]."""
+    charts = []
+    for st in stat_list or []:
+        for cm in st.get('constraints_on_contact_map') or []:
+            seq = cm.get('seq_id') or []
+            if not seq:
+                continue
+            series = []
+            for k, v in cm.items():
+                if k in _PER_RESIDUE_SKIP or not isinstance(v, list):
+                    continue
+                pts = [[d['seq_id_1'], d['seq_id_2'], d.get('total', 1)]
+                       for d in v if isinstance(d, dict) and 'seq_id_1' in d]
+                if pts:
+                    series.append({'name': _constraint_label(k), 'points': pts})
+            if series:
+                charts.append({'chain': cm.get('chain_id'), 'label': st.get('sf_framecode', ''),
+                               'min': min(seq), 'max': max(seq), 'series': series})
+    return charts
+
+
+def _dim_atom(d):
+    """Spectral-dimension atom label, e.g. isotope 13 + type 'C' → ¹³C."""
+    iso = d.get('atom_isotope_number')
+    atom = d.get('atom_type') or ''
+    return _iso_label(f'{iso}{atom}') if iso and atom else atom
+
+
+def _spectral_peaks(stat_list):
+    """(summary rows, per-list dimension tables) for spectral peak lists."""
+    summary, dims = [], []
+    for st in stat_list or []:
+        npk = st.get('number_of_spectral_peaks')
+        n_peaks = (sum(v for v in npk.values() if isinstance(v, (int, float)))
+                   if isinstance(npk, dict) else npk)
+        summary.append({
+            'name': st.get('sf_framecode', ''),
+            'exp_class': st.get('exp_class') or st.get('exp_type') or '',
+            'n_dims': st.get('number_of_spectral_dimensions'),
+            'n_peaks': n_peaks,
+        })
+        rows = [
+            {'id': d.get('id'), 'atom': _dim_atom(d), 'region': d.get('spectral_region') or '',
+             'sweep_width': d.get('sweep_width'), 'units': d.get('sweep_width_units') or ''}
+            for d in st.get('spectral_dim') or []
+        ]
+        if rows:
+            dims.append({'name': st.get('sf_framecode', ''), 'rows': rows})
+    return summary, dims
 
 
 def _nmr_preview_data(report):
@@ -1067,6 +1126,7 @@ def _nmr_preview_data(report):
     info = report.get('information', {})
     sources, completeness = [], []
     chem_shift, dist_restraint, dihed_restraint = [], [], []
+    rdc_restraint, spectral_peak = [], []
 
     for src in info.get('input_sources') or []:
         if not isinstance(src, dict):
@@ -1087,6 +1147,8 @@ def _nmr_preview_data(report):
         chem_shift.extend(stats.get('chem_shift') or [])
         dist_restraint.extend(stats.get('dist_restraint') or [])
         dihed_restraint.extend(stats.get('dihed_restraint') or [])
+        rdc_restraint.extend(stats.get('rdc_restraint') or [])
+        spectral_peak.extend(stats.get('spectral_peak') or [])
 
     # Per-chain completeness (all-assignments) + sequence coverage, from chem_shift.
     for st in chem_shift:
@@ -1113,10 +1175,13 @@ def _nmr_preview_data(report):
             'chem_shift_histogram': _histogram_chart(chem_shift),
             'dist_histogram': _histogram_chart(dist_restraint),
             'dist_discrepancy': _discrepancy_charts(dist_restraint),
+            'rdc_histogram': _histogram_chart(rdc_restraint),
             'dihedral': _dihedral_charts(dihed_restraint),
             'per_residue': _per_residue_charts(dist_restraint),
+            'contact_maps': _contact_map_charts(dist_restraint),
         },
-        'restraints': _restraint_summary(dist_restraint, dihed_restraint),
+        'restraints': _restraint_summary(dist_restraint, dihed_restraint, rdc_restraint),
+        'spectral_peaks': dict(zip(('summary', 'dims'), _spectral_peaks(spectral_peak))),
         'completeness': completeness,
     }
 

@@ -115,6 +115,24 @@ interface RestraintRow {
   total: number;
   range: string;
 }
+/** Contact map: per chain, one series of [seq_id_1, seq_id_2, total] per type. */
+interface ContactMapChart {
+  chain: string;
+  label: string;
+  min: number;
+  max: number;
+  series: { name: string; points: number[][] }[];
+}
+interface SpectralPeakSummary {
+  name: string;
+  exp_class: string;
+  n_dims: number;
+  n_peaks: number;
+}
+interface SpectralDimTable {
+  name: string;
+  rows: { id: number; atom: string; region: string; sweep_width: number | null; units: string }[];
+}
 interface NmrPreview {
   available: boolean;
   sources: NmrPreviewSource[];
@@ -122,10 +140,13 @@ interface NmrPreview {
     chem_shift_histogram: HistogramChart[];
     dist_histogram: HistogramChart[];
     dist_discrepancy: HistogramChart[];
+    rdc_histogram: HistogramChart[];
     dihedral: DihedralChart[];
     per_residue: PerResidueChart[];
+    contact_maps: ContactMapChart[];
   };
   restraints: RestraintRow[];
+  spectral_peaks: { summary: SpectralPeakSummary[]; dims: SpectralDimTable[] };
   completeness: NmrCompleteness[];
 }
 
@@ -179,10 +200,12 @@ export class Summary implements OnDestroy {
   nmrPreviewAvailable = signal<boolean | null>(null);
   private nmrPreview = signal<NmrPreview | null>(null);
 
-  /** Data-summary / completeness / restraint tables. */
+  /** Data-summary / completeness / restraint / spectral-peak tables. */
   previewSources = computed(() => this.nmrPreview()?.sources ?? []);
   previewCompleteness = computed(() => this.nmrPreview()?.completeness ?? []);
   previewRestraints = computed(() => this.nmrPreview()?.restraints ?? []);
+  previewSpectralSummary = computed(() => this.nmrPreview()?.spectral_peaks.summary ?? []);
+  previewSpectralDims = computed(() => this.nmrPreview()?.spectral_peaks.dims ?? []);
 
   /** ECharts panels (built from the endpoint data). */
   chemShiftPanels = computed<ChartPanel[]>(() =>
@@ -217,6 +240,18 @@ export class Summary implements OnDestroy {
       option: this.perResidueOption(c),
     })),
   );
+  rdcPanels = computed<ChartPanel[]>(() =>
+    (this.nmrPreview()?.charts.rdc_histogram ?? []).map((h) => ({
+      title: 'Observed RDC values',
+      option: this.histogramOption(h, 'Obs. RDC value (Hz)', '# of RDC restraints'),
+    })),
+  );
+  contactMapPanels = computed<ChartPanel[]>(() =>
+    (this.nmrPreview()?.charts.contact_maps ?? []).map((c) => ({
+      title: `Distance restraints contact map — chain ${c.chain}`,
+      option: this.contactMapOption(c),
+    })),
+  );
 
   /** True when the preview has any chart or table content to show. */
   hasPreviewContent = computed(
@@ -224,10 +259,13 @@ export class Summary implements OnDestroy {
       this.chemShiftPanels().length > 0 ||
       this.distPanels().length > 0 ||
       this.discrepancyPanels().length > 0 ||
+      this.rdcPanels().length > 0 ||
       this.dihedralPanels().length > 0 ||
       this.perResiduePanels().length > 0 ||
+      this.contactMapPanels().length > 0 ||
       this.previewCompleteness().length > 0 ||
       this.previewRestraints().length > 0 ||
+      this.previewSpectralSummary().length > 0 ||
       this.previewSources().length > 0,
   );
 
@@ -513,6 +551,29 @@ export class Summary implements OnDestroy {
         stack: 'total',
         data: s.data,
         ...(idx === 0 ? { markArea } : {}),
+      })),
+    };
+  }
+
+  /** ECharts option for a symmetric contact map: scatter of [seq1, seq2] points
+   * sized by restraint count, on a square residue×residue grid (y inverted). */
+  private contactMapOption(c: ContactMapChart): object {
+    const axis = (name: string) => ({ type: 'value' as const, name, min: c.min, max: c.max, minInterval: 1 });
+    return {
+      tooltip: {
+        trigger: 'item',
+        formatter: (p: { data?: number[] }) =>
+          p.data ? `${p.data[0]} ↔ ${p.data[1]}<br/>count: ${p.data[2]}` : '',
+      },
+      legend: { bottom: 0, type: 'scroll' },
+      grid: { left: 48, right: 24, top: 16, bottom: 48, containLabel: true },
+      xAxis: axis('Residue'),
+      yAxis: { ...axis('Residue'), inverse: true },
+      series: c.series.map((s) => ({
+        name: s.name,
+        type: 'scatter',
+        data: s.points,
+        symbolSize: (v: number[]) => Math.min(16, 4 + 2 * (v[2] || 1)),
       })),
     };
   }
