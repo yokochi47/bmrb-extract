@@ -156,6 +156,30 @@ interface AsymContactMap {
   ymax: number;
   series: { name: string; points: number[][] }[];
 }
+/** A chemical-shift-prediction validation row (predicted vs coordinate state). */
+interface PredictionRow {
+  residue: string;
+  shifts: string;
+  predicted: string;
+  observed: string;
+  consistent: boolean | null;
+}
+interface AlignSummaryRow {
+  category: string;
+  chain: string;
+  length: number;
+  matched: number;
+  conflict: number;
+  unmapped: number;
+  coverage: number | null;
+}
+interface AlignBlock {
+  category: string;
+  chain: string;
+  ref: string;
+  mid: string;
+  test: string;
+}
 interface NmrPreview {
   available: boolean;
   sources: NmrPreviewSource[];
@@ -174,7 +198,19 @@ interface NmrPreview {
   };
   restraints: RestraintRow[];
   spectral_peaks: { summary: SpectralPeakSummary[]; dims: SpectralDimTable[] };
+  predictions: {
+    cys_redox: PredictionRow[];
+    pro_cis_trans: PredictionRow[];
+    his_tautomer: PredictionRow[];
+    ilv_rotamer: PredictionRow[];
+  };
+  alignments: { summary: AlignSummaryRow[]; blocks: AlignBlock[] };
   completeness: NmrCompleteness[];
+}
+/** A titled chemical-shift-prediction table. */
+interface PredictionTable {
+  title: string;
+  rows: PredictionRow[];
 }
 
 /** One ECharts panel: a title + the option object fed to <app-echart>. */
@@ -233,6 +269,20 @@ export class Summary implements OnDestroy {
   previewRestraints = computed(() => this.nmrPreview()?.restraints ?? []);
   previewSpectralSummary = computed(() => this.nmrPreview()?.spectral_peaks.summary ?? []);
   previewSpectralDims = computed(() => this.nmrPreview()?.spectral_peaks.dims ?? []);
+  previewAlignSummary = computed(() => this.nmrPreview()?.alignments.summary ?? []);
+  previewAlignBlocks = computed(() => this.nmrPreview()?.alignments.blocks ?? []);
+
+  /** Chemical-shift-prediction validation tables (present ones only). */
+  predictionTables = computed<PredictionTable[]>(() => {
+    const p = this.nmrPreview()?.predictions;
+    if (!p) return [];
+    return [
+      { title: 'Cysteine redox state', rows: p.cys_redox },
+      { title: 'Proline cis/trans peptide bond', rows: p.pro_cis_trans },
+      { title: 'Histidine tautomeric state', rows: p.his_tautomer },
+      { title: 'Ile/Leu/Val rotameric state', rows: p.ilv_rotamer },
+    ].filter((t) => t.rows.length > 0);
+  });
 
   /** ECharts panels (built from the endpoint data). */
   chemShiftPanels = computed<ChartPanel[]>(() =>
@@ -321,6 +371,8 @@ export class Summary implements OnDestroy {
       this.previewCompleteness().length > 0 ||
       this.previewRestraints().length > 0 ||
       this.previewSpectralSummary().length > 0 ||
+      this.predictionTables().length > 0 ||
+      this.previewAlignSummary().length > 0 ||
       this.previewSources().length > 0,
   );
 

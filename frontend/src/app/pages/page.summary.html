@@ -399,6 +399,94 @@
           </div>
         }
       }
+
+      <!-- Chemical-shift-based prediction validation -->
+      @for (pt of predictionTables(); track $index) {
+        <div class="mb-6 overflow-x-auto">
+          <div class="font-medium mb-2">{{ pt.title }} (predicted by chemical shifts vs coordinates)</div>
+          <table class="w-full text-sm border-collapse">
+            <thead>
+              <tr>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Residue</th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Chemical shifts (ppm)</th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Predicted (by CS)</th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Coordinates</th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Consistent</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of pt.rows; track $index) {
+                <tr
+                  class="border-b border-surface-100 dark:border-surface-800"
+                  [class.text-red-600]="row.consistent === false"
+                >
+                  <td class="px-2 py-1 whitespace-nowrap">{{ row.residue }}</td>
+                  <td class="px-2 py-1">{{ row.shifts }}</td>
+                  <td class="px-2 py-1">{{ row.predicted }}</td>
+                  <td class="px-2 py-1">{{ row.observed }}</td>
+                  <td class="px-2 py-1">
+                    @if (row.consistent === true) {
+                      <i class="pi pi-check text-teal-500"></i>
+                    } @else if (row.consistent === false) {
+                      <i class="pi pi-times text-red-500"></i>
+                    } @else {
+                      <span class="text-surface-400">—</span>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
+      <!-- Sequence alignments -->
+      @if (previewAlignSummary().length) {
+        <div class="mb-6 overflow-x-auto">
+          <div class="font-medium mb-2">Sequence alignments</div>
+          <table class="w-full text-sm border-collapse">
+            <thead>
+              <tr>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Alignment</th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Chain</th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Length</th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Matched</th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Conflict</th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Unmapped</th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Coverage</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (a of previewAlignSummary(); track $index) {
+                <tr
+                  class="border-b border-surface-100 dark:border-surface-800"
+                  [class.text-red-600]="a.conflict > 0"
+                >
+                  <td class="px-2 py-1">{{ a.category }}</td>
+                  <td class="px-2 py-1">{{ a.chain }}</td>
+                  <td class="px-2 py-1">{{ a.length }}</td>
+                  <td class="px-2 py-1">{{ a.matched }}</td>
+                  <td class="px-2 py-1">{{ a.conflict }}</td>
+                  <td class="px-2 py-1">{{ a.unmapped }}</td>
+                  <td class="px-2 py-1">@if (a.coverage !== null) {<span>{{ a.coverage }}%</span>}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        @for (b of previewAlignBlocks(); track $index) {
+          <div class="mb-3">
+            <div class="text-sm text-surface-600 dark:text-surface-300 mb-1">
+              {{ b.category }}@if (b.chain) {<span> — chain {{ b.chain }}</span>}
+            </div>
+            <pre
+              class="m-0 px-2 py-1 text-xs leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
+            >{{ b.ref }}
+{{ b.mid }}
+{{ b.test }}</pre>
+          </div>
+        }
+      }
     }
   </p-panel>
 

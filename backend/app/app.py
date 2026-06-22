@@ -1213,6 +1213,117 @@ def _rci_charts(chem_shift_list):
     return charts
 
 
+def _dominant(pred):
+    """Dominant state from a prediction like 'cis 3.1%, trans 96.9%' or
+    'gauche+ 2.0%, trans 40.4%, gauche- 57.6%'; a single state word passes through."""
+    if not pred or pred == 'unknown':
+        return pred or ''
+    parts = []
+    for tok in pred.split(','):
+        m = re.match(r'(.+?)\s+([\d.]+)%?$', tok.strip())
+        if m:
+            parts.append((m.group(1), float(m.group(2))))
+    return max(parts, key=lambda x: x[1])[0] if parts else pred
+
+
+def _rotamer_observed(rs):
+    """Coordinate rotamer (dominant of gauche+/trans/gauche-) for a chi entry."""
+    if not isinstance(rs, dict) or 'unknown' in rs:
+        return 'unknown'
+    opts = {k: rs[k] for k in ('gauche+', 'trans', 'gauche-') if isinstance(rs.get(k), (int, float))}
+    return max(opts, key=opts.get) if opts else 'unknown'
+
+
+def _shifts_of(item):
+    """'CA 65.38, CB 25.92' from an item's *_chem_shift fields (non-null)."""
+    return ', '.join(
+        f"{k[:-len('_chem_shift')].upper()} {round(v, 2)}"
+        for k, v in item.items()
+        if k.endswith('_chem_shift') and isinstance(v, (int, float))
+    )
+
+
+_PREDICTION_COMP = {'cys': 'CYS', 'pro': 'PRO', 'his': 'HIS'}
+
+
+def _prediction_table(items, kind):
+    """Rows of a chemical-shift-based prediction table: residue, shifts, predicted
+    state (by CS), coordinate state, and a consistency flag (None if unknown)."""
+    rows = []
+    for s in items or []:
+        comp = _PREDICTION_COMP.get(kind) or s.get('comp_id', '')
+        if kind == 'cys':
+            observed = 'oxidized' if (s.get('in_disulfide_bond') or s.get('in_other_bond')) else 'reduced'
+            pred = s.get('redox_state_pred', '')
+        elif kind == 'pro':
+            observed = 'cis' if s.get('in_cis_peptide_bond') else 'trans'
+            pred = s.get('cis_trans_pred', '')
+        elif kind == 'his':
+            observed = s.get('tautomeric_state', '')
+            pred = s.get('tautomeric_state_pred', '')
+        else:  # ilv
+            chi = 'chi1' if comp == 'VAL' else 'chi2'
+            rs = next((r for r in s.get('rotameric_state', []) if r.get('name') == chi), None)
+            observed = _rotamer_observed(rs)
+            pred = s.get('rotameric_state_pred', '')
+        consistent = (None if (not pred or pred == 'unknown' or observed == 'unknown')
+                      else _dominant(pred) == observed)
+        rows.append({'residue': f"{s.get('chain_id')}:{s.get('seq_id')}:{comp}",
+                     'shifts': _shifts_of(s), 'predicted': pred, 'observed': observed,
+                     'consistent': consistent})
+    return rows
+
+
+def _dedup_predictions(chem_shift_list, key):
+    """First prediction per (chain, seq) across chem_shift saveframes."""
+    seen, items = set(), []
+    for st in chem_shift_list or []:
+        for s in st.get(key) or []:
+            k = (s.get('chain_id'), s.get('seq_id'))
+            if k not in seen:
+                seen.add(k)
+                items.append(s)
+    return items
+
+
+_ALIGN_SIDE = {
+    'nmr_poly_seq': 'NMR sequence', 'model_poly_seq': 'Model sequence', 'coordinate': 'Coordinates',
+    'chem_shift': 'Chemical shifts', 'dist_restraint': 'Distance restraints',
+    'dihed_restraint': 'Dihedral restraints', 'rdc_restraint': 'RDC restraints',
+    'spectral_peak': 'Spectral peaks', 'spectral_peak_alt': 'Spectral peaks (alt)',
+    'mr_restraint': 'MR restraints', 'mr_topology': 'MR topology',
+}
+
+
+def _align_label(cat):
+    if '_vs_' in cat:
+        a, b = cat.split('_vs_', 1)
+        return f"{_ALIGN_SIDE.get(a, a.replace('_', ' '))} vs {_ALIGN_SIDE.get(b, b.replace('_', ' '))}"
+    return cat.replace('_', ' ')
+
+
+def _seq_align(info):
+    """Sequence-alignment summary rows + aligned-sequence blocks (ref/mid/test)."""
+    summary, blocks = [], []
+    for cat, lst in (info.get('sequence_alignments') or {}).items():
+        if not isinstance(lst, list) or not lst:
+            continue
+        label = _align_label(cat)
+        for a in lst:
+            cov = a.get('sequence_coverage')
+            summary.append({
+                'category': label, 'chain': a.get('chain_id') or a.get('ref_chain_id') or '',
+                'length': a.get('length'), 'matched': a.get('matched'),
+                'conflict': a.get('conflict'), 'unmapped': a.get('unmapped'),
+                'coverage': round(cov * 100, 1) if isinstance(cov, (int, float)) else None,
+            })
+            if a.get('ref_code') and a.get('test_code'):
+                blocks.append({'category': label, 'chain': a.get('chain_id') or '',
+                               'ref': a.get('ref_code'), 'mid': a.get('mid_code') or '',
+                               'test': a.get('test_code')})
+    return {'summary': summary, 'blocks': blocks}
+
+
 def _nmr_preview_data(report):
     """Extract Phase-1 chart/table data from an NmrDpUtility report. Aggregates
     per-subtype stats (stats_of_exptl_data) across input sources."""
@@ -1279,6 +1390,13 @@ def _nmr_preview_data(report):
         },
         'restraints': _restraint_summary(dist_restraint, dihed_restraint, rdc_restraint),
         'spectral_peaks': dict(zip(('summary', 'dims'), _spectral_peaks(spectral_peak))),
+        'predictions': {
+            'cys_redox': _prediction_table(_dedup_predictions(chem_shift, 'cys_redox_state'), 'cys'),
+            'pro_cis_trans': _prediction_table(_dedup_predictions(chem_shift, 'pro_cis_trans'), 'pro'),
+            'his_tautomer': _prediction_table(_dedup_predictions(chem_shift, 'his_tautomeric_state'), 'his'),
+            'ilv_rotamer': _prediction_table(_dedup_predictions(chem_shift, 'ilv_rotameric_state'), 'ilv'),
+        },
+        'alignments': _seq_align(info),
         'completeness': completeness,
     }
 
