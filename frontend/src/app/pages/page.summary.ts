@@ -164,21 +164,20 @@ interface PredictionRow {
   observed: string;
   consistent: boolean | null;
 }
-interface AlignSummaryRow {
-  category: string;
+interface AlignChainRow {
   chain: string;
   length: number;
   matched: number;
   conflict: number;
   unmapped: number;
   coverage: number | null;
-}
-interface AlignBlock {
-  category: string;
-  chain: string;
   ref: string;
   mid: string;
   test: string;
+}
+interface AlignGroup {
+  category: string;
+  rows: AlignChainRow[];
 }
 interface NmrPreview {
   available: boolean;
@@ -204,7 +203,7 @@ interface NmrPreview {
     his_tautomer: PredictionRow[];
     ilv_rotamer: PredictionRow[];
   };
-  alignments: { summary: AlignSummaryRow[]; blocks: AlignBlock[] };
+  alignments: AlignGroup[];
   completeness: NmrCompleteness[];
 }
 /** A titled chemical-shift-prediction table. */
@@ -269,8 +268,7 @@ export class Summary implements OnDestroy {
   previewRestraints = computed(() => this.nmrPreview()?.restraints ?? []);
   previewSpectralSummary = computed(() => this.nmrPreview()?.spectral_peaks.summary ?? []);
   previewSpectralDims = computed(() => this.nmrPreview()?.spectral_peaks.dims ?? []);
-  previewAlignSummary = computed(() => this.nmrPreview()?.alignments.summary ?? []);
-  previewAlignBlocks = computed(() => this.nmrPreview()?.alignments.blocks ?? []);
+  previewAlignments = computed(() => this.nmrPreview()?.alignments ?? []);
 
   /** Chemical-shift-prediction validation tables (present ones only). */
   predictionTables = computed<PredictionTable[]>(() => {
@@ -380,7 +378,7 @@ export class Summary implements OnDestroy {
       this.previewRestraints().length > 0 ||
       this.previewSpectralSummary().length > 0 ||
       this.predictionTables().length > 0 ||
-      this.previewAlignSummary().length > 0 ||
+      this.previewAlignments().length > 0 ||
       this.previewSources().length > 0,
   );
 
@@ -881,12 +879,35 @@ export class Summary implements OnDestroy {
       });
       this.viewer = viewer;
       const url = `${API_URL}coordinate?token=${encodeURIComponent(token)}`;
-      // Rejects on a 404 (no coordinate) → caught below to show the fallback.
-      await viewer.loadStructureFromUrl(url, 'mmcif', false);
+      // Rejects after exhausting retries → caught below to show the fallback.
+      await this.loadCoordinateWithRetry(viewer, url);
     } catch (err) {
       console.error('Mol* coordinate preview unavailable', err);
       this.viewerError.set(true);
       this.disposeViewer();
+    }
+  }
+
+  /**
+   * Load the converted coordinate into the viewer, retrying transient failures.
+   * On arrival straight from the processing dialog, /api/progress can report the
+   * run "done" a moment before the backend harvests the coordinate output_file
+   * row, so /api/coordinate briefly 404s. Retry a few times (~1s apart) so the
+   * preview appears on its own instead of requiring a manual page refresh.
+   */
+  private async loadCoordinateWithRetry(viewer: MolstarViewer, url: string): Promise<void> {
+    const attempts = 6;
+    const delayMs = 1000;
+    for (let i = 0; ; i++) {
+      // Bail out quietly if the viewer was torn down (component destroyed) mid-retry.
+      if (this.viewer !== viewer) return;
+      try {
+        await viewer.loadStructureFromUrl(url, 'mmcif', false);
+        return;
+      } catch (err) {
+        if (i >= attempts - 1) throw err;
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
     }
   }
 
