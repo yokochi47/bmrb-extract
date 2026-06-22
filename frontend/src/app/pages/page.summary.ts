@@ -19,6 +19,7 @@ import { PageService, TargetDepsys } from './page.service';
 import { API_URL } from '../../site.config';
 import { fileTypeLabel } from './file-types';
 import { MolstarViewer } from './molstar';
+import { EchartComponent } from './echart.component';
 
 /** A selected upload file participating in the latest conversion run. */
 interface UploadFileRow {
@@ -74,9 +75,52 @@ interface NmrWarningGroup {
   rows: NmrRow[];
 }
 
+// ── NMR data preview (graphical overview) — see GET /api/nmr_preview ───────────
+interface HistogramChart {
+  label: string;
+  categories: string[];
+  series: { name: string; data: number[] }[];
+}
+interface DihedralPlot {
+  points: { name: string; x: number; y: number }[];
+  /** Each error array is [x, y, x_low, x_high, y_low, y_high] (absolute). */
+  errors: number[][];
+}
+interface DihedralChart {
+  label: string;
+  phi_psi?: DihedralPlot;
+  chi1_chi2?: DihedralPlot;
+}
+interface NmrPreviewSource {
+  name: string;
+  content_name: string;
+  subtypes: string[];
+}
+interface NmrCompleteness {
+  chain: string;
+  coverage_pct: number | null;
+  groups: { group: string; target: number; assigned: number; pct: number }[];
+}
+interface NmrPreview {
+  available: boolean;
+  sources: NmrPreviewSource[];
+  charts: {
+    chem_shift_histogram: HistogramChart[];
+    dist_histogram: HistogramChart[];
+    dihedral: DihedralChart[];
+  };
+  completeness: NmrCompleteness[];
+}
+
+/** One ECharts panel: a title + the option object fed to <app-echart>. */
+interface ChartPanel {
+  title: string;
+  option: object;
+}
+
 @Component({
   selector: 'app-summary',
-  imports: [FormsModule, CardModule, TableModule, PanelModule, CheckboxModule],
+  imports: [FormsModule, CardModule, TableModule, PanelModule, CheckboxModule, EchartComponent],
   templateUrl: './page.summary.html',
 })
 export class Summary implements OnDestroy {
@@ -113,6 +157,46 @@ export class Summary implements OnDestroy {
   nmrWarnings = signal<NmrWarningGroup[]>([]);
   /** True when the NMR report carried at least one error or warning group. */
   hasNmrIssues = computed(() => this.nmrErrors().length > 0 || this.nmrWarnings().length > 0);
+
+  /** NMR data preview (graphical overview): null = loading, false = no report. */
+  nmrPreviewAvailable = signal<boolean | null>(null);
+  private nmrPreview = signal<NmrPreview | null>(null);
+
+  /** Data-summary / completeness tables. */
+  previewSources = computed(() => this.nmrPreview()?.sources ?? []);
+  previewCompleteness = computed(() => this.nmrPreview()?.completeness ?? []);
+
+  /** ECharts panels (built from the endpoint data). */
+  chemShiftPanels = computed<ChartPanel[]>(() =>
+    (this.nmrPreview()?.charts.chem_shift_histogram ?? []).map((h) => ({
+      title: 'Normalized assigned chemical shifts (Z-score)',
+      option: this.histogramOption(h, 'Z-score', '# of chemical shifts'),
+    })),
+  );
+  distPanels = computed<ChartPanel[]>(() =>
+    (this.nmrPreview()?.charts.dist_histogram ?? []).map((h) => ({
+      title: 'Distance restraint target values',
+      option: this.histogramOption(h, 'Distance (Å)', '# of distance restraints'),
+    })),
+  );
+  dihedralPanels = computed<ChartPanel[]>(() => {
+    const panels: ChartPanel[] = [];
+    for (const d of this.nmrPreview()?.charts.dihedral ?? []) {
+      if (d.phi_psi) panels.push({ title: 'φ / ψ dihedral angles', option: this.dihedralOption(d.phi_psi, 'φ', 'ψ') });
+      if (d.chi1_chi2) panels.push({ title: 'χ1 / χ2 dihedral angles', option: this.dihedralOption(d.chi1_chi2, 'χ1', 'χ2') });
+    }
+    return panels;
+  });
+
+  /** True when the preview has any chart or table content to show. */
+  hasPreviewContent = computed(
+    () =>
+      this.chemShiftPanels().length > 0 ||
+      this.distPanels().length > 0 ||
+      this.dihedralPanels().length > 0 ||
+      this.previewCompleteness().length > 0 ||
+      this.previewSources().length > 0,
+  );
 
   // ── Warning acknowledgment / download approval (Terms #7) ───────────────────
   /** Keys of the tables the user has acknowledged. */
@@ -162,6 +246,7 @@ export class Summary implements OnDestroy {
   private fetched = false;
   private validationFetched = false;
   private nmrFetched = false;
+  private nmrPreviewFetched = false;
   private ackInitialized = false;
   private viewerInit = false;
   private viewer: MolstarViewer | null = null;
@@ -206,6 +291,14 @@ export class Summary implements OnDestroy {
       if (!token || this.nmrFetched) return;
       this.nmrFetched = true;
       this.loadNmrValidation(token);
+    });
+
+    // Load the NMR data preview (graphical overview) once the token is known.
+    effect(() => {
+      const token = this.pageService.pageState().tokenBase;
+      if (!token || this.nmrPreviewFetched) return;
+      this.nmrPreviewFetched = true;
+      this.loadNmrPreview(token);
     });
 
     // Initialise acknowledgment state once the run is processed and both
@@ -277,6 +370,106 @@ export class Summary implements OnDestroy {
         },
       });
   }
+
+  private loadNmrPreview(token: string): void {
+    this.http
+      .get<NmrPreview>(API_URL + 'nmr_preview', { params: { token } })
+      .subscribe({
+        next: (res) => {
+          this.nmrPreview.set(res);
+          this.nmrPreviewAvailable.set(res.available);
+        },
+        error: (err) => {
+          console.error('Failed to load NMR preview', err);
+          this.nmrPreviewAvailable.set(false);
+        },
+      });
+  }
+
+  /** ECharts option for a stacked-bar histogram. */
+  private histogramOption(h: HistogramChart, xName: string, yName: string): object {
+    return {
+      title: { text: h.label, left: 'center', textStyle: { fontSize: 12, fontWeight: 'normal' } },
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      legend: { bottom: 0, type: 'scroll' },
+      grid: { left: 56, right: 16, top: 36, bottom: 64, containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: h.categories,
+        name: xName,
+        nameLocation: 'middle',
+        nameGap: 40,
+        axisLabel: { rotate: -75, fontSize: 9 },
+      },
+      yAxis: { type: 'value', name: yName, minInterval: 1 },
+      series: h.series.map((s) => ({ name: s.name, type: 'bar', stack: 'total', data: s.data })),
+    };
+  }
+
+  /** ECharts option for a dihedral scatter with custom bidirectional error bars
+   * (a `custom` series — no third-party plugin). */
+  private dihedralOption(plot: DihedralPlot, xName: string, yName: string): object {
+    const axis = (name: string) => ({
+      type: 'value' as const,
+      name,
+      min: -180,
+      max: 180,
+      interval: 90,
+      splitLine: { show: true },
+    });
+    return {
+      tooltip: {
+        trigger: 'item',
+        formatter: (p: { data?: { name?: string; value?: number[] } }) =>
+          p.data?.value
+            ? `${p.data.name ?? ''}<br/>${xName}: ${p.data.value[0]}°<br/>${yName}: ${p.data.value[1]}°`
+            : '',
+      },
+      grid: { left: 56, right: 24, top: 24, bottom: 48, containLabel: true },
+      xAxis: axis(`${xName} (°)`),
+      yAxis: axis(`${yName} (°)`),
+      series: [
+        {
+          // Bidirectional error bars drawn beneath the points.
+          type: 'custom',
+          silent: true,
+          z: 1,
+          data: plot.errors,
+          encode: { x: 0, y: 1 },
+          renderItem: this.errorBarRenderItem,
+        },
+        {
+          type: 'scatter',
+          z: 2,
+          symbolSize: 6,
+          itemStyle: { color: '#2563eb', opacity: 0.7 },
+          data: plot.points.map((pt) => ({ name: pt.name, value: [pt.x, pt.y] })),
+        },
+      ],
+    };
+  }
+
+  /** renderItem for the dihedral error-bar `custom` series: a horizontal line
+   * (x_low→x_high at y) and a vertical line (y_low→y_high at x). */
+  private errorBarRenderItem = (
+    _params: unknown,
+    api: { value(i: number): number; coord(p: number[]): number[] },
+  ): object => {
+    const x = api.value(0);
+    const y = api.value(1);
+    const xlo = api.coord([api.value(2), y]);
+    const xhi = api.coord([api.value(3), y]);
+    const ylo = api.coord([x, api.value(4)]);
+    const yhi = api.coord([x, api.value(5)]);
+    const style = { stroke: 'rgba(37,99,235,0.25)', lineWidth: 1 };
+    return {
+      type: 'group',
+      children: [
+        { type: 'line', shape: { x1: xlo[0], y1: xlo[1], x2: xhi[0], y2: xhi[1] }, style },
+        { type: 'line', shape: { x1: ylo[0], y1: ylo[1], x2: yhi[0], y2: yhi[1] }, style },
+      ],
+    };
+  };
 
   /** Whether a table (by key) has been acknowledged. */
   isAcked(key: string): boolean {

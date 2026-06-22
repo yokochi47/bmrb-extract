@@ -876,6 +876,194 @@ async def get_nmr_validation():
     }
 
 
+# ── NMR data preview (graphical overview from the same NmrDpUtility report) ─────
+
+_NMR_CONTENT_NAMES = {
+    'model': 'Coordinates',
+    'nmr-data-nef': 'NMR data (NEF)',
+    'nmr-data-str': 'NMR data (NMR-STAR)',
+    'nmr-chemical-shifts': 'Assigned chemical shifts',
+    'nmr-restraints': 'NMR restraints',
+    'nmr-peaks': 'Spectral peak lists',
+}
+_NMR_SUBTYPE_NAMES = {
+    'poly_seq': 'Covalent bonds',
+    'entity': 'Entity',
+    'coordinate': 'Coordinates',
+    'chem_shift': 'Assigned chemical shifts',
+    'chem_shift_ref': 'Chemical shift references',
+    'dist_restraint': 'Distance restraints',
+    'dihed_restraint': 'Dihedral angle restraints',
+    'rdc_restraint': 'RDC restraints',
+    'spectral_peak': 'Spectral peak lists',
+    'spectral_peak_alt': 'Spectral peak lists (alt.)',
+}
+_SUPERSCRIPT = str.maketrans('0123456789', '⁰¹²³⁴⁵⁶⁷⁸⁹')
+_ISOTOPE_RE = re.compile(r'(\d+)([a-zA-Z]+)')
+
+
+def _iso_label(key):
+    """Format an isotope-bearing key (e.g. '1h_chemical_shifts', 'all_13c_…',
+    '15n') into a superscript-mass element label like ¹H / ¹³C / ¹⁵N. Falls back
+    to a title-cased label when no isotope token is found."""
+    m = _ISOTOPE_RE.search(key)
+    if m:
+        return m.group(1).translate(_SUPERSCRIPT) + m.group(2).upper()
+    return key.replace('_', ' ').strip().title()
+
+
+def _histogram_chart(stat_list):
+    """Build [{label, categories, series}] from a stats list's `histogram`
+    ({range_of_values, number_of_values: {key: [counts]}}). All-zero series are
+    dropped to reduce clutter."""
+    charts = []
+    for st in stat_list or []:
+        h = st.get('histogram')
+        if not isinstance(h, dict) or not h.get('range_of_values'):
+            continue
+        categories = [str(v) for v in h['range_of_values']]
+        nov = h.get('number_of_values') or {}
+        series = [
+            {'name': _iso_label(k), 'data': v}
+            for k, v in nov.items()
+            if isinstance(v, list) and any(v)
+        ]
+        if series:
+            charts.append({'label': st.get('sf_framecode', ''),
+                           'categories': categories, 'series': series})
+    return charts
+
+
+def _dihedral_charts(stat_list):
+    """Build [{label, phi_psi, chi1_chi2}] scatter+error data from a
+    dihed_restraint stats list. Each plot → {points:[{name,x,y}], errors:[[...]]}.
+    errors arrays are [x, y, x_low, x_high, y_low, y_high] (absolute)."""
+    def _plot(plot):
+        if not isinstance(plot, dict) or not plot.get('values'):
+            return None
+        points, errors = [], []
+        for vals in plot['values'].values():
+            for p in vals:
+                if len(p) >= 3:
+                    points.append({'name': str(p[2]), 'x': p[0], 'y': p[1]})
+        for errs in (plot.get('errors') or {}).values():
+            for e in errs:
+                errors.append(e)
+        if not points:
+            return None
+        return {'points': points, 'errors': errors}
+
+    charts = []
+    for st in stat_list or []:
+        phi_psi = _plot(st.get('phi_psi_plot'))
+        chi = _plot(st.get('chi1_chi2_plot'))
+        if phi_psi or chi:
+            entry = {'label': st.get('sf_framecode', '')}
+            if phi_psi:
+                entry['phi_psi'] = phi_psi
+            if chi:
+                entry['chi1_chi2'] = chi
+            charts.append(entry)
+    return charts
+
+
+def _nmr_preview_data(report):
+    """Extract Phase-1 chart/table data from an NmrDpUtility report. Aggregates
+    per-subtype stats (stats_of_exptl_data) across input sources."""
+    info = report.get('information', {})
+    sources, completeness = [], []
+    chem_shift, dist_restraint, dihed_restraint = [], [], []
+
+    for src in info.get('input_sources') or []:
+        if not isinstance(src, dict):
+            continue
+        ctype = src.get('content_type', '')
+        subtypes = [
+            _NMR_SUBTYPE_NAMES.get(k, k.replace('_', ' ').title())
+            for k, v in (src.get('content_subtype') or {}).items() if v
+        ]
+        sources.append({
+            'name': src.get('original_file_name') or src.get('file_name') or '',
+            'content_name': _NMR_CONTENT_NAMES.get(ctype, ctype),
+            'subtypes': subtypes,
+        })
+        stats = src.get('stats_of_exptl_data')
+        if not isinstance(stats, dict):
+            continue
+        chem_shift.extend(stats.get('chem_shift') or [])
+        dist_restraint.extend(stats.get('dist_restraint') or [])
+        dihed_restraint.extend(stats.get('dihed_restraint') or [])
+
+    # Per-chain completeness (all-assignments) + sequence coverage, from chem_shift.
+    for st in chem_shift:
+        cov = {c.get('chain_id'): c.get('sequence_coverage')
+               for c in (st.get('sequence_coverage') or [])}
+        for comp in st.get('completeness') or []:
+            groups = [
+                {'group': _iso_label(g.get('atom_group', '')),
+                 'target': g.get('number_of_target_shifts'),
+                 'assigned': g.get('number_of_assigned_shifts'),
+                 'pct': round((g.get('completeness') or 0) * 100, 1)}
+                for g in comp.get('completeness_of_all_assignments') or []
+            ]
+            chain = comp.get('chain_id')
+            completeness.append({
+                'chain': chain,
+                'coverage_pct': round((cov.get(chain) or 0) * 100, 1) if chain in cov else None,
+                'groups': groups,
+            })
+
+    return {
+        'sources': sources,
+        'charts': {
+            'chem_shift_histogram': _histogram_chart(chem_shift),
+            'dist_histogram': _histogram_chart(dist_restraint),
+            'dihedral': _dihedral_charts(dihed_restraint),
+        },
+        'completeness': completeness,
+    }
+
+
+@app.route('/api/nmr_preview', methods=['GET'])
+async def get_nmr_preview():
+    """Graphical-overview data for the converted NMR data, parsed from the same
+    report as /api/nmr_validation (the convert_nmr_data workflow log_path JSON).
+    Token-scoped, read-only; 200 always (400 missing token); available=false when
+    there is no report yet."""
+    token = request.args.get('token')
+    if not token:
+        return {'error': 'token is required'}, 400
+
+    async with async_session_factory() as db:
+        session_row = (
+            await db.execute(select(Session).where(Session.token == token))
+        ).scalar_one_or_none()
+        if session_row is None:
+            return {'error': 'session not found'}, 404
+        conversion_id = session_row.conversion_id
+        run_number = session_row.latest_run_number
+        if conversion_id is None or run_number < 1:
+            return {'available': False}
+        wf = (
+            await db.execute(
+                select(Workflow).where(
+                    Workflow.conversion_id == conversion_id,
+                    Workflow.run_number == run_number,
+                    Workflow.task == WfTaskCode.convert_nmr_data.value,
+                )
+            )
+        ).scalar_one_or_none()
+
+    if wf is None or not wf.log_path or not Path(wf.log_path).is_file():
+        return {'available': False}
+    try:
+        report = json.loads(Path(wf.log_path).read_text())
+    except Exception:  # noqa: BLE001
+        return {'available': False}
+
+    return {'available': True, **_nmr_preview_data(report)}
+
+
 @app.route('/api/session', methods=['PATCH'])
 async def update_session():
     body = request.get_json(silent=True) or {}
