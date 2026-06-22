@@ -133,6 +133,29 @@ interface SpectralDimTable {
   name: string;
   rows: { id: number; atom: string; region: string; sweep_width: number | null; units: string }[];
 }
+/** Per-residue value line chart (dihedral angles, RDC, RCI/S²/RMSD). */
+interface PerResidueLine {
+  chain: string;
+  label: string;
+  sf?: string;
+  categories: string[];
+  series: { name: string; data: (number | null)[] }[];
+  bands: { start: number; end: number; type: string }[];
+  ymin: number | null;
+  ymax: number | null;
+  threshold: number | null;
+}
+/** Asymmetric (inter-chain) contact map: distinct x/y residue ranges. */
+interface AsymContactMap {
+  chain1: string;
+  chain2: string;
+  label: string;
+  xmin: number;
+  xmax: number;
+  ymin: number;
+  ymax: number;
+  series: { name: string; points: number[][] }[];
+}
 interface NmrPreview {
   available: boolean;
   sources: NmrPreviewSource[];
@@ -144,6 +167,10 @@ interface NmrPreview {
     dihedral: DihedralChart[];
     per_residue: PerResidueChart[];
     contact_maps: ContactMapChart[];
+    asym_contact_maps: AsymContactMap[];
+    dihedral_per_residue: PerResidueLine[];
+    rdc_per_residue: PerResidueLine[];
+    rci: PerResidueLine[];
   };
   restraints: RestraintRow[];
   spectral_peaks: { summary: SpectralPeakSummary[]; dims: SpectralDimTable[] };
@@ -252,6 +279,30 @@ export class Summary implements OnDestroy {
       option: this.contactMapOption(c),
     })),
   );
+  asymContactMapPanels = computed<ChartPanel[]>(() =>
+    (this.nmrPreview()?.charts.asym_contact_maps ?? []).map((c) => ({
+      title: `Inter-chain contact map — chains ${c.chain1} / ${c.chain2}`,
+      option: this.asymContactMapOption(c),
+    })),
+  );
+  dihedralPerResiduePanels = computed<ChartPanel[]>(() =>
+    (this.nmrPreview()?.charts.dihedral_per_residue ?? []).map((c) => ({
+      title: `Dihedral angles per residue — chain ${c.chain}`,
+      option: this.lineOption(c),
+    })),
+  );
+  rdcPerResiduePanels = computed<ChartPanel[]>(() =>
+    (this.nmrPreview()?.charts.rdc_per_residue ?? []).map((c) => ({
+      title: `Observed RDC per residue — chain ${c.chain}`,
+      option: this.lineOption(c),
+    })),
+  );
+  rciPanels = computed<ChartPanel[]>(() =>
+    (this.nmrPreview()?.charts.rci ?? []).map((c) => ({
+      title: `${c.label} — chain ${c.chain}${c.sf ? ' (' + c.sf + ')' : ''}`,
+      option: this.lineOption(c),
+    })),
+  );
 
   /** True when the preview has any chart or table content to show. */
   hasPreviewContent = computed(
@@ -263,6 +314,10 @@ export class Summary implements OnDestroy {
       this.dihedralPanels().length > 0 ||
       this.perResiduePanels().length > 0 ||
       this.contactMapPanels().length > 0 ||
+      this.asymContactMapPanels().length > 0 ||
+      this.dihedralPerResiduePanels().length > 0 ||
+      this.rdcPerResiduePanels().length > 0 ||
+      this.rciPanels().length > 0 ||
       this.previewCompleteness().length > 0 ||
       this.previewRestraints().length > 0 ||
       this.previewSpectralSummary().length > 0 ||
@@ -574,6 +629,65 @@ export class Summary implements OnDestroy {
         type: 'scatter',
         data: s.points,
         symbolSize: (v: number[]) => Math.min(16, 4 + 2 * (v[2] || 1)),
+      })),
+    };
+  }
+
+  /** ECharts option for an asymmetric (inter-chain) contact map: scatter with
+   * independent x (chain 1) and y (chain 2) residue ranges, sized by count. */
+  private asymContactMapOption(c: AsymContactMap): object {
+    return {
+      tooltip: {
+        trigger: 'item',
+        formatter: (p: { data?: number[] }) =>
+          p.data ? `${c.chain1}:${p.data[0]} ↔ ${c.chain2}:${p.data[1]}<br/>count: ${p.data[2]}` : '',
+      },
+      legend: { bottom: 0, type: 'scroll' },
+      grid: { left: 48, right: 24, top: 16, bottom: 48, containLabel: true },
+      xAxis: { type: 'value', name: `Chain ${c.chain1}`, min: c.xmin, max: c.xmax, minInterval: 1 },
+      yAxis: { type: 'value', name: `Chain ${c.chain2}`, min: c.ymin, max: c.ymax, minInterval: 1 },
+      series: c.series.map((s) => ({
+        name: s.name,
+        type: 'scatter',
+        data: s.points,
+        symbolSize: (v: number[]) => Math.min(16, 4 + 2 * (v[2] || 1)),
+      })),
+    };
+  }
+
+  /** ECharts option for a per-residue value line chart (dihedral / RDC / RCI),
+   * with secondary-structure bands and an optional threshold line. */
+  private lineOption(c: PerResidueLine): object {
+    const interval = Math.max(0, Math.ceil(c.categories.length / 24) - 1);
+    const markArea = {
+      silent: true,
+      data: c.bands.map((b) => [
+        { xAxis: c.categories[b.start], itemStyle: { color: this.bandColor(b.type) } },
+        { xAxis: c.categories[b.end] },
+      ]),
+    };
+    const markLine =
+      c.threshold !== null
+        ? { silent: true, symbol: 'none', data: [{ yAxis: c.threshold }],
+            lineStyle: { color: '#dc2626', type: 'dashed' } }
+        : undefined;
+    return {
+      tooltip: { trigger: 'axis' },
+      legend: { bottom: 0, type: 'scroll' },
+      grid: { left: 52, right: 16, top: 24, bottom: 64, containLabel: true },
+      xAxis: { type: 'category', data: c.categories, axisLabel: { interval, rotate: -75, fontSize: 8 } },
+      yAxis: {
+        type: 'value',
+        ...(c.ymin !== null ? { min: c.ymin } : {}),
+        ...(c.ymax !== null ? { max: c.ymax } : {}),
+      },
+      series: c.series.map((s, idx) => ({
+        name: s.name,
+        type: 'line',
+        data: s.data,
+        connectNulls: false,
+        showSymbol: false,
+        ...(idx === 0 ? { markArea, ...(markLine ? { markLine } : {}) } : {}),
       })),
     };
   }

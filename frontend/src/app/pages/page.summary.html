@@ -317,10 +317,34 @@
           <app-echart [option]="p.option" [height]="440" />
         </div>
       }
+      @for (p of asymContactMapPanels(); track $index) {
+        <div class="mb-6">
+          <div class="font-medium mb-1">{{ p.title }}</div>
+          <app-echart [option]="p.option" [height]="440" />
+        </div>
+      }
+      @for (p of dihedralPerResiduePanels(); track $index) {
+        <div class="mb-6">
+          <div class="font-medium mb-1">{{ p.title }}</div>
+          <app-echart [option]="p.option" [height]="380" />
+        </div>
+      }
       @for (p of rdcPanels(); track $index) {
         <div class="mb-6">
           <div class="font-medium mb-1">{{ p.title }}</div>
           <app-echart [option]="p.option" [height]="360" />
+        </div>
+      }
+      @for (p of rdcPerResiduePanels(); track $index) {
+        <div class="mb-6">
+          <div class="font-medium mb-1">{{ p.title }}</div>
+          <app-echart [option]="p.option" [height]="360" />
+        </div>
+      }
+      @for (p of rciPanels(); track $index) {
+        <div class="mb-6">
+          <div class="font-medium mb-1">{{ p.title }}</div>
+          <app-echart [option]="p.option" [height]="340" />
         </div>
       }
 
