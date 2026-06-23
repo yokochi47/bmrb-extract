@@ -1372,18 +1372,6 @@ def _prediction_table(items, kind):
     return rows
 
 
-def _dedup_predictions(chem_shift_list, key):
-    """First prediction per (chain, seq) across chem_shift saveframes."""
-    seen, items = set(), []
-    for st in chem_shift_list or []:
-        for s in st.get(key) or []:
-            k = (s.get('chain_id'), s.get('seq_id'))
-            if k not in seen:
-                seen.add(k)
-                items.append(s)
-    return items
-
-
 _ALIGN_SIDE = {
     'nmr_poly_seq': 'NMR sequence', 'model_poly_seq': 'Model sequence', 'coordinate': 'Coordinates',
     'chem_shift': 'Chemical shifts', 'dist_restraint': 'Distance restraints',
@@ -1423,11 +1411,81 @@ def _seq_align(info):
     return groups
 
 
+def _completeness_of(st):
+    """Per-chain all-assignment completeness + sequence coverage for one chem_shift
+    saveframe → [{chain, coverage_pct, groups:[{group, target, assigned, pct}]}]."""
+    cov = {c.get('chain_id'): c.get('sequence_coverage')
+           for c in (st.get('sequence_coverage') or [])}
+    out = []
+    for comp in st.get('completeness') or []:
+        groups = [
+            {'group': _iso_label(g.get('atom_group', '')),
+             'target': g.get('number_of_target_shifts'),
+             'assigned': g.get('number_of_assigned_shifts'),
+             'pct': round((g.get('completeness') or 0) * 100, 1)}
+            for g in comp.get('completeness_of_all_assignments') or []
+        ]
+        chain = comp.get('chain_id')
+        out.append({
+            'chain': chain,
+            'coverage_pct': round((cov.get(chain) or 0) * 100, 1) if chain in cov else None,
+            'groups': groups,
+        })
+    return out
+
+
+def _assignments_of(st):
+    """Total assignment counts per isotope for one saveframe → [{label, count}]."""
+    noa = st.get('number_of_assignments') or {}
+    return [{'label': _iso_label(k), 'count': v}
+            for k, v in noa.items() if isinstance(v, (int, float))]
+
+
+def _atom_name_mapping(st):
+    """Original → IUPAC atom-name mapping rows for one saveframe:
+    [{comp_id, name, atoms}] (name is the original atom_name; atoms the joined
+    mapped atom_id(s))."""
+    rows = []
+    for m in st.get('atom_name_mapping') or []:
+        comp = m.get('comp_id', '')
+        for h in m.get('history') or []:
+            rows.append({'comp_id': comp, 'name': h.get('atom_name', ''),
+                         'atoms': ' '.join(str(a) for a in (h.get('atom_id') or []))})
+    return rows
+
+
+def _chem_shift_saveframes(chem_shift_list):
+    """Per-saveframe assigned-chemical-shift preview, in report order. Reuses the
+    per-content helpers on a single saveframe so the summary page can group all
+    chem-shift content (status, coverage/completeness, CS-prediction tables,
+    histogram, RCI charts, atom-name mapping) under its sf_framecode."""
+    out = []
+    for st in chem_shift_list or []:
+        out.append({
+            'sf_framecode': st.get('sf_framecode', ''),
+            'status': st.get('status'),
+            'error_descriptions': st.get('error_descriptions') or [],
+            'warning_descriptions': st.get('warning_descriptions') or [],
+            'assignments': _assignments_of(st),
+            'completeness': _completeness_of(st),
+            'predictions': {
+                'cys_redox': _prediction_table(st.get('cys_redox_state'), 'cys'),
+                'pro_cis_trans': _prediction_table(st.get('pro_cis_trans'), 'pro'),
+                'his_tautomer': _prediction_table(st.get('his_tautomeric_state'), 'his'),
+                'ilv_rotamer': _prediction_table(st.get('ilv_rotameric_state'), 'ilv'),
+            },
+            'histogram': _histogram_chart([st]),
+            'rci': _rci_charts([st]),
+            'atom_name_mapping': _atom_name_mapping(st),
+        })
+    return out
+
+
 def _nmr_preview_data(report):
     """Extract Phase-1 chart/table data from an NmrDpUtility report. Aggregates
     per-subtype stats (stats_of_exptl_data) across input sources."""
     info = report.get('information', {})
-    sources, completeness = [], []
+    sources = []
     chem_shift, dist_restraint, dihed_restraint = [], [], []
     rdc_restraint, spectral_peak = [], []
 
@@ -1453,29 +1511,12 @@ def _nmr_preview_data(report):
         rdc_restraint.extend(stats.get('rdc_restraint') or [])
         spectral_peak.extend(stats.get('spectral_peak') or [])
 
-    # Per-chain completeness (all-assignments) + sequence coverage, from chem_shift.
-    for st in chem_shift:
-        cov = {c.get('chain_id'): c.get('sequence_coverage')
-               for c in (st.get('sequence_coverage') or [])}
-        for comp in st.get('completeness') or []:
-            groups = [
-                {'group': _iso_label(g.get('atom_group', '')),
-                 'target': g.get('number_of_target_shifts'),
-                 'assigned': g.get('number_of_assigned_shifts'),
-                 'pct': round((g.get('completeness') or 0) * 100, 1)}
-                for g in comp.get('completeness_of_all_assignments') or []
-            ]
-            chain = comp.get('chain_id')
-            completeness.append({
-                'chain': chain,
-                'coverage_pct': round((cov.get(chain) or 0) * 100, 1) if chain in cov else None,
-                'groups': groups,
-            })
-
     return {
         'sources': sources,
+        # Assigned chemical shifts are grouped by saveframe (sf_framecode); the
+        # restraint / peak sections below remain grouped by content type.
+        'chem_shift_saveframes': _chem_shift_saveframes(chem_shift),
         'charts': {
-            'chem_shift_histogram': _histogram_chart(chem_shift),
             'dist_histogram': _histogram_chart(dist_restraint),
             'dist_discrepancy': _discrepancy_charts(dist_restraint),
             'rdc_histogram': _histogram_chart(rdc_restraint),
@@ -1485,18 +1526,10 @@ def _nmr_preview_data(report):
             'asym_contact_maps': _asym_contact_map_charts(dist_restraint),
             'dihedral_per_residue': _per_residue_value_charts(dihed_restraint, -180, 180),
             'rdc_per_residue': _per_residue_value_charts(rdc_restraint),
-            'rci': _rci_charts(chem_shift),
         },
         'restraints': _restraint_summary(dist_restraint, dihed_restraint, rdc_restraint),
         'spectral_peaks': dict(zip(('summary', 'dims'), _spectral_peaks(spectral_peak))),
-        'predictions': {
-            'cys_redox': _prediction_table(_dedup_predictions(chem_shift, 'cys_redox_state'), 'cys'),
-            'pro_cis_trans': _prediction_table(_dedup_predictions(chem_shift, 'pro_cis_trans'), 'pro'),
-            'his_tautomer': _prediction_table(_dedup_predictions(chem_shift, 'his_tautomeric_state'), 'his'),
-            'ilv_rotamer': _prediction_table(_dedup_predictions(chem_shift, 'ilv_rotameric_state'), 'ilv'),
-        },
         'alignments': _seq_align(info),
-        'completeness': completeness,
     }
 
 

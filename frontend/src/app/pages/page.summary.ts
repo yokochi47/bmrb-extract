@@ -180,11 +180,30 @@ interface AlignGroup {
   category: string;
   rows: AlignChainRow[];
 }
+/** One assigned-chemical-shift saveframe's preview content, in display order. */
+interface ChemShiftSaveframe {
+  sf_framecode: string;
+  status: string | null;
+  error_descriptions: string[];
+  warning_descriptions: string[];
+  assignments: { label: string; count: number }[];
+  completeness: NmrCompleteness[];
+  predictions: {
+    cys_redox: PredictionRow[];
+    pro_cis_trans: PredictionRow[];
+    his_tautomer: PredictionRow[];
+    ilv_rotamer: PredictionRow[];
+  };
+  histogram: HistogramChart[];
+  rci: PerResidueLine[];
+  atom_name_mapping: { comp_id: string; name: string; atoms: string }[];
+}
 interface NmrPreview {
   available: boolean;
   sources: NmrPreviewSource[];
+  /** Assigned chemical shifts grouped by saveframe (sf_framecode). */
+  chem_shift_saveframes: ChemShiftSaveframe[];
   charts: {
-    chem_shift_histogram: HistogramChart[];
     dist_histogram: HistogramChart[];
     dist_discrepancy: HistogramChart[];
     rdc_histogram: HistogramChart[];
@@ -194,18 +213,10 @@ interface NmrPreview {
     asym_contact_maps: AsymContactMap[];
     dihedral_per_residue: PerResidueLine[];
     rdc_per_residue: PerResidueLine[];
-    rci: PerResidueLine[];
   };
   restraints: RestraintRow[];
   spectral_peaks: { summary: SpectralPeakSummary[]; dims: SpectralDimTable[] };
-  predictions: {
-    cys_redox: PredictionRow[];
-    pro_cis_trans: PredictionRow[];
-    his_tautomer: PredictionRow[];
-    ilv_rotamer: PredictionRow[];
-  };
   alignments: AlignGroup[];
-  completeness: NmrCompleteness[];
 }
 /** A titled chemical-shift-prediction table. */
 interface PredictionTable {
@@ -263,33 +274,51 @@ export class Summary implements OnDestroy {
   nmrPreviewAvailable = signal<boolean | null>(null);
   private nmrPreview = signal<NmrPreview | null>(null);
 
-  /** Data-summary / completeness / restraint / spectral-peak tables. */
+  /** Data-summary / restraint / spectral-peak tables. */
   previewSources = computed(() => this.nmrPreview()?.sources ?? []);
-  previewCompleteness = computed(() => this.nmrPreview()?.completeness ?? []);
   previewRestraints = computed(() => this.nmrPreview()?.restraints ?? []);
   previewSpectralSummary = computed(() => this.nmrPreview()?.spectral_peaks.summary ?? []);
   previewSpectralDims = computed(() => this.nmrPreview()?.spectral_peaks.dims ?? []);
   previewAlignments = computed(() => this.nmrPreview()?.alignments ?? []);
 
-  /** Chemical-shift-prediction validation tables (present ones only). */
-  predictionTables = computed<PredictionTable[]>(() => {
-    const p = this.nmrPreview()?.predictions;
-    if (!p) return [];
+  /** Assigned chemical shifts grouped by saveframe (sf_framecode). */
+  chemShiftSaveframes = computed(() => this.nmrPreview()?.chem_shift_saveframes ?? []);
+
+  /** CS-prediction tables (present ones only) for one saveframe. */
+  predictionTablesOf(sf: ChemShiftSaveframe): PredictionTable[] {
+    const p = sf.predictions;
     return [
       { title: 'Cysteine redox state', rows: p.cys_redox },
       { title: 'Proline cis/trans peptide bond', rows: p.pro_cis_trans },
       { title: 'Histidine tautomeric state', rows: p.his_tautomer },
       { title: 'Ile/Leu/Val rotameric state', rows: p.ilv_rotamer },
     ].filter((t) => t.rows.length > 0);
-  });
+  }
 
-  /** ECharts panels (built from the endpoint data). */
-  chemShiftPanels = computed<ChartPanel[]>(() =>
-    (this.nmrPreview()?.charts.chem_shift_histogram ?? []).map((h) => ({
+  /** Histogram chart panels for one saveframe (0 or 1). */
+  chemShiftHistogramPanels(sf: ChemShiftSaveframe): ChartPanel[] {
+    return sf.histogram.map((h) => ({
       title: 'Normalized assigned chemical shifts (Z-score)',
       option: this.histogramOption(h, 'Z-score', '# of chemical shifts'),
-    })),
-  );
+    }));
+  }
+
+  /** RCI / S² / NMR-RMSD per-residue line panels for one saveframe. */
+  rciPanelsOf(sf: ChemShiftSaveframe): ChartPanel[] {
+    return sf.rci.map((c) => ({
+      title: `${c.label} — chain ${c.chain}`,
+      option: this.lineOption(c),
+    }));
+  }
+
+  /** Status badge color (OK/Warning/Error → teal/amber/red). */
+  statusColor(status: string | null): string {
+    if (status === 'Error') return 'text-red-600 dark:text-red-400';
+    if (status === 'Warning') return 'text-amber-600 dark:text-amber-400';
+    return 'text-teal-600 dark:text-teal-400';
+  }
+
+  /** ECharts panels (built from the endpoint data). */
   distPanels = computed<ChartPanel[]>(() =>
     (this.nmrPreview()?.charts.dist_histogram ?? []).map((h) => ({
       title: 'Distance restraint target values',
@@ -354,17 +383,11 @@ export class Summary implements OnDestroy {
       option: this.lineOption(c),
     })),
   );
-  rciPanels = computed<ChartPanel[]>(() =>
-    (this.nmrPreview()?.charts.rci ?? []).map((c) => ({
-      title: `${c.label} — chain ${c.chain}${c.sf ? ' (' + c.sf + ')' : ''}`,
-      option: this.lineOption(c),
-    })),
-  );
 
   /** True when the preview has any chart or table content to show. */
   hasPreviewContent = computed(
     () =>
-      this.chemShiftPanels().length > 0 ||
+      this.chemShiftSaveframes().length > 0 ||
       this.distPanels().length > 0 ||
       this.discrepancyPanels().length > 0 ||
       this.rdcPanels().length > 0 ||
@@ -374,11 +397,8 @@ export class Summary implements OnDestroy {
       this.asymContactMapPanels().length > 0 ||
       this.dihedralPerResiduePanels().length > 0 ||
       this.rdcPerResiduePanels().length > 0 ||
-      this.rciPanels().length > 0 ||
-      this.previewCompleteness().length > 0 ||
       this.previewRestraints().length > 0 ||
       this.previewSpectralSummary().length > 0 ||
-      this.predictionTables().length > 0 ||
       this.previewAlignments().length > 0 ||
       this.previewSources().length > 0,
   );
