@@ -427,17 +427,34 @@ async def get_coordinate():
 # into the converted coordinate. Categories absent from a given file are skipped.
 # pdbx_validate_planes_atom is folded into pdbx_validate_planes (nested atoms), so
 # it is not listed here as a standalone metric.
+# (category, label, description). The description is shown between the metric
+# title and its outlier table on the summary page.
 _VALIDATE_METRICS = [
-    ('pdbx_validate_close_contact', 'Close contacts'),
-    ('pdbx_validate_symm_contact', 'Symmetry contacts'),
-    ('pdbx_validate_rmsd_bond', 'Bond length outliers'),
-    ('pdbx_validate_rmsd_angle', 'Bond angle outliers'),
-    ('pdbx_validate_torsion', 'Torsion (Ramachandran) outliers'),
-    ('pdbx_validate_peptide_omega', 'Peptide omega outliers'),
-    ('pdbx_validate_main_chain_plane', 'Main-chain planarity outliers'),
-    ('pdbx_validate_planes', 'Planarity outliers'),
-    ('pdbx_validate_chiral', 'Chirality outliers'),
-    ('pdbx_validate_polymer_linkage', 'Polymer linkage outliers'),
+    ('pdbx_validate_close_contact', 'Close contacts',
+     'The following atoms were found to be less than 2.2 Å apart and are considered too '
+     'close unless they are covalently bonded.'),
+    ('pdbx_validate_symm_contact', 'Symmetry contacts',
+     'The following atoms were found to be clashing with symmetry related atoms.'),
+    ('pdbx_validate_rmsd_bond', 'Bond length outliers',
+     'The following bond lengths were found to be significantly different from the '
+     'expected bond length.'),
+    ('pdbx_validate_rmsd_angle', 'Bond angle outliers',
+     'The following bond angles were found to be significantly different from the '
+     'expected bond angle.'),
+    ('pdbx_validate_torsion', 'Torsion (Ramachandran) outliers',
+     'The following backbone torsion (Ramachandran) outliers were identified.'),
+    ('pdbx_validate_peptide_omega', 'Peptide omega outliers',
+     'The following cis-peptides were detected in your coordinates. Please check these '
+     'are expected.'),
+    ('pdbx_validate_main_chain_plane', 'Main-chain planarity outliers',
+     'The following main chain planarity outliers were identified.'),
+    ('pdbx_validate_planes', 'Planarity outliers',
+     'The following planarity outliers were identified.'),
+    ('pdbx_validate_chiral', 'Chirality outliers',
+     'The following atoms have unexpected chirality.'),
+    ('pdbx_validate_polymer_linkage', 'Polymer linkage outliers',
+     'The following bond lengths between adjacent residues were found to be significantly '
+     'different from the expected bond length.'),
 ]
 
 _MMCIF_TOKEN_RE = re.compile(r"'[^']*'|\"[^\"]*\"|\S+")
@@ -656,7 +673,7 @@ def _curate_metrics(cats):
     categories. pdbx_validate_planes gets its atoms nested from planes_atom."""
     metrics = []
     plane_atoms = _plane_atoms(cats)
-    for cat, label in _VALIDATE_METRICS:
+    for cat, label, description in _VALIDATE_METRICS:
         data = cats.get(cat)
         if not data or not data['rows']:
             continue
@@ -668,7 +685,7 @@ def _curate_metrics(cats):
         else:
             columns, rows = _generic_columns(data)
         metric = {'key': cat[len('pdbx_validate_'):], 'label': label,
-                  'count': len(rows), 'columns': columns}
+                  'description': description, 'count': len(rows), 'columns': columns}
         if cat == 'pdbx_validate_planes' and plane_atoms:
             id_idx = data['columns'].index('id') if 'id' in data['columns'] else None
             nested = []
@@ -1125,29 +1142,6 @@ def _discrepancy_charts(stat_list):
     return out
 
 
-def _restraint_summary(dist_list, dihed_list, rdc_list):
-    """Summary rows (type, saveframe, total constraints, value range)."""
-    def total(d):
-        return sum(v for v in (d or {}).values() if isinstance(v, (int, float)))
-    rows = []
-    for st in dist_list or []:
-        rng = st.get('range') or {}
-        rtext = (f"{rng.get('min_value')}–{rng.get('max_value')} Å"
-                 if rng.get('min_value') is not None else '')
-        rows.append({'type': 'Distance restraints', 'name': st.get('sf_framecode', ''),
-                     'total': total(st.get('number_of_constraints')), 'range': rtext})
-    for st in dihed_list or []:
-        rows.append({'type': 'Dihedral angle restraints', 'name': st.get('sf_framecode', ''),
-                     'total': total(st.get('number_of_constraints')), 'range': ''})
-    for st in rdc_list or []:
-        rng = st.get('range') or {}
-        rtext = (f"{rng.get('min_value')}–{rng.get('max_value')} Hz"
-                 if rng.get('min_value') is not None else '')
-        rows.append({'type': 'RDC restraints', 'name': st.get('sf_framecode', ''),
-                     'total': total(st.get('number_of_constraints')), 'range': rtext})
-    return rows
-
-
 def _contact_map_charts(stat_list):
     """Symmetric contact maps from `constraints_on_contact_map`: per chain, one
     series per constraint type with points [seq_id_1, seq_id_2, total]."""
@@ -1178,27 +1172,40 @@ def _dim_atom(d):
     return _iso_label(f'{iso}{atom}') if iso and atom else atom
 
 
-def _spectral_peaks(stat_list):
-    """(summary rows, per-list dimension tables) for spectral peak lists."""
-    summary, dims = [], []
-    for st in stat_list or []:
+def _spectral_peak_saveframes(sp_list):
+    """Per-saveframe spectral-peak-list preview, in report order: status,
+    experiment class, peak counts (assigned/unassigned), spectral-dimension
+    table, atom-name mapping."""
+    out = []
+    for st in sp_list or []:
         npk = st.get('number_of_spectral_peaks')
-        n_peaks = (sum(v for v in npk.values() if isinstance(v, (int, float)))
-                   if isinstance(npk, dict) else npk)
-        summary.append({
-            'name': st.get('sf_framecode', ''),
-            'exp_class': st.get('exp_class') or st.get('exp_type') or '',
+        if isinstance(npk, dict):
+            n_peaks = sum(v for v in npk.values() if isinstance(v, (int, float)))
+            peak_counts = [
+                {'label': k.replace('_spectral_peaks', '').replace('_', ' ').strip().capitalize(),
+                 'count': v}
+                for k, v in npk.items() if isinstance(v, (int, float))
+            ]
+        else:
+            n_peaks, peak_counts = npk, []
+        exp = st.get('exp_class') or st.get('exp_type') or ''
+        out.append({
+            'sf_framecode': st.get('sf_framecode', ''),
+            'status': st.get('status'),
+            'error_descriptions': st.get('error_descriptions') or [],
+            'warning_descriptions': st.get('warning_descriptions') or [],
+            'exp_class': '' if exp == '.' else exp,
             'n_dims': st.get('number_of_spectral_dimensions'),
             'n_peaks': n_peaks,
+            'peak_counts': peak_counts,
+            'dims': [
+                {'id': d.get('id'), 'atom': _dim_atom(d), 'region': d.get('spectral_region') or '',
+                 'sweep_width': d.get('sweep_width'), 'units': d.get('sweep_width_units') or ''}
+                for d in st.get('spectral_dim') or []
+            ],
+            'atom_name_mapping': _atom_name_mapping(st),
         })
-        rows = [
-            {'id': d.get('id'), 'atom': _dim_atom(d), 'region': d.get('spectral_region') or '',
-             'sweep_width': d.get('sweep_width'), 'units': d.get('sweep_width_units') or ''}
-            for d in st.get('spectral_dim') or []
-        ]
-        if rows:
-            dims.append({'name': st.get('sf_framecode', ''), 'rows': rows})
-    return summary, dims
+    return out
 
 
 _ANGLE_LABELS = {'phi': 'φ', 'psi': 'ψ', 'chi1': 'χ1', 'chi2': 'χ2', 'chi3': 'χ3', 'chi4': 'χ4'}
@@ -1355,18 +1362,6 @@ def _prediction_table(items, kind):
     return rows
 
 
-def _dedup_predictions(chem_shift_list, key):
-    """First prediction per (chain, seq) across chem_shift saveframes."""
-    seen, items = set(), []
-    for st in chem_shift_list or []:
-        for s in st.get(key) or []:
-            k = (s.get('chain_id'), s.get('seq_id'))
-            if k not in seen:
-                seen.add(k)
-                items.append(s)
-    return items
-
-
 _ALIGN_SIDE = {
     'nmr_poly_seq': 'NMR sequence', 'model_poly_seq': 'Model sequence', 'coordinate': 'Coordinates',
     'chem_shift': 'Chemical shifts', 'dist_restraint': 'Distance restraints',
@@ -1383,34 +1378,210 @@ def _align_label(cat):
     return cat.replace('_', ' ')
 
 
+# Only the model-vs-NMR polymer-sequence alignment is shown on the preview as the
+# representative one; the other categories (vs coordinates, vs each restraint /
+# peak type, etc.) are omitted.
+_SEQ_ALIGN_CATEGORY = 'model_poly_seq_vs_nmr_poly_seq'
+
+
 def _seq_align(info):
-    """Sequence alignments grouped by category. Each group carries per-chain rows
-    that merge the summary stats with the aligned-sequence block (ref/mid/test),
-    so the frontend can show stats and sequences together under one category."""
-    groups = []
-    for cat, lst in (info.get('sequence_alignments') or {}).items():
-        if not isinstance(lst, list) or not lst:
-            continue
-        rows = []
-        for a in lst:
-            cov = a.get('sequence_coverage')
-            rows.append({
-                'chain': a.get('chain_id') or a.get('ref_chain_id') or '',
-                'length': a.get('length'), 'matched': a.get('matched'),
-                'conflict': a.get('conflict'), 'unmapped': a.get('unmapped'),
-                'coverage': round(cov * 100, 1) if isinstance(cov, (int, float)) else None,
-                'ref': a.get('ref_code') or '', 'mid': a.get('mid_code') or '',
-                'test': a.get('test_code') or '',
-            })
-        groups.append({'category': _align_label(cat), 'rows': rows})
-    return groups
+    """The representative model-vs-NMR polymer-sequence alignment, one row per
+    VALID chain assignment.
+
+    sequence_alignments holds every coordinate-chain × nmr-chain combination,
+    which is redundant for multimers with magnetically equivalent chains (e.g.
+    coordinates A/B vs nmr 1/2 yields A-1, A-2, B-1, B-2). chain_assignments
+    holds only the valid pairings (e.g. A-1, B-2) keyed by (ref_chain_id =
+    coordinate chain, test_chain_id = nmr chain); we use those to pick the
+    matching alignment rows and take their detailed ref/mid/test sequence blocks.
+    """
+    chain_pairs = (info.get('chain_assignments') or {}).get(_SEQ_ALIGN_CATEGORY)
+    aligns = (info.get('sequence_alignments') or {}).get(_SEQ_ALIGN_CATEGORY)
+    if not isinstance(chain_pairs, list) or not isinstance(aligns, list):
+        return []
+    by_pair = {(a.get('ref_chain_id'), a.get('test_chain_id')): a for a in aligns}
+    rows = []
+    for ca in chain_pairs:
+        ref, test = ca.get('ref_chain_id'), ca.get('test_chain_id')
+        a = by_pair.get((ref, test)) or {}
+        cov = ca.get('sequence_coverage')
+        coord = ca.get('ref_auth_chain_id') or ref or ''
+        ref_gauge = a.get('ref_gauge_code') or ''
+        test_gauge = a.get('test_gauge_code') or ''
+        if ref_gauge == test_gauge:
+            test_gauge = ''
+        rows.append({
+            'chain': (f"Coordinate chain {coord} ↔ NMR chain {test}"
+                      if (coord or test) else ''),
+            'length': ca.get('length'), 'matched': ca.get('matched'),
+            'conflict': ca.get('conflict'), 'unmapped': ca.get('unmapped'),
+            'coverage': round(cov * 100, 1) if isinstance(cov, (int, float)) else None,
+            'ref_gauge': ref_gauge,
+            'ref': a.get('ref_code') or '', 'mid': a.get('mid_code') or '',
+            'test': a.get('test_code') or '',
+            'test_gauge': test_gauge,
+        })
+    if not rows:
+        return []
+    return [{'category': _align_label(_SEQ_ALIGN_CATEGORY), 'rows': rows}]
+
+
+def _completeness_of(st):
+    """Per-chain all-assignment completeness + sequence coverage for one chem_shift
+    saveframe → [{chain, coverage_pct, groups:[{group, target, assigned, pct}]}]."""
+    cov = {c.get('chain_id'): c.get('sequence_coverage')
+           for c in (st.get('sequence_coverage') or [])}
+    out = []
+    for comp in st.get('completeness') or []:
+        groups = [
+            {'group': _iso_label(g.get('atom_group', '')),
+             'target': g.get('number_of_target_shifts'),
+             'assigned': g.get('number_of_assigned_shifts'),
+             'pct': round((g.get('completeness') or 0) * 100, 1)}
+            for g in comp.get('completeness_of_all_assignments') or []
+        ]
+        chain = comp.get('chain_id')
+        out.append({
+            'chain': chain,
+            'coverage_pct': round((cov.get(chain) or 0) * 100, 1) if chain in cov else None,
+            'groups': groups,
+        })
+    return out
+
+
+def _assignments_of(st):
+    """Total assignment counts per isotope for one saveframe → [{label, count}]."""
+    noa = st.get('number_of_assignments') or {}
+    return [{'label': _iso_label(k), 'count': v}
+            for k, v in noa.items() if isinstance(v, (int, float))]
+
+
+def _atom_name_mapping(st):
+    """Original → IUPAC atom-name mapping rows for one saveframe:
+    [{comp_id, name, atoms}] (name is the original atom_name; atoms the joined
+    mapped atom_id(s))."""
+    rows = []
+    for m in st.get('atom_name_mapping') or []:
+        comp = m.get('comp_id', '')
+        for h in m.get('history') or []:
+            rows.append({'comp_id': comp, 'name': h.get('atom_name', ''),
+                         'atoms': ' '.join(str(a) for a in (h.get('atom_id') or []))})
+    return rows
+
+
+def _chem_shift_saveframes(chem_shift_list):
+    """Per-saveframe assigned-chemical-shift preview, in report order. Reuses the
+    per-content helpers on a single saveframe so the summary page can group all
+    chem-shift content (status, coverage/completeness, CS-prediction tables,
+    histogram, RCI charts, atom-name mapping) under its sf_framecode."""
+    out = []
+    for st in chem_shift_list or []:
+        out.append({
+            'sf_framecode': st.get('sf_framecode', ''),
+            'status': st.get('status'),
+            'error_descriptions': st.get('error_descriptions') or [],
+            'warning_descriptions': st.get('warning_descriptions') or [],
+            'assignments': _assignments_of(st),
+            'completeness': _completeness_of(st),
+            'predictions': {
+                'cys_redox': _prediction_table(st.get('cys_redox_state'), 'cys'),
+                'pro_cis_trans': _prediction_table(st.get('pro_cis_trans'), 'pro'),
+                'his_tautomer': _prediction_table(st.get('his_tautomeric_state'), 'his'),
+                'ilv_rotamer': _prediction_table(st.get('ilv_rotameric_state'), 'ilv'),
+            },
+            'histogram': _histogram_chart([st]),
+            'rci': _rci_charts([st]),
+            'atom_name_mapping': _atom_name_mapping(st),
+        })
+    return out
+
+
+def _constraint_counts(st):
+    """[{label, count}] from a restraint saveframe's number_of_constraints dict."""
+    noc = st.get('number_of_constraints') or {}
+    return [{'label': _constraint_label(k), 'count': v}
+            for k, v in noc.items() if isinstance(v, (int, float))]
+
+
+def _dist_restraint_saveframes(dist_list):
+    """Per-saveframe distance-restraint preview, in report order. Reuses the
+    per-content helpers on a single saveframe so the summary page can group all
+    distance-restraint content (status, constraint counts/range, target-value
+    histogram + discrepancy, per-residue counts, symmetric/asymmetric contact
+    maps, atom-name mapping) under its sf_framecode."""
+    out = []
+    for st in dist_list or []:
+        rng = st.get('range') or {}
+        range_text = (f"{rng.get('min_value')}–{rng.get('max_value')} Å"
+                      if rng.get('min_value') is not None else '')
+        out.append({
+            'sf_framecode': st.get('sf_framecode', ''),
+            'status': st.get('status'),
+            'error_descriptions': st.get('error_descriptions') or [],
+            'warning_descriptions': st.get('warning_descriptions') or [],
+            'exp_type': st.get('exp_type') or '',
+            'constraints': _constraint_counts(st),
+            'range': range_text,
+            'histogram': _histogram_chart([st]),
+            'discrepancy': _discrepancy_charts([st]),
+            'per_residue': _per_residue_charts([st]),
+            'contact_maps': _contact_map_charts([st]),
+            'asym_contact_maps': _asym_contact_map_charts([st]),
+            'atom_name_mapping': _atom_name_mapping(st),
+        })
+    return out
+
+
+def _dihed_restraint_saveframes(dihed_list):
+    """Per-saveframe dihedral-angle-restraint preview, in report order: status,
+    constraint counts, φ/ψ and χ1/χ2 scatter, per-residue angle values,
+    atom-name mapping. Reuses the per-content helpers on a single saveframe."""
+    out = []
+    for st in dihed_list or []:
+        out.append({
+            'sf_framecode': st.get('sf_framecode', ''),
+            'status': st.get('status'),
+            'error_descriptions': st.get('error_descriptions') or [],
+            'warning_descriptions': st.get('warning_descriptions') or [],
+            'exp_type': st.get('exp_type') or '',
+            'constraints': _constraint_counts(st),
+            'histogram': _histogram_chart([st]),
+            'dihedral': _dihedral_charts([st]),
+            'per_residue': _per_residue_value_charts([st], -180, 180),
+            'atom_name_mapping': _atom_name_mapping(st),
+        })
+    return out
+
+
+def _rdc_restraint_saveframes(rdc_list):
+    """Per-saveframe RDC-restraint preview, in report order: status, constraint
+    counts/range, observed-value histogram, per-residue observed RDC, atom-name
+    mapping. Reuses the per-content helpers on a single saveframe."""
+    out = []
+    for st in rdc_list or []:
+        rng = st.get('range') or {}
+        range_text = (f"{rng.get('min_value')}–{rng.get('max_value')} Hz"
+                      if rng.get('min_value') is not None else '')
+        out.append({
+            'sf_framecode': st.get('sf_framecode', ''),
+            'status': st.get('status'),
+            'error_descriptions': st.get('error_descriptions') or [],
+            'warning_descriptions': st.get('warning_descriptions') or [],
+            'exp_type': st.get('exp_type') or '',
+            'constraints': _constraint_counts(st),
+            'range': range_text,
+            'histogram': _histogram_chart([st]),
+            'per_residue': _per_residue_value_charts([st]),
+            'atom_name_mapping': _atom_name_mapping(st),
+        })
+    return out
 
 
 def _nmr_preview_data(report):
     """Extract Phase-1 chart/table data from an NmrDpUtility report. Aggregates
     per-subtype stats (stats_of_exptl_data) across input sources."""
     info = report.get('information', {})
-    sources, completeness = [], []
+    sources = []
     chem_shift, dist_restraint, dihed_restraint = [], [], []
     rdc_restraint, spectral_peak = [], []
 
@@ -1436,50 +1607,16 @@ def _nmr_preview_data(report):
         rdc_restraint.extend(stats.get('rdc_restraint') or [])
         spectral_peak.extend(stats.get('spectral_peak') or [])
 
-    # Per-chain completeness (all-assignments) + sequence coverage, from chem_shift.
-    for st in chem_shift:
-        cov = {c.get('chain_id'): c.get('sequence_coverage')
-               for c in (st.get('sequence_coverage') or [])}
-        for comp in st.get('completeness') or []:
-            groups = [
-                {'group': _iso_label(g.get('atom_group', '')),
-                 'target': g.get('number_of_target_shifts'),
-                 'assigned': g.get('number_of_assigned_shifts'),
-                 'pct': round((g.get('completeness') or 0) * 100, 1)}
-                for g in comp.get('completeness_of_all_assignments') or []
-            ]
-            chain = comp.get('chain_id')
-            completeness.append({
-                'chain': chain,
-                'coverage_pct': round((cov.get(chain) or 0) * 100, 1) if chain in cov else None,
-                'groups': groups,
-            })
-
     return {
         'sources': sources,
-        'charts': {
-            'chem_shift_histogram': _histogram_chart(chem_shift),
-            'dist_histogram': _histogram_chart(dist_restraint),
-            'dist_discrepancy': _discrepancy_charts(dist_restraint),
-            'rdc_histogram': _histogram_chart(rdc_restraint),
-            'dihedral': _dihedral_charts(dihed_restraint),
-            'per_residue': _per_residue_charts(dist_restraint),
-            'contact_maps': _contact_map_charts(dist_restraint),
-            'asym_contact_maps': _asym_contact_map_charts(dist_restraint),
-            'dihedral_per_residue': _per_residue_value_charts(dihed_restraint, -180, 180),
-            'rdc_per_residue': _per_residue_value_charts(rdc_restraint),
-            'rci': _rci_charts(chem_shift),
-        },
-        'restraints': _restraint_summary(dist_restraint, dihed_restraint, rdc_restraint),
-        'spectral_peaks': dict(zip(('summary', 'dims'), _spectral_peaks(spectral_peak))),
-        'predictions': {
-            'cys_redox': _prediction_table(_dedup_predictions(chem_shift, 'cys_redox_state'), 'cys'),
-            'pro_cis_trans': _prediction_table(_dedup_predictions(chem_shift, 'pro_cis_trans'), 'pro'),
-            'his_tautomer': _prediction_table(_dedup_predictions(chem_shift, 'his_tautomeric_state'), 'his'),
-            'ilv_rotamer': _prediction_table(_dedup_predictions(chem_shift, 'ilv_rotameric_state'), 'ilv'),
-        },
+        # Chemical shifts and all restraint / spectral-peak content are grouped
+        # by saveframe (sf_framecode); sequence alignments remain a single table.
+        'chem_shift_saveframes': _chem_shift_saveframes(chem_shift),
+        'dist_restraint_saveframes': _dist_restraint_saveframes(dist_restraint),
+        'dihed_restraint_saveframes': _dihed_restraint_saveframes(dihed_restraint),
+        'rdc_restraint_saveframes': _rdc_restraint_saveframes(rdc_restraint),
+        'spectral_peak_saveframes': _spectral_peak_saveframes(spectral_peak),
         'alignments': _seq_align(info),
-        'completeness': completeness,
     }
 
 

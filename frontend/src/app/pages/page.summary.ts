@@ -41,6 +41,7 @@ interface NestedRow {
 interface ValidationMetric {
   key: string;
   label: string;
+  description: string;
   count: number;
   columns: string[];
   /** Flat metrics: string[][]; nested (planes): NestedRow[]. */
@@ -109,12 +110,6 @@ interface PerResidueChart {
   series: { name: string; data: number[] }[];
   bands: { start: number; end: number; type: string }[];
 }
-interface RestraintRow {
-  type: string;
-  name: string;
-  total: number;
-  range: string;
-}
 /** Contact map: per chain, one series of [seq_id_1, seq_id_2, total] per type. */
 interface ContactMapChart {
   chain: string;
@@ -123,15 +118,18 @@ interface ContactMapChart {
   max: number;
   series: { name: string; points: number[][] }[];
 }
-interface SpectralPeakSummary {
-  name: string;
+/** One spectral-peak-list saveframe's preview content, in display order. */
+interface SpectralPeakSaveframe {
+  sf_framecode: string;
+  status: string | null;
+  error_descriptions: string[];
+  warning_descriptions: string[];
   exp_class: string;
   n_dims: number;
   n_peaks: number;
-}
-interface SpectralDimTable {
-  name: string;
-  rows: { id: number; atom: string; region: string; sweep_width: number | null; units: string }[];
+  peak_counts: { label: string; count: number }[];
+  dims: { id: number; atom: string; region: string; sweep_width: number | null; units: string }[];
+  atom_name_mapping: { comp_id: string; name: string; atoms: string }[];
 }
 /** Per-residue value line chart (dihedral angles, RDC, RCI/S²/RMSD). */
 interface PerResidueLine {
@@ -171,40 +169,90 @@ interface AlignChainRow {
   conflict: number;
   unmapped: number;
   coverage: number | null;
+  ref_gauge: string;
   ref: string;
   mid: string;
   test: string;
+  test_gauge: string;
 }
 interface AlignGroup {
   category: string;
   rows: AlignChainRow[];
 }
-interface NmrPreview {
-  available: boolean;
-  sources: NmrPreviewSource[];
-  charts: {
-    chem_shift_histogram: HistogramChart[];
-    dist_histogram: HistogramChart[];
-    dist_discrepancy: HistogramChart[];
-    rdc_histogram: HistogramChart[];
-    dihedral: DihedralChart[];
-    per_residue: PerResidueChart[];
-    contact_maps: ContactMapChart[];
-    asym_contact_maps: AsymContactMap[];
-    dihedral_per_residue: PerResidueLine[];
-    rdc_per_residue: PerResidueLine[];
-    rci: PerResidueLine[];
-  };
-  restraints: RestraintRow[];
-  spectral_peaks: { summary: SpectralPeakSummary[]; dims: SpectralDimTable[] };
+/** One assigned-chemical-shift saveframe's preview content, in display order. */
+interface ChemShiftSaveframe {
+  sf_framecode: string;
+  status: string | null;
+  error_descriptions: string[];
+  warning_descriptions: string[];
+  assignments: { label: string; count: number }[];
+  completeness: NmrCompleteness[];
   predictions: {
     cys_redox: PredictionRow[];
     pro_cis_trans: PredictionRow[];
     his_tautomer: PredictionRow[];
     ilv_rotamer: PredictionRow[];
   };
+  histogram: HistogramChart[];
+  rci: PerResidueLine[];
+  atom_name_mapping: { comp_id: string; name: string; atoms: string }[];
+}
+/** One distance-restraint saveframe's preview content, in display order. */
+interface DistRestraintSaveframe {
+  sf_framecode: string;
+  status: string | null;
+  error_descriptions: string[];
+  warning_descriptions: string[];
+  exp_type: string;
+  constraints: { label: string; count: number }[];
+  range: string;
+  histogram: HistogramChart[];
+  discrepancy: HistogramChart[];
+  per_residue: PerResidueChart[];
+  contact_maps: ContactMapChart[];
+  asym_contact_maps: AsymContactMap[];
+  atom_name_mapping: { comp_id: string; name: string; atoms: string }[];
+}
+/** One dihedral-angle-restraint saveframe's preview content, in display order. */
+interface DihedRestraintSaveframe {
+  sf_framecode: string;
+  status: string | null;
+  error_descriptions: string[];
+  warning_descriptions: string[];
+  exp_type: string;
+  constraints: { label: string; count: number }[];
+  histogram: HistogramChart[];
+  dihedral: DihedralChart[];
+  per_residue: PerResidueLine[];
+  atom_name_mapping: { comp_id: string; name: string; atoms: string }[];
+}
+/** One RDC-restraint saveframe's preview content, in display order. */
+interface RdcRestraintSaveframe {
+  sf_framecode: string;
+  status: string | null;
+  error_descriptions: string[];
+  warning_descriptions: string[];
+  exp_type: string;
+  constraints: { label: string; count: number }[];
+  range: string;
+  histogram: HistogramChart[];
+  per_residue: PerResidueLine[];
+  atom_name_mapping: { comp_id: string; name: string; atoms: string }[];
+}
+interface NmrPreview {
+  available: boolean;
+  sources: NmrPreviewSource[];
+  /** Assigned chemical shifts grouped by saveframe (sf_framecode). */
+  chem_shift_saveframes: ChemShiftSaveframe[];
+  /** Distance restraints grouped by saveframe (sf_framecode). */
+  dist_restraint_saveframes: DistRestraintSaveframe[];
+  /** Dihedral angle restraints grouped by saveframe (sf_framecode). */
+  dihed_restraint_saveframes: DihedRestraintSaveframe[];
+  /** RDC restraints grouped by saveframe (sf_framecode). */
+  rdc_restraint_saveframes: RdcRestraintSaveframe[];
+  /** Spectral peak lists grouped by saveframe (sf_framecode). */
+  spectral_peak_saveframes: SpectralPeakSaveframe[];
   alignments: AlignGroup[];
-  completeness: NmrCompleteness[];
 }
 /** A titled chemical-shift-prediction table. */
 interface PredictionTable {
@@ -262,42 +310,92 @@ export class Summary implements OnDestroy {
   nmrPreviewAvailable = signal<boolean | null>(null);
   private nmrPreview = signal<NmrPreview | null>(null);
 
-  /** Data-summary / completeness / restraint / spectral-peak tables. */
+  /** Data-summary table + sequence alignments. */
   previewSources = computed(() => this.nmrPreview()?.sources ?? []);
-  previewCompleteness = computed(() => this.nmrPreview()?.completeness ?? []);
-  previewRestraints = computed(() => this.nmrPreview()?.restraints ?? []);
-  previewSpectralSummary = computed(() => this.nmrPreview()?.spectral_peaks.summary ?? []);
-  previewSpectralDims = computed(() => this.nmrPreview()?.spectral_peaks.dims ?? []);
   previewAlignments = computed(() => this.nmrPreview()?.alignments ?? []);
 
-  /** Chemical-shift-prediction validation tables (present ones only). */
-  predictionTables = computed<PredictionTable[]>(() => {
-    const p = this.nmrPreview()?.predictions;
-    if (!p) return [];
+  /** Spectral peak lists grouped by saveframe (sf_framecode). */
+  spectralPeakSaveframes = computed(() => this.nmrPreview()?.spectral_peak_saveframes ?? []);
+
+  /** Assigned chemical shifts grouped by saveframe (sf_framecode). */
+  chemShiftSaveframes = computed(() => this.nmrPreview()?.chem_shift_saveframes ?? []);
+
+  /** CS-prediction tables (present ones only) for one saveframe. */
+  predictionTablesOf(sf: ChemShiftSaveframe): PredictionTable[] {
+    const p = sf.predictions;
     return [
       { title: 'Cysteine redox state', rows: p.cys_redox },
       { title: 'Proline cis/trans peptide bond', rows: p.pro_cis_trans },
       { title: 'Histidine tautomeric state', rows: p.his_tautomer },
       { title: 'Ile/Leu/Val rotameric state', rows: p.ilv_rotamer },
     ].filter((t) => t.rows.length > 0);
-  });
+  }
 
-  /** ECharts panels (built from the endpoint data). */
-  chemShiftPanels = computed<ChartPanel[]>(() =>
-    (this.nmrPreview()?.charts.chem_shift_histogram ?? []).map((h) => ({
+  /** Histogram chart panels for one saveframe (0 or 1). */
+  chemShiftHistogramPanels(sf: ChemShiftSaveframe): ChartPanel[] {
+    return sf.histogram.map((h) => ({
       title: 'Normalized assigned chemical shifts (Z-score)',
       option: this.histogramOption(h, 'Z-score', '# of chemical shifts'),
-    })),
-  );
-  distPanels = computed<ChartPanel[]>(() =>
-    (this.nmrPreview()?.charts.dist_histogram ?? []).map((h) => ({
+    }));
+  }
+
+  /** RCI / S² / NMR-RMSD per-residue line panels for one saveframe. */
+  rciPanelsOf(sf: ChemShiftSaveframe): ChartPanel[] {
+    return sf.rci.map((c) => ({
+      title: `${c.label} — chain ${c.chain}`,
+      option: this.lineOption(c),
+    }));
+  }
+
+  /** Status badge color (OK/Warning/Error → teal/amber/red). */
+  statusColor(status: string | null): string {
+    if (status === 'Error') return 'text-red-600 dark:text-red-400';
+    if (status === 'Warning') return 'text-amber-600 dark:text-amber-400';
+    return 'text-teal-600 dark:text-teal-400';
+  }
+
+  /** Distance restraints grouped by saveframe (sf_framecode). */
+  distRestraintSaveframes = computed(() => this.nmrPreview()?.dist_restraint_saveframes ?? []);
+
+  /** Per-saveframe distance chart panels (reuse the shared option builders). */
+  distHistogramPanels(sf: DistRestraintSaveframe): ChartPanel[] {
+    return sf.histogram.map((h) => ({
       title: 'Distance restraint target values',
       option: this.histogramOption(h, 'Distance (Å)', '# of distance restraints'),
-    })),
-  );
-  dihedralPanels = computed<ChartPanel[]>(() => {
+    }));
+  }
+  distDiscrepancyPanels(sf: DistRestraintSaveframe): ChartPanel[] {
+    return sf.discrepancy.map((h) => ({
+      title: 'Discrepancy in redundant distance restraints',
+      option: this.histogramOption(h, 'Normalized discrepancy (%)', '# of redundant restraints'),
+    }));
+  }
+  distPerResiduePanels(sf: DistRestraintSaveframe): ChartPanel[] {
+    return sf.per_residue.map((c) => ({
+      title: `Distance restraints per residue — chain ${c.chain}`,
+      option: this.perResidueOption(c),
+    }));
+  }
+  distContactMapPanels(sf: DistRestraintSaveframe): ChartPanel[] {
+    return sf.contact_maps.map((c) => ({
+      title: `Distance restraints contact map — chain ${c.chain}`,
+      option: this.contactMapOption(c),
+    }));
+  }
+  distAsymContactMapPanels(sf: DistRestraintSaveframe): ChartPanel[] {
+    return sf.asym_contact_maps.map((c) => ({
+      title: `Inter-chain contact map — chains ${c.chain1} / ${c.chain2}`,
+      option: this.asymContactMapOption(c),
+    }));
+  }
+
+  /** Dihedral angle restraints grouped by saveframe (sf_framecode). */
+  dihedRestraintSaveframes = computed(() => this.nmrPreview()?.dihed_restraint_saveframes ?? []);
+
+  /** Per-saveframe dihedral chart panels (reuse the shared option builders). */
+  dihedScatterPanels(sf: DihedRestraintSaveframe): ChartPanel[] {
     const panels: ChartPanel[] = [];
-    for (const d of this.nmrPreview()?.charts.dihedral ?? []) {
+    for (const d of sf.dihedral) {
       if (d.phi_psi)
         panels.push({
           title: 'φ / ψ dihedral angles',
@@ -310,74 +408,45 @@ export class Summary implements OnDestroy {
         });
     }
     return panels;
-  });
-  discrepancyPanels = computed<ChartPanel[]>(() =>
-    (this.nmrPreview()?.charts.dist_discrepancy ?? []).map((h) => ({
-      title: 'Discrepancy in redundant distance restraints',
-      option: this.histogramOption(h, 'Normalized discrepancy (%)', '# of redundant restraints'),
-    })),
-  );
-  perResiduePanels = computed<ChartPanel[]>(() =>
-    (this.nmrPreview()?.charts.per_residue ?? []).map((c) => ({
-      title: `Distance restraints per residue — chain ${c.chain}`,
-      option: this.perResidueOption(c),
-    })),
-  );
-  rdcPanels = computed<ChartPanel[]>(() =>
-    (this.nmrPreview()?.charts.rdc_histogram ?? []).map((h) => ({
-      title: 'Observed RDC values',
-      option: this.histogramOption(h, 'Obs. RDC value (Hz)', '# of RDC restraints'),
-    })),
-  );
-  contactMapPanels = computed<ChartPanel[]>(() =>
-    (this.nmrPreview()?.charts.contact_maps ?? []).map((c) => ({
-      title: `Distance restraints contact map — chain ${c.chain}`,
-      option: this.contactMapOption(c),
-    })),
-  );
-  asymContactMapPanels = computed<ChartPanel[]>(() =>
-    (this.nmrPreview()?.charts.asym_contact_maps ?? []).map((c) => ({
-      title: `Inter-chain contact map — chains ${c.chain1} / ${c.chain2}`,
-      option: this.asymContactMapOption(c),
-    })),
-  );
-  dihedralPerResiduePanels = computed<ChartPanel[]>(() =>
-    (this.nmrPreview()?.charts.dihedral_per_residue ?? []).map((c) => ({
+  }
+  dihedHistogramPanels(sf: DihedRestraintSaveframe): ChartPanel[] {
+    return sf.histogram.map((h) => ({
+      title: 'Dihedral angle target values',
+      option: this.histogramOption(h, 'Angle (°)', '# of dihedral restraints'),
+    }));
+  }
+  dihedPerResiduePanels(sf: DihedRestraintSaveframe): ChartPanel[] {
+    return sf.per_residue.map((c) => ({
       title: `Dihedral angles per residue — chain ${c.chain}`,
       option: this.lineOption(c),
-    })),
-  );
-  rdcPerResiduePanels = computed<ChartPanel[]>(() =>
-    (this.nmrPreview()?.charts.rdc_per_residue ?? []).map((c) => ({
+    }));
+  }
+
+  /** RDC restraints grouped by saveframe (sf_framecode). */
+  rdcRestraintSaveframes = computed(() => this.nmrPreview()?.rdc_restraint_saveframes ?? []);
+
+  /** Per-saveframe RDC chart panels (reuse the shared option builders). */
+  rdcHistogramPanels(sf: RdcRestraintSaveframe): ChartPanel[] {
+    return sf.histogram.map((h) => ({
+      title: 'Observed RDC values',
+      option: this.histogramOption(h, 'Obs. RDC value (Hz)', '# of RDC restraints'),
+    }));
+  }
+  rdcPerResiduePanelsOf(sf: RdcRestraintSaveframe): ChartPanel[] {
+    return sf.per_residue.map((c) => ({
       title: `Observed RDC per residue — chain ${c.chain}`,
       option: this.lineOption(c),
-    })),
-  );
-  rciPanels = computed<ChartPanel[]>(() =>
-    (this.nmrPreview()?.charts.rci ?? []).map((c) => ({
-      title: `${c.label} — chain ${c.chain}${c.sf ? ' (' + c.sf + ')' : ''}`,
-      option: this.lineOption(c),
-    })),
-  );
+    }));
+  }
 
   /** True when the preview has any chart or table content to show. */
   hasPreviewContent = computed(
     () =>
-      this.chemShiftPanels().length > 0 ||
-      this.distPanels().length > 0 ||
-      this.discrepancyPanels().length > 0 ||
-      this.rdcPanels().length > 0 ||
-      this.dihedralPanels().length > 0 ||
-      this.perResiduePanels().length > 0 ||
-      this.contactMapPanels().length > 0 ||
-      this.asymContactMapPanels().length > 0 ||
-      this.dihedralPerResiduePanels().length > 0 ||
-      this.rdcPerResiduePanels().length > 0 ||
-      this.rciPanels().length > 0 ||
-      this.previewCompleteness().length > 0 ||
-      this.previewRestraints().length > 0 ||
-      this.previewSpectralSummary().length > 0 ||
-      this.predictionTables().length > 0 ||
+      this.chemShiftSaveframes().length > 0 ||
+      this.distRestraintSaveframes().length > 0 ||
+      this.dihedRestraintSaveframes().length > 0 ||
+      this.rdcRestraintSaveframes().length > 0 ||
+      this.spectralPeakSaveframes().length > 0 ||
       this.previewAlignments().length > 0 ||
       this.previewSources().length > 0,
   );

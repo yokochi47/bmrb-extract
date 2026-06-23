@@ -550,7 +550,9 @@ export class Upload implements OnDestroy {
     this.pageService.pageState.update((prev) => ({ ...prev, targetDepsys: value }));
     // Clear any assigned file types no longer acceptable for the new target system.
     const allowed = this.DEPSYS_FILE_TYPES[value];
-    const cleared = this.rows().filter((r) => r.fileType && !allowed(r.fileType) && r.ordinal != null);
+    const cleared = this.rows().filter(
+      (r) => r.fileType && !allowed(r.fileType) && r.ordinal != null,
+    );
     this.rows.update((prev) =>
       prev.map((r) => (r.fileType && !allowed(r.fileType) ? { ...r, fileType: null } : r)),
     );
@@ -788,7 +790,10 @@ export class Upload implements OnDestroy {
   }
 
   /** Persist a type/selection change for an already-uploaded row. */
-  private patchRow(ordinal: number, changes: { file_type?: string | null; selected?: boolean }): void {
+  private patchRow(
+    ordinal: number,
+    changes: { file_type?: string | null; selected?: boolean },
+  ): void {
     const token = this.state().tokenBase;
     if (!token) return;
     this.http.patch(API_URL + 'upload', { token, ordinal, ...changes }).subscribe({
@@ -825,10 +830,14 @@ export class Upload implements OnDestroy {
           this.http.post<{ ordinal: number }>(API_URL + 'upload', form),
         );
         // Match by object reference: indices may shift if a row is removed mid-upload.
-        this.rows.update((prev) => prev.map((r) => (r === row ? { ...r, ordinal: res.ordinal } : r)));
+        this.rows.update((prev) =>
+          prev.map((r) => (r === row ? { ...r, ordinal: res.ordinal } : r)),
+        );
       } catch (err) {
         this.rows.update((prev) => prev.filter((r) => r !== row));
-        this.submitError.set(`Failed while uploading "${row.name}": ${this.describeHttpError(err)}`);
+        this.submitError.set(
+          `Failed while uploading "${row.name}": ${this.describeHttpError(err)}`,
+        );
         console.error('Upload failed', err);
       }
     }
