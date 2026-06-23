@@ -423,6 +423,57 @@ export class Upload implements OnDestroy {
   };
 
   /**
+   * File-name hints used to pre-populate the file-type select on upload, so a
+   * recognised extension picks a sensible default and the user only has to
+   * confirm. Keys are lower-cased extensions. The XEASY '.prot' file is
+   * resolved per target in guessFileType() (topology vs chemical shifts), and
+   * every guess is gated through DEPSYS_FILE_TYPES so a type that the current
+   * deposition system does not accept is dropped (row left unselected).
+   */
+  private readonly EXT_FILE_TYPE: Record<string, string> = {
+    rst: 'nm-res-amb',
+    rest: 'nm-res-amb',
+    amber: 'nm-res-amb',
+    prmtop: 'nm-aux-amb',
+    crd: 'nm-aux-cha',
+    upl: 'nm-res-cya',
+    lol: 'nm-res-cya',
+    aco: 'nm-res-cya',
+    upv: 'nm-res-cya',
+    lov: 'nm-res-cya',
+    cco: 'nm-res-cya',
+    noa: 'nm-res-noa',
+    asl: 'nm-res-sch',
+    xpk: 'nm-pea-vie',
+    peaks: 'nm-pea-xea',
+    nef: 'nm-uni-nef',
+    pdb: 'co-pdb',
+    cif: 'co-cif',
+  };
+
+  /** Whole file names (no extension) that map to a type — complete matches. */
+  private readonly NAME_FILE_TYPE: Record<string, string> = {
+    rst: 'nm-res-amb',
+    prmtop: 'nm-aux-amb',
+  };
+
+  /**
+   * Best-guess upload file type from a file name for the given target, or null
+   * when there is no confident match (or the match is not acceptable for the
+   * target). Extension / whole-name matching is case-insensitive.
+   */
+  private guessFileType(name: string, target: TargetDepsys): string | null {
+    const lower = name.toLowerCase();
+    const dot = lower.lastIndexOf('.');
+    const ext = dot >= 0 ? lower.slice(dot + 1) : '';
+    let value: string | undefined = this.EXT_FILE_TYPE[ext] ?? this.NAME_FILE_TYPE[lower];
+    // XEASY .prot carries topology (OneDep) or chemical shifts (elsewhere).
+    if (ext === 'prot') value = target === TargetDepsys.onedep ? 'nm-aux-xea' : 'nm-shi-xea';
+    if (!value) return null;
+    return this.DEPSYS_FILE_TYPES[target](value) ? value : null;
+  }
+
+  /**
    * Menu sub-groups for the file-type select, in display order. The value
    * prefixes are mutually exclusive; 'nm-shi' covers both 'nm-shi' and 'nm-shi-*'.
    */
@@ -451,7 +502,12 @@ export class Upload implements OnDestroy {
     return this.FILE_TYPE_GROUPS.map((g) => ({
       label: g.label,
       items: this.FILE_TYPE_OPTIONS.filter((opt) => g.match(opt.value) && allowed(opt.value)).map(
-        (opt) => ({ label: this.shortLabel(opt.label), value: opt.value }),
+        (opt) => {
+          const short = this.shortLabel(opt.label);
+          // Item list shows the short label; the closed select shows the
+          // '{group} - {short}' selected label (e.g. 'Coordinates - PDBx/mmCIF format').
+          return { label: short, selectedLabel: `${g.label} - ${short}`, value: opt.value };
+        },
       ),
     })).filter((g) => g.items.length > 0);
   });
@@ -670,11 +726,12 @@ export class Upload implements OnDestroy {
   onFilesChosen(event: Event): void {
     const input = event.target as HTMLInputElement;
     if (!input.files?.length) return;
+    const target = this.state().targetDepsys;
     const added: FileRow[] = Array.from(input.files).map((f) => ({
       selected: true,
       name: f.name,
       size: f.size,
-      fileType: null,
+      fileType: this.guessFileType(f.name, target),
       file: f,
     }));
     this.rows.update((prev) => [...prev, ...added]);
@@ -757,11 +814,15 @@ export class Upload implements OnDestroy {
     if (!token || this.submitting()) return;
     this.submitError.set(null);
     this.submitting.set(true);
+    // Tracks the operation in flight so a failure can name the exact step
+    // (which file upload, or the conversion trigger) in the error message.
+    let step = 'starting processing';
     try {
       const rows = this.rows();
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
         if (!row.selected || row.ordinal != null || !row.fileType) continue;
+        step = `uploading "${row.name}"`;
         const form = new FormData();
         form.append('token', token);
         form.append('file_type', row.fileType);
@@ -775,6 +836,7 @@ export class Upload implements OnDestroy {
         );
       }
 
+      step = 'starting conversion';
       const res = await firstValueFrom(
         this.http.post<{ conversion_id: number; run_number: number }>(API_URL + 'process', {
           token,
@@ -785,11 +847,39 @@ export class Upload implements OnDestroy {
       this.openProgress();
     } catch (err) {
       this.submitting.set(false);
-      const msg =
-        (err as HttpErrorResponse)?.error?.error ?? 'Failed to start processing. Please try again.';
-      this.submitError.set(msg);
-      console.error('Processing failed', err);
+      const detail = this.describeHttpError(err);
+      this.submitError.set(`Failed while ${step}: ${detail}`);
+      console.error(`Processing failed while ${step}`, err);
     }
+  }
+
+  /**
+   * Build a debugging-friendly description of a failed HTTP call: the backend's
+   * JSON error message when present, otherwise the HTTP status, a connection
+   * diagnosis for status 0, or a snippet of a non-JSON (e.g. HTML 500) body.
+   */
+  private describeHttpError(err: unknown): string {
+    if (err instanceof TimeoutError) return 'the request timed out';
+    if (err instanceof HttpErrorResponse) {
+      const status = err.status ? `HTTP ${err.status} ${err.statusText}`.trim() : null;
+      const body = err.error;
+      // Backend errors are { error: '<message>' }; surface that as the primary text.
+      if (body && typeof body === 'object' && typeof body.error === 'string') {
+        return status ? `${body.error} (${status})` : body.error;
+      }
+      // Network/connection failure: no response was received at all.
+      if (err.status === 0) {
+        return 'could not reach the server (network or connection error)';
+      }
+      // Non-JSON response body (HTML error page, plain text): include a snippet.
+      if (typeof body === 'string' && body.trim()) {
+        const snippet = body.trim().slice(0, 300);
+        return status ? `${status} — ${snippet}` : snippet;
+      }
+      return status ?? err.message ?? 'unknown HTTP error';
+    }
+    if (err instanceof Error) return err.message;
+    return String(err);
   }
 
   // ── Processing progress dialog ───────────────────────────────────────────────

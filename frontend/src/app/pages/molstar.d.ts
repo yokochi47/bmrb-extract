@@ -11,10 +11,7 @@ export interface MolstarViewer {
 
 export interface MolstarGlobal {
   Viewer: {
-    create(
-      target: string | HTMLElement,
-      options?: Record<string, unknown>,
-    ): Promise<MolstarViewer>;
+    create(target: string | HTMLElement, options?: Record<string, unknown>): Promise<MolstarViewer>;
   };
 }
 

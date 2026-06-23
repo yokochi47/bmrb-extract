@@ -164,21 +164,20 @@ interface PredictionRow {
   observed: string;
   consistent: boolean | null;
 }
-interface AlignSummaryRow {
-  category: string;
+interface AlignChainRow {
   chain: string;
   length: number;
   matched: number;
   conflict: number;
   unmapped: number;
   coverage: number | null;
-}
-interface AlignBlock {
-  category: string;
-  chain: string;
   ref: string;
   mid: string;
   test: string;
+}
+interface AlignGroup {
+  category: string;
+  rows: AlignChainRow[];
 }
 interface NmrPreview {
   available: boolean;
@@ -204,7 +203,7 @@ interface NmrPreview {
     his_tautomer: PredictionRow[];
     ilv_rotamer: PredictionRow[];
   };
-  alignments: { summary: AlignSummaryRow[]; blocks: AlignBlock[] };
+  alignments: AlignGroup[];
   completeness: NmrCompleteness[];
 }
 /** A titled chemical-shift-prediction table. */
@@ -269,8 +268,7 @@ export class Summary implements OnDestroy {
   previewRestraints = computed(() => this.nmrPreview()?.restraints ?? []);
   previewSpectralSummary = computed(() => this.nmrPreview()?.spectral_peaks.summary ?? []);
   previewSpectralDims = computed(() => this.nmrPreview()?.spectral_peaks.dims ?? []);
-  previewAlignSummary = computed(() => this.nmrPreview()?.alignments.summary ?? []);
-  previewAlignBlocks = computed(() => this.nmrPreview()?.alignments.blocks ?? []);
+  previewAlignments = computed(() => this.nmrPreview()?.alignments ?? []);
 
   /** Chemical-shift-prediction validation tables (present ones only). */
   predictionTables = computed<PredictionTable[]>(() => {
@@ -300,8 +298,16 @@ export class Summary implements OnDestroy {
   dihedralPanels = computed<ChartPanel[]>(() => {
     const panels: ChartPanel[] = [];
     for (const d of this.nmrPreview()?.charts.dihedral ?? []) {
-      if (d.phi_psi) panels.push({ title: 'φ / ψ dihedral angles', option: this.dihedralOption(d.phi_psi, 'φ', 'ψ') });
-      if (d.chi1_chi2) panels.push({ title: 'χ1 / χ2 dihedral angles', option: this.dihedralOption(d.chi1_chi2, 'χ1', 'χ2') });
+      if (d.phi_psi)
+        panels.push({
+          title: 'φ / ψ dihedral angles',
+          option: this.dihedralOption(d.phi_psi, 'φ', 'ψ'),
+        });
+      if (d.chi1_chi2)
+        panels.push({
+          title: 'χ1 / χ2 dihedral angles',
+          option: this.dihedralOption(d.chi1_chi2, 'χ1', 'χ2'),
+        });
     }
     return panels;
   });
@@ -372,7 +378,7 @@ export class Summary implements OnDestroy {
       this.previewRestraints().length > 0 ||
       this.previewSpectralSummary().length > 0 ||
       this.predictionTables().length > 0 ||
-      this.previewAlignSummary().length > 0 ||
+      this.previewAlignments().length > 0 ||
       this.previewSources().length > 0,
   );
 
@@ -501,12 +507,10 @@ export class Summary implements OnDestroy {
   }
 
   private loadFiles(token: string): void {
-    this.http
-      .get<{ files: UploadFileRow[] }>(API_URL + 'files', { params: { token } })
-      .subscribe({
-        next: (res) => this.files.set(res.files ?? []),
-        error: (err) => console.error('Failed to load upload files', err),
-      });
+    this.http.get<{ files: UploadFileRow[] }>(API_URL + 'files', { params: { token } }).subscribe({
+      next: (res) => this.files.set(res.files ?? []),
+      error: (err) => console.error('Failed to load upload files', err),
+    });
   }
 
   private loadValidation(token: string): void {
@@ -550,18 +554,16 @@ export class Summary implements OnDestroy {
   }
 
   private loadNmrPreview(token: string): void {
-    this.http
-      .get<NmrPreview>(API_URL + 'nmr_preview', { params: { token } })
-      .subscribe({
-        next: (res) => {
-          this.nmrPreview.set(res);
-          this.nmrPreviewAvailable.set(res.available);
-        },
-        error: (err) => {
-          console.error('Failed to load NMR preview', err);
-          this.nmrPreviewAvailable.set(false);
-        },
-      });
+    this.http.get<NmrPreview>(API_URL + 'nmr_preview', { params: { token } }).subscribe({
+      next: (res) => {
+        this.nmrPreview.set(res);
+        this.nmrPreviewAvailable.set(res.available);
+      },
+      error: (err) => {
+        console.error('Failed to load NMR preview', err);
+        this.nmrPreviewAvailable.set(false);
+      },
+    });
   }
 
   /** ECharts option for a stacked-bar histogram. */
@@ -650,7 +652,11 @@ export class Summary implements OnDestroy {
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
       legend: { bottom: 0, type: 'scroll' },
       grid: { left: 48, right: 16, top: 24, bottom: 72, containLabel: true },
-      xAxis: { type: 'category', data: c.categories, axisLabel: { interval, rotate: -75, fontSize: 8 } },
+      xAxis: {
+        type: 'category',
+        data: c.categories,
+        axisLabel: { interval, rotate: -75, fontSize: 8 },
+      },
       yAxis: { type: 'value', name: '# restraints', minInterval: 1 },
       series: c.series.map((s, idx) => ({
         name: s.name,
@@ -665,7 +671,13 @@ export class Summary implements OnDestroy {
   /** ECharts option for a symmetric contact map: scatter of [seq1, seq2] points
    * sized by restraint count, on a square residue×residue grid (y inverted). */
   private contactMapOption(c: ContactMapChart): object {
-    const axis = (name: string) => ({ type: 'value' as const, name, min: c.min, max: c.max, minInterval: 1 });
+    const axis = (name: string) => ({
+      type: 'value' as const,
+      name,
+      min: c.min,
+      max: c.max,
+      minInterval: 1,
+    });
     return {
       tooltip: {
         trigger: 'item',
@@ -692,7 +704,9 @@ export class Summary implements OnDestroy {
       tooltip: {
         trigger: 'item',
         formatter: (p: { data?: number[] }) =>
-          p.data ? `${c.chain1}:${p.data[0]} ↔ ${c.chain2}:${p.data[1]}<br/>count: ${p.data[2]}` : '',
+          p.data
+            ? `${c.chain1}:${p.data[0]} ↔ ${c.chain2}:${p.data[1]}<br/>count: ${p.data[2]}`
+            : '',
       },
       legend: { bottom: 0, type: 'scroll' },
       grid: { left: 48, right: 24, top: 16, bottom: 48, containLabel: true },
@@ -720,14 +734,22 @@ export class Summary implements OnDestroy {
     };
     const markLine =
       c.threshold !== null
-        ? { silent: true, symbol: 'none', data: [{ yAxis: c.threshold }],
-            lineStyle: { color: '#dc2626', type: 'dashed' } }
+        ? {
+            silent: true,
+            symbol: 'none',
+            data: [{ yAxis: c.threshold }],
+            lineStyle: { color: '#dc2626', type: 'dashed' },
+          }
         : undefined;
     return {
       tooltip: { trigger: 'axis' },
       legend: { bottom: 0, type: 'scroll' },
       grid: { left: 52, right: 16, top: 24, bottom: 64, containLabel: true },
-      xAxis: { type: 'category', data: c.categories, axisLabel: { interval, rotate: -75, fontSize: 8 } },
+      xAxis: {
+        type: 'category',
+        data: c.categories,
+        axisLabel: { interval, rotate: -75, fontSize: 8 },
+      },
       yAxis: {
         type: 'value',
         ...(c.ymin !== null ? { min: c.ymin } : {}),
@@ -789,13 +811,10 @@ export class Summary implements OnDestroy {
   private patchApproved(value: boolean): void {
     const token = this.pageService.pageState().tokenBase;
     if (!token || this.pageService.pageState().approved === value) return;
-    this.http
-      .post(API_URL + 'approve', { token, approved: value })
-      .subscribe({
-        next: () =>
-          this.pageService.pageState.update((prev) => ({ ...prev, approved: value })),
-        error: (err) => console.error('Failed to update approval', err),
-      });
+    this.http.post(API_URL + 'approve', { token, approved: value }).subscribe({
+      next: () => this.pageService.pageState.update((prev) => ({ ...prev, approved: value })),
+      error: (err) => console.error('Failed to update approval', err),
+    });
   }
 
   /** Typed row accessors for the template (rows is a flat/nested union). */
@@ -860,12 +879,35 @@ export class Summary implements OnDestroy {
       });
       this.viewer = viewer;
       const url = `${API_URL}coordinate?token=${encodeURIComponent(token)}`;
-      // Rejects on a 404 (no coordinate) → caught below to show the fallback.
-      await viewer.loadStructureFromUrl(url, 'mmcif', false);
+      // Rejects after exhausting retries → caught below to show the fallback.
+      await this.loadCoordinateWithRetry(viewer, url);
     } catch (err) {
       console.error('Mol* coordinate preview unavailable', err);
       this.viewerError.set(true);
       this.disposeViewer();
+    }
+  }
+
+  /**
+   * Load the converted coordinate into the viewer, retrying transient failures.
+   * On arrival straight from the processing dialog, /api/progress can report the
+   * run "done" a moment before the backend harvests the coordinate output_file
+   * row, so /api/coordinate briefly 404s. Retry a few times (~1s apart) so the
+   * preview appears on its own instead of requiring a manual page refresh.
+   */
+  private async loadCoordinateWithRetry(viewer: MolstarViewer, url: string): Promise<void> {
+    const attempts = 6;
+    const delayMs = 1000;
+    for (let i = 0; ; i++) {
+      // Bail out quietly if the viewer was torn down (component destroyed) mid-retry.
+      if (this.viewer !== viewer) return;
+      try {
+        await viewer.loadStructureFromUrl(url, 'mmcif', false);
+        return;
+      } catch (err) {
+        if (i >= attempts - 1) throw err;
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
     }
   }
 

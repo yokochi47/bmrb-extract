@@ -3,11 +3,13 @@ import html
 import json
 import os
 import re
+import traceback
 from datetime import datetime, timedelta
 from pathlib import Path
 
 import httpx
 from flask import Flask, request, send_file
+from werkzeug.exceptions import HTTPException
 from git import Actor, InvalidGitRepositoryError, Repo
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -50,6 +52,21 @@ engine = create_async_engine(SERVICE_DATABASE_URL, echo=True, poolclass=NullPool
 async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 _GIT_ACTOR = Actor(SERVICE_HOST, SERVICE_ADMIN_EMAIL)
+
+
+@app.errorhandler(Exception)
+def handle_unexpected_error(exc):
+    """Return unhandled server-side errors as JSON ({error: '<type>: <msg>'})
+    instead of Flask's default HTML 500, so the frontend can surface an
+    actionable detail. The full traceback is logged for backend debugging.
+    Werkzeug HTTP errors (404, 405, ...) keep their standard responses."""
+    if isinstance(exc, HTTPException):
+        return exc
+    app.logger.error(
+        'unhandled error on %s %s:\n%s',
+        request.method, request.path, traceback.format_exc(),
+    )
+    return {'error': f'{type(exc).__name__}: {exc}'}, 500
 
 # Prefect REST API (the worker/server image, reached over the internal network).
 # PREFECT_API_URL is set in .env (Prefect standard); fall back to the service name.
@@ -1303,25 +1320,26 @@ def _align_label(cat):
 
 
 def _seq_align(info):
-    """Sequence-alignment summary rows + aligned-sequence blocks (ref/mid/test)."""
-    summary, blocks = [], []
+    """Sequence alignments grouped by category. Each group carries per-chain rows
+    that merge the summary stats with the aligned-sequence block (ref/mid/test),
+    so the frontend can show stats and sequences together under one category."""
+    groups = []
     for cat, lst in (info.get('sequence_alignments') or {}).items():
         if not isinstance(lst, list) or not lst:
             continue
-        label = _align_label(cat)
+        rows = []
         for a in lst:
             cov = a.get('sequence_coverage')
-            summary.append({
-                'category': label, 'chain': a.get('chain_id') or a.get('ref_chain_id') or '',
+            rows.append({
+                'chain': a.get('chain_id') or a.get('ref_chain_id') or '',
                 'length': a.get('length'), 'matched': a.get('matched'),
                 'conflict': a.get('conflict'), 'unmapped': a.get('unmapped'),
                 'coverage': round(cov * 100, 1) if isinstance(cov, (int, float)) else None,
+                'ref': a.get('ref_code') or '', 'mid': a.get('mid_code') or '',
+                'test': a.get('test_code') or '',
             })
-            if a.get('ref_code') and a.get('test_code'):
-                blocks.append({'category': label, 'chain': a.get('chain_id') or '',
-                               'ref': a.get('ref_code'), 'mid': a.get('mid_code') or '',
-                               'test': a.get('test_code')})
-    return {'summary': summary, 'blocks': blocks}
+        groups.append({'category': _align_label(cat), 'rows': rows})
+    return groups
 
 
 def _nmr_preview_data(report):

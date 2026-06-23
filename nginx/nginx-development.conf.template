@@ -41,6 +41,9 @@ http {
         listen 80;
         server_name ${SERVICE_HOST};
 
+        # ---- Increase the maximum allowed request body size ----
+        client_max_body_size 300m;
+
         # ---- Logs ----
         access_log /var/log/nginx/${SERVICE_HOST}/access_log.$log_month ${NGINX_LOG_FORMAT};
         error_log  /var/log/nginx/${SERVICE_HOST}/error.log warn;
