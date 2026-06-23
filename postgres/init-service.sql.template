@@ -99,7 +99,7 @@ CREATE TABLE IF NOT EXISTS upload_file (
     file_size       BIGINT,
     checksum        TEXT,
 
-    file_type       upload_file_type NOT NULL,
+    file_type       upload_file_type,  -- null until the user assigns a type to a freshly uploaded file.
 
     selected        BOOLEAN NOT NULL DEFAULT TRUE,  -- selected files will be used for the conversion process.
 

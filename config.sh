@@ -163,6 +163,15 @@ if [[ -z "${SECRET_KEY}" ]] ; then
 
 fi
 
+# Gunicorn auto-reloads on source change in development (the backend source is
+# volume-mounted), so edits take effect without restarting the container; empty
+# in production. Gunicorn applies this natively via the GUNICORN_CMD_ARGS env var.
+if [[ "${SERVICE_LEVEL}" = "development" ]] ; then
+  GUNICORN_CMD_ARGS="--reload"
+else
+  GUNICORN_CMD_ARGS=""
+fi
+
 grep -v '=\s' .env.template | grep -v SERVICE_HOST > .env
 
 cat << EOF >> .env
@@ -188,6 +197,7 @@ NGINX_LOG_FORMAT=${NGINX_LOG_FORMAT}
 # Backend (Flask)
 FLASK_ENV=${SERVICE_LEVEL}
 export FLASK_API_URL=http://backend:8000/api/
+export GUNICORN_CMD_ARGS=${GUNICORN_CMD_ARGS}
 
 # PostgreSQL
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
