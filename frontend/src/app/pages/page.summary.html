@@ -240,6 +240,46 @@
         </div>
       }
 
+      <!-- Sequence alignments — grouped by category; each chain's stats and its
+           aligned-sequence block (ref/mid/test) shown together. -->
+      @if (previewAlignments().length) {
+        <div class="mb-6 overflow-x-auto">
+          <div class="text-lg mb-2">Sequence alignments</div>
+          @for (g of previewAlignments(); track $index) {
+            <div class="mb-4">
+              <div class="font-medium text-sm mb-2">{{ g.category }}</div>
+              @for (r of g.rows; track $index) {
+                <div class="mb-3">
+                  <div class="text-sm mb-1" [class.text-red-600]="r.conflict > 0">
+                    @if (r.chain) {
+                      <span class="font-medium">{{ r.chain }}</span>
+                      <span> · </span>
+                    }
+                    <span
+                      >length {{ r.length }} · matched {{ r.matched }} · conflict {{ r.conflict }} ·
+                      unmapped {{ r.unmapped }}</span
+                    >
+                    @if (r.coverage !== null) {
+                      <span> · {{ r.coverage }}%</span>
+                    }
+                  </div>
+                  @if (r.ref || r.test) {
+                    <pre
+                      class="m-0 px-2 py-1 text-xs leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
+                      >{{ r.ref_gauge }}
+{{ r.ref }}
+{{ r.mid }}
+{{ r.test }}
+{{ r.test_gauge }}</pre
+                    >
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+
       <!-- Assigned chemical shifts — grouped by saveframe (sf_framecode). Each
            saveframe is a collapsible panel: status, assignments, completeness,
            CS-prediction tables, histogram, random coil index, atom-name mapping. -->
@@ -1029,44 +1069,6 @@
             </div>
           }
         </p-panel>
-      }
-
-      <!-- Sequence alignments — grouped by category; each chain's stats and its
-           aligned-sequence block (ref/mid/test) shown together. -->
-      @if (previewAlignments().length) {
-        <div class="mb-6 overflow-x-auto">
-          <div class="font-medium mb-2">Sequence alignments</div>
-          @for (g of previewAlignments(); track $index) {
-            <div class="mb-4">
-              <div class="font-medium text-sm mb-2">{{ g.category }}</div>
-              @for (r of g.rows; track $index) {
-                <div class="mb-3">
-                  <div class="text-sm mb-1" [class.text-red-600]="r.conflict > 0">
-                    @if (r.chain) {
-                      <span class="font-medium">Chain {{ r.chain }}</span>
-                      <span> · </span>
-                    }
-                    <span
-                      >len {{ r.length }} · matched {{ r.matched }} · conflict {{ r.conflict }} ·
-                      unmapped {{ r.unmapped }}</span
-                    >
-                    @if (r.coverage !== null) {
-                      <span> · {{ r.coverage }}%</span>
-                    }
-                  </div>
-                  @if (r.ref || r.test) {
-                    <pre
-                      class="m-0 px-2 py-1 text-xs leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
-                      >{{ r.ref }}
-{{ r.mid }}
-{{ r.test }}</pre
-                    >
-                  }
-                </div>
-              }
-            </div>
-          }
-        </div>
       }
     }
   </p-card>

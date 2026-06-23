@@ -1385,27 +1385,45 @@ _SEQ_ALIGN_CATEGORY = 'model_poly_seq_vs_nmr_poly_seq'
 
 
 def _seq_align(info):
-    """The representative sequence alignment (model vs NMR polymer sequence). Each
-    group carries per-chain rows that merge the summary stats with the aligned-
-    sequence block (ref/mid/test), so the frontend can show stats and sequences
-    together under one category."""
-    groups = []
-    for cat, lst in (info.get('sequence_alignments') or {}).items():
-        if cat != _SEQ_ALIGN_CATEGORY or not isinstance(lst, list) or not lst:
-            continue
-        rows = []
-        for a in lst:
-            cov = a.get('sequence_coverage')
-            rows.append({
-                'chain': a.get('chain_id') or a.get('ref_chain_id') or '',
-                'length': a.get('length'), 'matched': a.get('matched'),
-                'conflict': a.get('conflict'), 'unmapped': a.get('unmapped'),
-                'coverage': round(cov * 100, 1) if isinstance(cov, (int, float)) else None,
-                'ref': a.get('ref_code') or '', 'mid': a.get('mid_code') or '',
-                'test': a.get('test_code') or '',
-            })
-        groups.append({'category': _align_label(cat), 'rows': rows})
-    return groups
+    """The representative model-vs-NMR polymer-sequence alignment, one row per
+    VALID chain assignment.
+
+    sequence_alignments holds every coordinate-chain × nmr-chain combination,
+    which is redundant for multimers with magnetically equivalent chains (e.g.
+    coordinates A/B vs nmr 1/2 yields A-1, A-2, B-1, B-2). chain_assignments
+    holds only the valid pairings (e.g. A-1, B-2) keyed by (ref_chain_id =
+    coordinate chain, test_chain_id = nmr chain); we use those to pick the
+    matching alignment rows and take their detailed ref/mid/test sequence blocks.
+    """
+    chain_pairs = (info.get('chain_assignments') or {}).get(_SEQ_ALIGN_CATEGORY)
+    aligns = (info.get('sequence_alignments') or {}).get(_SEQ_ALIGN_CATEGORY)
+    if not isinstance(chain_pairs, list) or not isinstance(aligns, list):
+        return []
+    by_pair = {(a.get('ref_chain_id'), a.get('test_chain_id')): a for a in aligns}
+    rows = []
+    for ca in chain_pairs:
+        ref, test = ca.get('ref_chain_id'), ca.get('test_chain_id')
+        a = by_pair.get((ref, test)) or {}
+        cov = ca.get('sequence_coverage')
+        coord = ca.get('ref_auth_chain_id') or ref or ''
+        ref_gauge = a.get('ref_gauge_code') or ''
+        test_gauge = a.get('test_gauge_code') or ''
+        if ref_gauge == test_gauge:
+            test_gauge = ''
+        rows.append({
+            'chain': (f"Coordinate chain {coord} ↔ NMR chain {test}"
+                      if (coord or test) else ''),
+            'length': ca.get('length'), 'matched': ca.get('matched'),
+            'conflict': ca.get('conflict'), 'unmapped': ca.get('unmapped'),
+            'coverage': round(cov * 100, 1) if isinstance(cov, (int, float)) else None,
+            'ref_gauge': ref_gauge,
+            'ref': a.get('ref_code') or '', 'mid': a.get('mid_code') or '',
+            'test': a.get('test_code') or '',
+            'test_gauge': test_gauge,
+        })
+    if not rows:
+        return []
+    return [{'category': _align_label(_SEQ_ALIGN_CATEGORY), 'rows': rows}]
 
 
 def _completeness_of(st):

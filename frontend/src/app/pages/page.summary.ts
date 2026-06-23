@@ -169,9 +169,11 @@ interface AlignChainRow {
   conflict: number;
   unmapped: number;
   coverage: number | null;
+  ref_gauge: string;
   ref: string;
   mid: string;
   test: string;
+  test_gauge: string;
 }
 interface AlignGroup {
   category: string;
