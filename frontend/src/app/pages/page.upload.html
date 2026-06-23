@@ -478,6 +478,8 @@
         <!-- Expandable log tail -->
         @if (expandedTask() === t.task) {
           <pre
+            #logBox
+            (scroll)="onLogScroll()"
             class="m-0 px-3 py-2 text-xs leading-snug overflow-auto max-h-72 whitespace-pre-wrap break-words border-t border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900"
             >{{ taskLog() || 'No log output yet…' }}</pre
           >

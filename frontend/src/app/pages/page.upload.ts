@@ -1,4 +1,14 @@
-import { Component, computed, effect, inject, OnDestroy, signal } from '@angular/core';
+import {
+  afterRenderEffect,
+  Component,
+  computed,
+  effect,
+  ElementRef,
+  inject,
+  OnDestroy,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
@@ -120,6 +130,15 @@ export class Upload implements OnDestroy {
         this.previousChecked = true;
         this.checkPreviousStatus();
       }
+    });
+
+    // Auto-follow the live log: after each refresh re-renders, pin the view to
+    // the latest line while the user is at the bottom (logFollow). Runs after
+    // the DOM is committed, so scrollHeight reflects the new content.
+    afterRenderEffect(() => {
+      this.taskLog(); // re-run after each log refresh
+      const el = this.logBox()?.nativeElement;
+      if (el && this.logFollow) el.scrollTop = el.scrollHeight;
     });
   }
 
@@ -979,6 +998,11 @@ export class Upload implements OnDestroy {
   progressDone = signal(false);
   expandedTask = signal<string | null>(null);
   taskLog = signal<string>('');
+  /** The expanded log's scroll container (only one is rendered at a time). */
+  private logBox = viewChild<ElementRef<HTMLElement>>('logBox');
+  /** While true, keep the log pinned to the latest line; set false when the
+   * user scrolls up, true again when they scroll back to the bottom. */
+  private logFollow = true;
   /** Outcome of the latest run, driving the previous-upload status banner. */
   previousStatus = signal<'processing' | 'success' | 'failed' | null>(null);
   /** True when the dialog was opened to inspect a previous run (via the
@@ -1085,6 +1109,7 @@ export class Upload implements OnDestroy {
     }
     this.expandedTask.set(task);
     this.taskLog.set('');
+    this.logFollow = true; // each freshly opened log starts pinned to the latest line
     const token = this.state().tokenBase;
     if (!token) return;
     this.logSub = timer(0, 2500)
@@ -1100,6 +1125,15 @@ export class Upload implements OnDestroy {
         },
         error: (err) => console.error('Failed to fetch log', err),
       });
+  }
+
+  /** Track whether the user is following the tail: re-enable auto-scroll when
+   * scrolled to the bottom, disable it the moment they scroll up. */
+  onLogScroll(): void {
+    const el = this.logBox()?.nativeElement;
+    if (!el) return;
+    // Treat "within a few px of the bottom" as at-bottom (sub-pixel / wrap tolerance).
+    this.logFollow = el.scrollHeight - el.scrollTop - el.clientHeight <= 16;
   }
 
   /** PrimeNG icon class for a workflow task status. */
