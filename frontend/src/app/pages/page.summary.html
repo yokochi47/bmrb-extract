@@ -516,41 +516,162 @@
         </p-panel>
       }
 
+      <!-- Distance restraints — grouped by saveframe (sf_framecode). Each
+           saveframe is a collapsible panel: status, constraint counts/range,
+           target-value histogram (+discrepancy), per-residue counts,
+           symmetric/asymmetric contact maps, atom-name mapping. -->
+      @for (sf of distRestraintSaveframes(); track sf.sf_framecode) {
+        <p-panel [toggleable]="true" [collapsed]="true" styleClass="mb-4">
+          <ng-template pTemplate="header">
+            <span class="flex items-center gap-2">
+              <span class="font-medium"
+                >Distance restraints: <span class="font-mono break-all">{{ sf.sf_framecode }}</span></span
+              >
+              @if (sf.status) {
+                <span class="text-sm font-medium" [class]="statusColor(sf.status)"
+                  >— {{ sf.status }}</span
+                >
+              }
+            </span>
+          </ng-template>
+
+          <!-- Status descriptions -->
+          @if (sf.error_descriptions.length) {
+            <ul class="text-sm text-red-600 dark:text-red-400 list-disc pl-5 mb-3">
+              @for (d of sf.error_descriptions; track $index) {
+                <li>{{ d }}</li>
+              }
+            </ul>
+          }
+          @if (sf.warning_descriptions.length) {
+            <ul class="text-sm text-amber-600 dark:text-amber-400 list-disc pl-5 mb-3">
+              @for (d of sf.warning_descriptions; track $index) {
+                <li>{{ d }}</li>
+              }
+            </ul>
+          }
+
+          <!-- Number of constraints (with target range / experiment) -->
+          @if (sf.constraints.length) {
+            <div class="mb-4 overflow-x-auto">
+              <div class="font-medium mb-2">
+                Number of constraints
+                @if (sf.range) {
+                  <span class="text-sm text-surface-600 dark:text-surface-300"
+                    >— target range {{ sf.range }}</span
+                  >
+                }
+                @if (sf.exp_type) {
+                  <span class="text-sm text-surface-600 dark:text-surface-300"
+                    >· {{ sf.exp_type }}</span
+                  >
+                }
+              </div>
+              <table class="w-full text-sm border-collapse">
+                <thead>
+                  <tr>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Constraint type
+                    </th>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Count
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (c of sf.constraints; track $index) {
+                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                      <td class="px-2 py-1">{{ c.label }}</td>
+                      <td class="px-2 py-1">{{ c.count }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+
+          <!-- Target-value histogram + discrepancy -->
+          @for (p of distHistogramPanels(sf); track $index) {
+            <div class="mb-6">
+              <div class="font-medium mb-1">{{ p.title }}</div>
+              <app-echart [option]="p.option" [height]="380" />
+            </div>
+          }
+          @for (p of distDiscrepancyPanels(sf); track $index) {
+            <div class="mb-6">
+              <div class="font-medium mb-1">{{ p.title }}</div>
+              <app-echart [option]="p.option" [height]="360" />
+            </div>
+          }
+
+          <!-- Constraints per residue + contact maps -->
+          @for (p of distPerResiduePanels(sf); track $index) {
+            <div class="mb-6">
+              <div class="font-medium mb-1">{{ p.title }}</div>
+              <app-echart [option]="p.option" [height]="380" />
+            </div>
+          }
+          @for (p of distContactMapPanels(sf); track $index) {
+            <div class="mb-6">
+              <div class="font-medium mb-1">{{ p.title }}</div>
+              <app-echart [option]="p.option" [height]="440" />
+            </div>
+          }
+          @for (p of distAsymContactMapPanels(sf); track $index) {
+            <div class="mb-6">
+              <div class="font-medium mb-1">{{ p.title }}</div>
+              <app-echart [option]="p.option" [height]="440" />
+            </div>
+          }
+
+          <!-- Atom name mapping -->
+          @if (sf.atom_name_mapping.length) {
+            <div class="mb-2 overflow-x-auto">
+              <div class="font-medium mb-2">Atom name mapping</div>
+              <table class="w-full text-sm border-collapse">
+                <thead>
+                  <tr>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Residue
+                    </th>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Atom name
+                    </th>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Mapped atom(s)
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (m of sf.atom_name_mapping; track $index) {
+                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                      <td class="px-2 py-1">{{ m.comp_id }}</td>
+                      <td class="px-2 py-1 font-mono">{{ m.name }}</td>
+                      <td class="px-2 py-1 font-mono">{{ m.atoms }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </p-panel>
+      }
+
       <!-- Charts -->
       @for (p of dihedralPanels(); track $index) {
         <div class="mb-6">
           <div class="font-medium mb-1">{{ p.title }}</div>
           <app-echart [option]="p.option" [height]="460" />
-        </div>
-      }
-      @for (p of distPanels(); track $index) {
-        <div class="mb-6">
-          <div class="font-medium mb-1">{{ p.title }}</div>
-          <app-echart [option]="p.option" [height]="380" />
-        </div>
-      }
-      @for (p of discrepancyPanels(); track $index) {
-        <div class="mb-6">
-          <div class="font-medium mb-1">{{ p.title }}</div>
-          <app-echart [option]="p.option" [height]="360" />
-        </div>
-      }
-      @for (p of perResiduePanels(); track $index) {
-        <div class="mb-6">
-          <div class="font-medium mb-1">{{ p.title }}</div>
-          <app-echart [option]="p.option" [height]="380" />
-        </div>
-      }
-      @for (p of contactMapPanels(); track $index) {
-        <div class="mb-6">
-          <div class="font-medium mb-1">{{ p.title }}</div>
-          <app-echart [option]="p.option" [height]="440" />
-        </div>
-      }
-      @for (p of asymContactMapPanels(); track $index) {
-        <div class="mb-6">
-          <div class="font-medium mb-1">{{ p.title }}</div>
-          <app-echart [option]="p.option" [height]="440" />
         </div>
       }
       @for (p of dihedralPerResiduePanels(); track $index) {

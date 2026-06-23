@@ -198,19 +198,32 @@ interface ChemShiftSaveframe {
   rci: PerResidueLine[];
   atom_name_mapping: { comp_id: string; name: string; atoms: string }[];
 }
+/** One distance-restraint saveframe's preview content, in display order. */
+interface DistRestraintSaveframe {
+  sf_framecode: string;
+  status: string | null;
+  error_descriptions: string[];
+  warning_descriptions: string[];
+  exp_type: string;
+  constraints: { label: string; count: number }[];
+  range: string;
+  histogram: HistogramChart[];
+  discrepancy: HistogramChart[];
+  per_residue: PerResidueChart[];
+  contact_maps: ContactMapChart[];
+  asym_contact_maps: AsymContactMap[];
+  atom_name_mapping: { comp_id: string; name: string; atoms: string }[];
+}
 interface NmrPreview {
   available: boolean;
   sources: NmrPreviewSource[];
   /** Assigned chemical shifts grouped by saveframe (sf_framecode). */
   chem_shift_saveframes: ChemShiftSaveframe[];
+  /** Distance restraints grouped by saveframe (sf_framecode). */
+  dist_restraint_saveframes: DistRestraintSaveframe[];
   charts: {
-    dist_histogram: HistogramChart[];
-    dist_discrepancy: HistogramChart[];
     rdc_histogram: HistogramChart[];
     dihedral: DihedralChart[];
-    per_residue: PerResidueChart[];
-    contact_maps: ContactMapChart[];
-    asym_contact_maps: AsymContactMap[];
     dihedral_per_residue: PerResidueLine[];
     rdc_per_residue: PerResidueLine[];
   };
@@ -318,13 +331,42 @@ export class Summary implements OnDestroy {
     return 'text-teal-600 dark:text-teal-400';
   }
 
-  /** ECharts panels (built from the endpoint data). */
-  distPanels = computed<ChartPanel[]>(() =>
-    (this.nmrPreview()?.charts.dist_histogram ?? []).map((h) => ({
+  /** Distance restraints grouped by saveframe (sf_framecode). */
+  distRestraintSaveframes = computed(() => this.nmrPreview()?.dist_restraint_saveframes ?? []);
+
+  /** Per-saveframe distance chart panels (reuse the shared option builders). */
+  distHistogramPanels(sf: DistRestraintSaveframe): ChartPanel[] {
+    return sf.histogram.map((h) => ({
       title: 'Distance restraint target values',
       option: this.histogramOption(h, 'Distance (Å)', '# of distance restraints'),
-    })),
-  );
+    }));
+  }
+  distDiscrepancyPanels(sf: DistRestraintSaveframe): ChartPanel[] {
+    return sf.discrepancy.map((h) => ({
+      title: 'Discrepancy in redundant distance restraints',
+      option: this.histogramOption(h, 'Normalized discrepancy (%)', '# of redundant restraints'),
+    }));
+  }
+  distPerResiduePanels(sf: DistRestraintSaveframe): ChartPanel[] {
+    return sf.per_residue.map((c) => ({
+      title: `Distance restraints per residue — chain ${c.chain}`,
+      option: this.perResidueOption(c),
+    }));
+  }
+  distContactMapPanels(sf: DistRestraintSaveframe): ChartPanel[] {
+    return sf.contact_maps.map((c) => ({
+      title: `Distance restraints contact map — chain ${c.chain}`,
+      option: this.contactMapOption(c),
+    }));
+  }
+  distAsymContactMapPanels(sf: DistRestraintSaveframe): ChartPanel[] {
+    return sf.asym_contact_maps.map((c) => ({
+      title: `Inter-chain contact map — chains ${c.chain1} / ${c.chain2}`,
+      option: this.asymContactMapOption(c),
+    }));
+  }
+
+  /** ECharts panels (built from the endpoint data). */
   dihedralPanels = computed<ChartPanel[]>(() => {
     const panels: ChartPanel[] = [];
     for (const d of this.nmrPreview()?.charts.dihedral ?? []) {
@@ -341,34 +383,10 @@ export class Summary implements OnDestroy {
     }
     return panels;
   });
-  discrepancyPanels = computed<ChartPanel[]>(() =>
-    (this.nmrPreview()?.charts.dist_discrepancy ?? []).map((h) => ({
-      title: 'Discrepancy in redundant distance restraints',
-      option: this.histogramOption(h, 'Normalized discrepancy (%)', '# of redundant restraints'),
-    })),
-  );
-  perResiduePanels = computed<ChartPanel[]>(() =>
-    (this.nmrPreview()?.charts.per_residue ?? []).map((c) => ({
-      title: `Distance restraints per residue — chain ${c.chain}`,
-      option: this.perResidueOption(c),
-    })),
-  );
   rdcPanels = computed<ChartPanel[]>(() =>
     (this.nmrPreview()?.charts.rdc_histogram ?? []).map((h) => ({
       title: 'Observed RDC values',
       option: this.histogramOption(h, 'Obs. RDC value (Hz)', '# of RDC restraints'),
-    })),
-  );
-  contactMapPanels = computed<ChartPanel[]>(() =>
-    (this.nmrPreview()?.charts.contact_maps ?? []).map((c) => ({
-      title: `Distance restraints contact map — chain ${c.chain}`,
-      option: this.contactMapOption(c),
-    })),
-  );
-  asymContactMapPanels = computed<ChartPanel[]>(() =>
-    (this.nmrPreview()?.charts.asym_contact_maps ?? []).map((c) => ({
-      title: `Inter-chain contact map — chains ${c.chain1} / ${c.chain2}`,
-      option: this.asymContactMapOption(c),
     })),
   );
   dihedralPerResiduePanels = computed<ChartPanel[]>(() =>
@@ -388,13 +406,9 @@ export class Summary implements OnDestroy {
   hasPreviewContent = computed(
     () =>
       this.chemShiftSaveframes().length > 0 ||
-      this.distPanels().length > 0 ||
-      this.discrepancyPanels().length > 0 ||
+      this.distRestraintSaveframes().length > 0 ||
       this.rdcPanels().length > 0 ||
       this.dihedralPanels().length > 0 ||
-      this.perResiduePanels().length > 0 ||
-      this.contactMapPanels().length > 0 ||
-      this.asymContactMapPanels().length > 0 ||
       this.dihedralPerResiduePanels().length > 0 ||
       this.rdcPerResiduePanels().length > 0 ||
       this.previewRestraints().length > 0 ||
