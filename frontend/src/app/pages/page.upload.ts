@@ -423,6 +423,57 @@ export class Upload implements OnDestroy {
   };
 
   /**
+   * File-name hints used to pre-populate the file-type select on upload, so a
+   * recognised extension picks a sensible default and the user only has to
+   * confirm. Keys are lower-cased extensions. The XEASY '.prot' file is
+   * resolved per target in guessFileType() (topology vs chemical shifts), and
+   * every guess is gated through DEPSYS_FILE_TYPES so a type that the current
+   * deposition system does not accept is dropped (row left unselected).
+   */
+  private readonly EXT_FILE_TYPE: Record<string, string> = {
+    rst: 'nm-res-amb',
+    rest: 'nm-res-amb',
+    amber: 'nm-res-amb',
+    prmtop: 'nm-aux-amb',
+    crd: 'nm-aux-cha',
+    upl: 'nm-res-cya',
+    lol: 'nm-res-cya',
+    aco: 'nm-res-cya',
+    upv: 'nm-res-cya',
+    lov: 'nm-res-cya',
+    cco: 'nm-res-cya',
+    noa: 'nm-res-noa',
+    asl: 'nm-res-sch',
+    xpk: 'nm-pea-vie',
+    peaks: 'nm-pea-xea',
+    nef: 'nm-uni-nef',
+    pdb: 'co-pdb',
+    cif: 'co-cif',
+  };
+
+  /** Whole file names (no extension) that map to a type — complete matches. */
+  private readonly NAME_FILE_TYPE: Record<string, string> = {
+    rst: 'nm-res-amb',
+    prmtop: 'nm-aux-amb',
+  };
+
+  /**
+   * Best-guess upload file type from a file name for the given target, or null
+   * when there is no confident match (or the match is not acceptable for the
+   * target). Extension / whole-name matching is case-insensitive.
+   */
+  private guessFileType(name: string, target: TargetDepsys): string | null {
+    const lower = name.toLowerCase();
+    const dot = lower.lastIndexOf('.');
+    const ext = dot >= 0 ? lower.slice(dot + 1) : '';
+    let value: string | undefined = this.EXT_FILE_TYPE[ext] ?? this.NAME_FILE_TYPE[lower];
+    // XEASY .prot carries topology (OneDep) or chemical shifts (elsewhere).
+    if (ext === 'prot') value = target === TargetDepsys.onedep ? 'nm-aux-xea' : 'nm-shi-xea';
+    if (!value) return null;
+    return this.DEPSYS_FILE_TYPES[target](value) ? value : null;
+  }
+
+  /**
    * Menu sub-groups for the file-type select, in display order. The value
    * prefixes are mutually exclusive; 'nm-shi' covers both 'nm-shi' and 'nm-shi-*'.
    */
@@ -675,11 +726,12 @@ export class Upload implements OnDestroy {
   onFilesChosen(event: Event): void {
     const input = event.target as HTMLInputElement;
     if (!input.files?.length) return;
+    const target = this.state().targetDepsys;
     const added: FileRow[] = Array.from(input.files).map((f) => ({
       selected: true,
       name: f.name,
       size: f.size,
-      fileType: null,
+      fileType: this.guessFileType(f.name, target),
       file: f,
     }));
     this.rows.update((prev) => [...prev, ...added]);
