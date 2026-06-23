@@ -395,7 +395,10 @@ export class Summary implements OnDestroy {
     const panels: ChartPanel[] = [];
     for (const d of sf.dihedral) {
       if (d.phi_psi)
-        panels.push({ title: 'φ / ψ dihedral angles', option: this.dihedralOption(d.phi_psi, 'φ', 'ψ') });
+        panels.push({
+          title: 'φ / ψ dihedral angles',
+          option: this.dihedralOption(d.phi_psi, 'φ', 'ψ'),
+        });
       if (d.chi1_chi2)
         panels.push({
           title: 'χ1 / χ2 dihedral angles',
