@@ -1172,27 +1172,40 @@ def _dim_atom(d):
     return _iso_label(f'{iso}{atom}') if iso and atom else atom
 
 
-def _spectral_peaks(stat_list):
-    """(summary rows, per-list dimension tables) for spectral peak lists."""
-    summary, dims = [], []
-    for st in stat_list or []:
+def _spectral_peak_saveframes(sp_list):
+    """Per-saveframe spectral-peak-list preview, in report order: status,
+    experiment class, peak counts (assigned/unassigned), spectral-dimension
+    table, atom-name mapping."""
+    out = []
+    for st in sp_list or []:
         npk = st.get('number_of_spectral_peaks')
-        n_peaks = (sum(v for v in npk.values() if isinstance(v, (int, float)))
-                   if isinstance(npk, dict) else npk)
-        summary.append({
-            'name': st.get('sf_framecode', ''),
-            'exp_class': st.get('exp_class') or st.get('exp_type') or '',
+        if isinstance(npk, dict):
+            n_peaks = sum(v for v in npk.values() if isinstance(v, (int, float)))
+            peak_counts = [
+                {'label': k.replace('_spectral_peaks', '').replace('_', ' ').strip().capitalize(),
+                 'count': v}
+                for k, v in npk.items() if isinstance(v, (int, float))
+            ]
+        else:
+            n_peaks, peak_counts = npk, []
+        exp = st.get('exp_class') or st.get('exp_type') or ''
+        out.append({
+            'sf_framecode': st.get('sf_framecode', ''),
+            'status': st.get('status'),
+            'error_descriptions': st.get('error_descriptions') or [],
+            'warning_descriptions': st.get('warning_descriptions') or [],
+            'exp_class': '' if exp == '.' else exp,
             'n_dims': st.get('number_of_spectral_dimensions'),
             'n_peaks': n_peaks,
+            'peak_counts': peak_counts,
+            'dims': [
+                {'id': d.get('id'), 'atom': _dim_atom(d), 'region': d.get('spectral_region') or '',
+                 'sweep_width': d.get('sweep_width'), 'units': d.get('sweep_width_units') or ''}
+                for d in st.get('spectral_dim') or []
+            ],
+            'atom_name_mapping': _atom_name_mapping(st),
         })
-        rows = [
-            {'id': d.get('id'), 'atom': _dim_atom(d), 'region': d.get('spectral_region') or '',
-             'sweep_width': d.get('sweep_width'), 'units': d.get('sweep_width_units') or ''}
-            for d in st.get('spectral_dim') or []
-        ]
-        if rows:
-            dims.append({'name': st.get('sf_framecode', ''), 'rows': rows})
-    return summary, dims
+    return out
 
 
 _ANGLE_LABELS = {'phi': 'φ', 'psi': 'ψ', 'chi1': 'χ1', 'chi2': 'χ2', 'chi3': 'χ3', 'chi4': 'χ4'}
@@ -1571,14 +1584,13 @@ def _nmr_preview_data(report):
 
     return {
         'sources': sources,
-        # Chemical shifts and the distance / dihedral / RDC restraints are
-        # grouped by saveframe (sf_framecode); the spectral-peak section below
-        # remains grouped by content type.
+        # Chemical shifts and all restraint / spectral-peak content are grouped
+        # by saveframe (sf_framecode); sequence alignments remain a single table.
         'chem_shift_saveframes': _chem_shift_saveframes(chem_shift),
         'dist_restraint_saveframes': _dist_restraint_saveframes(dist_restraint),
         'dihed_restraint_saveframes': _dihed_restraint_saveframes(dihed_restraint),
         'rdc_restraint_saveframes': _rdc_restraint_saveframes(rdc_restraint),
-        'spectral_peaks': dict(zip(('summary', 'dims'), _spectral_peaks(spectral_peak))),
+        'spectral_peak_saveframes': _spectral_peak_saveframes(spectral_peak),
         'alignments': _seq_align(info),
     }
 

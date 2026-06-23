@@ -901,88 +901,138 @@
         </p-panel>
       }
 
-      <!-- Spectral peak lists -->
-      @if (previewSpectralSummary().length) {
-        <div class="mb-6 overflow-x-auto">
-          <div class="font-medium mb-2">Spectral peak lists</div>
-          <table class="w-full text-sm border-collapse">
-            <thead>
-              <tr>
-                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
-                  Saveframe
-                </th>
-                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
-                  Experiment
-                </th>
-                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
-                  Dimensions
-                </th>
-                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
-                  Peaks
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (sp of previewSpectralSummary(); track $index) {
-                <tr class="border-b border-surface-100 dark:border-surface-800">
-                  <td class="px-2 py-1 font-mono break-all">{{ sp.name }}</td>
-                  <td class="px-2 py-1">{{ sp.exp_class }}</td>
-                  <td class="px-2 py-1">{{ sp.n_dims }}</td>
-                  <td class="px-2 py-1">{{ sp.n_peaks }}</td>
-                </tr>
+      <!-- Spectral peak lists — grouped by saveframe (sf_framecode). Each
+           saveframe is a collapsible panel: status, experiment / peak counts,
+           spectral-dimension table, atom-name mapping. -->
+      @for (sf of spectralPeakSaveframes(); track sf.sf_framecode) {
+        <p-panel [toggleable]="true" [collapsed]="true" styleClass="mb-4">
+          <ng-template pTemplate="header">
+            <span class="flex items-center gap-2">
+              <span class="font-medium"
+                >Spectral peak list:
+                <span class="font-mono break-all">{{ sf.sf_framecode }}</span></span
+              >
+              @if (sf.status) {
+                <span class="text-sm font-medium" [class]="statusColor(sf.status)"
+                  >— {{ sf.status }}</span
+                >
               }
-            </tbody>
-          </table>
-        </div>
-        @for (sd of previewSpectralDims(); track $index) {
-          <div class="mb-4 overflow-x-auto">
-            <div class="text-sm text-surface-600 dark:text-surface-300 mb-1 font-mono break-all">
-              {{ sd.name }}
-            </div>
-            <table class="w-full text-sm border-collapse">
-              <thead>
-                <tr>
-                  <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                  >
-                    Dim
-                  </th>
-                  <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                  >
-                    Atom
-                  </th>
-                  <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                  >
-                    Region
-                  </th>
-                  <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                  >
-                    Sweep width
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (d of sd.rows; track $index) {
-                  <tr class="border-b border-surface-100 dark:border-surface-800">
-                    <td class="px-2 py-1">{{ d.id }}</td>
-                    <td class="px-2 py-1">{{ d.atom }}</td>
-                    <td class="px-2 py-1">{{ d.region }}</td>
-                    <td class="px-2 py-1">
-                      @if (d.sweep_width !== null) {
-                        <span>{{ d.sweep_width }} {{ d.units }}</span>
-                      } @else {
-                        <span>—</span>
-                      }
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
+            </span>
+          </ng-template>
+
+          <!-- Status descriptions -->
+          @if (sf.error_descriptions.length) {
+            <ul class="text-sm text-red-600 dark:text-red-400 list-disc pl-5 mb-3">
+              @for (d of sf.error_descriptions; track $index) {
+                <li>{{ d }}</li>
+              }
+            </ul>
+          }
+          @if (sf.warning_descriptions.length) {
+            <ul class="text-sm text-amber-600 dark:text-amber-400 list-disc pl-5 mb-3">
+              @for (d of sf.warning_descriptions; track $index) {
+                <li>{{ d }}</li>
+              }
+            </ul>
+          }
+
+          <!-- Experiment / peak counts -->
+          <div class="text-sm text-surface-600 dark:text-surface-300 mb-3">
+            @if (sf.exp_class) {
+              <span>Experiment {{ sf.exp_class }} · </span>
+            }
+            <span>{{ sf.n_dims }} dimensions · {{ sf.n_peaks }} peaks</span>
+            @for (pc of sf.peak_counts; track $index) {
+              <span> · {{ pc.label }} {{ pc.count }}</span>
+            }
           </div>
-        }
+
+          <!-- Spectral dimensions -->
+          @if (sf.dims.length) {
+            <div class="mb-4 overflow-x-auto">
+              <div class="font-medium mb-2">Spectral dimensions</div>
+              <table class="w-full text-sm border-collapse">
+                <thead>
+                  <tr>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Dim
+                    </th>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Atom
+                    </th>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Region
+                    </th>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Sweep width
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (d of sf.dims; track $index) {
+                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                      <td class="px-2 py-1">{{ d.id }}</td>
+                      <td class="px-2 py-1">{{ d.atom }}</td>
+                      <td class="px-2 py-1">{{ d.region }}</td>
+                      <td class="px-2 py-1">
+                        @if (d.sweep_width !== null) {
+                          <span>{{ d.sweep_width }} {{ d.units }}</span>
+                        } @else {
+                          <span>—</span>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+
+          <!-- Atom name mapping -->
+          @if (sf.atom_name_mapping.length) {
+            <div class="mb-2 overflow-x-auto">
+              <div class="font-medium mb-2">Atom name mapping</div>
+              <table class="w-full text-sm border-collapse">
+                <thead>
+                  <tr>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Residue
+                    </th>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Atom name
+                    </th>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Mapped atom(s)
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (m of sf.atom_name_mapping; track $index) {
+                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                      <td class="px-2 py-1">{{ m.comp_id }}</td>
+                      <td class="px-2 py-1 font-mono">{{ m.name }}</td>
+                      <td class="px-2 py-1 font-mono">{{ m.atoms }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </p-panel>
       }
 
       <!-- Sequence alignments — grouped by category; each chain's stats and its

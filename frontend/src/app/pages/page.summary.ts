@@ -118,15 +118,18 @@ interface ContactMapChart {
   max: number;
   series: { name: string; points: number[][] }[];
 }
-interface SpectralPeakSummary {
-  name: string;
+/** One spectral-peak-list saveframe's preview content, in display order. */
+interface SpectralPeakSaveframe {
+  sf_framecode: string;
+  status: string | null;
+  error_descriptions: string[];
+  warning_descriptions: string[];
   exp_class: string;
   n_dims: number;
   n_peaks: number;
-}
-interface SpectralDimTable {
-  name: string;
-  rows: { id: number; atom: string; region: string; sweep_width: number | null; units: string }[];
+  peak_counts: { label: string; count: number }[];
+  dims: { id: number; atom: string; region: string; sweep_width: number | null; units: string }[];
+  atom_name_mapping: { comp_id: string; name: string; atoms: string }[];
 }
 /** Per-residue value line chart (dihedral angles, RDC, RCI/S²/RMSD). */
 interface PerResidueLine {
@@ -245,7 +248,8 @@ interface NmrPreview {
   dihed_restraint_saveframes: DihedRestraintSaveframe[];
   /** RDC restraints grouped by saveframe (sf_framecode). */
   rdc_restraint_saveframes: RdcRestraintSaveframe[];
-  spectral_peaks: { summary: SpectralPeakSummary[]; dims: SpectralDimTable[] };
+  /** Spectral peak lists grouped by saveframe (sf_framecode). */
+  spectral_peak_saveframes: SpectralPeakSaveframe[];
   alignments: AlignGroup[];
 }
 /** A titled chemical-shift-prediction table. */
@@ -304,11 +308,12 @@ export class Summary implements OnDestroy {
   nmrPreviewAvailable = signal<boolean | null>(null);
   private nmrPreview = signal<NmrPreview | null>(null);
 
-  /** Data-summary / spectral-peak tables. */
+  /** Data-summary table + sequence alignments. */
   previewSources = computed(() => this.nmrPreview()?.sources ?? []);
-  previewSpectralSummary = computed(() => this.nmrPreview()?.spectral_peaks.summary ?? []);
-  previewSpectralDims = computed(() => this.nmrPreview()?.spectral_peaks.dims ?? []);
   previewAlignments = computed(() => this.nmrPreview()?.alignments ?? []);
+
+  /** Spectral peak lists grouped by saveframe (sf_framecode). */
+  spectralPeakSaveframes = computed(() => this.nmrPreview()?.spectral_peak_saveframes ?? []);
 
   /** Assigned chemical shifts grouped by saveframe (sf_framecode). */
   chemShiftSaveframes = computed(() => this.nmrPreview()?.chem_shift_saveframes ?? []);
@@ -436,7 +441,7 @@ export class Summary implements OnDestroy {
       this.distRestraintSaveframes().length > 0 ||
       this.dihedRestraintSaveframes().length > 0 ||
       this.rdcRestraintSaveframes().length > 0 ||
-      this.previewSpectralSummary().length > 0 ||
+      this.spectralPeakSaveframes().length > 0 ||
       this.previewAlignments().length > 0 ||
       this.previewSources().length > 0,
   );
