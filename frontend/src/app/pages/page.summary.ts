@@ -41,6 +41,7 @@ interface NestedRow {
 interface ValidationMetric {
   key: string;
   label: string;
+  description: string;
   count: number;
   columns: string[];
   /** Flat metrics: string[][]; nested (planes): NestedRow[]. */

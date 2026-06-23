@@ -427,17 +427,34 @@ async def get_coordinate():
 # into the converted coordinate. Categories absent from a given file are skipped.
 # pdbx_validate_planes_atom is folded into pdbx_validate_planes (nested atoms), so
 # it is not listed here as a standalone metric.
+# (category, label, description). The description is shown between the metric
+# title and its outlier table on the summary page.
 _VALIDATE_METRICS = [
-    ('pdbx_validate_close_contact', 'Close contacts'),
-    ('pdbx_validate_symm_contact', 'Symmetry contacts'),
-    ('pdbx_validate_rmsd_bond', 'Bond length outliers'),
-    ('pdbx_validate_rmsd_angle', 'Bond angle outliers'),
-    ('pdbx_validate_torsion', 'Torsion (Ramachandran) outliers'),
-    ('pdbx_validate_peptide_omega', 'Peptide omega outliers'),
-    ('pdbx_validate_main_chain_plane', 'Main-chain planarity outliers'),
-    ('pdbx_validate_planes', 'Planarity outliers'),
-    ('pdbx_validate_chiral', 'Chirality outliers'),
-    ('pdbx_validate_polymer_linkage', 'Polymer linkage outliers'),
+    ('pdbx_validate_close_contact', 'Close contacts',
+     'The following atoms were found to be less than 2.2 Å apart and are considered too '
+     'close unless they are covalently bonded.'),
+    ('pdbx_validate_symm_contact', 'Symmetry contacts',
+     'The following atoms were found to be clashing with symmetry related atoms.'),
+    ('pdbx_validate_rmsd_bond', 'Bond length outliers',
+     'The following bond lengths were found to be significantly different from the '
+     'expected bond length.'),
+    ('pdbx_validate_rmsd_angle', 'Bond angle outliers',
+     'The following bond angles were found to be significantly different from the '
+     'expected bond angle.'),
+    ('pdbx_validate_torsion', 'Torsion (Ramachandran) outliers',
+     'The following backbone torsion (Ramachandran) outliers were identified.'),
+    ('pdbx_validate_peptide_omega', 'Peptide omega outliers',
+     'The following cis-peptides were detected in your coordinates. Please check these '
+     'are expected.'),
+    ('pdbx_validate_main_chain_plane', 'Main-chain planarity outliers',
+     'The following main chain planarity outliers were identified.'),
+    ('pdbx_validate_planes', 'Planarity outliers',
+     'The following planarity outliers were identified.'),
+    ('pdbx_validate_chiral', 'Chirality outliers',
+     'The following atoms have unexpected chirality.'),
+    ('pdbx_validate_polymer_linkage', 'Polymer linkage outliers',
+     'The following bond lengths between adjacent residues were found to be significantly '
+     'different from the expected bond length.'),
 ]
 
 _MMCIF_TOKEN_RE = re.compile(r"'[^']*'|\"[^\"]*\"|\S+")
@@ -656,7 +673,7 @@ def _curate_metrics(cats):
     categories. pdbx_validate_planes gets its atoms nested from planes_atom."""
     metrics = []
     plane_atoms = _plane_atoms(cats)
-    for cat, label in _VALIDATE_METRICS:
+    for cat, label, description in _VALIDATE_METRICS:
         data = cats.get(cat)
         if not data or not data['rows']:
             continue
@@ -668,7 +685,7 @@ def _curate_metrics(cats):
         else:
             columns, rows = _generic_columns(data)
         metric = {'key': cat[len('pdbx_validate_'):], 'label': label,
-                  'count': len(rows), 'columns': columns}
+                  'description': description, 'count': len(rows), 'columns': columns}
         if cat == 'pdbx_validate_planes' and plane_atoms:
             id_idx = data['columns'].index('id') if 'id' in data['columns'] else None
             nested = []

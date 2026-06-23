@@ -122,9 +122,16 @@
                     [disabled]="locked()"
                     (onChange)="toggleAck('geo:' + m.key)"
                   />
-                  <span class="font-medium">{{ m.label }} — {{ m.count }}</span>
+                  <span class="font-medium px-2 py-0.5 rounded" style="background-color: gold">
+                    {{ m.label }} — {{ m.count }}
+                  </span>
                 </span>
               </ng-template>
+              @if (m.description) {
+                <p class="text-sm text-surface-600 dark:text-surface-300 mb-3">
+                  {{ m.description }}
+                </p>
+              }
               <div class="overflow-x-auto">
                 <table class="w-full text-sm border-collapse">
                   <thead>
