@@ -305,7 +305,19 @@ async def get_progress():
                     entry['report_status'] = w.report_status
                     entry['report_summary'] = w.report_summary
                 tasks.append(entry)
-        done = bool(tasks) and all(t['status'] in ('completed', 'failed') for t in tasks)
+        # `done` also requires a terminal session status: the flow marks the
+        # convert_* tasks completed BEFORE harvesting output_file rows and
+        # setting the session status (process_session: harvest + status update
+        # run after the tasks). Gating on the session status guarantees that
+        # when the dialog navigates to the summary, the converted coordinate /
+        # NMR outputs are already registered — otherwise /api/coordinate and
+        # /api/coordinate_validation race the harvest and return 404 / "not
+        # available" on the summary page's first (and, for validation, only) load.
+        done = (
+            bool(tasks)
+            and all(t['status'] in ('completed', 'failed') for t in tasks)
+            and session_row.status in (SessionStatusCode.completed, SessionStatusCode.failed)
+        )
         return {
             'conversion_id': conversion_id,
             'run_number': run_number,
