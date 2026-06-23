@@ -110,12 +110,6 @@ interface PerResidueChart {
   series: { name: string; data: number[] }[];
   bands: { start: number; end: number; type: string }[];
 }
-interface RestraintRow {
-  type: string;
-  name: string;
-  total: number;
-  range: string;
-}
 /** Contact map: per chain, one series of [seq_id_1, seq_id_2, total] per type. */
 interface ContactMapChart {
   chain: string;
@@ -227,6 +221,19 @@ interface DihedRestraintSaveframe {
   per_residue: PerResidueLine[];
   atom_name_mapping: { comp_id: string; name: string; atoms: string }[];
 }
+/** One RDC-restraint saveframe's preview content, in display order. */
+interface RdcRestraintSaveframe {
+  sf_framecode: string;
+  status: string | null;
+  error_descriptions: string[];
+  warning_descriptions: string[];
+  exp_type: string;
+  constraints: { label: string; count: number }[];
+  range: string;
+  histogram: HistogramChart[];
+  per_residue: PerResidueLine[];
+  atom_name_mapping: { comp_id: string; name: string; atoms: string }[];
+}
 interface NmrPreview {
   available: boolean;
   sources: NmrPreviewSource[];
@@ -236,11 +243,8 @@ interface NmrPreview {
   dist_restraint_saveframes: DistRestraintSaveframe[];
   /** Dihedral angle restraints grouped by saveframe (sf_framecode). */
   dihed_restraint_saveframes: DihedRestraintSaveframe[];
-  charts: {
-    rdc_histogram: HistogramChart[];
-    rdc_per_residue: PerResidueLine[];
-  };
-  restraints: RestraintRow[];
+  /** RDC restraints grouped by saveframe (sf_framecode). */
+  rdc_restraint_saveframes: RdcRestraintSaveframe[];
   spectral_peaks: { summary: SpectralPeakSummary[]; dims: SpectralDimTable[] };
   alignments: AlignGroup[];
 }
@@ -300,9 +304,8 @@ export class Summary implements OnDestroy {
   nmrPreviewAvailable = signal<boolean | null>(null);
   private nmrPreview = signal<NmrPreview | null>(null);
 
-  /** Data-summary / restraint / spectral-peak tables. */
+  /** Data-summary / spectral-peak tables. */
   previewSources = computed(() => this.nmrPreview()?.sources ?? []);
-  previewRestraints = computed(() => this.nmrPreview()?.restraints ?? []);
   previewSpectralSummary = computed(() => this.nmrPreview()?.spectral_peaks.summary ?? []);
   previewSpectralDims = computed(() => this.nmrPreview()?.spectral_peaks.dims ?? []);
   previewAlignments = computed(() => this.nmrPreview()?.alignments ?? []);
@@ -409,19 +412,22 @@ export class Summary implements OnDestroy {
     }));
   }
 
-  /** ECharts panels (built from the endpoint data). */
-  rdcPanels = computed<ChartPanel[]>(() =>
-    (this.nmrPreview()?.charts.rdc_histogram ?? []).map((h) => ({
+  /** RDC restraints grouped by saveframe (sf_framecode). */
+  rdcRestraintSaveframes = computed(() => this.nmrPreview()?.rdc_restraint_saveframes ?? []);
+
+  /** Per-saveframe RDC chart panels (reuse the shared option builders). */
+  rdcHistogramPanels(sf: RdcRestraintSaveframe): ChartPanel[] {
+    return sf.histogram.map((h) => ({
       title: 'Observed RDC values',
       option: this.histogramOption(h, 'Obs. RDC value (Hz)', '# of RDC restraints'),
-    })),
-  );
-  rdcPerResiduePanels = computed<ChartPanel[]>(() =>
-    (this.nmrPreview()?.charts.rdc_per_residue ?? []).map((c) => ({
+    }));
+  }
+  rdcPerResiduePanelsOf(sf: RdcRestraintSaveframe): ChartPanel[] {
+    return sf.per_residue.map((c) => ({
       title: `Observed RDC per residue — chain ${c.chain}`,
       option: this.lineOption(c),
-    })),
-  );
+    }));
+  }
 
   /** True when the preview has any chart or table content to show. */
   hasPreviewContent = computed(
@@ -429,9 +435,7 @@ export class Summary implements OnDestroy {
       this.chemShiftSaveframes().length > 0 ||
       this.distRestraintSaveframes().length > 0 ||
       this.dihedRestraintSaveframes().length > 0 ||
-      this.rdcPanels().length > 0 ||
-      this.rdcPerResiduePanels().length > 0 ||
-      this.previewRestraints().length > 0 ||
+      this.rdcRestraintSaveframes().length > 0 ||
       this.previewSpectralSummary().length > 0 ||
       this.previewAlignments().length > 0 ||
       this.previewSources().length > 0,

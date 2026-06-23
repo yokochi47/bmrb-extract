@@ -1142,22 +1142,6 @@ def _discrepancy_charts(stat_list):
     return out
 
 
-def _restraint_summary(rdc_list):
-    """Summary rows (type, saveframe, total constraints, value range). Distance
-    and dihedral restraints have their own per-saveframe sections, so only RDC
-    restraints are summarized here."""
-    def total(d):
-        return sum(v for v in (d or {}).values() if isinstance(v, (int, float)))
-    rows = []
-    for st in rdc_list or []:
-        rng = st.get('range') or {}
-        rtext = (f"{rng.get('min_value')}–{rng.get('max_value')} Hz"
-                 if rng.get('min_value') is not None else '')
-        rows.append({'type': 'RDC restraints', 'name': st.get('sf_framecode', ''),
-                     'total': total(st.get('number_of_constraints')), 'range': rtext})
-    return rows
-
-
 def _contact_map_charts(stat_list):
     """Symmetric contact maps from `constraints_on_contact_map`: per chain, one
     series per constraint type with points [seq_id_1, seq_id_2, total]."""
@@ -1531,6 +1515,30 @@ def _dihed_restraint_saveframes(dihed_list):
     return out
 
 
+def _rdc_restraint_saveframes(rdc_list):
+    """Per-saveframe RDC-restraint preview, in report order: status, constraint
+    counts/range, observed-value histogram, per-residue observed RDC, atom-name
+    mapping. Reuses the per-content helpers on a single saveframe."""
+    out = []
+    for st in rdc_list or []:
+        rng = st.get('range') or {}
+        range_text = (f"{rng.get('min_value')}–{rng.get('max_value')} Hz"
+                      if rng.get('min_value') is not None else '')
+        out.append({
+            'sf_framecode': st.get('sf_framecode', ''),
+            'status': st.get('status'),
+            'error_descriptions': st.get('error_descriptions') or [],
+            'warning_descriptions': st.get('warning_descriptions') or [],
+            'exp_type': st.get('exp_type') or '',
+            'constraints': _constraint_counts(st),
+            'range': range_text,
+            'histogram': _histogram_chart([st]),
+            'per_residue': _per_residue_value_charts([st]),
+            'atom_name_mapping': _atom_name_mapping(st),
+        })
+    return out
+
+
 def _nmr_preview_data(report):
     """Extract Phase-1 chart/table data from an NmrDpUtility report. Aggregates
     per-subtype stats (stats_of_exptl_data) across input sources."""
@@ -1563,17 +1571,13 @@ def _nmr_preview_data(report):
 
     return {
         'sources': sources,
-        # Assigned chemical shifts, distance restraints, and dihedral-angle
-        # restraints are grouped by saveframe (sf_framecode); the RDC / peak
-        # sections below remain grouped by content type.
+        # Chemical shifts and the distance / dihedral / RDC restraints are
+        # grouped by saveframe (sf_framecode); the spectral-peak section below
+        # remains grouped by content type.
         'chem_shift_saveframes': _chem_shift_saveframes(chem_shift),
         'dist_restraint_saveframes': _dist_restraint_saveframes(dist_restraint),
         'dihed_restraint_saveframes': _dihed_restraint_saveframes(dihed_restraint),
-        'charts': {
-            'rdc_histogram': _histogram_chart(rdc_restraint),
-            'rdc_per_residue': _per_residue_value_charts(rdc_restraint),
-        },
-        'restraints': _restraint_summary(rdc_restraint),
+        'rdc_restraint_saveframes': _rdc_restraint_saveframes(rdc_restraint),
         'spectral_peaks': dict(zip(('summary', 'dims'), _spectral_peaks(spectral_peak))),
         'alignments': _seq_align(info),
     }
