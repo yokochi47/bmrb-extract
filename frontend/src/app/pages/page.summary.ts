@@ -214,6 +214,19 @@ interface DistRestraintSaveframe {
   asym_contact_maps: AsymContactMap[];
   atom_name_mapping: { comp_id: string; name: string; atoms: string }[];
 }
+/** One dihedral-angle-restraint saveframe's preview content, in display order. */
+interface DihedRestraintSaveframe {
+  sf_framecode: string;
+  status: string | null;
+  error_descriptions: string[];
+  warning_descriptions: string[];
+  exp_type: string;
+  constraints: { label: string; count: number }[];
+  histogram: HistogramChart[];
+  dihedral: DihedralChart[];
+  per_residue: PerResidueLine[];
+  atom_name_mapping: { comp_id: string; name: string; atoms: string }[];
+}
 interface NmrPreview {
   available: boolean;
   sources: NmrPreviewSource[];
@@ -221,10 +234,10 @@ interface NmrPreview {
   chem_shift_saveframes: ChemShiftSaveframe[];
   /** Distance restraints grouped by saveframe (sf_framecode). */
   dist_restraint_saveframes: DistRestraintSaveframe[];
+  /** Dihedral angle restraints grouped by saveframe (sf_framecode). */
+  dihed_restraint_saveframes: DihedRestraintSaveframe[];
   charts: {
     rdc_histogram: HistogramChart[];
-    dihedral: DihedralChart[];
-    dihedral_per_residue: PerResidueLine[];
     rdc_per_residue: PerResidueLine[];
   };
   restraints: RestraintRow[];
@@ -366,15 +379,15 @@ export class Summary implements OnDestroy {
     }));
   }
 
-  /** ECharts panels (built from the endpoint data). */
-  dihedralPanels = computed<ChartPanel[]>(() => {
+  /** Dihedral angle restraints grouped by saveframe (sf_framecode). */
+  dihedRestraintSaveframes = computed(() => this.nmrPreview()?.dihed_restraint_saveframes ?? []);
+
+  /** Per-saveframe dihedral chart panels (reuse the shared option builders). */
+  dihedScatterPanels(sf: DihedRestraintSaveframe): ChartPanel[] {
     const panels: ChartPanel[] = [];
-    for (const d of this.nmrPreview()?.charts.dihedral ?? []) {
+    for (const d of sf.dihedral) {
       if (d.phi_psi)
-        panels.push({
-          title: 'φ / ψ dihedral angles',
-          option: this.dihedralOption(d.phi_psi, 'φ', 'ψ'),
-        });
+        panels.push({ title: 'φ / ψ dihedral angles', option: this.dihedralOption(d.phi_psi, 'φ', 'ψ') });
       if (d.chi1_chi2)
         panels.push({
           title: 'χ1 / χ2 dihedral angles',
@@ -382,17 +395,25 @@ export class Summary implements OnDestroy {
         });
     }
     return panels;
-  });
+  }
+  dihedHistogramPanels(sf: DihedRestraintSaveframe): ChartPanel[] {
+    return sf.histogram.map((h) => ({
+      title: 'Dihedral angle target values',
+      option: this.histogramOption(h, 'Angle (°)', '# of dihedral restraints'),
+    }));
+  }
+  dihedPerResiduePanels(sf: DihedRestraintSaveframe): ChartPanel[] {
+    return sf.per_residue.map((c) => ({
+      title: `Dihedral angles per residue — chain ${c.chain}`,
+      option: this.lineOption(c),
+    }));
+  }
+
+  /** ECharts panels (built from the endpoint data). */
   rdcPanels = computed<ChartPanel[]>(() =>
     (this.nmrPreview()?.charts.rdc_histogram ?? []).map((h) => ({
       title: 'Observed RDC values',
       option: this.histogramOption(h, 'Obs. RDC value (Hz)', '# of RDC restraints'),
-    })),
-  );
-  dihedralPerResiduePanels = computed<ChartPanel[]>(() =>
-    (this.nmrPreview()?.charts.dihedral_per_residue ?? []).map((c) => ({
-      title: `Dihedral angles per residue — chain ${c.chain}`,
-      option: this.lineOption(c),
     })),
   );
   rdcPerResiduePanels = computed<ChartPanel[]>(() =>
@@ -407,9 +428,8 @@ export class Summary implements OnDestroy {
     () =>
       this.chemShiftSaveframes().length > 0 ||
       this.distRestraintSaveframes().length > 0 ||
+      this.dihedRestraintSaveframes().length > 0 ||
       this.rdcPanels().length > 0 ||
-      this.dihedralPanels().length > 0 ||
-      this.dihedralPerResiduePanels().length > 0 ||
       this.rdcPerResiduePanels().length > 0 ||
       this.previewRestraints().length > 0 ||
       this.previewSpectralSummary().length > 0 ||
