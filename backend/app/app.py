@@ -1378,13 +1378,20 @@ def _align_label(cat):
     return cat.replace('_', ' ')
 
 
+# Only the model-vs-NMR polymer-sequence alignment is shown on the preview as the
+# representative one; the other categories (vs coordinates, vs each restraint /
+# peak type, etc.) are omitted.
+_SEQ_ALIGN_CATEGORY = 'model_poly_seq_vs_nmr_poly_seq'
+
+
 def _seq_align(info):
-    """Sequence alignments grouped by category. Each group carries per-chain rows
-    that merge the summary stats with the aligned-sequence block (ref/mid/test),
-    so the frontend can show stats and sequences together under one category."""
+    """The representative sequence alignment (model vs NMR polymer sequence). Each
+    group carries per-chain rows that merge the summary stats with the aligned-
+    sequence block (ref/mid/test), so the frontend can show stats and sequences
+    together under one category."""
     groups = []
     for cat, lst in (info.get('sequence_alignments') or {}).items():
-        if not isinstance(lst, list) or not lst:
+        if cat != _SEQ_ALIGN_CATEGORY or not isinstance(lst, list) or not lst:
             continue
         rows = []
         for a in lst:
