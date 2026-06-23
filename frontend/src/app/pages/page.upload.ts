@@ -33,10 +33,11 @@ interface FileRow {
   name: string;
   size: number;
   fileType: string | null;
-  /** Local blob, used to upload the file to the server at process time. */
-  file: File;
-  /** Server-assigned ordinal; set once the file has been uploaded so a
-   * re-process does not upload it again. */
+  /** Local blob, used to upload the file to the server. Absent on rows
+   * restored from the backend (those are already uploaded). */
+  file?: File;
+  /** Server-assigned ordinal; set once the file has been uploaded so edits
+   * (type/selection/removal) can be persisted and a re-process skips it. */
   ordinal?: number;
 }
 
@@ -84,7 +85,21 @@ export class Upload implements OnDestroy {
   /** Guards the one-shot previous-status fetch so it runs once per component. */
   private previousChecked = false;
 
+  /** Guards the one-shot file-list restore so it runs once per component. */
+  private filesFetched = false;
+
   constructor() {
+    // Rebuild the uploaded-file list from the backend once the token is known
+    // (covers in-app navigation back to this page and a full page refresh).
+    // Files are persisted on selection, so the server is the source of truth.
+    effect(() => {
+      const token = this.state().tokenBase;
+      if (token && !this.filesFetched) {
+        this.filesFetched = true;
+        this.loadUploadFiles(token);
+      }
+    });
+
     // Restore BMRB import section when the component is created and a related
     // BMRB ID is already present in the session state (page refresh / resume).
     effect(() => {
@@ -516,9 +531,11 @@ export class Upload implements OnDestroy {
     this.pageService.pageState.update((prev) => ({ ...prev, targetDepsys: value }));
     // Clear any assigned file types no longer acceptable for the new target system.
     const allowed = this.DEPSYS_FILE_TYPES[value];
+    const cleared = this.rows().filter((r) => r.fileType && !allowed(r.fileType) && r.ordinal != null);
     this.rows.update((prev) =>
       prev.map((r) => (r.fileType && !allowed(r.fileType) ? { ...r, fileType: null } : r)),
     );
+    for (const r of cleared) this.patchRow(r.ordinal!, { file_type: null });
     if (value === TargetDepsys.bmrbdep) {
       this.importBmrbEntry.set(false);
       this.resetBmrbValidation();
@@ -723,9 +740,50 @@ export class Upload implements OnDestroy {
       });
   }
 
-  onFilesChosen(event: Event): void {
+  /** Rebuild the row list from the backend working set (GET /api/upload_files).
+   * Restored rows carry their server ordinal but no local blob. */
+  private loadUploadFiles(token: string): void {
+    this.http
+      .get<{
+        files: {
+          ordinal: number;
+          original_name: string;
+          file_size: number;
+          file_type: string | null;
+          selected: boolean;
+        }[];
+      }>(API_URL + 'upload_files', { params: { token } })
+      .subscribe({
+        next: (res) =>
+          this.rows.set(
+            (res.files ?? []).map((f) => ({
+              selected: f.selected,
+              name: f.original_name,
+              size: f.file_size,
+              fileType: f.file_type,
+              ordinal: f.ordinal,
+            })),
+          ),
+        error: (err) => console.error('Failed to load upload files', err),
+      });
+  }
+
+  /** Persist a type/selection change for an already-uploaded row. */
+  private patchRow(ordinal: number, changes: { file_type?: string | null; selected?: boolean }): void {
+    const token = this.state().tokenBase;
+    if (!token) return;
+    this.http.patch(API_URL + 'upload', { token, ordinal, ...changes }).subscribe({
+      error: (err) => console.error('Failed to update upload file', err),
+    });
+  }
+
+  /** Add chosen files to the table, then upload each immediately so the working
+   * set survives navigation and page refresh. The server ordinal tags each row
+   * on success; a failed upload removes the row and surfaces the error. */
+  async onFilesChosen(event: Event): Promise<void> {
     const input = event.target as HTMLInputElement;
     if (!input.files?.length) return;
+    const token = this.state().tokenBase;
     const target = this.state().targetDepsys;
     const added: FileRow[] = Array.from(input.files).map((f) => ({
       selected: true,
@@ -736,18 +794,48 @@ export class Upload implements OnDestroy {
     }));
     this.rows.update((prev) => [...prev, ...added]);
     input.value = '';
+    if (!token) return;
+
+    for (const row of added) {
+      try {
+        const form = new FormData();
+        form.append('token', token);
+        if (row.fileType) form.append('file_type', row.fileType);
+        form.append('file', row.file!, row.name);
+        const res = await firstValueFrom(
+          this.http.post<{ ordinal: number }>(API_URL + 'upload', form),
+        );
+        // Match by object reference: indices may shift if a row is removed mid-upload.
+        this.rows.update((prev) => prev.map((r) => (r === row ? { ...r, ordinal: res.ordinal } : r)));
+      } catch (err) {
+        this.rows.update((prev) => prev.filter((r) => r !== row));
+        this.submitError.set(`Failed while uploading "${row.name}": ${this.describeHttpError(err)}`);
+        console.error('Upload failed', err);
+      }
+    }
   }
 
   setSelected(index: number, value: boolean): void {
+    const row = this.rows()[index];
     this.rows.update((prev) => prev.map((r, i) => (i === index ? { ...r, selected: value } : r)));
+    if (row?.ordinal != null) this.patchRow(row.ordinal, { selected: value });
   }
 
   setFileType(index: number, value: string): void {
+    const row = this.rows()[index];
     this.rows.update((prev) => prev.map((r, i) => (i === index ? { ...r, fileType: value } : r)));
+    if (row?.ordinal != null) this.patchRow(row.ordinal, { file_type: value });
   }
 
   removeRow(index: number): void {
+    const row = this.rows()[index];
     this.rows.update((prev) => prev.filter((_, i) => i !== index));
+    const token = this.state().tokenBase;
+    if (token && row?.ordinal != null) {
+      this.http.delete(API_URL + 'upload', { body: { token, ordinal: row.ordinal } }).subscribe({
+        error: (err) => console.error('Failed to delete upload file', err),
+      });
+    }
   }
 
   formatSize(bytes: number): string {
@@ -782,9 +870,13 @@ export class Upload implements OnDestroy {
   /** BMRB archive chosen: deselect the user's own chemical-shift files so the
    * BMRB-downloaded shifts are the sole source, then process. */
   useBmrbShifts(): void {
+    const deselected = this.rows().filter(
+      (r) => r.fileType?.startsWith('nm-shi') && r.selected && r.ordinal != null,
+    );
     this.rows.update((prev) =>
       prev.map((r) => (r.fileType?.startsWith('nm-shi') ? { ...r, selected: false } : r)),
     );
+    for (const r of deselected) this.patchRow(r.ordinal!, { selected: false });
     this.bmrbShiftConflict.set(false);
     this.submitProcessing();
   }
@@ -802,12 +894,11 @@ export class Upload implements OnDestroy {
   submitError = signal<string | null>(null);
 
   /**
-   * Upload the selected files to the session archive, then commit the run and
-   * trigger the conversion workflow. File types are assigned in the UI before
-   * processing, so files are uploaded here (at process time) rather than on
-   * selection. Already-uploaded rows (with an ordinal) are skipped so a
-   * re-process does not duplicate them. On success the progress dialog opens
-   * and polls /api/progress for the new run.
+   * Commit the current upload state and trigger the conversion workflow. Files
+   * are uploaded on selection (see onFilesChosen), so every row normally
+   * already carries an ordinal; the loop below is a defensive fallback that
+   * uploads any row whose earlier upload failed before the run is triggered. On
+   * success the progress dialog opens and polls /api/progress for the new run.
    */
   private async submitProcessing(): Promise<void> {
     const token = this.state().tokenBase;
@@ -821,7 +912,7 @@ export class Upload implements OnDestroy {
       const rows = this.rows();
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
-        if (!row.selected || row.ordinal != null || !row.fileType) continue;
+        if (!row.selected || row.ordinal != null || !row.fileType || !row.file) continue;
         step = `uploading "${row.name}"`;
         const form = new FormData();
         form.append('token', token);

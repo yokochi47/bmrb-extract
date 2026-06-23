@@ -199,6 +199,58 @@ async def get_files():
     return {'files': files}, 200
 
 
+@app.route('/api/upload_files', methods=['GET'])
+async def get_upload_files():
+    """Return the editable working set for the Upload page.
+
+    Query: token
+
+    Unlike GET /api/files (which the summary page uses, filtered to selected
+    files of the latest run), this returns every user-uploaded row for the
+    token regardless of selection or run, with the fields needed to rebuild the
+    upload table rows. BMRB-sourced rows are excluded — they are auto-managed at
+    process time and are not user-editable.
+    Returns: { files: [{ ordinal, original_name, file_size, file_type, selected }] }
+    """
+    token = request.args.get('token')
+    if not token:
+        return {'error': 'token is required'}, 400
+
+    async with async_session_factory() as db:
+        session_row = (
+            await db.execute(select(Session).where(Session.token == token))
+        ).scalar_one_or_none()
+        if session_row is None:
+            return {'error': 'session not found'}, 404
+
+        result = await db.execute(
+            select(
+                UploadFile.ordinal,
+                UploadFile.original_name,
+                UploadFile.file_size,
+                UploadFile.file_type,
+                UploadFile.selected,
+            )
+            .where(
+                UploadFile.token == token,
+                UploadFile.source == UploadFileSource.user.value,
+            )
+            .order_by(UploadFile.uploaded_at.asc(), UploadFile.ordinal.asc())
+        )
+        files = [
+            {
+                'ordinal': row.ordinal,
+                'original_name': row.original_name,
+                'file_size': row.file_size,
+                'file_type': row.file_type,
+                'selected': bool(row.selected),
+            }
+            for row in result.all()
+        ]
+
+    return {'files': files}, 200
+
+
 # ── Processing progress (for the upload "Processing…" dialog) ───────────────────
 
 # Tasks surfaced to the dialog, in display order, with their label and the
@@ -1541,16 +1593,17 @@ async def new_consent():
 async def upload():
     """Store an uploaded file in the session archive and create a DB record.
 
-    Multipart form fields: token, file_type, file (binary).
+    Multipart form fields: token, file (binary), file_type (optional — null
+    until the user assigns a type in the UI).
     On the first upload for a session, git init is called for the session directory.
     Returns: { ordinal, stored_path, file_size }
     """
     token = request.form.get('token')
-    file_type = request.form.get('file_type')
+    file_type = request.form.get('file_type') or None
     f = request.files.get('file')
 
-    if not all([token, file_type, f]):
-        return {'error': 'token, file_type, and file are required'}, 400
+    if not all([token, f]):
+        return {'error': 'token and file are required'}, 400
 
     original_name = f.filename or 'unnamed'
 
@@ -1664,6 +1717,56 @@ async def delete_upload():
     return {'action': action}, 200
 
 
+@app.route('/api/upload', methods=['PATCH'])
+async def patch_upload():
+    """Update a draft file's type and/or selection without re-uploading it.
+
+    JSON body: { token, ordinal, file_type?, selected? }
+
+    Applies whichever of file_type / selected is present. `file_type` may be
+    null (the user cleared an unrecognised type). Mirrors POST's side effect:
+    an edit invalidates a prior approval, so the session returns to 'uploading'
+    with approved=False.
+    Returns: { ok: true }
+    """
+    body = request.get_json(silent=True) or {}
+    token = body.get('token')
+    ordinal = body.get('ordinal')
+
+    if not token or ordinal is None:
+        return {'error': 'token and ordinal are required'}, 400
+
+    async with async_session_factory() as db:
+        session_row = (
+            await db.execute(select(Session).where(Session.token == token))
+        ).scalar_one_or_none()
+        if session_row is None:
+            return {'error': 'session not found'}, 404
+
+        upload_row = (
+            await db.execute(
+                select(UploadFile).where(
+                    UploadFile.token == token,
+                    UploadFile.ordinal == ordinal,
+                )
+            )
+        ).scalar_one_or_none()
+        if upload_row is None:
+            return {'error': 'upload file not found'}, 404
+
+        if 'file_type' in body:
+            upload_row.file_type = body.get('file_type') or None
+        if 'selected' in body:
+            upload_row.selected = bool(body.get('selected'))
+
+        # Reset approval: an edit invalidates any prior warning acknowledgment.
+        session_row.status = SessionStatusCode.uploading
+        session_row.approved = False
+        await db.commit()
+
+    return {'ok': True}, 200
+
+
 # ── Process ───────────────────────────────────────────────────────────────────
 
 @app.route('/api/process', methods=['POST'])
@@ -1712,9 +1815,10 @@ async def process():
         # selected file so it participates in the run like any uploaded file.
         # Combined mode (an nm-uni-* file is selected) ignores the BMRB ID here.
         bmrb_id = session_row.related_bmrb_id
-        has_uni = any(f.file_type.startswith('nm-uni-') for f in selected_files)
+        has_uni = any(f.file_type and f.file_type.startswith('nm-uni-') for f in selected_files)
         has_user_shifts = any(
-            f.file_type.startswith('nm-shi') and f.source != UploadFileSource.bmrb.value
+            f.file_type and f.file_type.startswith('nm-shi')
+            and f.source != UploadFileSource.bmrb.value
             for f in selected_files
         )
         use_bmrb = (

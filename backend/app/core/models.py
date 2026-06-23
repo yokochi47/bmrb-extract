@@ -193,7 +193,7 @@ class UploadFile(Base):
     stored_path = sa.Column(sa.Text(), nullable=False)
     file_size = sa.Column(sa.BigInteger())
     checksum = sa.Column(sa.Text())
-    file_type = sa.Column(EnumStr('upload_file_type'), nullable=False)
+    file_type = sa.Column(EnumStr('upload_file_type'))
     selected = sa.Column(sa.Boolean(), nullable=False, server_default='TRUE')
     source = sa.Column(EnumStr('upload_file_source'), nullable=False, server_default='user')
     uploaded_at = sa.Column(sa.TIMESTAMP(), server_default=func.now())
