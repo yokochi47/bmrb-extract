@@ -92,7 +92,10 @@
       }
     </p-card>
 
-    <p-panel header="Validation for coordinates" [toggleable]="true" styleClass="mb-6">
+    <p-panel [toggleable]="true" styleClass="mb-6 large-header-panel">
+      <ng-template pTemplate="header">
+        <span class="text-xl"> Validation for coordinates </span>
+      </ng-template>
       @if (validationAvailable() === null) {
         <p class="text-surface-500 py-2"><i class="pi pi-spin pi-spinner mr-2"></i>Loading…</p>
       } @else if (!validationAvailable()) {
@@ -195,7 +198,10 @@
     </p-panel>
   }
 
-  <p-panel header="NMR data preview" [toggleable]="true" styleClass="mb-6">
+  <p-panel [toggleable]="true" styleClass="mb-6">
+    <ng-template pTemplate="header">
+      <span class="text-xl"> NMR data preview </span>
+    </ng-template>
     @if (nmrPreviewAvailable() === null) {
       <p class="text-surface-500 py-2"><i class="pi pi-spin pi-spinner mr-2"></i>Loading…</p>
     } @else if (!nmrPreviewAvailable()) {
@@ -541,8 +547,8 @@
                       <span> · </span>
                     }
                     <span
-                      >len {{ r.length }} · matched {{ r.matched }} · conflict
-                      {{ r.conflict }} · unmapped {{ r.unmapped }}</span
+                      >len {{ r.length }} · matched {{ r.matched }} · conflict {{ r.conflict }} ·
+                      unmapped {{ r.unmapped }}</span
                     >
                     @if (r.coverage !== null) {
                       <span> · {{ r.coverage }}%</span>
@@ -565,7 +571,10 @@
     }
   </p-panel>
 
-  <p-panel header="Validation for NMR data" [toggleable]="true" styleClass="mb-6">
+  <p-panel [toggleable]="true" styleClass="mb-6 large-header-panel">
+    <ng-template pTemplate="header">
+      <span class="text-xl"> Validation for NMR data </span>
+    </ng-template>
     @if (nmrAvailable() === null) {
       <p class="text-surface-500 py-2"><i class="pi pi-spin pi-spinner mr-2"></i>Loading…</p>
     } @else if (!nmrAvailable()) {
