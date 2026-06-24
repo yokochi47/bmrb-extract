@@ -810,6 +810,14 @@ export class Summary implements OnDestroy {
     return 'rgba(120,120,120,0.08)';
   }
 
+  /** More saturated band color used as a thin edge line on the band's sides. */
+  private bandEdgeColor(type: string): string {
+    if (type === 'helix') return 'rgba(204,47,0,0.55)';
+    if (type === 'strand') return 'rgba(0,156,209,0.55)';
+    if (type === 'turn') return 'rgba(200,204,0,0.65)';
+    return 'rgba(120,120,120,0.4)';
+  }
+
   /** ECharts option for a per-residue stacked-count bar with secondary-structure
    * bands drawn as markAreas. */
   private perResidueOption(c: PerResidueChart): object {
@@ -829,7 +837,14 @@ export class Summary implements OnDestroy {
       data: c.bands.map((b) => [
         {
           xAxis: c.categories[b.start],
-          itemStyle: { color: this.bandColor(b.type) },
+          // Translucent fill with a thin, more saturated border so the band's
+          // left/right edges read as condensed colored lines (the band spans the
+          // full plot height, so the top/bottom borders sit at the frame edges).
+          itemStyle: {
+            color: this.bandColor(b.type),
+            borderColor: this.bandEdgeColor(b.type),
+            borderWidth: 1,
+          },
           name: b.label,
         },
         { xAxis: c.categories[b.end] },
@@ -929,7 +944,14 @@ export class Summary implements OnDestroy {
       data: c.bands.map((b) => [
         {
           xAxis: c.categories[b.start],
-          itemStyle: { color: this.bandColor(b.type) },
+          // Translucent fill with a thin, more saturated border so the band's
+          // left/right edges read as condensed colored lines (the band spans the
+          // full plot height, so the top/bottom borders sit at the frame edges).
+          itemStyle: {
+            color: this.bandColor(b.type),
+            borderColor: this.bandEdgeColor(b.type),
+            borderWidth: 1,
+          },
           name: b.label,
         },
         { xAxis: c.categories[b.end] },
