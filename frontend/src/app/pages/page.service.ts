@@ -35,6 +35,10 @@ export class PageService {
   /** Set to true by tokenGuard to trigger the consent-required dialog in AppLayout. */
   consentRequired = signal(false);
 
+  /** Non-null when starting a session (POST /api/new_consent) failed, so the
+   * consent page can prompt the user to retry instead of silently unchecking. */
+  consentError = signal<string | null>(null);
+
   /** Cached result of the most recent token DB validation. null = not yet checked. */
   tokenValidation = signal<'valid' | 'expired' | 'invalid' | null>(null);
 
@@ -126,8 +130,10 @@ export class PageService {
   }
 
   private newConsent() {
+    this.consentError.set(null);
     this.http.post<{ token: string }>(API_URL + 'new_consent', {}).subscribe({
       next: ({ token }) => {
+        this.consentError.set(null);
         this.pageState.update((prev) => ({ ...prev, tokenBase: token }));
         this.router.navigate(['/info'], {
           queryParams: { token },
@@ -136,6 +142,10 @@ export class PageService {
       },
       error: (err) => {
         console.error('Failed to obtain session token', err);
+        this.consentError.set(
+          'Could not start a session — the server did not respond as expected. ' +
+            'Please check the box again to retry; if it keeps failing, reload the page or contact us.',
+        );
         this.pageState.update((prev) => ({ ...prev, firstConsent: true, consentedTo: false }));
       },
     });

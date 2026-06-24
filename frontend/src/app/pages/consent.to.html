@@ -17,4 +17,9 @@
       them.</label
     >
   </div>
+  @if (consentError()) {
+    <p class="text-red-600 font-medium" role="alert">
+      <i class="pi pi-times-circle mr-2"></i>{{ consentError() }}
+    </p>
+  }
 </div>
