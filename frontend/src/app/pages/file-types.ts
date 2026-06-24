@@ -12,9 +12,6 @@ export const FILE_TYPE_OPTIONS: readonly FileTypeOption[] = [
   // Coordinate
   { label: 'Coordinates (PDBx/mmCIF format)', value: 'co-cif' },
   { label: 'Coordinates (PDB format)', value: 'co-pdb' },
-  // NMR unified data
-  { label: 'NMR unified data (NEF: NMR Exchange Format)', value: 'nm-uni-nef' },
-  { label: 'NMR unified data (NMR-STAR V3 format)', value: 'nm-uni-str' },
   // Assigned chemical shifts
   { label: 'Assigned chemical shifts (NMR-STAR V3 format)', value: 'nm-shi' },
   { label: 'Assigned chemical shifts (ARIA format)', value: 'nm-shi-ari' },
@@ -79,6 +76,9 @@ export const FILE_TYPE_OPTIONS: readonly FileTypeOption[] = [
     label: 'Spectral peak list (any plane text format, auto format detection)',
     value: 'nm-pea-any',
   },
+  // NMR unified data
+  { label: 'NMR unified data (NEF: NMR Exchange Format)', value: 'nm-uni-nef' },
+  { label: 'NMR unified data (NMR-STAR V3 format)', value: 'nm-uni-str' },
 ];
 
 const FILE_TYPE_LABELS = new Map(FILE_TYPE_OPTIONS.map((o) => [o.value, o.label]));

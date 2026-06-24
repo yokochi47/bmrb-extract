@@ -68,6 +68,7 @@ def handle_unexpected_error(exc):
     )
     return {'error': f'{type(exc).__name__}: {exc}'}, 500
 
+
 # Prefect REST API (the worker/server image, reached over the internal network).
 # PREFECT_API_URL is set in .env (Prefect standard); fall back to the service name.
 PREFECT_API_URL = os.environ.get('PREFECT_API_URL', 'http://prefect-server:4200/api')
@@ -551,7 +552,7 @@ def _join(get, *items, sep=' '):
 # generic all-populated-columns renderer.
 _CURATION = {
     'pdbx_validate_close_contact': (
-        ['Model', 'Atom 1', 'Atom 2', 'Distance (Å)'],
+        ['Model #', 'Atom 1', 'Atom 2', 'Distance (Å)'],
         [
             lambda g: g('PDB_model_num'),
             lambda g: _join(g, 'auth_asym_id_1', 'auth_comp_id_1', 'auth_seq_id_1', 'auth_atom_id_1'),
@@ -560,7 +561,7 @@ _CURATION = {
         ],
     ),
     'pdbx_validate_rmsd_bond': (
-        ['Model', 'Chain', 'Bond', 'Value', 'Deviation'],
+        ['Model #', 'Auth_asym_ID', 'Bond', 'Value (Å)', 'Deviation (Å)'],
         [
             lambda g: g('PDB_model_num'),
             lambda g: g('auth_asym_id_1'),
@@ -571,7 +572,7 @@ _CURATION = {
         ],
     ),
     'pdbx_validate_rmsd_angle': (
-        ['Model', 'Chain', 'Residue', 'Atoms', 'Value', 'Deviation'],
+        ['Model #', 'Auth_asym_ID', 'Residue', 'Atoms', 'Value (°)', 'Deviation (°)'],
         [
             lambda g: g('PDB_model_num'),
             lambda g: g('auth_asym_id_1'),
@@ -582,7 +583,7 @@ _CURATION = {
         ],
     ),
     'pdbx_validate_torsion': (
-        ['Model', 'Chain', 'Residue', 'Phi', 'Psi'],
+        ['Model #', 'Auth_asym_ID', 'Residue', 'Phi (°)', 'Psi (°)'],
         [
             lambda g: g('PDB_model_num'),
             lambda g: g('auth_asym_id'),
@@ -592,7 +593,7 @@ _CURATION = {
         ],
     ),
     'pdbx_validate_peptide_omega': (
-        ['Model', 'Chain', 'Residues', 'Omega'],
+        ['Model #', 'Auth_asym_ID', 'Residues', 'Omega (°)'],
         [
             lambda g: g('PDB_model_num'),
             lambda g: g('auth_asym_id_1'),
@@ -602,7 +603,7 @@ _CURATION = {
         ],
     ),
     'pdbx_validate_main_chain_plane': (
-        ['Model', 'Chain', 'Residue', 'Improper torsion'],
+        ['Model #', 'Auth_asym_ID', 'Residue', 'Improper torsion angle (°)'],
         [
             lambda g: g('PDB_model_num'),
             lambda g: g('auth_asym_id'),
@@ -611,7 +612,7 @@ _CURATION = {
         ],
     ),
     'pdbx_validate_planes': (
-        ['Model', 'Chain', 'Residue', 'RMSD', 'Type'],
+        ['Model #', 'Auth_asym_ID', 'Residue', 'RMSD (Å)', 'Type'],
         [
             lambda g: g('PDB_model_num'),
             lambda g: g('auth_asym_id'),
@@ -861,15 +862,15 @@ def _nmr_model_file_name(report):
     return None
 
 
-def _parse_nmr_report(report, unified, model_file_name):
+def _parse_nmr_report(report, combined, model_file_name):
     """Build (errors, warnings) groups from an NmrDpUtility JSON report. errors:
-    every type except 'total' (real = unified or designated type). warnings: from
+    every type except 'total' (real = combined or designated type). warnings: from
     `warning` grouped by level, plus `corrected_warning` as level 0 (corrected)."""
     errors = []
     for etype, items in (report.get('error') or {}).items():
         if etype == 'total' or not items:
             continue
-        real = unified or etype in _NMR_BLOCKING_ERROR_TYPES
+        real = combined or etype in _NMR_BLOCKING_ERROR_TYPES
         if etype == 'internal_error':
             rows = [{'location': '', 'description': html.escape(str(m)), 'active': True}
                     for m in items]
@@ -902,8 +903,8 @@ def _parse_nmr_report(report, unified, model_file_name):
     return errors, warnings
 
 
-def _nmr_unified_dep(token, target_depsys):
-    """NMR_UNIFIED_DEP = (onedep & nm-uni-* present) | repl_cs — same as the flow's
+def _nmr_combined_dep(token, target_depsys):
+    """NMR_COMBINED_DEP = (onedep & nm-uni-* present) | repl_cs — same as the flow's
     onedep_combined; the uni-file check reads the run's manifest."""
     if target_depsys == TargetDepsysCode.repl_cs.value:
         return True
@@ -963,12 +964,11 @@ async def get_nmr_validation():
     except Exception:  # noqa: BLE001
         return {'available': False}
 
-    unified = _nmr_unified_dep(token, target_depsys)
-    errors, warnings = _parse_nmr_report(report, unified, _nmr_model_file_name(report))
+    combined = _nmr_combined_dep(token, target_depsys)
+    errors, warnings = _parse_nmr_report(report, combined, _nmr_model_file_name(report))
     return {
         'available': True,
         'status': report.get('information', {}).get('status'),
-        'unified': unified,
         'errors': errors,
         'warnings': warnings,
     }
@@ -1172,10 +1172,11 @@ def _dim_atom(d):
     return _iso_label(f'{iso}{atom}') if iso and atom else atom
 
 
-def _spectral_peak_saveframes(sp_list):
+def _spectral_peak_saveframes(sp_list, aligns):
     """Per-saveframe spectral-peak-list preview, in report order: status,
     experiment class, peak counts (assigned/unassigned), spectral-dimension
-    table, atom-name mapping."""
+    table, atom-name mapping. `aligns` is the nmr_poly_seq_vs_spectral_peak
+    sequence alignments (for the coverage block)."""
     out = []
     for st in sp_list or []:
         npk = st.get('number_of_spectral_peaks')
@@ -1194,6 +1195,7 @@ def _spectral_peak_saveframes(sp_list):
             'status': st.get('status'),
             'error_descriptions': st.get('error_descriptions') or [],
             'warning_descriptions': st.get('warning_descriptions') or [],
+            'sequence_coverage': _sequence_coverage(st, aligns),
             'exp_class': '' if exp == '.' else exp,
             'n_dims': st.get('number_of_spectral_dimensions'),
             'n_peaks': n_peaks,
@@ -1411,7 +1413,7 @@ def _seq_align(info):
         if ref_gauge == test_gauge:
             test_gauge = ''
         rows.append({
-            'chain': (f"Coordinate chain {coord} ↔ NMR chain {test}"
+            'chain': (f"Auth_asym_ID (model): {coord} ↔ Entity_assembly_ID: (NMR data) {test}"
                       if (coord or test) else ''),
             'length': ca.get('length'), 'matched': ca.get('matched'),
             'conflict': ca.get('conflict'), 'unmapped': ca.get('unmapped'),
@@ -1426,25 +1428,116 @@ def _seq_align(info):
     return [{'category': _align_label(_SEQ_ALIGN_CATEGORY), 'rows': rows}]
 
 
+def _bond_atom(b, n):
+    """Format a bond endpoint 'chain:seq:comp:atom' (seq omitted when null)."""
+    chain, seq = b.get(f'chain_id_{n}'), b.get(f'seq_id_{n}')
+    comp, atom = b.get(f'comp_id_{n}'), b.get(f'atom_id_{n}')
+    fields = [chain, comp, atom] if seq is None else [chain, seq, comp, atom]
+    return ':'.join(str(f) for f in fields if f not in (None, ''))
+
+
+def _bond_rows(items):
+    """Rows for a disulfide / other bond table: the two bonded atoms + distance."""
+    return [
+        {'atom1': _bond_atom(b, 1), 'atom2': _bond_atom(b, 2), 'distance': b.get('distance_value')}
+        for b in items or []
+    ]
+
+
+def _nstd_res_rows(items):
+    """Non-standard residue rows (one per residue across chains): chain, seq,
+    comp, the CCD chemical-component name (null when not matched), and the
+    experimental-data subtypes that reference the residue."""
+    rows = []
+    for c in items or []:
+        cid = c.get('chain_id')
+        seq = c.get('seq_id') or []
+        comp = c.get('comp_id') or []
+        names = c.get('chem_comp_name') or []
+        exptl = c.get('exptl_data') or []
+        for j in range(len(seq)):
+            name = names[j] if j < len(names) else None
+            ed = exptl[j] if j < len(exptl) else {}
+            types = ', '.join(
+                _NMR_SUBTYPE_NAMES.get(k, k.replace('_', ' ').title())
+                for k, v in (ed or {}).items() if v
+            )
+            rows.append({
+                'chain': cid,
+                'seq_id': seq[j],
+                'comp_id': comp[j] if j < len(comp) else '',
+                'name': name,
+                'matched': name is not None,
+                'exptl': types,
+            })
+    return rows
+
+
+def _assembly_properties(report):
+    """Global properties of the molecular assembly (NMR experiment environment):
+    diamagnetism and presence of disulfide / other bonds and cyclic polymers,
+    plus detail tables for the disulfide bonds, other bonds, and non-standard
+    residues. The booleans are entry-level (information.*); the detail lists live
+    on an input source, preferring the model (coordinate) source."""
+    info = report.get('information', {})
+    srcs = info.get('input_sources') or []
+
+    def pick(key):
+        model = next((s for s in srcs if s.get('content_type') == 'model'), None)
+        if model and isinstance(model.get(key), list) and model[key]:
+            return model[key]
+        for s in srcs:
+            v = s.get(key)
+            if isinstance(v, list) and v:
+                return v
+        return []
+
+    return {
+        'diamagnetic': info.get('diamagnetic'),
+        'disulfide_bond': info.get('disulfide_bond'),
+        'other_bond': info.get('other_bond'),
+        'cyclic_polymer': info.get('cyclic_polymer'),
+        'disulfide_bonds': _bond_rows(pick('disulfide_bond')),
+        'other_bonds': _bond_rows(pick('other_bond')),
+        'non_standard_residues': _nstd_res_rows(pick('non_standard_residue')),
+    }
+
+
+# Completeness sub-categories surfaced per chain, in display order.
+_COMPLETENESS_CATEGORIES = [
+    ('completeness_of_all_assignments', 'All atoms'),
+    ('completeness_of_backbone_assignments', 'Backbone atoms'),
+    ('completeness_of_sidechain_assignments', 'Side chain atoms'),
+    ('completeness_of_methyl_assignments', 'Methyl group atoms'),
+    ('completeness_of_aromatic_assignments', 'Aromatic group atoms'),
+]
+
+
 def _completeness_of(st):
-    """Per-chain all-assignment completeness + sequence coverage for one chem_shift
-    saveframe → [{chain, coverage_pct, groups:[{group, target, assigned, pct}]}]."""
+    """Per-chain assignment completeness + sequence coverage for one chem_shift
+    saveframe → [{chain, coverage_pct, categories:[{label, groups:[{group,
+    target, assigned, pct}]}]}]. Each category (all / backbone / side chain /
+    methyl / aromatic) is included only when present."""
     cov = {c.get('chain_id'): c.get('sequence_coverage')
            for c in (st.get('sequence_coverage') or [])}
     out = []
     for comp in st.get('completeness') or []:
-        groups = [
-            {'group': _iso_label(g.get('atom_group', '')),
-             'target': g.get('number_of_target_shifts'),
-             'assigned': g.get('number_of_assigned_shifts'),
-             'pct': round((g.get('completeness') or 0) * 100, 1)}
-            for g in comp.get('completeness_of_all_assignments') or []
-        ]
+        categories = []
+        for key, label in _COMPLETENESS_CATEGORIES:
+            groups = [
+                {'group': _iso_label(g.get('atom_group', '')),
+                 'target': g.get('number_of_target_shifts'),
+                 'assigned': g.get('number_of_assigned_shifts'),
+                 'pct': round((g.get('completeness') or 0) * 100, 1)}
+                for g in comp.get(key) or []
+            ]
+            if groups:
+                categories.append({'label': label, 'groups': groups})
         chain = comp.get('chain_id')
         out.append({
             'chain': chain,
             'coverage_pct': round((cov.get(chain) or 0) * 100, 1) if chain in cov else None,
-            'groups': groups,
+            'categories': categories,
         })
     return out
 
@@ -1469,11 +1562,37 @@ def _atom_name_mapping(st):
     return rows
 
 
-def _chem_shift_saveframes(chem_shift_list):
+def _sequence_coverage(st, aligns):
+    """Per-chain sequence coverage of the experimental data for one saveframe →
+    [{chain, length, coverage_pct, ref_gauge, ref, mid, test}]. The aligned-
+    sequence block (ref/mid/test) is joined from `aligns` (the
+    nmr_poly_seq_vs_<subtype> sequence alignments) by this saveframe's list_id
+    and the chain id."""
+    list_id = st.get('list_id')
+    by_chain = {a.get('chain_id'): a for a in (aligns or []) if a.get('list_id') == list_id}
+    out = []
+    for c in st.get('sequence_coverage') or []:
+        cov = c.get('sequence_coverage')
+        chain_id = c.get('chain_id')
+        a = by_chain.get(chain_id) or {}
+        out.append({
+            'chain': chain_id,
+            'length': c.get('length'),
+            'coverage_pct': round(cov * 100, 1) if isinstance(cov, (int, float)) else None,
+            'ref_gauge': a.get('ref_gauge_code') or '',
+            'ref': a.get('ref_code') or '',
+            'mid': a.get('mid_code') or '',
+            'test': a.get('test_code') or '',
+        })
+    return out
+
+
+def _chem_shift_saveframes(chem_shift_list, aligns):
     """Per-saveframe assigned-chemical-shift preview, in report order. Reuses the
     per-content helpers on a single saveframe so the summary page can group all
     chem-shift content (status, coverage/completeness, CS-prediction tables,
-    histogram, RCI charts, atom-name mapping) under its sf_framecode."""
+    histogram, RCI charts, atom-name mapping) under its sf_framecode. `aligns` is
+    the nmr_poly_seq_vs_chem_shift sequence alignments (for the coverage block)."""
     out = []
     for st in chem_shift_list or []:
         out.append({
@@ -1481,6 +1600,7 @@ def _chem_shift_saveframes(chem_shift_list):
             'status': st.get('status'),
             'error_descriptions': st.get('error_descriptions') or [],
             'warning_descriptions': st.get('warning_descriptions') or [],
+            'sequence_coverage': _sequence_coverage(st, aligns),
             'assignments': _assignments_of(st),
             'completeness': _completeness_of(st),
             'predictions': {
@@ -1503,12 +1623,13 @@ def _constraint_counts(st):
             for k, v in noc.items() if isinstance(v, (int, float))]
 
 
-def _dist_restraint_saveframes(dist_list):
+def _dist_restraint_saveframes(dist_list, aligns):
     """Per-saveframe distance-restraint preview, in report order. Reuses the
     per-content helpers on a single saveframe so the summary page can group all
     distance-restraint content (status, constraint counts/range, target-value
     histogram + discrepancy, per-residue counts, symmetric/asymmetric contact
-    maps, atom-name mapping) under its sf_framecode."""
+    maps, atom-name mapping) under its sf_framecode. `aligns` is the
+    nmr_poly_seq_vs_dist_restraint sequence alignments (for the coverage block)."""
     out = []
     for st in dist_list or []:
         rng = st.get('range') or {}
@@ -1520,6 +1641,7 @@ def _dist_restraint_saveframes(dist_list):
             'error_descriptions': st.get('error_descriptions') or [],
             'warning_descriptions': st.get('warning_descriptions') or [],
             'exp_type': st.get('exp_type') or '',
+            'sequence_coverage': _sequence_coverage(st, aligns),
             'constraints': _constraint_counts(st),
             'range': range_text,
             'histogram': _histogram_chart([st]),
@@ -1532,10 +1654,11 @@ def _dist_restraint_saveframes(dist_list):
     return out
 
 
-def _dihed_restraint_saveframes(dihed_list):
+def _dihed_restraint_saveframes(dihed_list, aligns):
     """Per-saveframe dihedral-angle-restraint preview, in report order: status,
     constraint counts, φ/ψ and χ1/χ2 scatter, per-residue angle values,
-    atom-name mapping. Reuses the per-content helpers on a single saveframe."""
+    atom-name mapping. Reuses the per-content helpers on a single saveframe.
+    `aligns` is the nmr_poly_seq_vs_dihed_restraint sequence alignments."""
     out = []
     for st in dihed_list or []:
         out.append({
@@ -1544,6 +1667,7 @@ def _dihed_restraint_saveframes(dihed_list):
             'error_descriptions': st.get('error_descriptions') or [],
             'warning_descriptions': st.get('warning_descriptions') or [],
             'exp_type': st.get('exp_type') or '',
+            'sequence_coverage': _sequence_coverage(st, aligns),
             'constraints': _constraint_counts(st),
             'histogram': _histogram_chart([st]),
             'dihedral': _dihedral_charts([st]),
@@ -1553,10 +1677,11 @@ def _dihed_restraint_saveframes(dihed_list):
     return out
 
 
-def _rdc_restraint_saveframes(rdc_list):
+def _rdc_restraint_saveframes(rdc_list, aligns):
     """Per-saveframe RDC-restraint preview, in report order: status, constraint
     counts/range, observed-value histogram, per-residue observed RDC, atom-name
-    mapping. Reuses the per-content helpers on a single saveframe."""
+    mapping. Reuses the per-content helpers on a single saveframe. `aligns` is
+    the nmr_poly_seq_vs_rdc_restraint sequence alignments."""
     out = []
     for st in rdc_list or []:
         rng = st.get('range') or {}
@@ -1568,6 +1693,7 @@ def _rdc_restraint_saveframes(rdc_list):
             'error_descriptions': st.get('error_descriptions') or [],
             'warning_descriptions': st.get('warning_descriptions') or [],
             'exp_type': st.get('exp_type') or '',
+            'sequence_coverage': _sequence_coverage(st, aligns),
             'constraints': _constraint_counts(st),
             'range': range_text,
             'histogram': _histogram_chart([st]),
@@ -1575,6 +1701,99 @@ def _rdc_restraint_saveframes(rdc_list):
             'atom_name_mapping': _atom_name_mapping(st),
         })
     return out
+
+
+# Experiment types for which low sequence coverage is expected (not flagged).
+_IGNORABLE_EXP_TYPE_FOR_COVERAGE = (
+    'disulfide bound', 'disulfide_bond', 'paramagnetic relaxation', 'pre',
+    'symmetry', 'J-couplings', 'jcoupling',
+)
+# Subtypes that, when present, are expected to carry sequence coverage.
+_PRIMARY_SUBTYPES = ('chem_shift', 'dist_restraint', 'dihed_restraint', 'rdc_restraint')
+
+
+def _coverage_summary(item):
+    """One-line per-chain coverage, e.g. '57.4% (chain 1, length 94), …'."""
+    parts = []
+    for sc in item.get('sequence_coverage') or []:
+        cov = sc.get('sequence_coverage')
+        pct = f'{cov * 100:.1f}%' if isinstance(cov, (int, float)) else '?'
+        parts.append(f'{pct} (chain {sc.get("chain_id")}, length {sc.get("length")})')
+    return ', '.join(parts)
+
+
+def _is_low_seq_coverage(item):
+    """True if any chain (length > 1) has < 30% coverage, unless the experiment
+    type is one for which low coverage is expected."""
+    exp_type = item.get('exp_type')
+    if exp_type in _IGNORABLE_EXP_TYPE_FOR_COVERAGE:
+        return False
+    for sc in item.get('sequence_coverage') or []:
+        cov = sc.get('sequence_coverage')
+        if isinstance(cov, (int, float)) and cov < 0.3 and (sc.get('length') or 0) > 1:
+            return True
+    return False
+
+
+def _nmr_inventory(report):
+    """Per-file inventory of what was parsed/interpreted during conversion: one
+    table per non-model input source, one row per saveframe across every
+    experimental-data subtype (content subtype, saveframe, status, # of rows
+    [/sets], experiment type, sequence coverage). The single global summary of
+    successful parsing/interpretation for the NMR data preview."""
+    info = report.get('information', {})
+    files = []
+    for src in info.get('input_sources') or []:
+        if not isinstance(src, dict) or src.get('content_type') == 'model':
+            continue
+        stats = src.get('stats_of_exptl_data')
+        if not isinstance(stats, dict):
+            continue
+        has_sets = any(
+            isinstance(i, dict) and i.get('number_of_constraint_sets') is not None
+            and i.get('number_of_constraint_sets') != i.get('number_of_rows')
+            for lst in stats.values() if isinstance(lst, list) for i in lst
+        )
+        rows = []
+        for subtype, lst in stats.items():
+            if not isinstance(lst, list) or not lst:
+                continue
+            label = _NMR_SUBTYPE_NAMES.get(subtype)
+            for item in lst:
+                if not isinstance(item, dict):
+                    continue
+                n_rows = item.get('number_of_rows')
+                n_sets = item.get('number_of_constraint_sets')
+                rows_text = str(n_rows)
+                if n_sets is not None and n_sets != n_rows:
+                    rows_text = f'{n_rows} ({n_sets})'
+                exp = item.get('exp_type')
+                status = item.get('status')
+                rows.append({
+                    'list_id': item.get('list_id'),
+                    'subtype': label or subtype.replace('_', ' ').title(),
+                    'subtype_unknown': label is None,
+                    'sf_framecode': item.get('sf_framecode', ''),
+                    'status': status,
+                    'has_issue': bool(item.get('error_descriptions')
+                                      or item.get('warning_descriptions')),
+                    'is_error': status == 'Error',
+                    'n_rows': rows_text,
+                    'rows_zero': n_rows == 0,
+                    'exp_type': '' if exp in (None, '.', '') else exp,
+                    'exp_unknown': exp == 'unknown',
+                    'coverage': _coverage_summary(item),
+                    'coverage_low': _is_low_seq_coverage(item),
+                    'coverage_missing': not item.get('sequence_coverage'),
+                    'coverage_required': subtype in _PRIMARY_SUBTYPES,
+                })
+        files.append({
+            'content_name': _NMR_CONTENT_NAMES.get(src.get('content_type'), src.get('content_type')),
+            'file_name': src.get('original_file_name') or src.get('file_name') or '',
+            'has_sets': has_sets,
+            'rows': rows,
+        })
+    return files
 
 
 def _nmr_preview_data(report):
@@ -1607,15 +1826,26 @@ def _nmr_preview_data(report):
         rdc_restraint.extend(stats.get('rdc_restraint') or [])
         spectral_peak.extend(stats.get('spectral_peak') or [])
 
+    # Per-subtype sequence alignments (nmr_poly_seq_vs_<subtype>) supply the
+    # per-chain aligned-sequence block shown in each saveframe's coverage table.
+    sa = info.get('sequence_alignments') or {}
     return {
         'sources': sources,
+        # Single global inventory of what was parsed/interpreted, per file.
+        'inventory': _nmr_inventory(report),
         # Chemical shifts and all restraint / spectral-peak content are grouped
         # by saveframe (sf_framecode); sequence alignments remain a single table.
-        'chem_shift_saveframes': _chem_shift_saveframes(chem_shift),
-        'dist_restraint_saveframes': _dist_restraint_saveframes(dist_restraint),
-        'dihed_restraint_saveframes': _dihed_restraint_saveframes(dihed_restraint),
-        'rdc_restraint_saveframes': _rdc_restraint_saveframes(rdc_restraint),
-        'spectral_peak_saveframes': _spectral_peak_saveframes(spectral_peak),
+        'chem_shift_saveframes': _chem_shift_saveframes(
+            chem_shift, sa.get('nmr_poly_seq_vs_chem_shift') or []),
+        'dist_restraint_saveframes': _dist_restraint_saveframes(
+            dist_restraint, sa.get('nmr_poly_seq_vs_dist_restraint') or []),
+        'dihed_restraint_saveframes': _dihed_restraint_saveframes(
+            dihed_restraint, sa.get('nmr_poly_seq_vs_dihed_restraint') or []),
+        'rdc_restraint_saveframes': _rdc_restraint_saveframes(
+            rdc_restraint, sa.get('nmr_poly_seq_vs_rdc_restraint') or []),
+        'spectral_peak_saveframes': _spectral_peak_saveframes(
+            spectral_peak, sa.get('nmr_poly_seq_vs_spectral_peak') or []),
+        'assembly': _assembly_properties(report),
         'alignments': _seq_align(info),
     }
 

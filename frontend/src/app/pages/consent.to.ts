@@ -15,6 +15,9 @@ export class ConsentTo {
 
   consentedTo = computed(() => this.pageService.pageState().consentedTo);
 
+  /** Non-null when starting a session failed; prompts the user to retry. */
+  consentError = this.pageService.consentError;
+
   locked = computed(() => {
     const state = this.pageService.pageState();
     return state.lockedSession || state.expiredSession || !state.firstUpload;

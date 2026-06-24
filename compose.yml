@@ -37,6 +37,13 @@ services:
     container_name: bmrb-extract-postgres
     restart: unless-stopped
     env_file: .env
+    # The postgres:18 image defaults PGDATA to /var/lib/postgresql/18/docker,
+    # which is NOT under the mounted volume below — so without this override the
+    # data lives on the container's ephemeral layer and is lost on recreate
+    # (the DB, and the conversion_id sequence, reset on every restart). Point
+    # PGDATA at a subdirectory inside the persistent volume so data survives.
+    environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "5432:5432"
     networks:

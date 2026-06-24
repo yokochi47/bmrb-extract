@@ -100,7 +100,10 @@ interface NmrPreviewSource {
 interface NmrCompleteness {
   chain: string;
   coverage_pct: number | null;
-  groups: { group: string; target: number; assigned: number; pct: number }[];
+  categories: {
+    label: string;
+    groups: { group: string; target: number; assigned: number; pct: number }[];
+  }[];
 }
 /** Per-chain per-residue stacked counts + secondary-structure bands. */
 interface PerResidueChart {
@@ -124,6 +127,7 @@ interface SpectralPeakSaveframe {
   status: string | null;
   error_descriptions: string[];
   warning_descriptions: string[];
+  sequence_coverage: SeqCoverageRow[];
   exp_class: string;
   n_dims: number;
   n_peaks: number;
@@ -179,12 +183,23 @@ interface AlignGroup {
   category: string;
   rows: AlignChainRow[];
 }
+/** Per-chain sequence coverage of the experimental data for one saveframe. */
+interface SeqCoverageRow {
+  chain: string;
+  length: number;
+  coverage_pct: number | null;
+  ref_gauge: string;
+  ref: string;
+  mid: string;
+  test: string;
+}
 /** One assigned-chemical-shift saveframe's preview content, in display order. */
 interface ChemShiftSaveframe {
   sf_framecode: string;
   status: string | null;
   error_descriptions: string[];
   warning_descriptions: string[];
+  sequence_coverage: SeqCoverageRow[];
   assignments: { label: string; count: number }[];
   completeness: NmrCompleteness[];
   predictions: {
@@ -204,6 +219,7 @@ interface DistRestraintSaveframe {
   error_descriptions: string[];
   warning_descriptions: string[];
   exp_type: string;
+  sequence_coverage: SeqCoverageRow[];
   constraints: { label: string; count: number }[];
   range: string;
   histogram: HistogramChart[];
@@ -220,6 +236,7 @@ interface DihedRestraintSaveframe {
   error_descriptions: string[];
   warning_descriptions: string[];
   exp_type: string;
+  sequence_coverage: SeqCoverageRow[];
   constraints: { label: string; count: number }[];
   histogram: HistogramChart[];
   dihedral: DihedralChart[];
@@ -233,15 +250,62 @@ interface RdcRestraintSaveframe {
   error_descriptions: string[];
   warning_descriptions: string[];
   exp_type: string;
+  sequence_coverage: SeqCoverageRow[];
   constraints: { label: string; count: number }[];
   range: string;
   histogram: HistogramChart[];
   per_residue: PerResidueLine[];
   atom_name_mapping: { comp_id: string; name: string; atoms: string }[];
 }
+/** Global properties of the molecular assembly (NMR experiment environment). */
+interface AssemblyProperties {
+  diamagnetic: boolean | null;
+  disulfide_bond: boolean | null;
+  other_bond: boolean | null;
+  cyclic_polymer: boolean | null;
+  disulfide_bonds: { atom1: string; atom2: string; distance: number | null }[];
+  other_bonds: { atom1: string; atom2: string; distance: number | null }[];
+  non_standard_residues: {
+    chain: string;
+    seq_id: number;
+    comp_id: string;
+    name: string | null;
+    matched: boolean;
+    exptl: string;
+  }[];
+}
+/** One inventory row: a parsed saveframe within a processed NMR data file. */
+interface NmrInventoryRow {
+  list_id: number;
+  subtype: string;
+  subtype_unknown: boolean;
+  sf_framecode: string;
+  status: string | null;
+  has_issue: boolean;
+  is_error: boolean;
+  n_rows: string;
+  rows_zero: boolean;
+  exp_type: string;
+  exp_unknown: boolean;
+  coverage: string;
+  coverage_low: boolean;
+  coverage_missing: boolean;
+  coverage_required: boolean;
+}
+/** Inventory of one processed NMR data file (one table per input source). */
+interface NmrInventoryFile {
+  content_name: string;
+  file_name: string;
+  has_sets: boolean;
+  rows: NmrInventoryRow[];
+}
 interface NmrPreview {
   available: boolean;
   sources: NmrPreviewSource[];
+  /** Single inventory of what was parsed/interpreted, per processed file. */
+  inventory: NmrInventoryFile[];
+  /** Global properties of the molecular assembly. */
+  assembly: AssemblyProperties;
   /** Assigned chemical shifts grouped by saveframe (sf_framecode). */
   chem_shift_saveframes: ChemShiftSaveframe[];
   /** Distance restraints grouped by saveframe (sf_framecode). */
@@ -313,6 +377,28 @@ export class Summary implements OnDestroy {
   /** Data-summary table + sequence alignments. */
   previewSources = computed(() => this.nmrPreview()?.sources ?? []);
   previewAlignments = computed(() => this.nmrPreview()?.alignments ?? []);
+
+  /** Per-file inventory of parsed NMR data (the single global summary). */
+  previewInventory = computed(() => this.nmrPreview()?.inventory ?? []);
+
+  /** Global molecular-assembly properties (NMR experiment environment). */
+  previewAssembly = computed(() => this.nmrPreview()?.assembly ?? null);
+  /** The four global properties as label/value rows for the summary table. */
+  assemblyProps = computed(() => {
+    const a = this.previewAssembly();
+    if (!a) return [];
+    const yn = (v: boolean | null) => (v === null ? '—' : v ? 'Yes' : 'No');
+    return [
+      {
+        label: 'Diamagnetism of the molecular assembly',
+        value: yn(a.diamagnetic),
+        note: 'excluding oxygen atoms',
+      },
+      { label: 'Has a disulfide bond', value: yn(a.disulfide_bond), note: '' },
+      { label: 'Has an other bond', value: yn(a.other_bond), note: '' },
+      { label: 'Contains a cyclic polymer', value: yn(a.cyclic_polymer), note: '' },
+    ];
+  });
 
   /** Spectral peak lists grouped by saveframe (sf_framecode). */
   spectralPeakSaveframes = computed(() => this.nmrPreview()?.spectral_peak_saveframes ?? []);
@@ -442,6 +528,8 @@ export class Summary implements OnDestroy {
   /** True when the preview has any chart or table content to show. */
   hasPreviewContent = computed(
     () =>
+      this.previewInventory().length > 0 ||
+      this.assemblyProps().length > 0 ||
       this.chemShiftSaveframes().length > 0 ||
       this.distRestraintSaveframes().length > 0 ||
       this.dihedRestraintSaveframes().length > 0 ||
