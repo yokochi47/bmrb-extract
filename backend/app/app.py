@@ -1533,11 +1533,25 @@ def _completeness_of(st):
             ]
             if groups:
                 categories.append({'label': label, 'groups': groups})
+        # Residues / atoms excluded from the completeness calculation. Comp_IDs
+        # with a null ('.') comp_id are dropped (no real residue to report).
+        excluded_comp = [
+            {'seq_id': e.get('seq_id'), 'comp_id': e.get('comp_id')}
+            for e in comp.get('excluded_comp_id_in_statistics') or []
+            if e.get('comp_id') not in (None, '.', '')
+        ]
+        excluded_atom = [
+            {'seq_id': e.get('seq_id'), 'comp_id': e.get('comp_id'),
+             'atom_id': e.get('atom_id'), 'value': e.get('value')}
+            for e in comp.get('excluded_atom_id_in_statistics') or []
+        ]
         chain = comp.get('chain_id')
         out.append({
             'chain': chain,
             'coverage_pct': round((cov.get(chain) or 0) * 100, 1) if chain in cov else None,
             'categories': categories,
+            'excluded_comp_id': excluded_comp,
+            'excluded_atom_id': excluded_atom,
         })
     return out
 

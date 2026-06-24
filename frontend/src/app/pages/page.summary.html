@@ -636,6 +636,89 @@
                       </table>
                     </div>
                   }
+                  @if (c.excluded_comp_id.length || c.excluded_atom_id.length) {
+                    <p-panel [toggleable]="true" [collapsed]="true" styleClass="mt-2 mb-2">
+                      <ng-template pTemplate="header">
+                        <span class="font-medium"
+                          >Residues / atoms excluded from the completeness calculation</span
+                        >
+                      </ng-template>
+                      @if (c.excluded_comp_id.length) {
+                        <div class="mb-3 overflow-x-auto">
+                          <div class="text-sm font-medium mb-1">
+                            Comp_IDs excluded from statistical calculations
+                          </div>
+                          <table class="w-full text-sm border-collapse">
+                            <thead>
+                              <tr>
+                                <th
+                                  class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                                >
+                                  Comp_index_ID
+                                </th>
+                                <th
+                                  class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                                >
+                                  Comp_ID
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              @for (e of c.excluded_comp_id; track $index) {
+                                <tr class="border-b border-surface-100 dark:border-surface-800">
+                                  <td class="px-2 py-1">{{ e.seq_id }}</td>
+                                  <td class="px-2 py-1">{{ e.comp_id }}</td>
+                                </tr>
+                              }
+                            </tbody>
+                          </table>
+                        </div>
+                      }
+                      @if (c.excluded_atom_id.length) {
+                        <div class="mb-1 overflow-x-auto">
+                          <div class="text-sm font-medium mb-1">
+                            Atom_IDs excluded from statistical calculations
+                          </div>
+                          <table class="w-full text-sm border-collapse">
+                            <thead>
+                              <tr>
+                                <th
+                                  class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                                >
+                                  Comp_index_ID
+                                </th>
+                                <th
+                                  class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                                >
+                                  Comp_ID
+                                </th>
+                                <th
+                                  class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                                >
+                                  Atom_ID
+                                </th>
+                                <th
+                                  class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                                >
+                                  CS value (ppm)
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              @for (e of c.excluded_atom_id; track $index) {
+                                <tr class="border-b border-surface-100 dark:border-surface-800">
+                                  <td class="px-2 py-1">{{ e.seq_id }}</td>
+                                  <td class="px-2 py-1">{{ e.comp_id }}</td>
+                                  <td class="px-2 py-1">{{ e.atom_id }}</td>
+                                  <td class="px-2 py-1">{{ e.value }}</td>
+                                </tr>
+                              }
+                            </tbody>
+                          </table>
+                        </div>
+                      }
+                    </p-panel>
+                  }
                 </div>
               }
             </div>

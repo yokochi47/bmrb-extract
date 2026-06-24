@@ -104,6 +104,8 @@ interface NmrCompleteness {
     label: string;
     groups: { group: string; target: number; assigned: number; pct: number }[];
   }[];
+  excluded_comp_id: { seq_id: number; comp_id: string }[];
+  excluded_atom_id: { seq_id: number; comp_id: string; atom_id: string; value: number | null }[];
 }
 /** Per-chain per-residue stacked counts + secondary-structure bands. */
 interface PerResidueChart {
