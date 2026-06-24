@@ -100,8 +100,8 @@
           Coordinate validation is not available for this conversion.
         </p>
       } @else if (!hasOutliers()) {
-        <p class="py-2">
-          <i class="pi pi-check-circle text-teal-500 mr-2"></i>Not found geometry issue.
+        <p class="py-2 text-green-600 font-medium">
+          <i class="pi pi-check-circle mr-2"></i>Not found geometry issue.
         </p>
       } @else {
         <p class="text-base mb-4">
@@ -344,16 +344,16 @@
             <thead>
               <tr>
                 <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
-                  Chain
+                  Entity_assembly_ID
                 </th>
                 <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
-                  Seq
+                  Seq_ID
                 </th>
                 <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
-                  Comp
+                  Comp_ID
                 </th>
                 <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
-                  Chemical component (CCD)
+                  Chemical component name in CCD
                 </th>
                 <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
                   Experimental data
@@ -463,45 +463,6 @@
             </ul>
           }
 
-          <!-- Sequence coverage of experimental data -->
-          @if (sf.sequence_coverage.length) {
-            <div class="mb-4 overflow-x-auto">
-              <div class="font-medium mb-2">Sequence coverage of experimental data</div>
-              <table class="w-full text-sm border-collapse">
-                <thead>
-                  <tr>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Chain
-                    </th>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Length
-                    </th>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Coverage
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (c of sf.sequence_coverage; track $index) {
-                    <tr class="border-b border-surface-100 dark:border-surface-800">
-                      <td class="px-2 py-1">{{ c.chain }}</td>
-                      <td class="px-2 py-1">{{ c.length }}</td>
-                      <td class="px-2 py-1">
-                        {{ c.coverage_pct !== null ? c.coverage_pct + '%' : '—' }}
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-          }
-
           <!-- Total number of assignments -->
           @if (sf.assignments.length) {
             <div class="mb-4 overflow-x-auto">
@@ -533,6 +494,31 @@
             </div>
           }
 
+          <!-- Sequence coverage of experimental data -->
+          @if (sf.sequence_coverage.length) {
+            <div class="mb-4 overflow-x-auto">
+              <div class="font-medium mb-2">Sequence coverage of experimental data</div>
+
+              @for (c of sf.sequence_coverage; track $index) {
+                <div class="text-sm mb-1">
+                  <span
+                    >Entity_assembly_ID: {{ c.chain }}, length: {{ c.length }}, coverage:
+                    {{ c.coverage_pct !== null ? c.coverage_pct + '%' : '—' }}</span
+                  >
+                </div>
+                @if (c.ref || c.test) {
+                  <pre
+                    class="m-0 px-2 py-1 text-xs leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
+                    >{{ c.ref_gauge }}
+{{ c.ref }}     
+{{ c.mid }}       
+{{ c.test }}</pre
+                  >
+                }
+              }
+            </div>
+          }
+
           <!-- Completeness per chain (with sequence coverage) -->
           @if (sf.completeness.length) {
             <div class="mb-4">
@@ -540,7 +526,7 @@
               @for (c of sf.completeness; track $index) {
                 <div class="mb-3 overflow-x-auto">
                   <div class="text-sm text-surface-600 dark:text-surface-300 mb-1">
-                    Chain {{ c.chain }}
+                    Entity_assembly_ID {{ c.chain }}
                     @if (c.coverage_pct !== null) {
                       <span> — sequence coverage {{ c.coverage_pct }}%</span>
                     }
@@ -739,45 +725,6 @@
             </ul>
           }
 
-          <!-- Sequence coverage of experimental data -->
-          @if (sf.sequence_coverage.length) {
-            <div class="mb-4 overflow-x-auto">
-              <div class="font-medium mb-2">Sequence coverage of experimental data</div>
-              <table class="w-full text-sm border-collapse">
-                <thead>
-                  <tr>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Chain
-                    </th>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Length
-                    </th>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Coverage
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (c of sf.sequence_coverage; track $index) {
-                    <tr class="border-b border-surface-100 dark:border-surface-800">
-                      <td class="px-2 py-1">{{ c.chain }}</td>
-                      <td class="px-2 py-1">{{ c.length }}</td>
-                      <td class="px-2 py-1">
-                        {{ c.coverage_pct !== null ? c.coverage_pct + '%' : '—' }}
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-          }
-
           <!-- Number of constraints (with target range / experiment) -->
           @if (sf.constraints.length) {
             <div class="mb-4 overflow-x-auto">
@@ -818,6 +765,31 @@
                   }
                 </tbody>
               </table>
+            </div>
+          }
+
+          <!-- Sequence coverage of experimental data -->
+          @if (sf.sequence_coverage.length) {
+            <div class="mb-4 overflow-x-auto">
+              <div class="font-medium mb-2">Sequence coverage of experimental data</div>
+
+              @for (c of sf.sequence_coverage; track $index) {
+                <div class="text-sm mb-1">
+                  <span
+                    >Entity_assembly_ID: {{ c.chain }}, length: {{ c.length }}, coverage:
+                    {{ c.coverage_pct !== null ? c.coverage_pct + '%' : '—' }}</span
+                  >
+                </div>
+                @if (c.ref || c.test) {
+                  <pre
+                    class="m-0 px-2 py-1 text-xs leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
+                    >{{ c.ref_gauge }}
+{{ c.ref }}
+{{ c.mid }}
+{{ c.test }}</pre
+                  >
+                }
+              }
             </div>
           }
 
@@ -930,45 +902,6 @@
             </ul>
           }
 
-          <!-- Sequence coverage of experimental data -->
-          @if (sf.sequence_coverage.length) {
-            <div class="mb-4 overflow-x-auto">
-              <div class="font-medium mb-2">Sequence coverage of experimental data</div>
-              <table class="w-full text-sm border-collapse">
-                <thead>
-                  <tr>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Chain
-                    </th>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Length
-                    </th>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Coverage
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (c of sf.sequence_coverage; track $index) {
-                    <tr class="border-b border-surface-100 dark:border-surface-800">
-                      <td class="px-2 py-1">{{ c.chain }}</td>
-                      <td class="px-2 py-1">{{ c.length }}</td>
-                      <td class="px-2 py-1">
-                        {{ c.coverage_pct !== null ? c.coverage_pct + '%' : '—' }}
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-          }
-
           <!-- Number of constraints -->
           @if (sf.constraints.length) {
             <div class="mb-4 overflow-x-auto">
@@ -1004,6 +937,31 @@
                   }
                 </tbody>
               </table>
+            </div>
+          }
+
+          <!-- Sequence coverage of experimental data -->
+          @if (sf.sequence_coverage.length) {
+            <div class="mb-4 overflow-x-auto">
+              <div class="font-medium mb-2">Sequence coverage of experimental data</div>
+
+              @for (c of sf.sequence_coverage; track $index) {
+                <div class="text-sm mb-1">
+                  <span
+                    >Entity_assembly_ID: {{ c.chain }}, length: {{ c.length }}, coverage:
+                    {{ c.coverage_pct !== null ? c.coverage_pct + '%' : '—' }}</span
+                  >
+                </div>
+                @if (c.ref || c.test) {
+                  <pre
+                    class="m-0 px-2 py-1 text-xs leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
+                    >{{ c.ref_gauge }}
+{{ c.ref }}
+{{ c.mid }}
+{{ c.test }}</pre
+                  >
+                }
+              }
             </div>
           }
 
@@ -1105,45 +1063,6 @@
             </ul>
           }
 
-          <!-- Sequence coverage of experimental data -->
-          @if (sf.sequence_coverage.length) {
-            <div class="mb-4 overflow-x-auto">
-              <div class="font-medium mb-2">Sequence coverage of experimental data</div>
-              <table class="w-full text-sm border-collapse">
-                <thead>
-                  <tr>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Chain
-                    </th>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Length
-                    </th>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Coverage
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (c of sf.sequence_coverage; track $index) {
-                    <tr class="border-b border-surface-100 dark:border-surface-800">
-                      <td class="px-2 py-1">{{ c.chain }}</td>
-                      <td class="px-2 py-1">{{ c.length }}</td>
-                      <td class="px-2 py-1">
-                        {{ c.coverage_pct !== null ? c.coverage_pct + '%' : '—' }}
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-          }
-
           <!-- Number of constraints (with value range / experiment) -->
           @if (sf.constraints.length) {
             <div class="mb-4 overflow-x-auto">
@@ -1184,6 +1103,31 @@
                   }
                 </tbody>
               </table>
+            </div>
+          }
+
+          <!-- Sequence coverage of experimental data -->
+          @if (sf.sequence_coverage.length) {
+            <div class="mb-4 overflow-x-auto">
+              <div class="font-medium mb-2">Sequence coverage of experimental data</div>
+
+              @for (c of sf.sequence_coverage; track $index) {
+                <div class="text-sm mb-1">
+                  <span
+                    >Entity_assembly_ID: {{ c.chain }}, length: {{ c.length }}, coverage:
+                    {{ c.coverage_pct !== null ? c.coverage_pct + '%' : '—' }}</span
+                  >
+                </div>
+                @if (c.ref || c.test) {
+                  <pre
+                    class="m-0 px-2 py-1 text-xs leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
+                    >{{ c.ref_gauge }}
+{{ c.ref }}
+{{ c.mid }}
+{{ c.test }}</pre
+                  >
+                }
+              }
             </div>
           }
 
@@ -1277,45 +1221,6 @@
             </ul>
           }
 
-          <!-- Sequence coverage of experimental data -->
-          @if (sf.sequence_coverage.length) {
-            <div class="mb-4 overflow-x-auto">
-              <div class="font-medium mb-2">Sequence coverage of experimental data</div>
-              <table class="w-full text-sm border-collapse">
-                <thead>
-                  <tr>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Chain
-                    </th>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Length
-                    </th>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Coverage
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (c of sf.sequence_coverage; track $index) {
-                    <tr class="border-b border-surface-100 dark:border-surface-800">
-                      <td class="px-2 py-1">{{ c.chain }}</td>
-                      <td class="px-2 py-1">{{ c.length }}</td>
-                      <td class="px-2 py-1">
-                        {{ c.coverage_pct !== null ? c.coverage_pct + '%' : '—' }}
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-          }
-
           <!-- Experiment / peak counts -->
           <div class="text-sm text-surface-600 dark:text-surface-300 mb-3">
             @if (sf.exp_class) {
@@ -1326,6 +1231,31 @@
               <span> · {{ pc.label }} {{ pc.count }}</span>
             }
           </div>
+
+          <!-- Sequence coverage of experimental data -->
+          @if (sf.sequence_coverage.length) {
+            <div class="mb-4 overflow-x-auto">
+              <div class="font-medium mb-2">Sequence coverage of experimental data</div>
+
+              @for (c of sf.sequence_coverage; track $index) {
+                <div class="text-sm mb-1">
+                  <span
+                    >Entity_assembly_ID: {{ c.chain }}, length: {{ c.length }}, coverage:
+                    {{ c.coverage_pct !== null ? c.coverage_pct + '%' : '—' }}</span
+                  >
+                </div>
+                @if (c.ref || c.test) {
+                  <pre
+                    class="m-0 px-2 py-1 text-xs leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
+                    >{{ c.ref_gauge }}
+{{ c.ref }}
+{{ c.mid }}
+{{ c.test }}</pre
+                  >
+                }
+              }
+            </div>
+          }
 
           <!-- Spectral dimensions -->
           @if (sf.dims.length) {
@@ -1423,7 +1353,9 @@
     } @else if (!nmrAvailable()) {
       <p class="text-surface-500 py-2">NMR data validation is not available for this conversion.</p>
     } @else if (!hasNmrIssues()) {
-      <p class="py-2"><i class="pi pi-check-circle text-teal-500 mr-2"></i>NMR data is valid.</p>
+      <p class="py-2 text-green-600 font-medium">
+        <i class="pi pi-check-circle mr-2"></i>NMR data is valid.
+      </p>
     } @else {
       <!-- Errors (expanded) -->
       @if (nmrErrors().length) {

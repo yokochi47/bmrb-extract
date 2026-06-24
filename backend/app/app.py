@@ -552,7 +552,7 @@ def _join(get, *items, sep=' '):
 # generic all-populated-columns renderer.
 _CURATION = {
     'pdbx_validate_close_contact': (
-        ['Model', 'Atom 1', 'Atom 2', 'Distance (Å)'],
+        ['Model #', 'Atom 1', 'Atom 2', 'Distance (Å)'],
         [
             lambda g: g('PDB_model_num'),
             lambda g: _join(g, 'auth_asym_id_1', 'auth_comp_id_1', 'auth_seq_id_1', 'auth_atom_id_1'),
@@ -561,7 +561,7 @@ _CURATION = {
         ],
     ),
     'pdbx_validate_rmsd_bond': (
-        ['Model', 'Chain', 'Bond', 'Value', 'Deviation'],
+        ['Model #', 'Auth_asym_ID', 'Bond', 'Value (Å)', 'Deviation (Å)'],
         [
             lambda g: g('PDB_model_num'),
             lambda g: g('auth_asym_id_1'),
@@ -572,7 +572,7 @@ _CURATION = {
         ],
     ),
     'pdbx_validate_rmsd_angle': (
-        ['Model', 'Chain', 'Residue', 'Atoms', 'Value', 'Deviation'],
+        ['Model #', 'Auth_asym_ID', 'Residue', 'Atoms', 'Value (°)', 'Deviation (°)'],
         [
             lambda g: g('PDB_model_num'),
             lambda g: g('auth_asym_id_1'),
@@ -583,7 +583,7 @@ _CURATION = {
         ],
     ),
     'pdbx_validate_torsion': (
-        ['Model', 'Chain', 'Residue', 'Phi', 'Psi'],
+        ['Model #', 'Auth_asym_ID', 'Residue', 'Phi (°)', 'Psi (°)'],
         [
             lambda g: g('PDB_model_num'),
             lambda g: g('auth_asym_id'),
@@ -593,7 +593,7 @@ _CURATION = {
         ],
     ),
     'pdbx_validate_peptide_omega': (
-        ['Model', 'Chain', 'Residues', 'Omega'],
+        ['Model #', 'Auth_asym_ID', 'Residues', 'Omega (°)'],
         [
             lambda g: g('PDB_model_num'),
             lambda g: g('auth_asym_id_1'),
@@ -603,7 +603,7 @@ _CURATION = {
         ],
     ),
     'pdbx_validate_main_chain_plane': (
-        ['Model', 'Chain', 'Residue', 'Improper torsion'],
+        ['Model #', 'Auth_asym_ID', 'Residue', 'Improper torsion angle (°)'],
         [
             lambda g: g('PDB_model_num'),
             lambda g: g('auth_asym_id'),
@@ -612,7 +612,7 @@ _CURATION = {
         ],
     ),
     'pdbx_validate_planes': (
-        ['Model', 'Chain', 'Residue', 'RMSD', 'Type'],
+        ['Model #', 'Auth_asym_ID', 'Residue', 'RMSD (Å)', 'Type'],
         [
             lambda g: g('PDB_model_num'),
             lambda g: g('auth_asym_id'),

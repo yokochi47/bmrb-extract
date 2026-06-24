@@ -185,6 +185,10 @@ interface SeqCoverageRow {
   chain: string;
   length: number;
   coverage_pct: number | null;
+  ref_gauge: string;
+  ref: string;
+  mid: string;
+  test: string;
 }
 /** One assigned-chemical-shift saveframe's preview content, in display order. */
 interface ChemShiftSaveframe {
