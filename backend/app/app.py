@@ -68,6 +68,7 @@ def handle_unexpected_error(exc):
     )
     return {'error': f'{type(exc).__name__}: {exc}'}, 500
 
+
 # Prefect REST API (the worker/server image, reached over the internal network).
 # PREFECT_API_URL is set in .env (Prefect standard); fall back to the service name.
 PREFECT_API_URL = os.environ.get('PREFECT_API_URL', 'http://prefect-server:4200/api')
@@ -1171,10 +1172,11 @@ def _dim_atom(d):
     return _iso_label(f'{iso}{atom}') if iso and atom else atom
 
 
-def _spectral_peak_saveframes(sp_list):
+def _spectral_peak_saveframes(sp_list, aligns):
     """Per-saveframe spectral-peak-list preview, in report order: status,
     experiment class, peak counts (assigned/unassigned), spectral-dimension
-    table, atom-name mapping."""
+    table, atom-name mapping. `aligns` is the nmr_poly_seq_vs_spectral_peak
+    sequence alignments (for the coverage block)."""
     out = []
     for st in sp_list or []:
         npk = st.get('number_of_spectral_peaks')
@@ -1193,7 +1195,7 @@ def _spectral_peak_saveframes(sp_list):
             'status': st.get('status'),
             'error_descriptions': st.get('error_descriptions') or [],
             'warning_descriptions': st.get('warning_descriptions') or [],
-            'sequence_coverage': _sequence_coverage(st),
+            'sequence_coverage': _sequence_coverage(st, aligns),
             'exp_class': '' if exp == '.' else exp,
             'n_dims': st.get('number_of_spectral_dimensions'),
             'n_peaks': n_peaks,
@@ -1544,25 +1546,37 @@ def _atom_name_mapping(st):
     return rows
 
 
-def _sequence_coverage(st):
+def _sequence_coverage(st, aligns):
     """Per-chain sequence coverage of the experimental data for one saveframe →
-    [{chain, length, coverage_pct}]."""
+    [{chain, length, coverage_pct, ref_gauge, ref, mid, test}]. The aligned-
+    sequence block (ref/mid/test) is joined from `aligns` (the
+    nmr_poly_seq_vs_<subtype> sequence alignments) by this saveframe's list_id
+    and the chain id."""
+    list_id = st.get('list_id')
+    by_chain = {a.get('chain_id'): a for a in (aligns or []) if a.get('list_id') == list_id}
     out = []
     for c in st.get('sequence_coverage') or []:
         cov = c.get('sequence_coverage')
+        chain_id = c.get('chain_id')
+        a = by_chain.get(chain_id) or {}
         out.append({
-            'chain': c.get('chain_id'),
+            'chain': chain_id,
             'length': c.get('length'),
             'coverage_pct': round(cov * 100, 1) if isinstance(cov, (int, float)) else None,
+            'ref_gauge': a.get('ref_gauge_code') or '',
+            'ref': a.get('ref_code') or '',
+            'mid': a.get('mid_code') or '',
+            'test': a.get('test_code') or '',
         })
     return out
 
 
-def _chem_shift_saveframes(chem_shift_list):
+def _chem_shift_saveframes(chem_shift_list, aligns):
     """Per-saveframe assigned-chemical-shift preview, in report order. Reuses the
     per-content helpers on a single saveframe so the summary page can group all
     chem-shift content (status, coverage/completeness, CS-prediction tables,
-    histogram, RCI charts, atom-name mapping) under its sf_framecode."""
+    histogram, RCI charts, atom-name mapping) under its sf_framecode. `aligns` is
+    the nmr_poly_seq_vs_chem_shift sequence alignments (for the coverage block)."""
     out = []
     for st in chem_shift_list or []:
         out.append({
@@ -1570,7 +1584,7 @@ def _chem_shift_saveframes(chem_shift_list):
             'status': st.get('status'),
             'error_descriptions': st.get('error_descriptions') or [],
             'warning_descriptions': st.get('warning_descriptions') or [],
-            'sequence_coverage': _sequence_coverage(st),
+            'sequence_coverage': _sequence_coverage(st, aligns),
             'assignments': _assignments_of(st),
             'completeness': _completeness_of(st),
             'predictions': {
@@ -1593,12 +1607,13 @@ def _constraint_counts(st):
             for k, v in noc.items() if isinstance(v, (int, float))]
 
 
-def _dist_restraint_saveframes(dist_list):
+def _dist_restraint_saveframes(dist_list, aligns):
     """Per-saveframe distance-restraint preview, in report order. Reuses the
     per-content helpers on a single saveframe so the summary page can group all
     distance-restraint content (status, constraint counts/range, target-value
     histogram + discrepancy, per-residue counts, symmetric/asymmetric contact
-    maps, atom-name mapping) under its sf_framecode."""
+    maps, atom-name mapping) under its sf_framecode. `aligns` is the
+    nmr_poly_seq_vs_dist_restraint sequence alignments (for the coverage block)."""
     out = []
     for st in dist_list or []:
         rng = st.get('range') or {}
@@ -1610,7 +1625,7 @@ def _dist_restraint_saveframes(dist_list):
             'error_descriptions': st.get('error_descriptions') or [],
             'warning_descriptions': st.get('warning_descriptions') or [],
             'exp_type': st.get('exp_type') or '',
-            'sequence_coverage': _sequence_coverage(st),
+            'sequence_coverage': _sequence_coverage(st, aligns),
             'constraints': _constraint_counts(st),
             'range': range_text,
             'histogram': _histogram_chart([st]),
@@ -1623,10 +1638,11 @@ def _dist_restraint_saveframes(dist_list):
     return out
 
 
-def _dihed_restraint_saveframes(dihed_list):
+def _dihed_restraint_saveframes(dihed_list, aligns):
     """Per-saveframe dihedral-angle-restraint preview, in report order: status,
     constraint counts, φ/ψ and χ1/χ2 scatter, per-residue angle values,
-    atom-name mapping. Reuses the per-content helpers on a single saveframe."""
+    atom-name mapping. Reuses the per-content helpers on a single saveframe.
+    `aligns` is the nmr_poly_seq_vs_dihed_restraint sequence alignments."""
     out = []
     for st in dihed_list or []:
         out.append({
@@ -1635,7 +1651,7 @@ def _dihed_restraint_saveframes(dihed_list):
             'error_descriptions': st.get('error_descriptions') or [],
             'warning_descriptions': st.get('warning_descriptions') or [],
             'exp_type': st.get('exp_type') or '',
-            'sequence_coverage': _sequence_coverage(st),
+            'sequence_coverage': _sequence_coverage(st, aligns),
             'constraints': _constraint_counts(st),
             'histogram': _histogram_chart([st]),
             'dihedral': _dihedral_charts([st]),
@@ -1645,10 +1661,11 @@ def _dihed_restraint_saveframes(dihed_list):
     return out
 
 
-def _rdc_restraint_saveframes(rdc_list):
+def _rdc_restraint_saveframes(rdc_list, aligns):
     """Per-saveframe RDC-restraint preview, in report order: status, constraint
     counts/range, observed-value histogram, per-residue observed RDC, atom-name
-    mapping. Reuses the per-content helpers on a single saveframe."""
+    mapping. Reuses the per-content helpers on a single saveframe. `aligns` is
+    the nmr_poly_seq_vs_rdc_restraint sequence alignments."""
     out = []
     for st in rdc_list or []:
         rng = st.get('range') or {}
@@ -1660,7 +1677,7 @@ def _rdc_restraint_saveframes(rdc_list):
             'error_descriptions': st.get('error_descriptions') or [],
             'warning_descriptions': st.get('warning_descriptions') or [],
             'exp_type': st.get('exp_type') or '',
-            'sequence_coverage': _sequence_coverage(st),
+            'sequence_coverage': _sequence_coverage(st, aligns),
             'constraints': _constraint_counts(st),
             'range': range_text,
             'histogram': _histogram_chart([st]),
@@ -1700,15 +1717,23 @@ def _nmr_preview_data(report):
         rdc_restraint.extend(stats.get('rdc_restraint') or [])
         spectral_peak.extend(stats.get('spectral_peak') or [])
 
+    # Per-subtype sequence alignments (nmr_poly_seq_vs_<subtype>) supply the
+    # per-chain aligned-sequence block shown in each saveframe's coverage table.
+    sa = info.get('sequence_alignments') or {}
     return {
         'sources': sources,
         # Chemical shifts and all restraint / spectral-peak content are grouped
         # by saveframe (sf_framecode); sequence alignments remain a single table.
-        'chem_shift_saveframes': _chem_shift_saveframes(chem_shift),
-        'dist_restraint_saveframes': _dist_restraint_saveframes(dist_restraint),
-        'dihed_restraint_saveframes': _dihed_restraint_saveframes(dihed_restraint),
-        'rdc_restraint_saveframes': _rdc_restraint_saveframes(rdc_restraint),
-        'spectral_peak_saveframes': _spectral_peak_saveframes(spectral_peak),
+        'chem_shift_saveframes': _chem_shift_saveframes(
+            chem_shift, sa.get('nmr_poly_seq_vs_chem_shift') or []),
+        'dist_restraint_saveframes': _dist_restraint_saveframes(
+            dist_restraint, sa.get('nmr_poly_seq_vs_dist_restraint') or []),
+        'dihed_restraint_saveframes': _dihed_restraint_saveframes(
+            dihed_restraint, sa.get('nmr_poly_seq_vs_dihed_restraint') or []),
+        'rdc_restraint_saveframes': _rdc_restraint_saveframes(
+            rdc_restraint, sa.get('nmr_poly_seq_vs_rdc_restraint') or []),
+        'spectral_peak_saveframes': _spectral_peak_saveframes(
+            spectral_peak, sa.get('nmr_poly_seq_vs_spectral_peak') or []),
         'assembly': _assembly_properties(report),
         'alignments': _seq_align(info),
     }
