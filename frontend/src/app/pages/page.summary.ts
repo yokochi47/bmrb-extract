@@ -113,7 +113,7 @@ interface PerResidueChart {
   label: string;
   categories: string[];
   series: { name: string; data: number[] }[];
-  bands: { start: number; end: number; type: string }[];
+  bands: { start: number; end: number; type: string; label: string }[];
 }
 /** Contact map: per chain, one series of [seq_id_1, seq_id_2, total] per type. */
 interface ContactMapChart {
@@ -144,7 +144,7 @@ interface PerResidueLine {
   sf?: string;
   categories: string[];
   series: { name: string; data: (number | null)[] }[];
-  bands: { start: number; end: number; type: string }[];
+  bands: { start: number; end: number; type: string; label: string }[];
   ymin: number | null;
   ymax: number | null;
   threshold: number | null;
@@ -807,8 +807,23 @@ export class Summary implements OnDestroy {
   private perResidueOption(c: PerResidueChart): object {
     const markArea = {
       silent: true,
+      // Secondary-structure word (struct_conf, e.g. HELX_P / STRN) annotated at
+      // each band's top-left corner, rotated to read top-to-bottom so the
+      // (often narrow) band can carry the label.
+      label: {
+        show: true,
+        position: 'insideTopLeft',
+        rotate: -90,
+        fontSize: 10,
+        color: '#64748b',
+        distance: 11,
+      },
       data: c.bands.map((b) => [
-        { xAxis: c.categories[b.start], itemStyle: { color: this.bandColor(b.type) } },
+        {
+          xAxis: c.categories[b.start],
+          itemStyle: { color: this.bandColor(b.type) },
+          name: b.label,
+        },
         { xAxis: c.categories[b.end] },
       ]),
     };
@@ -892,8 +907,23 @@ export class Summary implements OnDestroy {
     const interval = Math.max(0, Math.ceil(c.categories.length / 24) - 1);
     const markArea = {
       silent: true,
+      // Secondary-structure word (struct_conf, e.g. HELX_P / STRN) annotated at
+      // each band's top-left corner, rotated to read top-to-bottom so the
+      // (often narrow) band can carry the label.
+      label: {
+        show: true,
+        position: 'insideTopLeft',
+        rotate: -90,
+        fontSize: 10,
+        color: '#64748b',
+        distance: 11,
+      },
       data: c.bands.map((b) => [
-        { xAxis: c.categories[b.start], itemStyle: { color: this.bandColor(b.type) } },
+        {
+          xAxis: c.categories[b.start],
+          itemStyle: { color: this.bandColor(b.type) },
+          name: b.label,
+        },
         { xAxis: c.categories[b.end] },
       ]),
     };
@@ -902,8 +932,16 @@ export class Summary implements OnDestroy {
         ? {
             silent: true,
             symbol: 'none',
+            // Label anchored at the left, inside the grid, so the descriptive
+            // text isn't clipped (the default end position showed only "0.").
+            label: {
+              position: 'insideStartTop',
+              fontSize: 10,
+              formatter: `RMSD in well-defined region of the coordinates: ${c.threshold}Å`,
+              distance: 0,
+            },
             data: [{ yAxis: c.threshold }],
-            lineStyle: { color: '#dc2626', type: 'dashed' },
+            lineStyle: { color: '#64748b', type: 'dashed' },
           }
         : undefined;
     return {
