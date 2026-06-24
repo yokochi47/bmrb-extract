@@ -1411,7 +1411,7 @@ def _seq_align(info):
         if ref_gauge == test_gauge:
             test_gauge = ''
         rows.append({
-            'chain': (f"Coordinate chain {coord} ↔ NMR chain {test}"
+            'chain': (f"Auth_asym_ID (model): {coord} ↔ Entity_assembly_ID: (NMR data) {test}"
                       if (coord or test) else ''),
             'length': ca.get('length'), 'matched': ca.get('matched'),
             'conflict': ca.get('conflict'), 'unmapped': ca.get('unmapped'),
@@ -1424,6 +1424,81 @@ def _seq_align(info):
     if not rows:
         return []
     return [{'category': _align_label(_SEQ_ALIGN_CATEGORY), 'rows': rows}]
+
+
+def _bond_atom(b, n):
+    """Format a bond endpoint 'chain:seq:comp:atom' (seq omitted when null)."""
+    chain, seq = b.get(f'chain_id_{n}'), b.get(f'seq_id_{n}')
+    comp, atom = b.get(f'comp_id_{n}'), b.get(f'atom_id_{n}')
+    fields = [chain, comp, atom] if seq is None else [chain, seq, comp, atom]
+    return ':'.join(str(f) for f in fields if f not in (None, ''))
+
+
+def _bond_rows(items):
+    """Rows for a disulfide / other bond table: the two bonded atoms + distance."""
+    return [
+        {'atom1': _bond_atom(b, 1), 'atom2': _bond_atom(b, 2), 'distance': b.get('distance_value')}
+        for b in items or []
+    ]
+
+
+def _nstd_res_rows(items):
+    """Non-standard residue rows (one per residue across chains): chain, seq,
+    comp, the CCD chemical-component name (null when not matched), and the
+    experimental-data subtypes that reference the residue."""
+    rows = []
+    for c in items or []:
+        cid = c.get('chain_id')
+        seq = c.get('seq_id') or []
+        comp = c.get('comp_id') or []
+        names = c.get('chem_comp_name') or []
+        exptl = c.get('exptl_data') or []
+        for j in range(len(seq)):
+            name = names[j] if j < len(names) else None
+            ed = exptl[j] if j < len(exptl) else {}
+            types = ', '.join(
+                _NMR_SUBTYPE_NAMES.get(k, k.replace('_', ' ').title())
+                for k, v in (ed or {}).items() if v
+            )
+            rows.append({
+                'chain': cid,
+                'seq_id': seq[j],
+                'comp_id': comp[j] if j < len(comp) else '',
+                'name': name,
+                'matched': name is not None,
+                'exptl': types,
+            })
+    return rows
+
+
+def _assembly_properties(report):
+    """Global properties of the molecular assembly (NMR experiment environment):
+    diamagnetism and presence of disulfide / other bonds and cyclic polymers,
+    plus detail tables for the disulfide bonds, other bonds, and non-standard
+    residues. The booleans are entry-level (information.*); the detail lists live
+    on an input source, preferring the model (coordinate) source."""
+    info = report.get('information', {})
+    srcs = info.get('input_sources') or []
+
+    def pick(key):
+        model = next((s for s in srcs if s.get('content_type') == 'model'), None)
+        if model and isinstance(model.get(key), list) and model[key]:
+            return model[key]
+        for s in srcs:
+            v = s.get(key)
+            if isinstance(v, list) and v:
+                return v
+        return []
+
+    return {
+        'diamagnetic': info.get('diamagnetic'),
+        'disulfide_bond': info.get('disulfide_bond'),
+        'other_bond': info.get('other_bond'),
+        'cyclic_polymer': info.get('cyclic_polymer'),
+        'disulfide_bonds': _bond_rows(pick('disulfide_bond')),
+        'other_bonds': _bond_rows(pick('other_bond')),
+        'non_standard_residues': _nstd_res_rows(pick('non_standard_residue')),
+    }
 
 
 def _completeness_of(st):
@@ -1616,6 +1691,7 @@ def _nmr_preview_data(report):
         'dihed_restraint_saveframes': _dihed_restraint_saveframes(dihed_restraint),
         'rdc_restraint_saveframes': _rdc_restraint_saveframes(rdc_restraint),
         'spectral_peak_saveframes': _spectral_peak_saveframes(spectral_peak),
+        'assembly': _assembly_properties(report),
         'alignments': _seq_align(info),
     }
 

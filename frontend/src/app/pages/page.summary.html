@@ -210,9 +210,10 @@
     } @else if (!hasPreviewContent()) {
       <p class="text-surface-500 py-2">No preview data to display.</p>
     } @else {
-      <!-- Data summary -->
+      <!-- Output file summary -->
       @if (previewSources().length) {
         <div class="mb-6 overflow-x-auto">
+          <div class="text-lg mb-2">Output file summary</div>
           <table class="w-full text-sm border-collapse">
             <thead>
               <tr>
@@ -233,6 +234,144 @@
                   <td class="px-2 py-1 font-medium">{{ s.content_name }}</td>
                   <td class="px-2 py-1 font-mono break-all">{{ s.name }}</td>
                   <td class="px-2 py-1">{{ s.subtypes.join(', ') }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
+      <!-- Molecular assembly — global properties (NMR experiment environment),
+           then disulfide / other bonds and non-standard residues. -->
+      @if (assemblyProps().length) {
+        <div class="mb-6 overflow-x-auto">
+          <div class="text-lg mb-2">Molecular assembly</div>
+          <table class="w-full text-sm border-collapse">
+            <thead>
+              <tr>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
+                  Property
+                </th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
+                  Value
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (p of assemblyProps(); track $index) {
+                <tr class="border-b border-surface-100 dark:border-surface-800">
+                  <td class="px-2 py-1">{{ p.label }}</td>
+                  <td class="px-2 py-1">
+                    {{ p.value }}
+                    @if (p.note) {
+                      <span class="text-surface-500">({{ p.note }})</span>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
+      <!-- Disulfide bonds -->
+      @if (previewAssembly()?.disulfide_bonds?.length) {
+        <div class="mb-6 overflow-x-auto">
+          <div class="font-medium mb-2">Disulfide bonds</div>
+          <table class="w-full text-sm border-collapse">
+            <thead>
+              <tr>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
+                  Atom 1
+                </th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
+                  Atom 2
+                </th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
+                  Distance (Å)
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (b of previewAssembly()!.disulfide_bonds; track $index) {
+                <tr class="border-b border-surface-100 dark:border-surface-800">
+                  <td class="px-2 py-1 font-mono">{{ b.atom1 }}</td>
+                  <td class="px-2 py-1 font-mono">{{ b.atom2 }}</td>
+                  <td class="px-2 py-1">{{ b.distance ?? '—' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
+      <!-- Other bonds -->
+      @if (previewAssembly()?.other_bonds?.length) {
+        <div class="mb-6 overflow-x-auto">
+          <div class="font-medium mb-2">Other bonds</div>
+          <table class="w-full text-sm border-collapse">
+            <thead>
+              <tr>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
+                  Atom 1
+                </th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
+                  Atom 2
+                </th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
+                  Distance (Å)
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (b of previewAssembly()!.other_bonds; track $index) {
+                <tr class="border-b border-surface-100 dark:border-surface-800">
+                  <td class="px-2 py-1 font-mono">{{ b.atom1 }}</td>
+                  <td class="px-2 py-1 font-mono">{{ b.atom2 }}</td>
+                  <td class="px-2 py-1">{{ b.distance ?? '—' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
+      <!-- Non-standard residues -->
+      @if (previewAssembly()?.non_standard_residues?.length) {
+        <div class="mb-6 overflow-x-auto">
+          <div class="font-medium mb-2">Non-standard residues</div>
+          <table class="w-full text-sm border-collapse">
+            <thead>
+              <tr>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
+                  Chain
+                </th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
+                  Seq
+                </th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
+                  Comp
+                </th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
+                  Chemical component (CCD)
+                </th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
+                  Experimental data
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (n of previewAssembly()!.non_standard_residues; track $index) {
+                <tr class="border-b border-surface-100 dark:border-surface-800">
+                  <td class="px-2 py-1">{{ n.chain }}</td>
+                  <td class="px-2 py-1">{{ n.seq_id }}</td>
+                  <td class="px-2 py-1">{{ n.comp_id }}</td>
+                  <td class="px-2 py-1" [class.text-red-600]="!n.matched">
+                    {{ n.matched ? n.name : 'Not matched with CCD' }}
+                  </td>
+                  <td class="px-2 py-1" [class.text-red-600]="!n.exptl">
+                    {{ n.exptl || 'None' }}
+                  </td>
                 </tr>
               }
             </tbody>
@@ -264,14 +403,24 @@
                     }
                   </div>
                   @if (r.ref || r.test) {
-                    <pre
-                      class="m-0 px-2 py-1 text-xs leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
-                      >{{ r.ref_gauge }}
+                    @if (r.test_gauge !== '') {
+                      <pre
+                        class="m-0 px-2 py-1 text-xs leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
+                        >{{ r.ref_gauge }}
 {{ r.ref }}
 {{ r.mid }}
 {{ r.test }}
 {{ r.test_gauge }}</pre
-                    >
+                      >
+                    } @else {
+                      <pre
+                        class="m-0 px-2 py-1 text-xs leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
+                        >{{ r.ref_gauge }}
+{{ r.ref }}           
+{{ r.mid }}           
+{{ r.test }}</pre
+                      >
+                    }
                   }
                 </div>
               }

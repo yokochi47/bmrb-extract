@@ -239,9 +239,28 @@ interface RdcRestraintSaveframe {
   per_residue: PerResidueLine[];
   atom_name_mapping: { comp_id: string; name: string; atoms: string }[];
 }
+/** Global properties of the molecular assembly (NMR experiment environment). */
+interface AssemblyProperties {
+  diamagnetic: boolean | null;
+  disulfide_bond: boolean | null;
+  other_bond: boolean | null;
+  cyclic_polymer: boolean | null;
+  disulfide_bonds: { atom1: string; atom2: string; distance: number | null }[];
+  other_bonds: { atom1: string; atom2: string; distance: number | null }[];
+  non_standard_residues: {
+    chain: string;
+    seq_id: number;
+    comp_id: string;
+    name: string | null;
+    matched: boolean;
+    exptl: string;
+  }[];
+}
 interface NmrPreview {
   available: boolean;
   sources: NmrPreviewSource[];
+  /** Global properties of the molecular assembly. */
+  assembly: AssemblyProperties;
   /** Assigned chemical shifts grouped by saveframe (sf_framecode). */
   chem_shift_saveframes: ChemShiftSaveframe[];
   /** Distance restraints grouped by saveframe (sf_framecode). */
@@ -313,6 +332,25 @@ export class Summary implements OnDestroy {
   /** Data-summary table + sequence alignments. */
   previewSources = computed(() => this.nmrPreview()?.sources ?? []);
   previewAlignments = computed(() => this.nmrPreview()?.alignments ?? []);
+
+  /** Global molecular-assembly properties (NMR experiment environment). */
+  previewAssembly = computed(() => this.nmrPreview()?.assembly ?? null);
+  /** The four global properties as label/value rows for the summary table. */
+  assemblyProps = computed(() => {
+    const a = this.previewAssembly();
+    if (!a) return [];
+    const yn = (v: boolean | null) => (v === null ? '—' : v ? 'Yes' : 'No');
+    return [
+      {
+        label: 'Diamagnetism of the molecular assembly',
+        value: yn(a.diamagnetic),
+        note: 'excluding oxygen atoms',
+      },
+      { label: 'Has a disulfide bond', value: yn(a.disulfide_bond), note: '' },
+      { label: 'Has an other bond', value: yn(a.other_bond), note: '' },
+      { label: 'Contains a cyclic polymer', value: yn(a.cyclic_polymer), note: '' },
+    ];
+  });
 
   /** Spectral peak lists grouped by saveframe (sf_framecode). */
   spectralPeakSaveframes = computed(() => this.nmrPreview()?.spectral_peak_saveframes ?? []);
@@ -442,6 +480,7 @@ export class Summary implements OnDestroy {
   /** True when the preview has any chart or table content to show. */
   hasPreviewContent = computed(
     () =>
+      this.assemblyProps().length > 0 ||
       this.chemShiftSaveframes().length > 0 ||
       this.distRestraintSaveframes().length > 0 ||
       this.dihedRestraintSaveframes().length > 0 ||
