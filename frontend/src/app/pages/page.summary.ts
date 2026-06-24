@@ -104,6 +104,8 @@ interface NmrCompleteness {
     label: string;
     groups: { group: string; target: number; assigned: number; pct: number }[];
   }[];
+  excluded_comp_id: { seq_id: number; comp_id: string }[];
+  excluded_atom_id: { seq_id: number; comp_id: string; atom_id: string; value: number | null }[];
 }
 /** Per-chain per-residue stacked counts + secondary-structure bands. */
 interface PerResidueChart {
@@ -438,6 +440,12 @@ export class Summary implements OnDestroy {
     if (status === 'Error') return 'text-red-600 dark:text-red-400';
     if (status === 'Warning') return 'text-amber-600 dark:text-amber-400';
     return 'text-teal-600 dark:text-teal-400';
+  }
+
+  /** The sequence-coverage row for a chain within a chem-shift saveframe, so the
+   * aligned-sequence block can be shown alongside that chain's completeness. */
+  seqCoverageOf(sf: ChemShiftSaveframe, chain: string): SeqCoverageRow | undefined {
+    return sf.sequence_coverage.find((s) => s.chain === chain);
   }
 
   /** Distance restraints grouped by saveframe (sf_framecode). */
