@@ -569,9 +569,7 @@
                assignments, merged per chain. -->
           @if (sf.completeness.length) {
             <div class="mb-4">
-              <div class="font-medium mb-2">
-                Sequence coverage and completeness of assignments
-              </div>
+              <div class="font-medium mb-2">Sequence coverage and completeness of assignments</div>
               @for (c of sf.completeness; track $index) {
                 @let cov = seqCoverageOf(sf, c.chain);
                 <div class="mb-4">
@@ -646,7 +644,7 @@
                       @if (c.excluded_comp_id.length) {
                         <div class="mb-3 overflow-x-auto">
                           <div class="text-sm font-medium mb-1">
-                            Comp_IDs excluded from statistical calculations
+                            Residues excluded from the completeness calculation
                           </div>
                           <table class="w-full text-sm border-collapse">
                             <thead>
@@ -654,7 +652,7 @@
                                 <th
                                   class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                                 >
-                                  Comp_index_ID
+                                  Seq_ID
                                 </th>
                                 <th
                                   class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
@@ -677,7 +675,7 @@
                       @if (c.excluded_atom_id.length) {
                         <div class="mb-1 overflow-x-auto">
                           <div class="text-sm font-medium mb-1">
-                            Atom_IDs excluded from statistical calculations
+                            Atoms excluded from the completeness calculation
                           </div>
                           <table class="w-full text-sm border-collapse">
                             <thead>
@@ -685,7 +683,7 @@
                                 <th
                                   class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                                 >
-                                  Comp_index_ID
+                                  Seq_ID
                                 </th>
                                 <th
                                   class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
@@ -700,7 +698,7 @@
                                 <th
                                   class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                                 >
-                                  CS value (ppm)
+                                  Chemical shift (ppm)
                                 </th>
                               </tr>
                             </thead>
