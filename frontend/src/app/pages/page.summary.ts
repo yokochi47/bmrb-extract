@@ -135,7 +135,7 @@ interface SpectralPeakSaveframe {
   n_peaks: number;
   peak_counts: { label: string; count: number }[];
   dims: { id: number; atom: string; region: string; sweep_width: number | null; units: string }[];
-  atom_name_mapping: { comp_id: string; name: string; atoms: string }[];
+  atom_name_mapping: AtomNameMappingRow[];
 }
 /** Per-residue value line chart (dihedral angles, RDC, RCI/S²/RMSD). */
 interface PerResidueLine {
@@ -185,6 +185,14 @@ interface AlignGroup {
   category: string;
   rows: AlignChainRow[];
 }
+/** One original → IUPAC atom-name mapping row; `unusual` flags an unexpected
+ * pseudo-atom mapping (highlighted red). */
+interface AtomNameMappingRow {
+  comp_id: string;
+  name: string;
+  atoms: string;
+  unusual: boolean;
+}
 /** Per-chain sequence coverage of the experimental data for one saveframe. */
 interface SeqCoverageRow {
   chain: string;
@@ -212,7 +220,7 @@ interface ChemShiftSaveframe {
   };
   histogram: HistogramChart[];
   rci: PerResidueLine[];
-  atom_name_mapping: { comp_id: string; name: string; atoms: string }[];
+  atom_name_mapping: AtomNameMappingRow[];
 }
 /** One distance-restraint saveframe's preview content, in display order. */
 interface DistRestraintSaveframe {
@@ -229,7 +237,7 @@ interface DistRestraintSaveframe {
   per_residue: PerResidueChart[];
   contact_maps: ContactMapChart[];
   asym_contact_maps: AsymContactMap[];
-  atom_name_mapping: { comp_id: string; name: string; atoms: string }[];
+  atom_name_mapping: AtomNameMappingRow[];
 }
 /** One dihedral-angle-restraint saveframe's preview content, in display order. */
 interface DihedRestraintSaveframe {
@@ -243,7 +251,7 @@ interface DihedRestraintSaveframe {
   histogram: HistogramChart[];
   dihedral: DihedralChart[];
   per_residue: PerResidueLine[];
-  atom_name_mapping: { comp_id: string; name: string; atoms: string }[];
+  atom_name_mapping: AtomNameMappingRow[];
 }
 /** One RDC-restraint saveframe's preview content, in display order. */
 interface RdcRestraintSaveframe {
@@ -257,7 +265,7 @@ interface RdcRestraintSaveframe {
   range: string;
   histogram: HistogramChart[];
   per_residue: PerResidueLine[];
-  atom_name_mapping: { comp_id: string; name: string; atoms: string }[];
+  atom_name_mapping: AtomNameMappingRow[];
 }
 /** Global properties of the molecular assembly (NMR experiment environment). */
 interface AssemblyProperties {
@@ -802,6 +810,14 @@ export class Summary implements OnDestroy {
     return 'rgba(120,120,120,0.08)';
   }
 
+  /** More saturated band color used as a thin edge line on the band's sides. */
+  private bandEdgeColor(type: string): string {
+    if (type === 'helix') return 'rgba(204,47,0,0.55)';
+    if (type === 'strand') return 'rgba(0,156,209,0.55)';
+    if (type === 'turn') return 'rgba(200,204,0,0.65)';
+    return 'rgba(120,120,120,0.4)';
+  }
+
   /** ECharts option for a per-residue stacked-count bar with secondary-structure
    * bands drawn as markAreas. */
   private perResidueOption(c: PerResidueChart): object {
@@ -821,7 +837,14 @@ export class Summary implements OnDestroy {
       data: c.bands.map((b) => [
         {
           xAxis: c.categories[b.start],
-          itemStyle: { color: this.bandColor(b.type) },
+          // Translucent fill with a thin, more saturated border so the band's
+          // left/right edges read as condensed colored lines (the band spans the
+          // full plot height, so the top/bottom borders sit at the frame edges).
+          itemStyle: {
+            color: this.bandColor(b.type),
+            borderColor: this.bandEdgeColor(b.type),
+            borderWidth: 1,
+          },
           name: b.label,
         },
         { xAxis: c.categories[b.end] },
@@ -921,7 +944,14 @@ export class Summary implements OnDestroy {
       data: c.bands.map((b) => [
         {
           xAxis: c.categories[b.start],
-          itemStyle: { color: this.bandColor(b.type) },
+          // Translucent fill with a thin, more saturated border so the band's
+          // left/right edges read as condensed colored lines (the band spans the
+          // full plot height, so the top/bottom borders sit at the frame edges).
+          itemStyle: {
+            color: this.bandColor(b.type),
+            borderColor: this.bandEdgeColor(b.type),
+            borderWidth: 1,
+          },
           name: b.label,
         },
         { xAxis: c.categories[b.end] },

@@ -1566,16 +1566,50 @@ def _assignments_of(st):
             for k, v in noa.items() if isinstance(v, (int, float))]
 
 
+def _atom_mapping_normal(atom_name, atom_ids):
+    """Whether an original → IUPAC atom-name mapping looks expected (mirrors the
+    reference nmr_dp_report_atom_name_mapping_history). A mapping is normal when
+    an original/IUPAC name is a prefix of the other, allowing for pseudo-atom
+    conventions: wildcards (#/%/*) stripped, Q/M → H, a leading digit moved to
+    the end, and a trailing digit trimmed. Unusual mappings are flagged."""
+    if not atom_name or not atom_ids:
+        return True
+
+    def matches(name):
+        return bool(name) and (
+            any(a.startswith(name) for a in atom_ids)
+            or any(name.startswith(a) for a in atom_ids)
+        )
+
+    if matches(atom_name):
+        return True
+    name = atom_name.replace('#', '').replace('%', '').replace('*', '')
+    if name and name[0] in ('Q', 'M'):
+        name = 'H' + name[1:]
+    if name and name[0] in ('1', '2', '3'):
+        name = name[1:] + name[0]
+    if matches(name):
+        return True
+    if (len(name) > 2 and name[-1].isdigit()
+            and (not name[-2].isdigit() or atom_ids[0].startswith(name[:-1]))):
+        if matches(name[:-1]):
+            return True
+    return False
+
+
 def _atom_name_mapping(st):
     """Original → IUPAC atom-name mapping rows for one saveframe:
-    [{comp_id, name, atoms}] (name is the original atom_name; atoms the joined
-    mapped atom_id(s))."""
+    [{comp_id, name, atoms, unusual}] (name is the original atom_name; atoms the
+    joined mapped atom_id(s); unusual flags an unexpected mapping for the user)."""
     rows = []
     for m in st.get('atom_name_mapping') or []:
         comp = m.get('comp_id', '')
         for h in m.get('history') or []:
-            rows.append({'comp_id': comp, 'name': h.get('atom_name', ''),
-                         'atoms': ' '.join(str(a) for a in (h.get('atom_id') or []))})
+            name = h.get('atom_name', '')
+            atom_ids = [str(a) for a in (h.get('atom_id') or [])]
+            rows.append({'comp_id': comp, 'name': name,
+                         'atoms': ' '.join(atom_ids),
+                         'unusual': not _atom_mapping_normal(name, atom_ids)})
     return rows
 
 
