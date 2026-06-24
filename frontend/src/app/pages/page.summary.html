@@ -828,7 +828,10 @@
                 </thead>
                 <tbody>
                   @for (m of sf.atom_name_mapping; track $index) {
-                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                    <tr
+                      class="border-b border-surface-100 dark:border-surface-800"
+                      [class.text-red-600]="m.unusual"
+                    >
                       <td class="px-2 py-1">{{ m.comp_id }}</td>
                       <td class="px-2 py-1 font-mono">{{ m.name }}</td>
                       <td class="px-2 py-1 font-mono">{{ m.atoms }}</td>
@@ -1005,7 +1008,10 @@
                 </thead>
                 <tbody>
                   @for (m of sf.atom_name_mapping; track $index) {
-                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                    <tr
+                      class="border-b border-surface-100 dark:border-surface-800"
+                      [class.text-red-600]="m.unusual"
+                    >
                       <td class="px-2 py-1">{{ m.comp_id }}</td>
                       <td class="px-2 py-1 font-mono">{{ m.name }}</td>
                       <td class="px-2 py-1 font-mono">{{ m.atoms }}</td>
@@ -1167,7 +1173,10 @@
                 </thead>
                 <tbody>
                   @for (m of sf.atom_name_mapping; track $index) {
-                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                    <tr
+                      class="border-b border-surface-100 dark:border-surface-800"
+                      [class.text-red-600]="m.unusual"
+                    >
                       <td class="px-2 py-1">{{ m.comp_id }}</td>
                       <td class="px-2 py-1 font-mono">{{ m.name }}</td>
                       <td class="px-2 py-1 font-mono">{{ m.atoms }}</td>
@@ -1325,7 +1334,10 @@
                 </thead>
                 <tbody>
                   @for (m of sf.atom_name_mapping; track $index) {
-                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                    <tr
+                      class="border-b border-surface-100 dark:border-surface-800"
+                      [class.text-red-600]="m.unusual"
+                    >
                       <td class="px-2 py-1">{{ m.comp_id }}</td>
                       <td class="px-2 py-1 font-mono">{{ m.name }}</td>
                       <td class="px-2 py-1 font-mono">{{ m.atoms }}</td>
@@ -1484,7 +1496,10 @@
                 </thead>
                 <tbody>
                   @for (m of sf.atom_name_mapping; track $index) {
-                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                    <tr
+                      class="border-b border-surface-100 dark:border-surface-800"
+                      [class.text-red-600]="m.unusual"
+                    >
                       <td class="px-2 py-1">{{ m.comp_id }}</td>
                       <td class="px-2 py-1 font-mono">{{ m.name }}</td>
                       <td class="px-2 py-1 font-mono">{{ m.atoms }}</td>

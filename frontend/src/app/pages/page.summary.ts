@@ -135,7 +135,7 @@ interface SpectralPeakSaveframe {
   n_peaks: number;
   peak_counts: { label: string; count: number }[];
   dims: { id: number; atom: string; region: string; sweep_width: number | null; units: string }[];
-  atom_name_mapping: { comp_id: string; name: string; atoms: string }[];
+  atom_name_mapping: AtomNameMappingRow[];
 }
 /** Per-residue value line chart (dihedral angles, RDC, RCI/S²/RMSD). */
 interface PerResidueLine {
@@ -185,6 +185,14 @@ interface AlignGroup {
   category: string;
   rows: AlignChainRow[];
 }
+/** One original → IUPAC atom-name mapping row; `unusual` flags an unexpected
+ * pseudo-atom mapping (highlighted red). */
+interface AtomNameMappingRow {
+  comp_id: string;
+  name: string;
+  atoms: string;
+  unusual: boolean;
+}
 /** Per-chain sequence coverage of the experimental data for one saveframe. */
 interface SeqCoverageRow {
   chain: string;
@@ -212,7 +220,7 @@ interface ChemShiftSaveframe {
   };
   histogram: HistogramChart[];
   rci: PerResidueLine[];
-  atom_name_mapping: { comp_id: string; name: string; atoms: string }[];
+  atom_name_mapping: AtomNameMappingRow[];
 }
 /** One distance-restraint saveframe's preview content, in display order. */
 interface DistRestraintSaveframe {
@@ -229,7 +237,7 @@ interface DistRestraintSaveframe {
   per_residue: PerResidueChart[];
   contact_maps: ContactMapChart[];
   asym_contact_maps: AsymContactMap[];
-  atom_name_mapping: { comp_id: string; name: string; atoms: string }[];
+  atom_name_mapping: AtomNameMappingRow[];
 }
 /** One dihedral-angle-restraint saveframe's preview content, in display order. */
 interface DihedRestraintSaveframe {
@@ -243,7 +251,7 @@ interface DihedRestraintSaveframe {
   histogram: HistogramChart[];
   dihedral: DihedralChart[];
   per_residue: PerResidueLine[];
-  atom_name_mapping: { comp_id: string; name: string; atoms: string }[];
+  atom_name_mapping: AtomNameMappingRow[];
 }
 /** One RDC-restraint saveframe's preview content, in display order. */
 interface RdcRestraintSaveframe {
@@ -257,7 +265,7 @@ interface RdcRestraintSaveframe {
   range: string;
   histogram: HistogramChart[];
   per_residue: PerResidueLine[];
-  atom_name_mapping: { comp_id: string; name: string; atoms: string }[];
+  atom_name_mapping: AtomNameMappingRow[];
 }
 /** Global properties of the molecular assembly (NMR experiment environment). */
 interface AssemblyProperties {
