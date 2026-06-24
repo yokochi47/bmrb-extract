@@ -100,7 +100,10 @@ interface NmrPreviewSource {
 interface NmrCompleteness {
   chain: string;
   coverage_pct: number | null;
-  groups: { group: string; target: number; assigned: number; pct: number }[];
+  categories: {
+    label: string;
+    groups: { group: string; target: number; assigned: number; pct: number }[];
+  }[];
 }
 /** Per-chain per-residue stacked counts + secondary-structure bands. */
 interface PerResidueChart {

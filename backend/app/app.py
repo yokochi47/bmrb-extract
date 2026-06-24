@@ -1503,25 +1503,41 @@ def _assembly_properties(report):
     }
 
 
+# Completeness sub-categories surfaced per chain, in display order.
+_COMPLETENESS_CATEGORIES = [
+    ('completeness_of_all_assignments', 'All atoms'),
+    ('completeness_of_backbone_assignments', 'Backbone atoms'),
+    ('completeness_of_sidechain_assignments', 'Side chain atoms'),
+    ('completeness_of_methyl_assignments', 'Methyl group atoms'),
+    ('completeness_of_aromatic_assignments', 'Aromatic group atoms'),
+]
+
+
 def _completeness_of(st):
-    """Per-chain all-assignment completeness + sequence coverage for one chem_shift
-    saveframe → [{chain, coverage_pct, groups:[{group, target, assigned, pct}]}]."""
+    """Per-chain assignment completeness + sequence coverage for one chem_shift
+    saveframe → [{chain, coverage_pct, categories:[{label, groups:[{group,
+    target, assigned, pct}]}]}]. Each category (all / backbone / side chain /
+    methyl / aromatic) is included only when present."""
     cov = {c.get('chain_id'): c.get('sequence_coverage')
            for c in (st.get('sequence_coverage') or [])}
     out = []
     for comp in st.get('completeness') or []:
-        groups = [
-            {'group': _iso_label(g.get('atom_group', '')),
-             'target': g.get('number_of_target_shifts'),
-             'assigned': g.get('number_of_assigned_shifts'),
-             'pct': round((g.get('completeness') or 0) * 100, 1)}
-            for g in comp.get('completeness_of_all_assignments') or []
-        ]
+        categories = []
+        for key, label in _COMPLETENESS_CATEGORIES:
+            groups = [
+                {'group': _iso_label(g.get('atom_group', '')),
+                 'target': g.get('number_of_target_shifts'),
+                 'assigned': g.get('number_of_assigned_shifts'),
+                 'pct': round((g.get('completeness') or 0) * 100, 1)}
+                for g in comp.get(key) or []
+            ]
+            if groups:
+                categories.append({'label': label, 'groups': groups})
         chain = comp.get('chain_id')
         out.append({
             'chain': chain,
             'coverage_pct': round((cov.get(chain) or 0) * 100, 1) if chain in cov else None,
-            'groups': groups,
+            'categories': categories,
         })
     return out
 

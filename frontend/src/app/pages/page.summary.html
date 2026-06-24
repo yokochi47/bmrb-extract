@@ -524,49 +524,56 @@
             <div class="mb-4">
               <div class="font-medium mb-2">Assigned chemical-shift completeness</div>
               @for (c of sf.completeness; track $index) {
-                <div class="mb-3 overflow-x-auto">
+                <div class="mb-3">
                   <div class="text-sm text-surface-600 dark:text-surface-300 mb-1">
                     Entity_assembly_ID {{ c.chain }}
                     @if (c.coverage_pct !== null) {
                       <span> — sequence coverage {{ c.coverage_pct }}%</span>
                     }
                   </div>
-                  <table class="w-full text-sm border-collapse">
-                    <thead>
-                      <tr>
-                        <th
-                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                        >
-                          Atom type
-                        </th>
-                        <th
-                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                        >
-                          Assigned
-                        </th>
-                        <th
-                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                        >
-                          Target
-                        </th>
-                        <th
-                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                        >
-                          Completeness
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      @for (g of c.groups; track $index) {
-                        <tr class="border-b border-surface-100 dark:border-surface-800">
-                          <td class="px-2 py-1">{{ g.group }}</td>
-                          <td class="px-2 py-1">{{ g.assigned }}</td>
-                          <td class="px-2 py-1">{{ g.target }}</td>
-                          <td class="px-2 py-1">{{ g.pct }}%</td>
-                        </tr>
-                      }
-                    </tbody>
-                  </table>
+                  @for (cat of c.categories; track $index) {
+                    <div class="mb-3 overflow-x-auto">
+                      <div class="text-sm font-medium mb-1">{{ cat.label }}</div>
+                      <table class="w-full text-sm border-collapse">
+                        <thead>
+                          <tr>
+                            <th
+                              class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                            >
+                              Atom type
+                            </th>
+                            <th
+                              class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                            >
+                              Assigned
+                            </th>
+                            <th
+                              class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                            >
+                              Target
+                            </th>
+                            <th
+                              class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                            >
+                              Completeness
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          @for (g of cat.groups; track $index) {
+                            <tr class="border-b border-surface-100 dark:border-surface-800">
+                              <td class="px-2 py-1">{{ g.group }}</td>
+                              <td class="px-2 py-1">{{ g.assigned }}</td>
+                              <td class="px-2 py-1">{{ g.target }}</td>
+                              <td class="px-2 py-1" [class.text-red-600]="g.pct < 30">
+                                {{ g.pct }}%
+                              </td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                  }
                 </div>
               }
             </div>
