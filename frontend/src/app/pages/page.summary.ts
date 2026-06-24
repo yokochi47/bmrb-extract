@@ -124,6 +124,7 @@ interface SpectralPeakSaveframe {
   status: string | null;
   error_descriptions: string[];
   warning_descriptions: string[];
+  sequence_coverage: SeqCoverageRow[];
   exp_class: string;
   n_dims: number;
   n_peaks: number;
@@ -179,12 +180,19 @@ interface AlignGroup {
   category: string;
   rows: AlignChainRow[];
 }
+/** Per-chain sequence coverage of the experimental data for one saveframe. */
+interface SeqCoverageRow {
+  chain: string;
+  length: number;
+  coverage_pct: number | null;
+}
 /** One assigned-chemical-shift saveframe's preview content, in display order. */
 interface ChemShiftSaveframe {
   sf_framecode: string;
   status: string | null;
   error_descriptions: string[];
   warning_descriptions: string[];
+  sequence_coverage: SeqCoverageRow[];
   assignments: { label: string; count: number }[];
   completeness: NmrCompleteness[];
   predictions: {
@@ -204,6 +212,7 @@ interface DistRestraintSaveframe {
   error_descriptions: string[];
   warning_descriptions: string[];
   exp_type: string;
+  sequence_coverage: SeqCoverageRow[];
   constraints: { label: string; count: number }[];
   range: string;
   histogram: HistogramChart[];
@@ -220,6 +229,7 @@ interface DihedRestraintSaveframe {
   error_descriptions: string[];
   warning_descriptions: string[];
   exp_type: string;
+  sequence_coverage: SeqCoverageRow[];
   constraints: { label: string; count: number }[];
   histogram: HistogramChart[];
   dihedral: DihedralChart[];
@@ -233,6 +243,7 @@ interface RdcRestraintSaveframe {
   error_descriptions: string[];
   warning_descriptions: string[];
   exp_type: string;
+  sequence_coverage: SeqCoverageRow[];
   constraints: { label: string; count: number }[];
   range: string;
   histogram: HistogramChart[];

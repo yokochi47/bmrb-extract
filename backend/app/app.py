@@ -861,15 +861,15 @@ def _nmr_model_file_name(report):
     return None
 
 
-def _parse_nmr_report(report, unified, model_file_name):
+def _parse_nmr_report(report, combined, model_file_name):
     """Build (errors, warnings) groups from an NmrDpUtility JSON report. errors:
-    every type except 'total' (real = unified or designated type). warnings: from
+    every type except 'total' (real = combined or designated type). warnings: from
     `warning` grouped by level, plus `corrected_warning` as level 0 (corrected)."""
     errors = []
     for etype, items in (report.get('error') or {}).items():
         if etype == 'total' or not items:
             continue
-        real = unified or etype in _NMR_BLOCKING_ERROR_TYPES
+        real = combined or etype in _NMR_BLOCKING_ERROR_TYPES
         if etype == 'internal_error':
             rows = [{'location': '', 'description': html.escape(str(m)), 'active': True}
                     for m in items]
@@ -902,8 +902,8 @@ def _parse_nmr_report(report, unified, model_file_name):
     return errors, warnings
 
 
-def _nmr_unified_dep(token, target_depsys):
-    """NMR_UNIFIED_DEP = (onedep & nm-uni-* present) | repl_cs — same as the flow's
+def _nmr_combined_dep(token, target_depsys):
+    """NMR_COMBINED_DEP = (onedep & nm-uni-* present) | repl_cs — same as the flow's
     onedep_combined; the uni-file check reads the run's manifest."""
     if target_depsys == TargetDepsysCode.repl_cs.value:
         return True
@@ -963,12 +963,11 @@ async def get_nmr_validation():
     except Exception:  # noqa: BLE001
         return {'available': False}
 
-    unified = _nmr_unified_dep(token, target_depsys)
-    errors, warnings = _parse_nmr_report(report, unified, _nmr_model_file_name(report))
+    combined = _nmr_combined_dep(token, target_depsys)
+    errors, warnings = _parse_nmr_report(report, combined, _nmr_model_file_name(report))
     return {
         'available': True,
         'status': report.get('information', {}).get('status'),
-        'unified': unified,
         'errors': errors,
         'warnings': warnings,
     }
@@ -1194,6 +1193,7 @@ def _spectral_peak_saveframes(sp_list):
             'status': st.get('status'),
             'error_descriptions': st.get('error_descriptions') or [],
             'warning_descriptions': st.get('warning_descriptions') or [],
+            'sequence_coverage': _sequence_coverage(st),
             'exp_class': '' if exp == '.' else exp,
             'n_dims': st.get('number_of_spectral_dimensions'),
             'n_peaks': n_peaks,
@@ -1544,6 +1544,20 @@ def _atom_name_mapping(st):
     return rows
 
 
+def _sequence_coverage(st):
+    """Per-chain sequence coverage of the experimental data for one saveframe →
+    [{chain, length, coverage_pct}]."""
+    out = []
+    for c in st.get('sequence_coverage') or []:
+        cov = c.get('sequence_coverage')
+        out.append({
+            'chain': c.get('chain_id'),
+            'length': c.get('length'),
+            'coverage_pct': round(cov * 100, 1) if isinstance(cov, (int, float)) else None,
+        })
+    return out
+
+
 def _chem_shift_saveframes(chem_shift_list):
     """Per-saveframe assigned-chemical-shift preview, in report order. Reuses the
     per-content helpers on a single saveframe so the summary page can group all
@@ -1556,6 +1570,7 @@ def _chem_shift_saveframes(chem_shift_list):
             'status': st.get('status'),
             'error_descriptions': st.get('error_descriptions') or [],
             'warning_descriptions': st.get('warning_descriptions') or [],
+            'sequence_coverage': _sequence_coverage(st),
             'assignments': _assignments_of(st),
             'completeness': _completeness_of(st),
             'predictions': {
@@ -1595,6 +1610,7 @@ def _dist_restraint_saveframes(dist_list):
             'error_descriptions': st.get('error_descriptions') or [],
             'warning_descriptions': st.get('warning_descriptions') or [],
             'exp_type': st.get('exp_type') or '',
+            'sequence_coverage': _sequence_coverage(st),
             'constraints': _constraint_counts(st),
             'range': range_text,
             'histogram': _histogram_chart([st]),
@@ -1619,6 +1635,7 @@ def _dihed_restraint_saveframes(dihed_list):
             'error_descriptions': st.get('error_descriptions') or [],
             'warning_descriptions': st.get('warning_descriptions') or [],
             'exp_type': st.get('exp_type') or '',
+            'sequence_coverage': _sequence_coverage(st),
             'constraints': _constraint_counts(st),
             'histogram': _histogram_chart([st]),
             'dihedral': _dihedral_charts([st]),
@@ -1643,6 +1660,7 @@ def _rdc_restraint_saveframes(rdc_list):
             'error_descriptions': st.get('error_descriptions') or [],
             'warning_descriptions': st.get('warning_descriptions') or [],
             'exp_type': st.get('exp_type') or '',
+            'sequence_coverage': _sequence_coverage(st),
             'constraints': _constraint_counts(st),
             'range': range_text,
             'histogram': _histogram_chart([st]),

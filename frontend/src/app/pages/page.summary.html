@@ -463,6 +463,45 @@
             </ul>
           }
 
+          <!-- Sequence coverage of experimental data -->
+          @if (sf.sequence_coverage.length) {
+            <div class="mb-4 overflow-x-auto">
+              <div class="font-medium mb-2">Sequence coverage of experimental data</div>
+              <table class="w-full text-sm border-collapse">
+                <thead>
+                  <tr>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Chain
+                    </th>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Length
+                    </th>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Coverage
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (c of sf.sequence_coverage; track $index) {
+                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                      <td class="px-2 py-1">{{ c.chain }}</td>
+                      <td class="px-2 py-1">{{ c.length }}</td>
+                      <td class="px-2 py-1">
+                        {{ c.coverage_pct !== null ? c.coverage_pct + '%' : '—' }}
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+
           <!-- Total number of assignments -->
           @if (sf.assignments.length) {
             <div class="mb-4 overflow-x-auto">
@@ -700,6 +739,45 @@
             </ul>
           }
 
+          <!-- Sequence coverage of experimental data -->
+          @if (sf.sequence_coverage.length) {
+            <div class="mb-4 overflow-x-auto">
+              <div class="font-medium mb-2">Sequence coverage of experimental data</div>
+              <table class="w-full text-sm border-collapse">
+                <thead>
+                  <tr>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Chain
+                    </th>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Length
+                    </th>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Coverage
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (c of sf.sequence_coverage; track $index) {
+                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                      <td class="px-2 py-1">{{ c.chain }}</td>
+                      <td class="px-2 py-1">{{ c.length }}</td>
+                      <td class="px-2 py-1">
+                        {{ c.coverage_pct !== null ? c.coverage_pct + '%' : '—' }}
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+
           <!-- Number of constraints (with target range / experiment) -->
           @if (sf.constraints.length) {
             <div class="mb-4 overflow-x-auto">
@@ -852,6 +930,45 @@
             </ul>
           }
 
+          <!-- Sequence coverage of experimental data -->
+          @if (sf.sequence_coverage.length) {
+            <div class="mb-4 overflow-x-auto">
+              <div class="font-medium mb-2">Sequence coverage of experimental data</div>
+              <table class="w-full text-sm border-collapse">
+                <thead>
+                  <tr>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Chain
+                    </th>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Length
+                    </th>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Coverage
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (c of sf.sequence_coverage; track $index) {
+                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                      <td class="px-2 py-1">{{ c.chain }}</td>
+                      <td class="px-2 py-1">{{ c.length }}</td>
+                      <td class="px-2 py-1">
+                        {{ c.coverage_pct !== null ? c.coverage_pct + '%' : '—' }}
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+
           <!-- Number of constraints -->
           @if (sf.constraints.length) {
             <div class="mb-4 overflow-x-auto">
@@ -988,6 +1105,45 @@
             </ul>
           }
 
+          <!-- Sequence coverage of experimental data -->
+          @if (sf.sequence_coverage.length) {
+            <div class="mb-4 overflow-x-auto">
+              <div class="font-medium mb-2">Sequence coverage of experimental data</div>
+              <table class="w-full text-sm border-collapse">
+                <thead>
+                  <tr>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Chain
+                    </th>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Length
+                    </th>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Coverage
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (c of sf.sequence_coverage; track $index) {
+                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                      <td class="px-2 py-1">{{ c.chain }}</td>
+                      <td class="px-2 py-1">{{ c.length }}</td>
+                      <td class="px-2 py-1">
+                        {{ c.coverage_pct !== null ? c.coverage_pct + '%' : '—' }}
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+
           <!-- Number of constraints (with value range / experiment) -->
           @if (sf.constraints.length) {
             <div class="mb-4 overflow-x-auto">
@@ -1119,6 +1275,45 @@
                 <li>{{ d }}</li>
               }
             </ul>
+          }
+
+          <!-- Sequence coverage of experimental data -->
+          @if (sf.sequence_coverage.length) {
+            <div class="mb-4 overflow-x-auto">
+              <div class="font-medium mb-2">Sequence coverage of experimental data</div>
+              <table class="w-full text-sm border-collapse">
+                <thead>
+                  <tr>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Chain
+                    </th>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Length
+                    </th>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Coverage
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (c of sf.sequence_coverage; track $index) {
+                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                      <td class="px-2 py-1">{{ c.chain }}</td>
+                      <td class="px-2 py-1">{{ c.length }}</td>
+                      <td class="px-2 py-1">
+                        {{ c.coverage_pct !== null ? c.coverage_pct + '%' : '—' }}
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
           }
 
           <!-- Experiment / peak counts -->
