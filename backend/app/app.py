@@ -1079,7 +1079,9 @@ def _sc_type(sc):
 
 def _struct_conf_bands(struct_conf):
     """Collapse runs of the same struct_conf value into colored bands
-    [{start, end, type}] (indices into the residue list)."""
+    [{start, end, type, label}] (indices into the residue list). `label` is the
+    legitimate struct_conf word (conf_type_id, e.g. 'HELX_P', 'STRN', 'TURN_TY1_P')
+    taken from the token as-is (the part before any ':<id>' suffix)."""
     bands = []
     sc_list = struct_conf or []
     i, n = 0, len(sc_list)
@@ -1091,7 +1093,8 @@ def _struct_conf_bands(struct_conf):
         j = i
         while j + 1 < n and sc_list[j + 1] == sc_list[i]:
             j += 1
-        bands.append({'start': i, 'end': j, 'type': typ})
+        label = sc_list[i]
+        bands.append({'start': i, 'end': j, 'type': typ, 'label': label})
         i = j + 1
     return bands
 
@@ -1299,7 +1302,7 @@ def _rci_charts(chem_shift_list):
             if isinstance(rmsd, list) and any(x is not None for x in rmsd):
                 charts.append({'chain': chain, 'label': 'NMR RMSD (Å)', 'sf': sf, 'categories': cats,
                                'series': [{'name': 'NMR RMSD', 'data': rmsd}], 'bands': bands,
-                               'ymin': 0, 'ymax': None, 'threshold': rci.get('rmsd_in_well_defined_region')})
+                               'ymin': 0, 'ymax': None, 'threshold': round(rci.get('rmsd_in_well_defined_region'), 2)})
     return charts
 
 
