@@ -241,6 +241,72 @@
         </div>
       }
 
+      <!-- Processed NMR data inventory — the single summary of what was parsed
+           and interpreted during conversion, one table per processed file. -->
+      @for (f of previewInventory(); track $index) {
+        <div class="mb-6 overflow-x-auto">
+          <div class="text-lg mb-2">
+            {{ f.content_name }}: <span class="font-mono break-all">{{ f.file_name }}</span>
+          </div>
+          <table class="w-full text-sm border-collapse">
+            <thead>
+              <tr>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
+                  List ID
+                </th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
+                  Content subtype
+                </th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
+                  Saveframe
+                </th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
+                  Status
+                </th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
+                  {{ f.has_sets ? '# of rows (sets)' : '# of rows' }}
+                </th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
+                  Experiment type
+                </th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
+                  Sequence coverage (%)
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (r of f.rows; track $index) {
+                <tr class="border-b border-surface-100 dark:border-surface-800 align-top">
+                  <td class="px-2 py-1">{{ r.list_id }}</td>
+                  <td class="px-2 py-1 whitespace-nowrap" [class.text-red-600]="r.subtype_unknown">
+                    {{ r.subtype }}
+                  </td>
+                  <td class="px-2 py-1 font-mono text-xs break-all">{{ r.sf_framecode }}</td>
+                  <td class="px-2 py-1" [class]="r.status === 'OK' ? '' : statusColor(r.status)">
+                    {{ r.status }}
+                  </td>
+                  @if (r.is_error) {
+                    <td class="px-2 py-1 text-red-600">Re-upload</td>
+                  } @else {
+                    <td class="px-2 py-1" [class.text-red-600]="r.rows_zero">{{ r.n_rows }}</td>
+                  }
+                  <td class="px-2 py-1" [class.text-red-600]="r.exp_unknown">
+                    {{ r.exp_type || '—' }}
+                  </td>
+                  @if (r.coverage) {
+                    <td class="px-2 py-1" [class.text-red-600]="r.coverage_low">{{ r.coverage }}</td>
+                  } @else {
+                    <td class="px-2 py-1" [class.text-red-600]="r.coverage_required">
+                      No information
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
       <!-- Molecular assembly — global properties (NMR experiment environment),
            then disulfide / other bonds and non-standard residues. -->
       @if (assemblyProps().length) {

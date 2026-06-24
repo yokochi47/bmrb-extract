@@ -1703,6 +1703,99 @@ def _rdc_restraint_saveframes(rdc_list, aligns):
     return out
 
 
+# Experiment types for which low sequence coverage is expected (not flagged).
+_IGNORABLE_EXP_TYPE_FOR_COVERAGE = (
+    'disulfide bound', 'disulfide_bond', 'paramagnetic relaxation', 'pre',
+    'symmetry', 'J-couplings', 'jcoupling',
+)
+# Subtypes that, when present, are expected to carry sequence coverage.
+_PRIMARY_SUBTYPES = ('chem_shift', 'dist_restraint', 'dihed_restraint', 'rdc_restraint')
+
+
+def _coverage_summary(item):
+    """One-line per-chain coverage, e.g. '57.4% (chain 1, length 94), …'."""
+    parts = []
+    for sc in item.get('sequence_coverage') or []:
+        cov = sc.get('sequence_coverage')
+        pct = f'{cov * 100:.1f}%' if isinstance(cov, (int, float)) else '?'
+        parts.append(f'{pct} (chain {sc.get("chain_id")}, length {sc.get("length")})')
+    return ', '.join(parts)
+
+
+def _is_low_seq_coverage(item):
+    """True if any chain (length > 1) has < 30% coverage, unless the experiment
+    type is one for which low coverage is expected."""
+    exp_type = item.get('exp_type')
+    if exp_type in _IGNORABLE_EXP_TYPE_FOR_COVERAGE:
+        return False
+    for sc in item.get('sequence_coverage') or []:
+        cov = sc.get('sequence_coverage')
+        if isinstance(cov, (int, float)) and cov < 0.3 and (sc.get('length') or 0) > 1:
+            return True
+    return False
+
+
+def _nmr_inventory(report):
+    """Per-file inventory of what was parsed/interpreted during conversion: one
+    table per non-model input source, one row per saveframe across every
+    experimental-data subtype (content subtype, saveframe, status, # of rows
+    [/sets], experiment type, sequence coverage). The single global summary of
+    successful parsing/interpretation for the NMR data preview."""
+    info = report.get('information', {})
+    files = []
+    for src in info.get('input_sources') or []:
+        if not isinstance(src, dict) or src.get('content_type') == 'model':
+            continue
+        stats = src.get('stats_of_exptl_data')
+        if not isinstance(stats, dict):
+            continue
+        has_sets = any(
+            isinstance(i, dict) and i.get('number_of_constraint_sets') is not None
+            and i.get('number_of_constraint_sets') != i.get('number_of_rows')
+            for lst in stats.values() if isinstance(lst, list) for i in lst
+        )
+        rows = []
+        for subtype, lst in stats.items():
+            if not isinstance(lst, list) or not lst:
+                continue
+            label = _NMR_SUBTYPE_NAMES.get(subtype)
+            for item in lst:
+                if not isinstance(item, dict):
+                    continue
+                n_rows = item.get('number_of_rows')
+                n_sets = item.get('number_of_constraint_sets')
+                rows_text = str(n_rows)
+                if n_sets is not None and n_sets != n_rows:
+                    rows_text = f'{n_rows} ({n_sets})'
+                exp = item.get('exp_type')
+                status = item.get('status')
+                rows.append({
+                    'list_id': item.get('list_id'),
+                    'subtype': label or subtype.replace('_', ' ').title(),
+                    'subtype_unknown': label is None,
+                    'sf_framecode': item.get('sf_framecode', ''),
+                    'status': status,
+                    'has_issue': bool(item.get('error_descriptions')
+                                      or item.get('warning_descriptions')),
+                    'is_error': status == 'Error',
+                    'n_rows': rows_text,
+                    'rows_zero': n_rows == 0,
+                    'exp_type': '' if exp in (None, '.', '') else exp,
+                    'exp_unknown': exp == 'unknown',
+                    'coverage': _coverage_summary(item),
+                    'coverage_low': _is_low_seq_coverage(item),
+                    'coverage_missing': not item.get('sequence_coverage'),
+                    'coverage_required': subtype in _PRIMARY_SUBTYPES,
+                })
+        files.append({
+            'content_name': _NMR_CONTENT_NAMES.get(src.get('content_type'), src.get('content_type')),
+            'file_name': src.get('original_file_name') or src.get('file_name') or '',
+            'has_sets': has_sets,
+            'rows': rows,
+        })
+    return files
+
+
 def _nmr_preview_data(report):
     """Extract Phase-1 chart/table data from an NmrDpUtility report. Aggregates
     per-subtype stats (stats_of_exptl_data) across input sources."""
@@ -1738,6 +1831,8 @@ def _nmr_preview_data(report):
     sa = info.get('sequence_alignments') or {}
     return {
         'sources': sources,
+        # Single global inventory of what was parsed/interpreted, per file.
+        'inventory': _nmr_inventory(report),
         # Chemical shifts and all restraint / spectral-peak content are grouped
         # by saveframe (sf_framecode); sequence alignments remain a single table.
         'chem_shift_saveframes': _chem_shift_saveframes(

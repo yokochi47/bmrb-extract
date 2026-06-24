@@ -274,9 +274,36 @@ interface AssemblyProperties {
     exptl: string;
   }[];
 }
+/** One inventory row: a parsed saveframe within a processed NMR data file. */
+interface NmrInventoryRow {
+  list_id: number;
+  subtype: string;
+  subtype_unknown: boolean;
+  sf_framecode: string;
+  status: string | null;
+  has_issue: boolean;
+  is_error: boolean;
+  n_rows: string;
+  rows_zero: boolean;
+  exp_type: string;
+  exp_unknown: boolean;
+  coverage: string;
+  coverage_low: boolean;
+  coverage_missing: boolean;
+  coverage_required: boolean;
+}
+/** Inventory of one processed NMR data file (one table per input source). */
+interface NmrInventoryFile {
+  content_name: string;
+  file_name: string;
+  has_sets: boolean;
+  rows: NmrInventoryRow[];
+}
 interface NmrPreview {
   available: boolean;
   sources: NmrPreviewSource[];
+  /** Single inventory of what was parsed/interpreted, per processed file. */
+  inventory: NmrInventoryFile[];
   /** Global properties of the molecular assembly. */
   assembly: AssemblyProperties;
   /** Assigned chemical shifts grouped by saveframe (sf_framecode). */
@@ -350,6 +377,9 @@ export class Summary implements OnDestroy {
   /** Data-summary table + sequence alignments. */
   previewSources = computed(() => this.nmrPreview()?.sources ?? []);
   previewAlignments = computed(() => this.nmrPreview()?.alignments ?? []);
+
+  /** Per-file inventory of parsed NMR data (the single global summary). */
+  previewInventory = computed(() => this.nmrPreview()?.inventory ?? []);
 
   /** Global molecular-assembly properties (NMR experiment environment). */
   previewAssembly = computed(() => this.nmrPreview()?.assembly ?? null);
@@ -498,6 +528,7 @@ export class Summary implements OnDestroy {
   /** True when the preview has any chart or table content to show. */
   hasPreviewContent = computed(
     () =>
+      this.previewInventory().length > 0 ||
       this.assemblyProps().length > 0 ||
       this.chemShiftSaveframes().length > 0 ||
       this.distRestraintSaveframes().length > 0 ||
