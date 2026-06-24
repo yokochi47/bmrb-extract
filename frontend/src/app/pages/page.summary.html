@@ -246,7 +246,8 @@
       @for (f of previewInventory(); track $index) {
         <div class="mb-6 overflow-x-auto">
           <div class="text-lg mb-2">
-            {{ f.content_name }}: <span class="font-mono break-all">{{ f.file_name }}</span>
+            Inventory of {{ f.content_name }}:
+            <span class="font-mono break-all">{{ f.file_name }}</span>
           </div>
           <table class="w-full text-sm border-collapse">
             <thead>
@@ -294,7 +295,9 @@
                     {{ r.exp_type || '—' }}
                   </td>
                   @if (r.coverage) {
-                    <td class="px-2 py-1" [class.text-red-600]="r.coverage_low">{{ r.coverage }}</td>
+                    <td class="px-2 py-1" [class.text-red-600]="r.coverage_low">
+                      {{ r.coverage }}
+                    </td>
                   } @else {
                     <td class="px-2 py-1" [class.text-red-600]="r.coverage_required">
                       No information
@@ -311,7 +314,9 @@
            then disulfide / other bonds and non-standard residues. -->
       @if (assemblyProps().length) {
         <div class="mb-6 overflow-x-auto">
-          <div class="text-lg mb-2">Molecular assembly</div>
+          <div class="text-lg mb-2">
+            Overall molecular properties from the perspective of NMR measurements
+          </div>
           <table class="w-full text-sm border-collapse">
             <thead>
               <tr>
@@ -560,43 +565,34 @@
             </div>
           }
 
-          <!-- Sequence coverage of experimental data -->
-          @if (sf.sequence_coverage.length) {
-            <div class="mb-4 overflow-x-auto">
-              <div class="font-medium mb-2">Sequence coverage of experimental data</div>
-
-              @for (c of sf.sequence_coverage; track $index) {
-                <div class="text-sm mb-1">
-                  <span
-                    >Entity_assembly_ID: {{ c.chain }}, length: {{ c.length }}, coverage:
-                    {{ c.coverage_pct !== null ? c.coverage_pct + '%' : '—' }}</span
-                  >
-                </div>
-                @if (c.ref || c.test) {
-                  <pre
-                    class="m-0 px-2 py-1 text-xs leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
-                    >{{ c.ref_gauge }}
-{{ c.ref }}     
-{{ c.mid }}       
-{{ c.test }}</pre
-                  >
-                }
-              }
-            </div>
-          }
-
-          <!-- Completeness per chain (with sequence coverage) -->
+          <!-- Sequence coverage of experimental data + completeness of
+               assignments, merged per chain. -->
           @if (sf.completeness.length) {
             <div class="mb-4">
-              <div class="font-medium mb-2">Assigned chemical-shift completeness</div>
+              <div class="font-medium mb-2">
+                Sequence coverage and completeness of assignments
+              </div>
               @for (c of sf.completeness; track $index) {
-                <div class="mb-3">
+                @let cov = seqCoverageOf(sf, c.chain);
+                <div class="mb-4">
                   <div class="text-sm text-surface-600 dark:text-surface-300 mb-1">
-                    Entity_assembly_ID {{ c.chain }}
+                    Entity_assembly_ID: {{ c.chain }}
+                    @if (cov) {
+                      <span>, length: {{ cov.length }}</span>
+                    }
                     @if (c.coverage_pct !== null) {
-                      <span> — sequence coverage {{ c.coverage_pct }}%</span>
+                      <span> — sequence coverage: {{ c.coverage_pct }}%</span>
                     }
                   </div>
+                  @if (cov && (cov.ref || cov.test)) {
+                    <pre
+                      class="m-0 mb-3 px-2 py-1 text-xs leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
+                      >{{ cov.ref_gauge }}
+{{ cov.ref }}
+{{ cov.mid }}
+{{ cov.test }}</pre
+                    >
+                  }
                   @for (cat of c.categories; track $index) {
                     <div class="mb-3 overflow-x-auto">
                       <div class="text-sm font-medium mb-1">{{ cat.label }}</div>
@@ -849,7 +845,7 @@
               @for (c of sf.sequence_coverage; track $index) {
                 <div class="text-sm mb-1">
                   <span
-                    >Entity_assembly_ID: {{ c.chain }}, length: {{ c.length }}, coverage:
+                    >Entity_assembly_ID: {{ c.chain }}, length: {{ c.length }}, sequence coverage:
                     {{ c.coverage_pct !== null ? c.coverage_pct + '%' : '—' }}</span
                   >
                 </div>
@@ -1021,7 +1017,7 @@
               @for (c of sf.sequence_coverage; track $index) {
                 <div class="text-sm mb-1">
                   <span
-                    >Entity_assembly_ID: {{ c.chain }}, length: {{ c.length }}, coverage:
+                    >Entity_assembly_ID: {{ c.chain }}, length: {{ c.length }}, sequence coverage:
                     {{ c.coverage_pct !== null ? c.coverage_pct + '%' : '—' }}</span
                   >
                 </div>
@@ -1187,7 +1183,7 @@
               @for (c of sf.sequence_coverage; track $index) {
                 <div class="text-sm mb-1">
                   <span
-                    >Entity_assembly_ID: {{ c.chain }}, length: {{ c.length }}, coverage:
+                    >Entity_assembly_ID: {{ c.chain }}, length: {{ c.length }}, sequence coverage:
                     {{ c.coverage_pct !== null ? c.coverage_pct + '%' : '—' }}</span
                   >
                 </div>
@@ -1313,7 +1309,7 @@
               @for (c of sf.sequence_coverage; track $index) {
                 <div class="text-sm mb-1">
                   <span
-                    >Entity_assembly_ID: {{ c.chain }}, length: {{ c.length }}, coverage:
+                    >Entity_assembly_ID: {{ c.chain }}, length: {{ c.length }}, sequence coverage:
                     {{ c.coverage_pct !== null ? c.coverage_pct + '%' : '—' }}</span
                   >
                 </div>

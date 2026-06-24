@@ -1413,7 +1413,7 @@ def _seq_align(info):
         if ref_gauge == test_gauge:
             test_gauge = ''
         rows.append({
-            'chain': (f"Auth_asym_ID (model): {coord} ↔ Entity_assembly_ID: (NMR data) {test}"
+            'chain': (f"Auth_asym_ID (model): {coord} ↔ Entity_assembly_ID (NMR data): {test}"
                       if (coord or test) else ''),
             'length': ca.get('length'), 'matched': ca.get('matched'),
             'conflict': ca.get('conflict'), 'unmapped': ca.get('unmapped'),

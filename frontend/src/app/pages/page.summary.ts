@@ -440,6 +440,12 @@ export class Summary implements OnDestroy {
     return 'text-teal-600 dark:text-teal-400';
   }
 
+  /** The sequence-coverage row for a chain within a chem-shift saveframe, so the
+   * aligned-sequence block can be shown alongside that chain's completeness. */
+  seqCoverageOf(sf: ChemShiftSaveframe, chain: string): SeqCoverageRow | undefined {
+    return sf.sequence_coverage.find((s) => s.chain === chain);
+  }
+
   /** Distance restraints grouped by saveframe (sf_framecode). */
   distRestraintSaveframes = computed(() => this.nmrPreview()?.dist_restraint_saveframes ?? []);
 
