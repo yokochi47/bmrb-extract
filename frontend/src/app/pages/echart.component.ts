@@ -26,10 +26,17 @@ function loadEcharts(): Promise<EChartsCore> {
         charts.BarChart,
         charts.ScatterChart,
         charts.CustomChart,
+        // LineChart is required by the per-residue plots (RCI/S², NMR RMSD,
+        // dihedral / RDC per residue); without it the axes render but no line.
+        charts.LineChart,
         components.GridComponent,
         components.TooltipComponent,
         components.LegendComponent,
         components.TitleComponent,
+        // markArea (secondary-structure bands) / markLine (thresholds) used by
+        // the per-residue line charts.
+        components.MarkAreaComponent,
+        components.MarkLineComponent,
         renderers.CanvasRenderer,
       ]);
       return core;

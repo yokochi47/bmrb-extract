@@ -430,7 +430,7 @@ export class Summary implements OnDestroy {
   /** RCI / S² / NMR-RMSD per-residue line panels for one saveframe. */
   rciPanelsOf(sf: ChemShiftSaveframe): ChartPanel[] {
     return sf.rci.map((c) => ({
-      title: `${c.label} — chain ${c.chain}`,
+      title: `${c.label} — Entity_assembly_ID: ${c.chain}`,
       option: this.lineOption(c),
     }));
   }
@@ -466,19 +466,19 @@ export class Summary implements OnDestroy {
   }
   distPerResiduePanels(sf: DistRestraintSaveframe): ChartPanel[] {
     return sf.per_residue.map((c) => ({
-      title: `Distance restraints per residue — chain ${c.chain}`,
+      title: `Distance restraints per residue — Entity_assembly_ID: ${c.chain}`,
       option: this.perResidueOption(c),
     }));
   }
   distContactMapPanels(sf: DistRestraintSaveframe): ChartPanel[] {
     return sf.contact_maps.map((c) => ({
-      title: `Distance restraints contact map — chain ${c.chain}`,
+      title: `Distance restraints contact map — Entity_assembly_ID: ${c.chain}`,
       option: this.contactMapOption(c),
     }));
   }
   distAsymContactMapPanels(sf: DistRestraintSaveframe): ChartPanel[] {
     return sf.asym_contact_maps.map((c) => ({
-      title: `Inter-chain contact map — chains ${c.chain1} / ${c.chain2}`,
+      title: `Inter-chain contact map — Entity_assembly_IDs: ${c.chain1} / ${c.chain2}`,
       option: this.asymContactMapOption(c),
     }));
   }
@@ -511,7 +511,7 @@ export class Summary implements OnDestroy {
   }
   dihedPerResiduePanels(sf: DihedRestraintSaveframe): ChartPanel[] {
     return sf.per_residue.map((c) => ({
-      title: `Dihedral angles per residue — chain ${c.chain}`,
+      title: `Dihedral angles per residue — Entity_assembly_ID: ${c.chain}`,
       option: this.lineOption(c),
     }));
   }
@@ -528,7 +528,7 @@ export class Summary implements OnDestroy {
   }
   rdcPerResiduePanelsOf(sf: RdcRestraintSaveframe): ChartPanel[] {
     return sf.per_residue.map((c) => ({
-      title: `Observed RDC per residue — chain ${c.chain}`,
+      title: `Observed RDC per residue — Entity_assembly_ID: ${c.chain}`,
       option: this.lineOption(c),
     }));
   }
@@ -925,7 +925,11 @@ export class Summary implements OnDestroy {
         type: 'line',
         data: s.data,
         connectNulls: false,
-        showSymbol: false,
+        // Show point symbols so sparse series (e.g. RCI/S², defined only for some
+        // residues) remain visible: an isolated value surrounded by nulls draws
+        // no line segment, so without a symbol it would render as nothing.
+        showSymbol: true,
+        symbolSize: 4,
         ...(idx === 0 ? { markArea, ...(markLine ? { markLine } : {}) } : {}),
       })),
     };
