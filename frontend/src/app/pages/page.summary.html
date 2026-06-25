@@ -514,7 +514,8 @@
           <ng-template pTemplate="header">
             <span class="flex items-center gap-2">
               <span class="font-medium"
-                >Assigned chemical shifts: <span class="font-mono break-all">{{ sf.sf_framecode }}</span></span
+                >Assigned chemical shifts:
+                <span class="font-mono break-all">{{ sf.sf_framecode }}</span></span
               >
               @if (sf.status) {
                 <span class="text-sm font-medium" [class]="statusColor(sf.status)"
@@ -790,22 +791,6 @@
             </div>
           }
 
-          <!-- Histogram of normalized chemical shifts -->
-          @for (p of chemShiftHistogramPanels(sf); track $index) {
-            <div class="mb-6">
-              <div class="font-medium mb-1">{{ p.title }}</div>
-              <app-echart [option]="p.option" [height]="380" />
-            </div>
-          }
-
-          <!-- Random coil index and derived parameters -->
-          @for (p of rciPanelsOf(sf); track $index) {
-            <div class="mb-6">
-              <div class="font-medium mb-1">{{ p.title }}</div>
-              <app-echart [option]="p.option" [height]="340" />
-            </div>
-          }
-
           <!-- Atom name mapping -->
           @if (sf.atom_name_mapping.length) {
             <div class="mb-2 overflow-x-auto">
@@ -831,8 +816,7 @@
                       <td class="px-2 py-1 align-top">{{ m.comp_id }}</td>
                       <td class="px-2 py-1 font-mono">
                         @for (h of m.history; track $index) {
-                          <span [class.text-red-600]="h.unusual"
-                            >{{ h.name }} → {{ h.atoms }}</span
+                          <span [class.text-red-600]="h.unusual">{{ h.name }} → {{ h.atoms }}</span
                           >{{ $last ? '' : '; ' }}
                         }
                       </td>
@@ -840,6 +824,22 @@
                   }
                 </tbody>
               </table>
+            </div>
+          }
+
+          <!-- Histogram of normalized chemical shifts -->
+          @for (p of chemShiftHistogramPanels(sf); track $index) {
+            <div class="mb-6">
+              <div class="font-medium mb-1">{{ p.title }}</div>
+              <app-echart [option]="p.option" [height]="380" />
+            </div>
+          }
+
+          <!-- Random coil index and derived parameters -->
+          @for (p of rciPanelsOf(sf); track $index) {
+            <div class="mb-6">
+              <div class="font-medium mb-1">{{ p.title }}</div>
+              <app-echart [option]="p.option" [height]="340" />
             </div>
           }
         </p-panel>
@@ -1008,8 +1008,7 @@
                       <td class="px-2 py-1 align-top">{{ m.comp_id }}</td>
                       <td class="px-2 py-1 font-mono">
                         @for (h of m.history; track $index) {
-                          <span [class.text-red-600]="h.unusual"
-                            >{{ h.name }} → {{ h.atoms }}</span
+                          <span [class.text-red-600]="h.unusual">{{ h.name }} → {{ h.atoms }}</span
                           >{{ $last ? '' : '; ' }}
                         }
                       </td>
@@ -1170,8 +1169,7 @@
                       <td class="px-2 py-1 align-top">{{ m.comp_id }}</td>
                       <td class="px-2 py-1 font-mono">
                         @for (h of m.history; track $index) {
-                          <span [class.text-red-600]="h.unusual"
-                            >{{ h.name }} → {{ h.atoms }}</span
+                          <span [class.text-red-600]="h.unusual">{{ h.name }} → {{ h.atoms }}</span
                           >{{ $last ? '' : '; ' }}
                         }
                       </td>
@@ -1328,8 +1326,7 @@
                       <td class="px-2 py-1 align-top">{{ m.comp_id }}</td>
                       <td class="px-2 py-1 font-mono">
                         @for (h of m.history; track $index) {
-                          <span [class.text-red-600]="h.unusual"
-                            >{{ h.name }} → {{ h.atoms }}</span
+                          <span [class.text-red-600]="h.unusual">{{ h.name }} → {{ h.atoms }}</span
                           >{{ $last ? '' : '; ' }}
                         }
                       </td>
@@ -1487,8 +1484,7 @@
                       <td class="px-2 py-1 align-top">{{ m.comp_id }}</td>
                       <td class="px-2 py-1 font-mono">
                         @for (h of m.history; track $index) {
-                          <span [class.text-red-600]="h.unusual"
-                            >{{ h.name }} → {{ h.atoms }}</span
+                          <span [class.text-red-600]="h.unusual">{{ h.name }} → {{ h.atoms }}</span
                           >{{ $last ? '' : '; ' }}
                         }
                       </td>
