@@ -370,13 +370,14 @@
       }
     }
 
-    <!-- Process selected files (disabled until there are no errors or warnings) -->
+    <!-- Process selected files (disabled until there are no errors or warnings;
+         on re-upload, also until the user changes the file set). -->
     <p-button
       label="Process selected files"
       icon="pi pi-cog"
       severity="success"
       [loading]="submitting()"
-      [disabled]="!canProcess() || submitting()"
+      [disabled]="!canProcess() || submitting() || requiresFileOp()"
       (click)="processFiles()"
     />
 
