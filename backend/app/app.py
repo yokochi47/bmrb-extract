@@ -119,6 +119,19 @@ def health():
     return {'status': 'ok'}
 
 
+@app.route('/api/versions', methods=['GET'])
+def get_versions():
+    """Software/resource versions of the live conversion images, captured by the
+    prefect-worker into the shared workspace (capture-versions flow). Read per
+    request so a refresh shows up without a backend restart. Public, read-only."""
+    path = Path(WORKSPACE_BASE_PATH) / 'versions.json'
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        data = {}
+    return {'software': data.get('software', {}), 'resource': data.get('resource', {})}
+
+
 # ── Session ───────────────────────────────────────────────────────────────────
 
 @app.route('/api/session', methods=['GET'])

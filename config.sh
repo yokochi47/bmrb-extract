@@ -296,6 +296,10 @@ check_file certbot/certbot.sh
 #
 # Frontend
 #
+# Frontend package version (shown in the footer), injected into site.config.ts.
+export FRONTEND_VERSION=$(grep -m1 '"version"' frontend/package.json \
+  | sed -E 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
+
 if [[ ${SERVICE_DOMAIN} = "bmrb.io" ]] ; then
 
   ( cd frontend/src

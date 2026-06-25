@@ -1,6 +1,57 @@
 <div class="layout-footer">
   <div class="grid-item layout-footer-items">
-    <span>Version: #.#.#</span>
+    <!-- Compact trigger; full software/resource versions shown in the popover
+         balloon (live image versions come from GET /api/versions). -->
+    <button
+      type="button"
+      class="cursor-pointer bg-transparent border-0 p-0 text-primary font-bold"
+      (click)="verPop.toggle($event)"
+      aria-label="Show software and resource versions"
+    >
+      Version {{ FRONTEND_VERSION }} <i class="pi pi-info-circle"></i>
+    </button>
+    <p-popover #verPop>
+      <div class="text-sm" style="min-width: 18rem">
+        <div class="font-bold mb-1">Software</div>
+        <table class="w-full border-collapse mb-2">
+          <tbody>
+            <tr>
+              <td class="py-0.5 pr-4">Frontend</td>
+              <td class="py-0.5 text-right">{{ FRONTEND_VERSION || '—' }}</td>
+            </tr>
+            <tr>
+              <td class="py-0.5 pr-4">MAXIT</td>
+              <td class="py-0.5 text-right">{{ versions().software.maxit || '—' }}</td>
+            </tr>
+            <tr>
+              <td class="py-0.5 pr-4">NmrDpUtility</td>
+              <td class="py-0.5 text-right">{{ versions().software.nmrdputility || '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="font-bold mb-1">Resource</div>
+        <table class="w-full border-collapse">
+          <tbody>
+            <tr>
+              <td class="py-0.5 pr-4">PDBx/mmCIF Dictionary</td>
+              <td class="py-0.5 text-right">{{ versions().resource.pdbx_dict || '—' }}</td>
+            </tr>
+            <tr>
+              <td class="py-0.5 pr-4">CCD release (coordinates)</td>
+              <td class="py-0.5 text-right">{{ versions().resource.ccd_coordinates || '—' }}</td>
+            </tr>
+            <tr>
+              <td class="py-0.5 pr-4">CCD release (NMR data)</td>
+              <td class="py-0.5 text-right">{{ versions().resource.ccd_nmr || '—' }}</td>
+            </tr>
+            <tr>
+              <td class="py-0.5 pr-4">BMRB chemical shift statistics</td>
+              <td class="py-0.5 text-right">{{ versions().resource.cs_stat || '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </p-popover>
   </div>
   <div class="grid-item layout-footer-items">
     <span>Deposit to:</span>
