@@ -185,13 +185,12 @@ interface AlignGroup {
   category: string;
   rows: AlignChainRow[];
 }
-/** One original → IUPAC atom-name mapping row; `unusual` flags an unexpected
- * pseudo-atom mapping (highlighted red). */
+/** Per-residue (Comp_ID) atom-name mapping; each history entry maps an
+ * author-defined atom name to its IUPAC Atom_ID(s); `unusual` flags an
+ * unexpected pseudo-atom mapping (highlighted red). */
 interface AtomNameMappingRow {
   comp_id: string;
-  name: string;
-  atoms: string;
-  unusual: boolean;
+  history: { name: string; atoms: string; unusual: boolean }[];
 }
 /** Per-chain sequence coverage of the experimental data for one saveframe. */
 interface SeqCoverageRow {
@@ -274,7 +273,7 @@ interface AssemblyProperties {
   other_bond: boolean | null;
   cyclic_polymer: boolean | null;
   disulfide_bonds: { atom1: string; atom2: string; distance: number | null }[];
-  other_bonds: { atom1: string; atom2: string; distance: number | null }[];
+  other_bonds: { type: string | null; atom1: string; atom2: string; distance: number | null }[];
   non_standard_residues: {
     chain: string;
     seq_id: number;

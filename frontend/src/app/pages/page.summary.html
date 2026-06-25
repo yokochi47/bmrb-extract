@@ -386,6 +386,9 @@
             <thead>
               <tr>
                 <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
+                  Type
+                </th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
                   Atom 1
                 </th>
                 <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
@@ -399,6 +402,7 @@
             <tbody>
               @for (b of previewAssembly()!.other_bonds; track $index) {
                 <tr class="border-b border-surface-100 dark:border-surface-800">
+                  <td class="px-2 py-1 font-mono">{{ b.type ?? '—' }}</td>
                   <td class="px-2 py-1 font-mono">{{ b.atom1 }}</td>
                   <td class="px-2 py-1 font-mono">{{ b.atom2 }}</td>
                   <td class="px-2 py-1">{{ b.distance ?? '—' }}</td>
@@ -812,29 +816,26 @@
                     <th
                       class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                     >
-                      Residue
+                      Comp_ID
                     </th>
                     <th
                       class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                     >
-                      Atom name
-                    </th>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Mapped atom(s)
+                      Mapping history (Author defined atom name → Atom_IDs in CCD)
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   @for (m of sf.atom_name_mapping; track $index) {
-                    <tr
-                      class="border-b border-surface-100 dark:border-surface-800"
-                      [class.text-red-600]="m.unusual"
-                    >
-                      <td class="px-2 py-1">{{ m.comp_id }}</td>
-                      <td class="px-2 py-1 font-mono">{{ m.name }}</td>
-                      <td class="px-2 py-1 font-mono">{{ m.atoms }}</td>
+                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                      <td class="px-2 py-1 align-top">{{ m.comp_id }}</td>
+                      <td class="px-2 py-1 font-mono">
+                        @for (h of m.history; track $index) {
+                          <span [class.text-red-600]="h.unusual"
+                            >{{ h.name }} → {{ h.atoms }}</span
+                          >{{ $last ? '' : '; ' }}
+                        }
+                      </td>
                     </tr>
                   }
                 </tbody>
@@ -992,29 +993,26 @@
                     <th
                       class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                     >
-                      Residue
+                      Comp_ID
                     </th>
                     <th
                       class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                     >
-                      Atom name
-                    </th>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Mapped atom(s)
+                      Mapping history (Author defined atom name → Atom_IDs in CCD)
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   @for (m of sf.atom_name_mapping; track $index) {
-                    <tr
-                      class="border-b border-surface-100 dark:border-surface-800"
-                      [class.text-red-600]="m.unusual"
-                    >
-                      <td class="px-2 py-1">{{ m.comp_id }}</td>
-                      <td class="px-2 py-1 font-mono">{{ m.name }}</td>
-                      <td class="px-2 py-1 font-mono">{{ m.atoms }}</td>
+                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                      <td class="px-2 py-1 align-top">{{ m.comp_id }}</td>
+                      <td class="px-2 py-1 font-mono">
+                        @for (h of m.history; track $index) {
+                          <span [class.text-red-600]="h.unusual"
+                            >{{ h.name }} → {{ h.atoms }}</span
+                          >{{ $last ? '' : '; ' }}
+                        }
+                      </td>
                     </tr>
                   }
                 </tbody>
@@ -1157,29 +1155,26 @@
                     <th
                       class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                     >
-                      Residue
+                      Comp_ID
                     </th>
                     <th
                       class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                     >
-                      Atom name
-                    </th>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Mapped atom(s)
+                      Mapping history (Author defined atom name → Atom_IDs in CCD)
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   @for (m of sf.atom_name_mapping; track $index) {
-                    <tr
-                      class="border-b border-surface-100 dark:border-surface-800"
-                      [class.text-red-600]="m.unusual"
-                    >
-                      <td class="px-2 py-1">{{ m.comp_id }}</td>
-                      <td class="px-2 py-1 font-mono">{{ m.name }}</td>
-                      <td class="px-2 py-1 font-mono">{{ m.atoms }}</td>
+                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                      <td class="px-2 py-1 align-top">{{ m.comp_id }}</td>
+                      <td class="px-2 py-1 font-mono">
+                        @for (h of m.history; track $index) {
+                          <span [class.text-red-600]="h.unusual"
+                            >{{ h.name }} → {{ h.atoms }}</span
+                          >{{ $last ? '' : '; ' }}
+                        }
+                      </td>
                     </tr>
                   }
                 </tbody>
@@ -1318,29 +1313,26 @@
                     <th
                       class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                     >
-                      Residue
+                      Comp_ID
                     </th>
                     <th
                       class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                     >
-                      Atom name
-                    </th>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Mapped atom(s)
+                      Mapping history (Author defined atom name → Atom_IDs in CCD)
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   @for (m of sf.atom_name_mapping; track $index) {
-                    <tr
-                      class="border-b border-surface-100 dark:border-surface-800"
-                      [class.text-red-600]="m.unusual"
-                    >
-                      <td class="px-2 py-1">{{ m.comp_id }}</td>
-                      <td class="px-2 py-1 font-mono">{{ m.name }}</td>
-                      <td class="px-2 py-1 font-mono">{{ m.atoms }}</td>
+                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                      <td class="px-2 py-1 align-top">{{ m.comp_id }}</td>
+                      <td class="px-2 py-1 font-mono">
+                        @for (h of m.history; track $index) {
+                          <span [class.text-red-600]="h.unusual"
+                            >{{ h.name }} → {{ h.atoms }}</span
+                          >{{ $last ? '' : '; ' }}
+                        }
+                      </td>
                     </tr>
                   }
                 </tbody>
@@ -1480,29 +1472,26 @@
                     <th
                       class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                     >
-                      Residue
+                      Comp_ID
                     </th>
                     <th
                       class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                     >
-                      Atom name
-                    </th>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Mapped atom(s)
+                      Mapping history (Author defined atom name → Atom_IDs in CCD)
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   @for (m of sf.atom_name_mapping; track $index) {
-                    <tr
-                      class="border-b border-surface-100 dark:border-surface-800"
-                      [class.text-red-600]="m.unusual"
-                    >
-                      <td class="px-2 py-1">{{ m.comp_id }}</td>
-                      <td class="px-2 py-1 font-mono">{{ m.name }}</td>
-                      <td class="px-2 py-1 font-mono">{{ m.atoms }}</td>
+                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                      <td class="px-2 py-1 align-top">{{ m.comp_id }}</td>
+                      <td class="px-2 py-1 font-mono">
+                        @for (h of m.history; track $index) {
+                          <span [class.text-red-600]="h.unusual"
+                            >{{ h.name }} → {{ h.atoms }}</span
+                          >{{ $last ? '' : '; ' }}
+                        }
+                      </td>
                     </tr>
                   }
                 </tbody>
