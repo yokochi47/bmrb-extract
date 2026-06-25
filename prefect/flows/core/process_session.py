@@ -1274,6 +1274,15 @@ def process_session(
     except Exception as exc:  # noqa: BLE001
         print(f'[{conversion_id}] session status update FAILED ({exc})')
 
+    # Refresh the footer's software/resource versions from the images just used,
+    # so a fix delivered via an upstream image is immediately observable after a
+    # verification run (best-effort; also captured on a schedule).
+    try:
+        from versions import capture_versions
+        capture_versions(workspace_base)
+    except Exception as exc:  # noqa: BLE001
+        print(f'[{conversion_id}] version capture FAILED ({exc})')
+
     # TODO: insert output_file rows with run_number=run_number (PK = conversion_id,
     #       run_number, ordinal), stored_path pointing under the workspace output/ dir.
     return {'success': success, 'run_number': run_number}

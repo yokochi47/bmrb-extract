@@ -291,11 +291,11 @@
                   } @else {
                     <td class="px-2 py-1" [class.text-red-600]="r.rows_zero">{{ r.n_rows }}</td>
                   }
-                  <td class="px-2 py-1" [class.text-red-600]="r.exp_unknown">
+                  <td class="px-2 py-1" [class.text-amber-600]="r.exp_unknown">
                     {{ r.exp_type || '—' }}
                   </td>
                   @if (r.coverage) {
-                    <td class="px-2 py-1" [class.text-red-600]="r.coverage_low">
+                    <td class="px-2 py-1" [class.text-amber-600]="r.coverage_low">
                       {{ r.coverage }}
                     </td>
                   } @else {
@@ -386,6 +386,9 @@
             <thead>
               <tr>
                 <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
+                  Type
+                </th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
                   Atom 1
                 </th>
                 <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
@@ -399,6 +402,7 @@
             <tbody>
               @for (b of previewAssembly()!.other_bonds; track $index) {
                 <tr class="border-b border-surface-100 dark:border-surface-800">
+                  <td class="px-2 py-1 font-mono">{{ b.type ?? '—' }}</td>
                   <td class="px-2 py-1 font-mono">{{ b.atom1 }}</td>
                   <td class="px-2 py-1 font-mono">{{ b.atom2 }}</td>
                   <td class="px-2 py-1">{{ b.distance ?? '—' }}</td>
@@ -510,7 +514,8 @@
           <ng-template pTemplate="header">
             <span class="flex items-center gap-2">
               <span class="font-medium"
-                >Saveframe: <span class="font-mono break-all">{{ sf.sf_framecode }}</span></span
+                >Assigned chemical shifts:
+                <span class="font-mono break-all">{{ sf.sf_framecode }}</span></span
               >
               @if (sf.status) {
                 <span class="text-sm font-medium" [class]="statusColor(sf.status)"
@@ -627,7 +632,7 @@
                               <td class="px-2 py-1">{{ g.group }}</td>
                               <td class="px-2 py-1">{{ g.assigned }}</td>
                               <td class="px-2 py-1">{{ g.target }}</td>
-                              <td class="px-2 py-1" [class.text-red-600]="g.pct < 30">
+                              <td class="px-2 py-1" [class.text-amber-600]="g.pct < 30">
                                 {{ g.pct }}%
                               </td>
                             </tr>
@@ -786,6 +791,42 @@
             </div>
           }
 
+          <!-- Atom name mapping -->
+          @if (sf.atom_name_mapping.length) {
+            <div class="mb-2 overflow-x-auto">
+              <div class="font-medium mb-2">Atom name mapping</div>
+              <table class="w-full text-sm border-collapse">
+                <thead>
+                  <tr>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Comp_ID
+                    </th>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Mapping history (Author defined atom name → Atom_IDs in CCD)
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (m of sf.atom_name_mapping; track $index) {
+                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                      <td class="px-2 py-1 align-top">{{ m.comp_id }}</td>
+                      <td class="px-2 py-1 font-mono">
+                        @for (h of m.history; track $index) {
+                          <span [class.text-red-600]="h.unusual">{{ h.name }} → {{ h.atoms }}</span
+                          >{{ $last ? '' : '; ' }}
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+
           <!-- Histogram of normalized chemical shifts -->
           @for (p of chemShiftHistogramPanels(sf); track $index) {
             <div class="mb-6">
@@ -799,46 +840,6 @@
             <div class="mb-6">
               <div class="font-medium mb-1">{{ p.title }}</div>
               <app-echart [option]="p.option" [height]="340" />
-            </div>
-          }
-
-          <!-- Atom name mapping -->
-          @if (sf.atom_name_mapping.length) {
-            <div class="mb-2 overflow-x-auto">
-              <div class="font-medium mb-2">Atom name mapping</div>
-              <table class="w-full text-sm border-collapse">
-                <thead>
-                  <tr>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Residue
-                    </th>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Atom name
-                    </th>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Mapped atom(s)
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (m of sf.atom_name_mapping; track $index) {
-                    <tr
-                      class="border-b border-surface-100 dark:border-surface-800"
-                      [class.text-red-600]="m.unusual"
-                    >
-                      <td class="px-2 py-1">{{ m.comp_id }}</td>
-                      <td class="px-2 py-1 font-mono">{{ m.name }}</td>
-                      <td class="px-2 py-1 font-mono">{{ m.atoms }}</td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
             </div>
           }
         </p-panel>
@@ -992,29 +993,25 @@
                     <th
                       class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                     >
-                      Residue
+                      Comp_ID
                     </th>
                     <th
                       class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                     >
-                      Atom name
-                    </th>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Mapped atom(s)
+                      Mapping history (Author defined atom name → Atom_IDs in CCD)
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   @for (m of sf.atom_name_mapping; track $index) {
-                    <tr
-                      class="border-b border-surface-100 dark:border-surface-800"
-                      [class.text-red-600]="m.unusual"
-                    >
-                      <td class="px-2 py-1">{{ m.comp_id }}</td>
-                      <td class="px-2 py-1 font-mono">{{ m.name }}</td>
-                      <td class="px-2 py-1 font-mono">{{ m.atoms }}</td>
+                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                      <td class="px-2 py-1 align-top">{{ m.comp_id }}</td>
+                      <td class="px-2 py-1 font-mono">
+                        @for (h of m.history; track $index) {
+                          <span [class.text-red-600]="h.unusual">{{ h.name }} → {{ h.atoms }}</span
+                          >{{ $last ? '' : '; ' }}
+                        }
+                      </td>
                     </tr>
                   }
                 </tbody>
@@ -1157,29 +1154,25 @@
                     <th
                       class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                     >
-                      Residue
+                      Comp_ID
                     </th>
                     <th
                       class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                     >
-                      Atom name
-                    </th>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Mapped atom(s)
+                      Mapping history (Author defined atom name → Atom_IDs in CCD)
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   @for (m of sf.atom_name_mapping; track $index) {
-                    <tr
-                      class="border-b border-surface-100 dark:border-surface-800"
-                      [class.text-red-600]="m.unusual"
-                    >
-                      <td class="px-2 py-1">{{ m.comp_id }}</td>
-                      <td class="px-2 py-1 font-mono">{{ m.name }}</td>
-                      <td class="px-2 py-1 font-mono">{{ m.atoms }}</td>
+                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                      <td class="px-2 py-1 align-top">{{ m.comp_id }}</td>
+                      <td class="px-2 py-1 font-mono">
+                        @for (h of m.history; track $index) {
+                          <span [class.text-red-600]="h.unusual">{{ h.name }} → {{ h.atoms }}</span
+                          >{{ $last ? '' : '; ' }}
+                        }
+                      </td>
                     </tr>
                   }
                 </tbody>
@@ -1318,29 +1311,25 @@
                     <th
                       class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                     >
-                      Residue
+                      Comp_ID
                     </th>
                     <th
                       class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                     >
-                      Atom name
-                    </th>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Mapped atom(s)
+                      Mapping history (Author defined atom name → Atom_IDs in CCD)
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   @for (m of sf.atom_name_mapping; track $index) {
-                    <tr
-                      class="border-b border-surface-100 dark:border-surface-800"
-                      [class.text-red-600]="m.unusual"
-                    >
-                      <td class="px-2 py-1">{{ m.comp_id }}</td>
-                      <td class="px-2 py-1 font-mono">{{ m.name }}</td>
-                      <td class="px-2 py-1 font-mono">{{ m.atoms }}</td>
+                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                      <td class="px-2 py-1 align-top">{{ m.comp_id }}</td>
+                      <td class="px-2 py-1 font-mono">
+                        @for (h of m.history; track $index) {
+                          <span [class.text-red-600]="h.unusual">{{ h.name }} → {{ h.atoms }}</span
+                          >{{ $last ? '' : '; ' }}
+                        }
+                      </td>
                     </tr>
                   }
                 </tbody>
@@ -1480,29 +1469,25 @@
                     <th
                       class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                     >
-                      Residue
+                      Comp_ID
                     </th>
                     <th
                       class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                     >
-                      Atom name
-                    </th>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Mapped atom(s)
+                      Mapping history (Author defined atom name → Atom_IDs in CCD)
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   @for (m of sf.atom_name_mapping; track $index) {
-                    <tr
-                      class="border-b border-surface-100 dark:border-surface-800"
-                      [class.text-red-600]="m.unusual"
-                    >
-                      <td class="px-2 py-1">{{ m.comp_id }}</td>
-                      <td class="px-2 py-1 font-mono">{{ m.name }}</td>
-                      <td class="px-2 py-1 font-mono">{{ m.atoms }}</td>
+                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                      <td class="px-2 py-1 align-top">{{ m.comp_id }}</td>
+                      <td class="px-2 py-1 font-mono">
+                        @for (h of m.history; track $index) {
+                          <span [class.text-red-600]="h.unusual">{{ h.name }} → {{ h.atoms }}</span
+                          >{{ $last ? '' : '; ' }}
+                        }
+                      </td>
                     </tr>
                   }
                 </tbody>

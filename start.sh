@@ -19,6 +19,11 @@ done
 docker compose exec -T prefect-worker sh -c "cd /flows && prefect deploy --all" \
   || echo "WARNING: 'prefect deploy' failed; /api/process cannot trigger runs until the deployment is registered."
 
+# Seed /workspace/versions.json once now (the capture-versions deployment also
+# runs on a schedule) so the footer has version data before the first tick.
+docker compose exec -T prefect-worker sh -c "cd /flows && prefect deployment run 'capture-versions/default'" \
+  || echo "WARNING: failed to seed versions.json; the footer versions appear after the first scheduled capture."
+
 # Prune unused images
 yes | docker image prune
 

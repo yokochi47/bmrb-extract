@@ -17,6 +17,21 @@ case "${ans}" in
     SERVICE_LEVEL=production
     ;;
   d*)
+    if [[ "${SERVICE_LEVEL}" = "production" ]] ; then
+
+      echo "CAVEAT: Do you really want to change the service level from 'production' to 'development'? [y/N]"
+
+      read ans2
+
+      case "${ans2}" in
+        y*|Y*)
+          ;;
+        *)
+          echo Aborted.
+          exit 1;;
+      esac
+
+    fi
     SERVICE_LEVEL=development
     ;;
   *)
@@ -281,6 +296,10 @@ check_file certbot/certbot.sh
 #
 # Frontend
 #
+# Frontend package version (shown in the footer), injected into site.config.ts.
+export FRONTEND_VERSION=$(grep -m1 '"version"' frontend/package.json \
+  | sed -E 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
+
 if [[ ${SERVICE_DOMAIN} = "bmrb.io" ]] ; then
 
   ( cd frontend/src

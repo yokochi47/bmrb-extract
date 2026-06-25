@@ -406,6 +406,15 @@ export class Upload implements OnDestroy {
     return this.rows().length > 0 && c.errors.length === 0 && c.warnings.length === 0;
   });
 
+  /** True once the user performs a file operation (upload, deletion, selection
+   * or type change) in the current draft. Reset after each processing run. */
+  private fileOpDone = signal(false);
+
+  /** On re-upload (a run has already been processed, so a conversion ID exists),
+   * the Process button stays disabled until the user changes the file set, to
+   * avoid re-processing an identical input. The first run is unaffected. */
+  requiresFileOp = computed(() => this.state().conversionId !== null && !this.fileOpDone());
+
   readonly depSystemOptions = [
     {
       label:
@@ -817,6 +826,7 @@ export class Upload implements OnDestroy {
       file: f,
     }));
     this.rows.update((prev) => [...prev, ...added]);
+    this.fileOpDone.set(true);
     input.value = '';
     if (!token) return;
 
@@ -846,18 +856,21 @@ export class Upload implements OnDestroy {
   setSelected(index: number, value: boolean): void {
     const row = this.rows()[index];
     this.rows.update((prev) => prev.map((r, i) => (i === index ? { ...r, selected: value } : r)));
+    this.fileOpDone.set(true);
     if (row?.ordinal != null) this.patchRow(row.ordinal, { selected: value });
   }
 
   setFileType(index: number, value: string): void {
     const row = this.rows()[index];
     this.rows.update((prev) => prev.map((r, i) => (i === index ? { ...r, fileType: value } : r)));
+    this.fileOpDone.set(true);
     if (row?.ordinal != null) this.patchRow(row.ordinal, { file_type: value });
   }
 
   removeRow(index: number): void {
     const row = this.rows()[index];
     this.rows.update((prev) => prev.filter((_, i) => i !== index));
+    this.fileOpDone.set(true);
     const token = this.state().tokenBase;
     if (token && row?.ordinal != null) {
       this.http.delete(API_URL + 'upload', { body: { token, ordinal: row.ordinal } }).subscribe({
@@ -962,6 +975,8 @@ export class Upload implements OnDestroy {
         }),
       );
       this.pageService.pageState.update((prev) => ({ ...prev, conversionId: res.conversion_id }));
+      // Re-disable Process until the next file change (re-upload requires an edit).
+      this.fileOpDone.set(false);
       this.submitting.set(false);
       this.openProgress();
     } catch (err) {

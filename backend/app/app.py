@@ -119,6 +119,19 @@ def health():
     return {'status': 'ok'}
 
 
+@app.route('/api/versions', methods=['GET'])
+def get_versions():
+    """Software/resource versions of the live conversion images, captured by the
+    prefect-worker into the shared workspace (capture-versions flow). Read per
+    request so a refresh shows up without a backend restart. Public, read-only."""
+    path = Path(WORKSPACE_BASE_PATH) / 'versions.json'
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        data = {}
+    return {'software': data.get('software', {}), 'resource': data.get('resource', {})}
+
+
 # ── Session ───────────────────────────────────────────────────────────────────
 
 @app.route('/api/session', methods=['GET'])
@@ -1010,10 +1023,35 @@ def _iso_label(key):
     return key.replace('_', ' ').strip().title()
 
 
+def _histogram_annotations(h):
+    """Per-outlier annotations for a normalized chemical-shift histogram: a dashed
+    marker at the bin holding each anomalous/unusual value (by Z score) with a
+    short description. Empty for histograms without Z-score annotations."""
+    rov = h.get('range_of_values') or []
+    ann = h.get('annotations') or []
+    if len(rov) < 2 or not ann:
+        return []
+    r0, scale = rov[0], rov[1] - rov[0]
+    cats = [str(v) for v in rov]
+    out = []
+    for a in sorted(ann, key=lambda x: -(x.get('z_score') or 0)):
+        z = a.get('z_score')
+        if not isinstance(z, (int, float)) or not scale:
+            continue
+        idx = max(0, min(len(cats) - 1, round((z - r0) / scale)))
+        out.append({
+            'category': cats[idx],
+            'anomalous': a.get('level') == 'anomalous',
+            'text': (f"{a.get('chain_id')}:{a.get('seq_id')}:{a.get('comp_id')}:"
+                     f"{a.get('atom_id')}, {a.get('value')} ppm, Z score {z}"),
+        })
+    return out
+
+
 def _histogram_chart(stat_list):
-    """Build [{label, categories, series}] from a stats list's `histogram`
-    ({range_of_values, number_of_values: {key: [counts]}}). All-zero series are
-    dropped to reduce clutter."""
+    """Build [{label, categories, series, annotations}] from a stats list's
+    `histogram` ({range_of_values, number_of_values: {key: [counts]}}). All-zero
+    series are dropped; annotations mark outliers (chem-shift Z scores)."""
     charts = []
     for st in stat_list or []:
         h = st.get('histogram')
@@ -1028,7 +1066,8 @@ def _histogram_chart(stat_list):
         ]
         if series:
             charts.append({'label': st.get('sf_framecode', ''),
-                           'categories': categories, 'series': series})
+                           'categories': categories, 'series': series,
+                           'annotations': _histogram_annotations(h)})
     return charts
 
 
@@ -1442,7 +1481,8 @@ def _bond_atom(b, n):
 def _bond_rows(items):
     """Rows for a disulfide / other bond table: the two bonded atoms + distance."""
     return [
-        {'atom1': _bond_atom(b, 1), 'atom2': _bond_atom(b, 2), 'distance': b.get('distance_value')}
+        {'type': b.get('bond_type'), 'atom1': _bond_atom(b, 1), 'atom2': _bond_atom(b, 2),
+         'distance': b.get('distance_value')}
         for b in items or []
     ]
 
@@ -1598,19 +1638,21 @@ def _atom_mapping_normal(atom_name, atom_ids):
 
 
 def _atom_name_mapping(st):
-    """Original → IUPAC atom-name mapping rows for one saveframe:
-    [{comp_id, name, atoms, unusual}] (name is the original atom_name; atoms the
-    joined mapped atom_id(s); unusual flags an unexpected mapping for the user)."""
-    rows = []
+    """Per-residue (Comp_ID) atom-name mapping for one saveframe:
+    [{comp_id, history:[{name, atoms, unusual}]}] where each history entry maps
+    an author-defined atom name to its IUPAC Atom_ID(s) in the CCD; unusual flags
+    an unexpected mapping for the user."""
+    out = []
     for m in st.get('atom_name_mapping') or []:
-        comp = m.get('comp_id', '')
+        history = []
         for h in m.get('history') or []:
             name = h.get('atom_name', '')
             atom_ids = [str(a) for a in (h.get('atom_id') or [])]
-            rows.append({'comp_id': comp, 'name': name,
-                         'atoms': ' '.join(atom_ids),
-                         'unusual': not _atom_mapping_normal(name, atom_ids)})
-    return rows
+            history.append({'name': name, 'atoms': ', '.join(atom_ids),
+                            'unusual': not _atom_mapping_normal(name, atom_ids)})
+        if history:
+            out.append({'comp_id': m.get('comp_id', ''), 'history': history})
+    return out
 
 
 def _sequence_coverage(st, aligns):

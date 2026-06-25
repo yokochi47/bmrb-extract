@@ -17,3 +17,17 @@ deployments:
     pull:
       - prefect.deployments.steps.set_working_directory:
           directory: /flows
+
+  # Refreshes /workspace/versions.json from the live maxit-ccd / py-wwpdb_utils_nmr
+  # images (docker inspect) so the footer reflects the currently-deployed versions.
+  # Scheduled every 10 min; also seeded once by start.sh and refreshed at the end
+  # of each conversion run. Deployment: capture-versions/default.
+  - name: default
+    entrypoint: core/versions.py:capture_versions_flow
+    work_pool:
+      name: local-pool
+    schedules:
+      - interval: 600
+    pull:
+      - prefect.deployments.steps.set_working_directory:
+          directory: /flows
