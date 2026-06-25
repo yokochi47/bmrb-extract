@@ -17,6 +17,21 @@ case "${ans}" in
     SERVICE_LEVEL=production
     ;;
   d*)
+    if [[ "${SERVICE_LEVEL}" = "production" ]] ; then
+
+      echo "CAVEAT: Do you really want to change the service level from 'production' to 'development' ? [ y or n ]"
+
+      read ans2
+
+      case "${ans2}" in
+        y*|Y*)
+          ;;
+        *)
+          echo Aborted.
+          exit 1;;
+      esac
+
+    fi
     SERVICE_LEVEL=development
     ;;
   *)
