@@ -36,7 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'shared'))
 import workspace as ws  # noqa: E402
 import asyncio  # noqa: E402
 import smtplib  # noqa: E402
-from datetime import datetime  # noqa: E402
+from datetime import datetime, timedelta  # noqa: E402
 from email.message import EmailMessage  # noqa: E402
 
 from sqlalchemy import func, select, update  # noqa: E402
@@ -63,6 +63,8 @@ from core.site_config import (  # noqa: E402
     SMTP_SERVER,
     ARCHIVE_BASE_PATH,
     WORKSPACE_BASE_PATH,
+    SUCCESS_VALIDITY_PERIOD_IN_DAYS,
+    FAILURE_VALIDITY_PERIOD_IN_DAYS,
 )
 
 
@@ -176,20 +178,29 @@ async def _nmr_report_status(conversion_id: int, run_number: int) -> str | None:
 
 
 async def _update_session_status(token: str, status: SessionStatusCode) -> None:
-    """Set the session's lifecycle status and finish time when a run ends.
+    """Set the session's lifecycle status and finish time when a run ends, and
+    refresh the token expiry from this run's outcome.
 
     Called once per run with `completed` (the pipeline ran to completion, even
-    if the NMR report flags user-facing errors) or `failed` (a task failed or
-    was aborted). Clearing `processing` also lets the user start another run.
-    Per-task detail lives on the workflow rows; this is the session-level outcome.
+    if the NMR report flags user-facing errors) or `failed` (a task failed, was
+    aborted, or the NMR report is a blocker). Clearing `processing` also lets the
+    user start another run. Per-task detail lives on the workflow rows; this is
+    the session-level outcome.
+
+    Token expiry is reset to now + the validity period for the outcome: the
+    shorter FAILURE period when the run failed, the longer SUCCESS period
+    otherwise — so a successful conversion's results stay available longer.
     """
+    days = (FAILURE_VALIDITY_PERIOD_IN_DAYS if status == SessionStatusCode.failed
+            else SUCCESS_VALIDITY_PERIOD_IN_DAYS)
+    token_expiry = datetime.now() + timedelta(days=days)
     engine = create_async_engine(SERVICE_DATABASE_URL, poolclass=NullPool)
     try:
         async with async_sessionmaker(engine, expire_on_commit=False)() as db:
             await db.execute(
                 update(Session)
                 .where(Session.token == token)
-                .values(status=status, finished_at=func.now())
+                .values(status=status, finished_at=func.now(), token_expiry=token_expiry)
             )
             await db.commit()
     finally:
