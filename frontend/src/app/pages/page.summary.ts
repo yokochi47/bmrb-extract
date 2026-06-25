@@ -81,6 +81,8 @@ interface HistogramChart {
   label: string;
   categories: string[];
   series: { name: string; data: number[] }[];
+  /** Outlier markers (chem-shift Z scores): dashed line + short description. */
+  annotations?: { category: string; anomalous: boolean; text: string }[];
 }
 interface DihedralPlot {
   points: { name: string; x: number; y: number }[];
@@ -740,6 +742,34 @@ export class Summary implements OnDestroy {
 
   /** ECharts option for a stacked-bar histogram. */
   private histogramOption(h: HistogramChart, xName: string, yName: string): object {
+    // Outlier markers: a dashed vertical line at each annotated value's bin,
+    // red for anomalous shifts (else slate), with a rotated short description.
+    const ann = h.annotations ?? [];
+    const markLine = ann.length
+      ? {
+          silent: true,
+          symbol: 'none',
+          data: ann.map((a) => ({
+            xAxis: a.category,
+            lineStyle: { color: a.anomalous ? '#dc2626' : '#475569', type: 'dashed', width: 1 },
+            label: {
+              show: true,
+              formatter: a.text,
+              // Anchor the rotated text at its start so it hangs downward from
+              // the top of the line (default centering clipped the leading
+              // residue id above the plot, leaving only value / Z score).
+              position: 'end',
+              rotate: -90,
+              align: 'left',
+              // 'bottom' shifts the rotated text column to the right of the
+              // dashed line so the text and line no longer overlap.
+              verticalAlign: 'bottom',
+              fontSize: 9,
+              color: a.anomalous ? '#dc2626' : '#475569',
+            },
+          })),
+        }
+      : undefined;
     return {
       title: { text: h.label, left: 'center', textStyle: { fontSize: 12, fontWeight: 'normal' } },
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
@@ -754,7 +784,13 @@ export class Summary implements OnDestroy {
         axisLabel: { rotate: -75, fontSize: 9 },
       },
       yAxis: { type: 'value', name: yName, minInterval: 1 },
-      series: h.series.map((s) => ({ name: s.name, type: 'bar', stack: 'total', data: s.data })),
+      series: h.series.map((s, idx) => ({
+        name: s.name,
+        type: 'bar',
+        stack: 'total',
+        data: s.data,
+        ...(idx === 0 && markLine ? { markLine } : {}),
+      })),
     };
   }
 

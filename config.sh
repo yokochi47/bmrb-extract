@@ -19,7 +19,7 @@ case "${ans}" in
   d*)
     if [[ "${SERVICE_LEVEL}" = "production" ]] ; then
 
-      echo "CAVEAT: Do you really want to change the service level from 'production' to 'development' ? [ y or n ]"
+      echo "CAVEAT: Do you really want to change the service level from 'production' to 'development'? [y/N]"
 
       read ans2
 

@@ -1010,10 +1010,35 @@ def _iso_label(key):
     return key.replace('_', ' ').strip().title()
 
 
+def _histogram_annotations(h):
+    """Per-outlier annotations for a normalized chemical-shift histogram: a dashed
+    marker at the bin holding each anomalous/unusual value (by Z score) with a
+    short description. Empty for histograms without Z-score annotations."""
+    rov = h.get('range_of_values') or []
+    ann = h.get('annotations') or []
+    if len(rov) < 2 or not ann:
+        return []
+    r0, scale = rov[0], rov[1] - rov[0]
+    cats = [str(v) for v in rov]
+    out = []
+    for a in sorted(ann, key=lambda x: -(x.get('z_score') or 0)):
+        z = a.get('z_score')
+        if not isinstance(z, (int, float)) or not scale:
+            continue
+        idx = max(0, min(len(cats) - 1, round((z - r0) / scale)))
+        out.append({
+            'category': cats[idx],
+            'anomalous': a.get('level') == 'anomalous',
+            'text': (f"{a.get('chain_id')}:{a.get('seq_id')}:{a.get('comp_id')}:"
+                     f"{a.get('atom_id')}, {a.get('value')} ppm, Z score {z}"),
+        })
+    return out
+
+
 def _histogram_chart(stat_list):
-    """Build [{label, categories, series}] from a stats list's `histogram`
-    ({range_of_values, number_of_values: {key: [counts]}}). All-zero series are
-    dropped to reduce clutter."""
+    """Build [{label, categories, series, annotations}] from a stats list's
+    `histogram` ({range_of_values, number_of_values: {key: [counts]}}). All-zero
+    series are dropped; annotations mark outliers (chem-shift Z scores)."""
     charts = []
     for st in stat_list or []:
         h = st.get('histogram')
@@ -1028,7 +1053,8 @@ def _histogram_chart(stat_list):
         ]
         if series:
             charts.append({'label': st.get('sf_framecode', ''),
-                           'categories': categories, 'series': series})
+                           'categories': categories, 'series': series,
+                           'annotations': _histogram_annotations(h)})
     return charts
 
 
