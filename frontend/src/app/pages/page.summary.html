@@ -291,11 +291,11 @@
                   } @else {
                     <td class="px-2 py-1" [class.text-red-600]="r.rows_zero">{{ r.n_rows }}</td>
                   }
-                  <td class="px-2 py-1" [class.text-red-600]="r.exp_unknown">
+                  <td class="px-2 py-1" [class.text-amber-600]="r.exp_unknown">
                     {{ r.exp_type || '—' }}
                   </td>
                   @if (r.coverage) {
-                    <td class="px-2 py-1" [class.text-red-600]="r.coverage_low">
+                    <td class="px-2 py-1" [class.text-amber-600]="r.coverage_low">
                       {{ r.coverage }}
                     </td>
                   } @else {
@@ -631,7 +631,7 @@
                               <td class="px-2 py-1">{{ g.group }}</td>
                               <td class="px-2 py-1">{{ g.assigned }}</td>
                               <td class="px-2 py-1">{{ g.target }}</td>
-                              <td class="px-2 py-1" [class.text-red-600]="g.pct < 30">
+                              <td class="px-2 py-1" [class.text-amber-600]="g.pct < 30">
                                 {{ g.pct }}%
                               </td>
                             </tr>
