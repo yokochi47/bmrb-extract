@@ -1174,46 +1174,26 @@
             </ul>
           }
 
-          <!-- Number of constraints (with value range / experiment) -->
-          @if (sf.constraints.length) {
+          <!-- Number / … / weight / potential type of constraints — hierarchical
+               lists (number_of_constraints carries the value range / experiment). -->
+          @for (cl of sf.constraint_lists; track cl.key) {
             <div class="mb-4 overflow-x-auto">
               <div class="font-medium mb-2">
-                Number of constraints
-                @if (sf.range) {
-                  <span class="text-sm text-surface-600 dark:text-surface-300"
-                    >— observed range {{ sf.range }}</span
-                  >
-                }
-                @if (sf.exp_type) {
-                  <span class="text-sm text-surface-600 dark:text-surface-300"
-                    >· {{ sf.exp_type }}</span
-                  >
+                {{ cl.title }}
+                @if (cl.key === 'number') {
+                  @if (sf.range) {
+                    <span class="text-sm text-surface-600 dark:text-surface-300"
+                      >— observed range {{ sf.range }}</span
+                    >
+                  }
+                  @if (sf.exp_type) {
+                    <span class="text-sm text-surface-600 dark:text-surface-300"
+                      >· {{ sf.exp_type }}</span
+                    >
+                  }
                 }
               </div>
-              <table class="w-full text-sm border-collapse">
-                <thead>
-                  <tr>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Constraint type
-                    </th>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Count
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (c of sf.constraints; track $index) {
-                    <tr class="border-b border-surface-100 dark:border-surface-800">
-                      <td class="px-2 py-1">{{ c.label }}</td>
-                      <td class="px-2 py-1">{{ c.count }}</td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
+              <div class="text-sm nmr-tree" [innerHTML]="cl.html"></div>
             </div>
           }
 

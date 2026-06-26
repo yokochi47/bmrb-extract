@@ -1709,13 +1709,6 @@ def _chem_shift_saveframes(chem_shift_list, aligns):
     return out
 
 
-def _constraint_counts(st):
-    """[{label, count}] from a restraint saveframe's number_of_constraints dict."""
-    noc = st.get('number_of_constraints') or {}
-    return [{'label': _constraint_label(k), 'count': v}
-            for k, v in noc.items() if isinstance(v, (int, float))]
-
-
 # Tailwind class for the red highlight used in the hierarchical lists below.
 _DIST_RED = 'text-red-600 dark:text-red-400'
 
@@ -1886,11 +1879,11 @@ def _flat_constraint_tree(item, mode, top, expand):
     return html + '</li>'
 
 
-# Dihedral-angle-restraint fields rendered as hierarchical lists, in display
-# order: (key, report_key, mode, top-line param, section title). number_of_* and
-# constraints_per_polymer_type are flat count dicts; weight / potential type
-# carry [[value, count], …] frequency lists.
-_DIHED_CONSTRAINT_FIELDS = (
+# Flat (single-level) restraint fields rendered as hierarchical lists, in
+# display order: (key, report_key, mode, top-line param, section title). Shared
+# by dihedral-angle and RDC restraints. number_of_* and constraints_per_polymer_type
+# are flat count dicts; weight / potential type carry [[value, count], …] lists.
+_FLAT_CONSTRAINT_FIELDS = (
     ('number', 'number_of_constraints', 'count', None, 'Number of constraints'),
     ('combined', 'number_of_combined_constraints', 'count', 'combined', 'Number of combined constraints'),
     ('redundant', 'number_of_redundant_constraints', 'count', 'redundant', 'Number of redundant constraints'),
@@ -1902,14 +1895,14 @@ _DIHED_CONSTRAINT_FIELDS = (
 )
 
 
-def _dihed_constraint_lists(st):
-    """Hierarchical lists for a dihedral-angle-restraint saveframe: number /
-    combined / redundant / inconsistent counts, per-polymer-type counts, and
-    weight / potential type of constraints (each optional). Each entry is
-    {key, title, html}; html is a ready-to-render <ul> tree (bound via
+def _flat_constraint_lists(st):
+    """Hierarchical lists for a flat-structured restraint saveframe (dihedral-angle
+    or RDC): number / combined / redundant / inconsistent counts, per-polymer-type
+    counts, and weight / potential type of constraints (each optional). Each entry
+    is {key, title, html}; html is a ready-to-render <ul> tree (bound via
     [innerHTML] on the summary page)."""
     out = []
-    for key, field, mode, param, title in _DIHED_CONSTRAINT_FIELDS:
+    for key, field, mode, param, title in _FLAT_CONSTRAINT_FIELDS:
         item = st.get(field)
         if not isinstance(item, dict) or not item:
             continue
@@ -1970,7 +1963,7 @@ def _dihed_restraint_saveframes(dihed_list, aligns):
             'warning_descriptions': st.get('warning_descriptions') or [],
             'exp_type': st.get('exp_type') or '',
             'sequence_coverage': _sequence_coverage(st, aligns),
-            'constraint_lists': _dihed_constraint_lists(st),
+            'constraint_lists': _flat_constraint_lists(st),
             'histogram': _histogram_chart([st]),
             'dihedral': _dihedral_charts([st]),
             'per_residue': _per_residue_value_charts([st], -180, 180),
@@ -1996,7 +1989,7 @@ def _rdc_restraint_saveframes(rdc_list, aligns):
             'warning_descriptions': st.get('warning_descriptions') or [],
             'exp_type': st.get('exp_type') or '',
             'sequence_coverage': _sequence_coverage(st, aligns),
-            'constraints': _constraint_counts(st),
+            'constraint_lists': _flat_constraint_lists(st),
             'range': range_text,
             'histogram': _histogram_chart([st]),
             'per_residue': _per_residue_value_charts([st]),
