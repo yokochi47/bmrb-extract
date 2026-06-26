@@ -1873,6 +1873,58 @@ def _dist_constraint_lists(st):
     return out
 
 
+def _flat_constraint_tree(item, mode, top, expand):
+    """Build a one-level <li>top<ul>per-classification</ul></li> for a flat
+    {classification: value} restraint dict (dihedral-angle / RDC style, where
+    classifications are not further nested). `mode` selects the leaf rendering
+    ('count' or 'mc'); classifications are prettified with _constraint_label."""
+    html = '<li>' + top
+    if expand:
+        subs = ''.join(f'<li>{_constraint_label(k)}: {_dist_leaf(item, k, mode)}</li>' for k in item)
+        if subs:
+            html += '<ul>' + subs + '</ul>'
+    return html + '</li>'
+
+
+# Dihedral-angle-restraint fields rendered as hierarchical lists, in display
+# order: (key, report_key, mode, top-line param, section title). number_of_* and
+# constraints_per_polymer_type are flat count dicts; weight / potential type
+# carry [[value, count], …] frequency lists.
+_DIHED_CONSTRAINT_FIELDS = (
+    ('number', 'number_of_constraints', 'count', None, 'Number of constraints'),
+    ('combined', 'number_of_combined_constraints', 'count', 'combined', 'Number of combined constraints'),
+    ('redundant', 'number_of_redundant_constraints', 'count', 'redundant', 'Number of redundant constraints'),
+    ('inconsistent', 'number_of_inconsistent_constraints', 'count', 'inconsistent',
+     'Number of inconsistent constraints'),
+    ('polymer_type', 'constraints_per_polymer_type', 'count', None, 'Constraints per polymer type'),
+    ('weight', 'weight_of_constraints', 'mc', 'Weight', 'Weight of constraints'),
+    ('potential', 'potential_type_of_constraints', 'mc', 'Potential type', 'Potential type of constraints'),
+)
+
+
+def _dihed_constraint_lists(st):
+    """Hierarchical lists for a dihedral-angle-restraint saveframe: number /
+    combined / redundant / inconsistent counts, per-polymer-type counts, and
+    weight / potential type of constraints (each optional). Each entry is
+    {key, title, html}; html is a ready-to-render <ul> tree (bound via
+    [innerHTML] on the summary page)."""
+    out = []
+    for key, field, mode, param, title in _DIHED_CONSTRAINT_FIELDS:
+        item = st.get(field)
+        if not isinstance(item, dict) or not item:
+            continue
+        if mode == 'count':
+            top = ('Total number of ' + (param + ' ' if param else '') + 'restraints: '
+                   + _dist_agg(item, list(item.keys()), mode))
+            expand = True
+        else:
+            top = f'{param} of restraints: ' + _dist_agg(item, list(item.keys()), mode)
+            expand = _sort_of_most_common_values(item) > 1
+        html = '<ul>' + _flat_constraint_tree(item, mode, top, expand) + '</ul>'
+        out.append({'key': key, 'title': title, 'html': html})
+    return out
+
+
 def _dist_restraint_saveframes(dist_list, aligns):
     """Per-saveframe distance-restraint preview, in report order. Reuses the
     per-content helpers on a single saveframe so the summary page can group all
@@ -1918,7 +1970,7 @@ def _dihed_restraint_saveframes(dihed_list, aligns):
             'warning_descriptions': st.get('warning_descriptions') or [],
             'exp_type': st.get('exp_type') or '',
             'sequence_coverage': _sequence_coverage(st, aligns),
-            'constraints': _constraint_counts(st),
+            'constraint_lists': _dihed_constraint_lists(st),
             'histogram': _histogram_chart([st]),
             'dihedral': _dihedral_charts([st]),
             'per_residue': _per_residue_value_charts([st], -180, 180),
