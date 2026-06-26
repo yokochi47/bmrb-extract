@@ -1716,6 +1716,163 @@ def _constraint_counts(st):
             for k, v in noc.items() if isinstance(v, (int, float))]
 
 
+# Tailwind class for the red highlight used in the hierarchical lists below.
+_DIST_RED = 'text-red-600 dark:text-red-400'
+
+
+def _count_most_common_value(pairs):
+    """Render one classification's [[value, count], …] frequency list, e.g.
+    '1.0 (179)'. Port of utils_nmr.nmr_dp_report_count_most_common_value."""
+    return ', '.join(f'{p[0]} ({p[1]})' for p in pairs)
+
+
+def _count_most_common_values(item):
+    """Aggregate the [[value, count], …] lists across several classifications and
+    render 'value (total), …'. Port of nmr_dp_report_count_most_common_values."""
+    totals = {}
+    for pairs in item.values():
+        for value, count in pairs:
+            totals[str(value)] = totals.get(str(value), 0) + count
+    return ', '.join(f'{k} ({v})' for k, v in totals.items())
+
+
+def _sort_of_most_common_values(item):
+    """Number of distinct values across all classifications (port of
+    nmr_dp_report_sort_of_most_common_values); decides whether the weight /
+    potential-type breakdown is worth expanding."""
+    return len({str(value) for pairs in item.values() for value, _c in pairs})
+
+
+def _dist_leaf(item, key, mode):
+    """Render one classification's value: an integer count ('count' mode) or a
+    most-common-value summary ('mc' mode, for weight / potential type)."""
+    return str(item[key]) if mode == 'count' else _count_most_common_value(item[key])
+
+
+def _dist_agg(item, keys, mode):
+    """Aggregate several classifications: sum of counts ('count') or merged
+    most-common values ('mc')."""
+    if mode == 'count':
+        return str(sum(item[k] for k in keys))
+    return _count_most_common_values({k: item[k] for k in keys})
+
+
+def _dist_bond_label(label):
+    """Highlight '(too close!)' / '(too far!)' in a bond-restraint subtype."""
+    for flag in ('(too close!)', '(too far!)'):
+        label = label.replace(flag, f'<span class="{_DIST_RED}">{flag}</span>')
+    return label
+
+
+def _dist_bond_section(item, name, title, mode):
+    """One bond-type section (hydrogen / disulfide / diselenide / other bonds) of
+    the distance-restraint tree: a total line, the direct subtypes, then the
+    long-range / inter-chain nested subtypes. Port of the repeated bond blocks in
+    utils_nmr.nmr_dp_report_distance_constraints."""
+    if not any(name in k for k in item):
+        return ''
+    html = f'<li>Total {title} restraints: ' + _dist_agg(item, [k for k in item if name in k], mode)
+    direct = [k for k in item if k.startswith(name + '_')]
+    if direct:
+        html += '<ul>' + ''.join(
+            f'<li>{_dist_bond_label(k[len(name) + 1:])}: {_dist_leaf(item, k, mode)}</li>' for k in direct
+        ) + '</ul>'
+    nested = ''
+    for prefix, label in ((f'long_range_{name}_', 'Long range'),
+                          (f'inter-chain_{name}_', 'Inter-chain')):
+        keys = [k for k in item if k.startswith(prefix)]
+        if keys:
+            nested += f'<li>{label}: ' + _dist_agg(item, keys, mode) + '<ul>' + ''.join(
+                f'<li>{_dist_bond_label(k[len(prefix):])}: {_dist_leaf(item, k, mode)}</li>' for k in keys
+            ) + '</ul></li>'
+    if nested:
+        html += '<ul>' + nested + '</ul>'
+    return html + '</li>'
+
+
+def _dist_constraint_tree(item, mode, top, expand):
+    """Build the hierarchical <li>…</li> for one distance-restraint field. `item`
+    is a {classification: value} dict sharing the NmrDpUtility distance-restraint
+    key structure; `mode` is 'count' (leaf values are integer counts) or 'mc'
+    (leaf values are [[value, count], …] frequency lists). Port of
+    utils_nmr.nmr_dp_report_distance_constraints / …_most_common_value_of_… ."""
+    html = '<li>' + top
+    if not expand:
+        return html + '</li>'
+    inner = ''
+    if 'intra-residue_constraints' in item:
+        inner += ('<li>Intra-residue restraints, <em>i = j</em> : '
+                  + _dist_leaf(item, 'intra-residue_constraints', mode) + '</li>')
+    for prefix, label, rng in (
+        ('sequential', 'Sequential restraints', '<em>| i - j | = 1</em>'),
+        ('medium_range', 'Medium range restraints', '<em>1 &lt; | i - j | &lt; 5</em>'),
+    ):
+        keys = [k for k in item if k.startswith(prefix)]
+        if not keys:
+            continue
+        inner += f'<li>{label}, {rng} : ' + _dist_agg(item, keys, mode)
+        subs = ''.join(
+            f'<li>{lbl}: {_dist_leaf(item, k, mode)}</li>'
+            for k, lbl in ((f'{prefix}_constraints_backbone-backbone', 'Backbone-backbone'),
+                           (f'{prefix}_constraints_backbone-sidechain', 'Backbone-side chain'),
+                           (f'{prefix}_constraints_sidechain-sidechain', 'Side chain-side chain'))
+            if k in item
+        )
+        if subs:
+            inner += '<ul>' + subs + '</ul>'
+        inner += '</li>'
+    if 'long_range_constraints' in item:
+        inner += ('<li>Long range restraints, <em>| i - j | &gt;= 5</em> : '
+                  + _dist_leaf(item, 'long_range_constraints', mode) + '</li>')
+    if 'inter-chain_constraints' in item:
+        inner += '<li>Inter-chain restraints: ' + _dist_leaf(item, 'inter-chain_constraints', mode) + '</li>'
+    for name, title in (('hydrogen_bonds', 'hydrogen bond'), ('disulfide_bonds', 'disulfide bond'),
+                        ('diselenide_bonds', 'diselenide bond'), ('other_bonds', 'other bond')):
+        inner += _dist_bond_section(item, name, title, mode)
+    if 'symmetric_constraints' in item:
+        inner += '<li>Symmetric restraints: ' + _dist_leaf(item, 'symmetric_constraints', mode) + '</li>'
+    if inner:
+        html += '<ul>' + inner + '</ul>'
+    return html + '</li>'
+
+
+# Distance-restraint fields rendered as hierarchical lists, in display order:
+# (key, report_key, mode, top-line param, section title). The number_of_* fields
+# are counts; weight / potential type carry [[value, count], …] frequency lists.
+_DIST_CONSTRAINT_FIELDS = (
+    ('number', 'number_of_constraints', 'count', None, 'Number of constraints'),
+    ('combined', 'number_of_combined_constraints', 'count', 'combined', 'Number of combined constraints'),
+    ('redundant', 'number_of_redundant_constraints', 'count', 'redundant', 'Number of redundant constraints'),
+    ('inconsistent', 'number_of_inconsistent_constraints', 'count', 'inconsistent',
+     'Number of inconsistent constraints'),
+    ('weight', 'weight_of_constraints', 'mc', 'Weight', 'Weight of constraints'),
+    ('potential', 'potential_type_of_constraints', 'mc', 'Potential type', 'Potential type of constraints'),
+)
+
+
+def _dist_constraint_lists(st):
+    """Hierarchical lists for a distance-restraint saveframe: number / combined /
+    redundant / inconsistent counts and weight / potential type of constraints
+    (each optional, included only when present in the report). Each entry is
+    {key, title, html} where html is a ready-to-render <ul> tree (bound via
+    [innerHTML] on the summary page)."""
+    out = []
+    for key, field, mode, param, title in _DIST_CONSTRAINT_FIELDS:
+        item = st.get(field)
+        if not isinstance(item, dict) or not item:
+            continue
+        if mode == 'count':
+            top = ('Total number of ' + (param + ' ' if param else '') + 'restraints: '
+                   + _dist_agg(item, list(item.keys()), mode))
+            expand = True
+        else:
+            top = f'{param} of restraints: ' + _dist_agg(item, list(item.keys()), mode)
+            expand = _sort_of_most_common_values(item) > 1
+        html = '<ul>' + _dist_constraint_tree(item, mode, top, expand) + '</ul>'
+        out.append({'key': key, 'title': title, 'html': html})
+    return out
+
+
 def _dist_restraint_saveframes(dist_list, aligns):
     """Per-saveframe distance-restraint preview, in report order. Reuses the
     per-content helpers on a single saveframe so the summary page can group all
@@ -1735,7 +1892,7 @@ def _dist_restraint_saveframes(dist_list, aligns):
             'warning_descriptions': st.get('warning_descriptions') or [],
             'exp_type': st.get('exp_type') or '',
             'sequence_coverage': _sequence_coverage(st, aligns),
-            'constraints': _constraint_counts(st),
+            'constraint_lists': _dist_constraint_lists(st),
             'range': range_text,
             'histogram': _histogram_chart([st]),
             'discrepancy': _discrepancy_charts([st]),

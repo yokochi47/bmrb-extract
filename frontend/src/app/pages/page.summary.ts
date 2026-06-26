@@ -231,7 +231,9 @@ interface DistRestraintSaveframe {
   warning_descriptions: string[];
   exp_type: string;
   sequence_coverage: SeqCoverageRow[];
-  constraints: { label: string; count: number }[];
+  /** Hierarchical lists (number / weight / potential type of constraints);
+   * each `html` is a ready-to-render <ul> tree bound via [innerHTML]. */
+  constraint_lists: { key: string; title: string; html: string }[];
   range: string;
   histogram: HistogramChart[];
   discrepancy: HistogramChart[];

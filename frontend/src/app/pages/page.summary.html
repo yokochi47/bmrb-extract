@@ -493,8 +493,8 @@
                       <pre
                         class="m-0 px-2 py-1 text-xs leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
                         >{{ r.ref_gauge }}
-{{ r.ref }}           
-{{ r.mid }}           
+{{ r.ref }}
+{{ r.mid }}
 {{ r.test }}</pre
                       >
                     }
@@ -572,32 +572,13 @@
             </div>
           }
 
-          <!-- Sequence coverage of experimental data + completeness of
-               assignments, merged per chain. -->
+          <!-- Completeness of assignments + Sequence coverage of experimental data, merged per chain. -->
           @if (sf.completeness.length) {
             <div class="mb-4">
               <div class="font-medium mb-2">Sequence coverage and completeness of assignments</div>
               @for (c of sf.completeness; track $index) {
                 @let cov = seqCoverageOf(sf, c.chain);
                 <div class="mb-4">
-                  <div class="text-sm text-surface-600 dark:text-surface-300 mb-1">
-                    Entity_assembly_ID: {{ c.chain }}
-                    @if (cov) {
-                      <span>, length: {{ cov.length }}</span>
-                    }
-                    @if (c.coverage_pct !== null) {
-                      <span> — sequence coverage: {{ c.coverage_pct }}%</span>
-                    }
-                  </div>
-                  @if (cov && (cov.ref || cov.test)) {
-                    <pre
-                      class="m-0 mb-3 px-2 py-1 text-xs leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
-                      >{{ cov.ref_gauge }}
-{{ cov.ref }}
-{{ cov.mid }}
-{{ cov.test }}</pre
-                    >
-                  }
                   @for (cat of c.categories; track $index) {
                     <div class="mb-3 overflow-x-auto">
                       <div class="text-sm font-medium mb-1">{{ cat.label }}</div>
@@ -723,6 +704,24 @@
                         </div>
                       }
                     </p-panel>
+                  }
+                  <div class="text-sm text-surface-600 dark:text-surface-300 mb-1">
+                    Entity_assembly_ID: {{ c.chain }}
+                    @if (cov) {
+                      <span>, length: {{ cov.length }}</span>
+                    }
+                    @if (c.coverage_pct !== null) {
+                      <span> — sequence coverage: {{ c.coverage_pct }}%</span>
+                    }
+                  </div>
+                  @if (cov && (cov.ref || cov.test)) {
+                    <pre
+                      class="m-0 mb-3 px-2 py-1 text-xs leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
+                      >{{ cov.ref_gauge }}
+{{ cov.ref }}
+{{ cov.mid }}
+{{ cov.test }}</pre
+                    >
                   }
                 </div>
               }
@@ -881,46 +880,26 @@
             </ul>
           }
 
-          <!-- Number of constraints (with target range / experiment) -->
-          @if (sf.constraints.length) {
+          <!-- Number / weight / potential type of constraints — hierarchical
+               lists (number_of_constraints carries the target range / experiment). -->
+          @for (cl of sf.constraint_lists; track cl.key) {
             <div class="mb-4 overflow-x-auto">
               <div class="font-medium mb-2">
-                Number of constraints
-                @if (sf.range) {
-                  <span class="text-sm text-surface-600 dark:text-surface-300"
-                    >— target range {{ sf.range }}</span
-                  >
-                }
-                @if (sf.exp_type) {
-                  <span class="text-sm text-surface-600 dark:text-surface-300"
-                    >· {{ sf.exp_type }}</span
-                  >
+                {{ cl.title }}
+                @if (cl.key === 'number') {
+                  @if (sf.range) {
+                    <span class="text-sm text-surface-600 dark:text-surface-300"
+                      >— target range {{ sf.range }}</span
+                    >
+                  }
+                  @if (sf.exp_type) {
+                    <span class="text-sm text-surface-600 dark:text-surface-300"
+                      >· {{ sf.exp_type }}</span
+                    >
+                  }
                 }
               </div>
-              <table class="w-full text-sm border-collapse">
-                <thead>
-                  <tr>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Constraint type
-                    </th>
-                    <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                    >
-                      Count
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (c of sf.constraints; track $index) {
-                    <tr class="border-b border-surface-100 dark:border-surface-800">
-                      <td class="px-2 py-1">{{ c.label }}</td>
-                      <td class="px-2 py-1">{{ c.count }}</td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
+              <div class="text-sm nmr-tree" [innerHTML]="cl.html"></div>
             </div>
           }
 
@@ -946,40 +925,6 @@
                   >
                 }
               }
-            </div>
-          }
-
-          <!-- Target-value histogram + discrepancy -->
-          @for (p of distHistogramPanels(sf); track $index) {
-            <div class="mb-6">
-              <div class="font-medium mb-1">{{ p.title }}</div>
-              <app-echart [option]="p.option" [height]="380" />
-            </div>
-          }
-          @for (p of distDiscrepancyPanels(sf); track $index) {
-            <div class="mb-6">
-              <div class="font-medium mb-1">{{ p.title }}</div>
-              <app-echart [option]="p.option" [height]="360" />
-            </div>
-          }
-
-          <!-- Constraints per residue + contact maps -->
-          @for (p of distPerResiduePanels(sf); track $index) {
-            <div class="mb-6">
-              <div class="font-medium mb-1">{{ p.title }}</div>
-              <app-echart [option]="p.option" [height]="380" />
-            </div>
-          }
-          @for (p of distContactMapPanels(sf); track $index) {
-            <div class="mb-6">
-              <div class="font-medium mb-1">{{ p.title }}</div>
-              <app-echart [option]="p.option" [height]="440" />
-            </div>
-          }
-          @for (p of distAsymContactMapPanels(sf); track $index) {
-            <div class="mb-6">
-              <div class="font-medium mb-1">{{ p.title }}</div>
-              <app-echart [option]="p.option" [height]="440" />
             </div>
           }
 
@@ -1016,6 +961,40 @@
                   }
                 </tbody>
               </table>
+            </div>
+          }
+
+          <!-- Target-value histogram + discrepancy -->
+          @for (p of distHistogramPanels(sf); track $index) {
+            <div class="mb-6">
+              <div class="font-medium mb-1">{{ p.title }}</div>
+              <app-echart [option]="p.option" [height]="380" />
+            </div>
+          }
+          @for (p of distDiscrepancyPanels(sf); track $index) {
+            <div class="mb-6">
+              <div class="font-medium mb-1">{{ p.title }}</div>
+              <app-echart [option]="p.option" [height]="360" />
+            </div>
+          }
+
+          <!-- Constraints per residue + contact maps -->
+          @for (p of distPerResiduePanels(sf); track $index) {
+            <div class="mb-6">
+              <div class="font-medium mb-1">{{ p.title }}</div>
+              <app-echart [option]="p.option" [height]="380" />
+            </div>
+          }
+          @for (p of distContactMapPanels(sf); track $index) {
+            <div class="mb-6">
+              <div class="font-medium mb-1">{{ p.title }}</div>
+              <app-echart [option]="p.option" [height]="440" />
+            </div>
+          }
+          @for (p of distAsymContactMapPanels(sf); track $index) {
+            <div class="mb-6">
+              <div class="font-medium mb-1">{{ p.title }}</div>
+              <app-echart [option]="p.option" [height]="440" />
             </div>
           }
         </p-panel>
@@ -1120,30 +1099,6 @@
             </div>
           }
 
-          <!-- φ/ψ and χ1/χ2 scatter -->
-          @for (p of dihedScatterPanels(sf); track $index) {
-            <div class="mb-6">
-              <div class="font-medium mb-1">{{ p.title }}</div>
-              <app-echart [option]="p.option" [height]="460" />
-            </div>
-          }
-
-          <!-- Target-value histogram -->
-          @for (p of dihedHistogramPanels(sf); track $index) {
-            <div class="mb-6">
-              <div class="font-medium mb-1">{{ p.title }}</div>
-              <app-echart [option]="p.option" [height]="380" />
-            </div>
-          }
-
-          <!-- Per-residue angles -->
-          @for (p of dihedPerResiduePanels(sf); track $index) {
-            <div class="mb-6">
-              <div class="font-medium mb-1">{{ p.title }}</div>
-              <app-echart [option]="p.option" [height]="380" />
-            </div>
-          }
-
           <!-- Atom name mapping -->
           @if (sf.atom_name_mapping.length) {
             <div class="mb-2 overflow-x-auto">
@@ -1177,6 +1132,30 @@
                   }
                 </tbody>
               </table>
+            </div>
+          }
+
+          <!-- φ/ψ and χ1/χ2 scatter -->
+          @for (p of dihedScatterPanels(sf); track $index) {
+            <div class="mb-6">
+              <div class="font-medium mb-1">{{ p.title }}</div>
+              <app-echart [option]="p.option" [height]="460" />
+            </div>
+          }
+
+          <!-- Target-value histogram -->
+          @for (p of dihedHistogramPanels(sf); track $index) {
+            <div class="mb-6">
+              <div class="font-medium mb-1">{{ p.title }}</div>
+              <app-echart [option]="p.option" [height]="380" />
+            </div>
+          }
+
+          <!-- Per-residue angles -->
+          @for (p of dihedPerResiduePanels(sf); track $index) {
+            <div class="mb-6">
+              <div class="font-medium mb-1">{{ p.title }}</div>
+              <app-echart [option]="p.option" [height]="380" />
             </div>
           }
         </p-panel>
@@ -1285,22 +1264,6 @@
             </div>
           }
 
-          <!-- Observed-value histogram -->
-          @for (p of rdcHistogramPanels(sf); track $index) {
-            <div class="mb-6">
-              <div class="font-medium mb-1">{{ p.title }}</div>
-              <app-echart [option]="p.option" [height]="360" />
-            </div>
-          }
-
-          <!-- Observed RDC per residue -->
-          @for (p of rdcPerResiduePanelsOf(sf); track $index) {
-            <div class="mb-6">
-              <div class="font-medium mb-1">{{ p.title }}</div>
-              <app-echart [option]="p.option" [height]="360" />
-            </div>
-          }
-
           <!-- Atom name mapping -->
           @if (sf.atom_name_mapping.length) {
             <div class="mb-2 overflow-x-auto">
@@ -1334,6 +1297,22 @@
                   }
                 </tbody>
               </table>
+            </div>
+          }
+
+          <!-- Observed-value histogram -->
+          @for (p of rdcHistogramPanels(sf); track $index) {
+            <div class="mb-6">
+              <div class="font-medium mb-1">{{ p.title }}</div>
+              <app-echart [option]="p.option" [height]="360" />
+            </div>
+          }
+
+          <!-- Observed RDC per residue -->
+          @for (p of rdcPerResiduePanelsOf(sf); track $index) {
+            <div class="mb-6">
+              <div class="font-medium mb-1">{{ p.title }}</div>
+              <app-echart [option]="p.option" [height]="360" />
             </div>
           }
         </p-panel>
