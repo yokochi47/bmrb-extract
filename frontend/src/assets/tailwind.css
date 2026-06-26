@@ -30,3 +30,24 @@
     border-color: var(--color-gray-200, currentcolor);
   }
 }
+
+/*
+  Restore list markers / indentation for hierarchical lists injected via
+  [innerHTML] (e.g. the distance-restraint breakdown on the summary page),
+  which the Tailwind preflight reset would otherwise strip.
+*/
+@layer components {
+  .nmr-tree ul {
+    list-style: disc;
+    margin: 0;
+    padding-left: 1.25rem;
+  }
+
+  .nmr-tree ul ul {
+    list-style: circle;
+  }
+
+  .nmr-tree li {
+    margin: 0.125rem 0;
+  }
+}
