@@ -513,7 +513,29 @@ export class Upload implements OnDestroy {
     // Converted NMR unified data files carry the format in the file name; this
     // takes precedence over the extension (e.g. a renamed file).
     if (lower.includes('nmr-data-nef')) value = 'nm-uni-nef';
-    else if (lower.includes('nmr-data-str')) value = 'nm-uni-str';
+    else if (
+      lower.includes('nmr-data-str') ||
+      lower.endsWith('nmr-data.str') ||
+      lower.endsWith('nmr_data.str') ||
+      lower.endsWith('nmr-data.cif') ||
+      lower.endsWith('nmr_data.cif')
+    )
+      value = 'nm-uni-str';
+    else if (lower.includes('_cs') && lower.includes('.str.')) value = 'nm-shi';
+    else if (lower.includes('_mr') && lower.includes('.amber.')) value = 'nm-res-amb';
+    else if (lower.includes('_mr') && lower.includes('.aria.')) value = 'nm-res-ari';
+    else if (lower.includes('_mr') && lower.includes('.biosym.')) value = 'nm-res-bio';
+    else if (lower.includes('_mr') && lower.includes('.charmm.')) value = 'nm-res-cha';
+    else if (lower.includes('_mr') && lower.includes('.cyana.')) value = 'nm-res-cya';
+    else if (lower.includes('_mr') && lower.includes('.dynamo.')) value = 'nm-res-dyn';
+    else if (lower.includes('_mr') && lower.includes('.gromacs.')) value = 'nm-res-gro';
+    else if (lower.includes('_mr') && lower.includes('.isd.')) value = 'nm-res-isd';
+    else if (lower.includes('_mr') && lower.includes('.rosetta.')) value = 'nm-res-ros';
+    else if (lower.includes('_mr') && lower.includes('.schrodinger.')) value = 'nm-res-sch';
+    else if (lower.includes('_mr') && lower.includes('.sybyl.')) value = 'nm-res-syb';
+    else if (lower.includes('_mr') && (lower.includes('.xplor-nih.') || lower.includes('.xplor.')))
+      value = 'nm-res-xpl';
+    else if (lower.includes('_nmr-peaks') && lower.includes('.dat.')) value = 'nm-pea-any';
     // XEASY .prot carries topology (OneDep) or chemical shifts (elsewhere).
     if (ext === 'prot') value = target === TargetDepsys.onedep ? 'nm-aux-xea' : 'nm-shi-xea';
     if (!value) return null;
