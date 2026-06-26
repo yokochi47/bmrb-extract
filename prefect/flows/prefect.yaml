@@ -31,3 +31,19 @@ deployments:
     pull:
       - prefect.deployments.steps.set_working_directory:
           directory: /flows
+
+  # Enforces the data-retention policy (T&C #8): nightly at 02:00 local site
+  # time, expires sessions past session.token_expiry — deletes their archive +
+  # workspace, purges child rows, marks the session 'expired', and emails the
+  # admin a summary. Timezone is the worker's TZ (Asia/Tokyo / US/Eastern).
+  # Deployment: cleanup-sessions/default.
+  - name: default
+    entrypoint: core/cleanup.py:cleanup_sessions_flow
+    work_pool:
+      name: local-pool
+    schedules:
+      - cron: "0 2 * * *"
+        timezone: "{{ $TZ }}"
+    pull:
+      - prefect.deployments.steps.set_working_directory:
+          directory: /flows
