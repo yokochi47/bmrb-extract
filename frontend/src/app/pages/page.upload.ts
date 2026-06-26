@@ -510,6 +510,10 @@ export class Upload implements OnDestroy {
     const dot = lower.lastIndexOf('.');
     const ext = dot >= 0 ? lower.slice(dot + 1) : '';
     let value: string | undefined = this.EXT_FILE_TYPE[ext] ?? this.NAME_FILE_TYPE[lower];
+    // Converted NMR unified data files carry the format in the file name; this
+    // takes precedence over the extension (e.g. a renamed file).
+    if (lower.includes('nmr-data-nef')) value = 'nm-uni-nef';
+    else if (lower.includes('nmr-data-str')) value = 'nm-uni-str';
     // XEASY .prot carries topology (OneDep) or chemical shifts (elsewhere).
     if (ext === 'prot') value = target === TargetDepsys.onedep ? 'nm-aux-xea' : 'nm-shi-xea';
     if (!value) return null;
