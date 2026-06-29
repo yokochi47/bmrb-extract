@@ -8,7 +8,7 @@
       (click)="verPop.toggle($event)"
       aria-label="Show software and resource versions"
     >
-      Version: {{ FRONTEND_VERSION }}
+      Version: {{ FRONTEND_VERSION }} / {{ versions().software.utils_nmr || '—' }}
     </button>
     <p-popover #verPop>
       <div class="text-sm" style="min-width: 18rem">
@@ -24,8 +24,8 @@
               <td class="py-0.5 text-right">{{ versions().software.maxit || '—' }}</td>
             </tr>
             <tr>
-              <td class="py-0.5 pr-4">NmrDpUtility</td>
-              <td class="py-0.5 text-right">{{ versions().software.nmrdputility || '—' }}</td>
+              <td class="py-0.5 pr-4">wwpdb.utils.nmr</td>
+              <td class="py-0.5 text-right">{{ versions().software.utils_nmr || '—' }}</td>
             </tr>
           </tbody>
         </table>
@@ -37,11 +37,11 @@
               <td class="py-0.5 text-right">{{ versions().resource.pdbx_dict || '—' }}</td>
             </tr>
             <tr>
-              <td class="py-0.5 pr-4">CCD release (coordinates)</td>
-              <td class="py-0.5 text-right">{{ versions().resource.ccd_coordinates || '—' }}</td>
+              <td class="py-0.5 pr-4">CCD release (maxit-ccd)</td>
+              <td class="py-0.5 text-right">{{ versions().resource.ccd_co || '—' }}</td>
             </tr>
             <tr>
-              <td class="py-0.5 pr-4">CCD release (NMR data)</td>
+              <td class="py-0.5 pr-4">CCD release (wwpdb.utils.nmr)</td>
               <td class="py-0.5 text-right">{{ versions().resource.ccd_nmr || '—' }}</td>
             </tr>
             <tr>

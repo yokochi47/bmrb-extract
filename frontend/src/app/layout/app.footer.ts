@@ -12,10 +12,10 @@ import {
 
 /** Live software/resource versions from the conversion images — see GET /api/versions. */
 interface Versions {
-  software: { maxit?: string | null; nmrdputility?: string | null };
+  software: { maxit?: string | null; utils_nmr?: string | null };
   resource: {
     pdbx_dict?: string | null;
-    ccd_coordinates?: string | null;
+    ccd_co?: string | null;
     ccd_nmr?: string | null;
     cs_stat?: string | null;
   };

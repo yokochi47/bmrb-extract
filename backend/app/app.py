@@ -1038,7 +1038,10 @@ def _histogram_annotations(h):
         z = a.get('z_score')
         if not isinstance(z, (int, float)) or not scale:
             continue
-        idx = max(0, min(len(cats) - 1, round((z - r0) / scale)))
+        # Each bin spans [v, v + scale); place the marker in the bin that
+        # contains z (floor), not the nearest bin centre (round) — matching the
+        # '[v, v + step)' axis labels on the summary page.
+        idx = max(0, min(len(cats) - 1, int((z - r0) // scale)))
         out.append({
             'category': cats[idx],
             'anomalous': a.get('level') == 'anomalous',

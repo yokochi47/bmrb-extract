@@ -438,7 +438,12 @@ export class Summary implements OnDestroy {
   chemShiftHistogramPanels(sf: ChemShiftSaveframe): ChartPanel[] {
     return sf.histogram.map((h) => ({
       title: 'Normalized assigned chemical shifts (Z-score)',
-      option: this.histogramOption(h, 'Z-score', '# of chemical shifts'),
+      // Reversed X-axis (high → low Z-score) to match ordinary NMR spectra, and
+      // [v, v + step) range labels since each bin spans a Z-score interval.
+      option: this.histogramOption(h, 'Z-score', '# of chemical shifts', {
+        inverse: true,
+        rangeLabels: true,
+      }),
     }));
   }
 
@@ -470,13 +475,17 @@ export class Summary implements OnDestroy {
   distHistogramPanels(sf: DistRestraintSaveframe): ChartPanel[] {
     return sf.histogram.map((h) => ({
       title: 'Distance restraint target values',
-      option: this.histogramOption(h, 'Distance (Å)', '# of distance restraints'),
+      option: this.histogramOption(h, 'Distance (Å)', '# of distance restraints', {
+        rangeLabels: true,
+      }),
     }));
   }
   distDiscrepancyPanels(sf: DistRestraintSaveframe): ChartPanel[] {
     return sf.discrepancy.map((h) => ({
       title: 'Discrepancy in redundant distance restraints',
-      option: this.histogramOption(h, 'Normalized discrepancy (%)', '# of redundant restraints'),
+      option: this.histogramOption(h, 'Normalized discrepancy (%)', '# of redundant restraints', {
+        rangeLabels: true,
+      }),
     }));
   }
   distPerResiduePanels(sf: DistRestraintSaveframe): ChartPanel[] {
@@ -521,7 +530,9 @@ export class Summary implements OnDestroy {
   dihedHistogramPanels(sf: DihedRestraintSaveframe): ChartPanel[] {
     return sf.histogram.map((h) => ({
       title: 'Dihedral angle target values',
-      option: this.histogramOption(h, 'Angle (°)', '# of dihedral restraints'),
+      option: this.histogramOption(h, 'Angle (°)', '# of dihedral restraints', {
+        rangeLabels: true,
+      }),
     }));
   }
   dihedPerResiduePanels(sf: DihedRestraintSaveframe): ChartPanel[] {
@@ -538,7 +549,9 @@ export class Summary implements OnDestroy {
   rdcHistogramPanels(sf: RdcRestraintSaveframe): ChartPanel[] {
     return sf.histogram.map((h) => ({
       title: 'Observed RDC values',
-      option: this.histogramOption(h, 'Obs. RDC value (Hz)', '# of RDC restraints'),
+      option: this.histogramOption(h, 'Obs. RDC value (Hz)', '# of RDC restraints', {
+        rangeLabels: true,
+      }),
     }));
   }
   rdcPerResiduePanelsOf(sf: RdcRestraintSaveframe): ChartPanel[] {
@@ -747,7 +760,22 @@ export class Summary implements OnDestroy {
   }
 
   /** ECharts option for a stacked-bar histogram. */
-  private histogramOption(h: HistogramChart, xName: string, yName: string): object {
+  private histogramOption(
+    h: HistogramChart,
+    xName: string,
+    yName: string,
+    opts: { inverse?: boolean; rangeLabels?: boolean } = {},
+  ): object {
+    const { inverse = false, rangeLabels = false } = opts;
+    // Categories are bin lower bounds; the bin spans [v, v + step). When
+    // rangeLabels is set, label each tick with that half-open interval so the
+    // axis reads as ranges rather than single points.
+    const step =
+      h.categories.length >= 2 ? parseFloat(h.categories[1]) - parseFloat(h.categories[0]) : 0;
+    const labelFormatter =
+      rangeLabels && step
+        ? (value: string) => `[${value}, ${+(parseFloat(value) + step).toFixed(6)})`
+        : undefined;
     // Outlier markers: a dashed vertical line at each annotated value's bin,
     // red for anomalous shifts (else slate), with a rotated short description.
     const ann = h.annotations ?? [];
@@ -787,7 +815,9 @@ export class Summary implements OnDestroy {
         name: xName,
         nameLocation: 'middle',
         nameGap: 40,
-        axisLabel: { rotate: -75, fontSize: 9 },
+        axisLabel: { rotate: -75, fontSize: 9, formatter: labelFormatter },
+        // Reversed (high → low) to match the convention of NMR spectra.
+        inverse,
       },
       yAxis: { type: 'value', name: yName, minInterval: 1 },
       series: h.series.map((s, idx) => ({

@@ -71,11 +71,11 @@ def capture_versions(workspace_base=WORKSPACE_BASE_PATH):
     data = {
         'software': {
             'maxit': maxit.get('MAXIT_VER'),
-            'nmrdputility': nmr.get('UTILS_NMR_VER'),
+            'utils_nmr': nmr.get('UTILS_NMR_VER'),
         },
         'resource': {
             'pdbx_dict': maxit.get('DIC_VER'),
-            'ccd_coordinates': maxit.get('CCD_REL'),
+            'ccd_co': maxit.get('CCD_REL'),
             'ccd_nmr': nmr.get('CCD_REL'),
             'cs_stat': nmr.get('CS_STAT_REL'),
         },
