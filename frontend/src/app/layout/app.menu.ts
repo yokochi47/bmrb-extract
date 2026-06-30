@@ -53,15 +53,15 @@ export class AppMenu implements OnInit {
         path: '',
         items: [
           {
+            label: 'Login',
+            icon: 'pi pi-fw pi-sign-in',
+            routerLink: ['/login'],
+          },
+          {
             label: 'Help desk',
             icon: 'pi pi-fw pi-question-circle',
             routerLink: ['/help'],
             queryParamsHandling: 'preserve',
-          },
-          {
-            label: 'Login',
-            icon: 'pi pi-fw pi-sign-in',
-            routerLink: ['/login'],
           },
         ],
       },
