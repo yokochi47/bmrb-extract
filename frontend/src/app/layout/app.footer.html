@@ -2,13 +2,14 @@
   <div class="grid-item layout-footer-items">
     <!-- Compact trigger; full software/resource versions shown in the popover
          balloon (live image versions come from GET /api/versions). -->
+    <span>Version:</span>
     <button
       type="button"
-      class="cursor-pointer bg-transparent border-0 p-0 text-primary font-bold"
+      class="cursor-pointer bg-transparent border-0 p-0 text-primary font-bold ms-2"
       (click)="verPop.toggle($event)"
       aria-label="Show software and resource versions"
     >
-      Version: {{ FRONTEND_VERSION }} / {{ versions().software.utils_nmr || '—' }}
+      {{ FRONTEND_VERSION }} / {{ versions().software.utils_nmr || '—' }}
     </button>
     <p-popover #verPop>
       <div class="text-sm" style="min-width: 18rem">

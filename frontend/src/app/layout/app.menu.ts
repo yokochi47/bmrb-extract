@@ -66,6 +66,7 @@ export class AppMenu {
             icon: 'pi pi-fw pi-question-circle',
             routerLink: ['/help'],
             queryParamsHandling: 'preserve',
+            disabled: !consented,
           },
         ],
       },
