@@ -1,5 +1,5 @@
 <ul class="layout-menu">
-  @for (item of model; track item.label) {
+  @for (item of model(); track item.label) {
     <li app-menuitem [item]="item" [root]="true"></li>
   }
 </ul>

@@ -148,6 +148,7 @@ async def get_session():
         return {
             'conversion_id': session_row.conversion_id,
             'expired': expired,
+            'consented': bool(session_row.consented),
             'target_depsys': session_row.target_depsys,
             'related_bmrb_id': session_row.related_bmrb_id,
             'approved': bool(session_row.approved),
@@ -2262,6 +2263,33 @@ async def new_consent():
         await db.commit()
         await db.refresh(new_session)
         return {'token': str(new_session.token)}
+
+
+@app.route('/api/consent', methods=['POST'])
+async def update_consent():
+    """Set session.consented — the user's agreement to the Terms & Privacy Policy.
+    Toggled when the user checks/unchecks the consent box on an existing session;
+    persisting it means a revoked consent is enforced on reload / direct URL.
+
+    JSON body: { token, consented }. 400 missing token / non-bool; 404 no session.
+    """
+    body = request.get_json(silent=True) or {}
+    token = body.get('token')
+    consented = body.get('consented')
+
+    if not token or not isinstance(consented, bool):
+        return {'error': 'token and boolean consented are required'}, 400
+
+    async with async_session_factory() as db:
+        session_row = (
+            await db.execute(select(Session).where(Session.token == token))
+        ).scalar_one_or_none()
+        if session_row is None:
+            return {'error': 'session not found'}, 404
+        session_row.consented = consented
+        await db.commit()
+
+    return {'consented': consented}, 200
 
 
 # ── File upload ───────────────────────────────────────────────────────────────

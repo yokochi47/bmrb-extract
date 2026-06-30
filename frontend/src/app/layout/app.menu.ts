@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { MenuItem } from 'primeng/api';
@@ -11,13 +11,14 @@ import { PageService } from '../pages/page.service';
   imports: [CommonModule, RouterModule, AppMenuitem],
   templateUrl: './app.menu.html',
 })
-export class AppMenu implements OnInit {
-  model: MenuItem[] = [];
-
+export class AppMenu {
   pageService = inject(PageService);
 
-  ngOnInit() {
-    this.model = [
+  // Protected pages (Upload files / Upload summary / Download) stay disabled
+  // until the user agrees to the policy, and re-disable when consent is revoked.
+  model = computed<MenuItem[]>(() => {
+    const consented = this.pageService.pageState().consentedTo;
+    return [
       {
         label: 'Navigation',
         path: '',
@@ -33,18 +34,21 @@ export class AppMenu implements OnInit {
             icon: 'pi pi-fw pi-upload',
             routerLink: ['/upload'],
             queryParamsHandling: 'preserve',
+            disabled: !consented,
           },
           {
             label: 'Upload summary',
             icon: 'pi pi-fw pi-check-square',
             routerLink: ['/summary'],
             queryParamsHandling: 'preserve',
+            disabled: !consented,
           },
           {
             label: 'Download',
             icon: 'pi pi-fw pi-download',
             routerLink: ['/download'],
             queryParamsHandling: 'preserve',
+            disabled: !consented,
           },
         ],
       },
@@ -90,5 +94,5 @@ export class AppMenu implements OnInit {
         ],
       },
     ];
-  }
+  });
 }

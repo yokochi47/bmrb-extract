@@ -24,10 +24,6 @@ export class ConsentTo {
   });
 
   onChange() {
-    const state = this.pageService.pageState();
-    this.pageService.pageState.update((prev) => ({
-      ...prev,
-      consentedTo: !state.consentedTo,
-    }));
+    this.pageService.setConsent(!this.consentedTo());
   }
 }
