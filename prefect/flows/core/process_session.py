@@ -467,6 +467,13 @@ def _nmr_merge_driver_script(
     (same settings as the combined str case). The merge writes its JSON log
     (setLog) and the merged NMR-STAR (setDestination); the deposit consumes both.
     """
+    common_inputs = (
+        "u.addInput(name='coordinate_file_path', value=CIF, type='file')\n"
+        "u.addInput(name='nonblk_anomalous_cs', value=True, type='param')\n"
+        "u.addInput(name='nonblk_bad_nterm', value=True, type='param')\n"
+        "u.addInput(name='resolve_conflict', value=True, type='param')\n"
+        "u.addInput(name='check_mandatory_tag', value=True, type='param')\n"
+    )
     restraint_input = (
         "u.addInput(name='restraint_file_path_list', value=RESTRAINT, type='file_dict_list')\n"
         if restraint_list else ""
@@ -490,11 +497,7 @@ def _nmr_merge_driver_script(
         "u.addInput(name='chem_shift_file_path_list', value=CS_LIST, type='file_dict_list')\n"
         "u.addInput(name='atypical_restraint_file_path_list', value=ATYPICAL, type='file_dict_list')\n"
         f"{restraint_input}"
-        "u.addInput(name='coordinate_file_path', value=CIF, type='file')\n"
-        "u.addInput(name='nonblk_anomalous_cs', value=True, type='param')\n"
-        "u.addInput(name='nonblk_bad_nterm', value=True, type='param')\n"
-        "u.addInput(name='resolve_conflict', value=True, type='param')\n"
-        "u.addInput(name='check_mandatory_tag', value=False, type='param')\n"
+        f"{common_inputs}"
         "u.addInput(name='remediation', value=True, type='param')\n"
         "u.setLog(MERGE_LOG)\n"
         "u.setDestination(MERGED_STR)\n"
@@ -503,12 +506,8 @@ def _nmr_merge_driver_script(
         "# Step 2: deposit the merged NMR-STAR (same as the combined str case)\n"
         "u.setWorkspace(WORK_DIR, CACHE_DIR)\n"
         "u.setSource(MERGED_STR)\n"
-        "u.addInput(name='coordinate_file_path', value=CIF, type='file')\n"
+        f"{common_inputs}"
         "u.addInput(name='report_file_path', value=MERGE_LOG, type='file')\n"
-        "u.addInput(name='nonblk_anomalous_cs', value=True, type='param')\n"
-        "u.addInput(name='nonblk_bad_nterm', value=True, type='param')\n"
-        "u.addInput(name='resolve_conflict', value=True, type='param')\n"
-        "u.addInput(name='check_mandatory_tag', value=True, type='param')\n"
         "u.setLog(DEP_LOG)\n"
         "u.setDestination(OUT_STR)\n"
         "u.addOutput(name='entry_id', value=ENTRY_ID, type='param')\n"
@@ -519,48 +518,72 @@ def _nmr_merge_driver_script(
 
 
 def _nmr_replace_cs_driver_script(
-    *, src: str, cif: str, cs_list: list, report_log: str, out_str: str,
-    work_dir: str, cache_dir: str,
+    *, src: str, cif: str, cs_list: list, replace_log: str, consist_log: str,
+    out_str: str, work_dir: str, cache_dir: str,
 ) -> str:
     """Driver for OneDep repl_cs (replacing assigned chemical shifts): replace the
     chemical shifts in the OneDep-processed NMR-STAR unified data file (setSource)
     with the correct ones (chem_shift_file_path_list), against the coordinates,
-    writing the report (setLog) and the resulting NMR-STAR (setDestination). A
-    single op: nmr-str-replace-cs. Same input params as the OneDep case."""
-    return (
-        "from nmr.NmrDpUtility import NmrDpUtility\n"
-        f"SRC = {src!r}\n"
-        f"CIF = {cif!r}\n"
-        f"CS_LIST = {cs_list!r}\n"
-        f"REPORT_LOG = {report_log!r}\n"
-        f"OUT_STR = {out_str!r}\n"
-        f"WORK_DIR = {work_dir!r}\n"
-        f"CACHE_DIR = {cache_dir!r}\n"
-        "u = NmrDpUtility()\n"
-        "u.setWorkspace(WORK_DIR, CACHE_DIR)\n"
-        "u.setSource(SRC)\n"
-        "u.addInput(name='chem_shift_file_path_list', value=CS_LIST, type='file_dict_list')\n"
+    writing the report (setLog) and the resulting NMR-STAR (setDestination).
+    2 step ops: nmr-str-replace-cs and nmr-str-consistency-check.
+    Same input params as the OneDep case."""
+    common_inputs = (
         "u.addInput(name='coordinate_file_path', value=CIF, type='file')\n"
         "u.addInput(name='nonblk_anomalous_cs', value=True, type='param')\n"
         "u.addInput(name='nonblk_bad_nterm', value=True, type='param')\n"
         "u.addInput(name='resolve_conflict', value=True, type='param')\n"
         "u.addInput(name='check_mandatory_tag', value=True, type='param')\n"
-        "u.setLog(REPORT_LOG)\n"
+        "u.addInput(name='remediation', value=True, type='param')\n"
+    )
+    return (
+        "from nmr.NmrDpUtility import NmrDpUtility\n"
+        f"SRC = {src!r}\n"
+        f"CIF = {cif!r}\n"
+        f"CS_LIST = {cs_list!r}\n"
+        f"REPL_LOG = {replace_log!r}\n"
+        f"CONS_LOG = {consist_log!r}\n"
+        f"OUT_STR = {out_str!r}\n"
+        f"WORK_DIR = {work_dir!r}\n"
+        f"CACHE_DIR = {cache_dir!r}\n"
+        "u = NmrDpUtility()\n"
+        "# Step 1: replace chemical shifts into NMR-STAR\n"
+        "u.setWorkspace(WORK_DIR, CACHE_DIR)\n"
+        "u.setSource(SRC)\n"
+        f"{common_inputs}"
+        "u.addInput(name='chem_shift_file_path_list', value=CS_LIST, type='file_dict_list')\n"
+        "u.setLog(REPL_LOG)\n"
         "u.setDestination(OUT_STR)\n"
         "u.setVerbose(True)\n"
         "u.op('nmr-str-replace-cs')\n"
+        "# Step 2: consistency check\n"
+        "u.setWorkspace(WORK_DIR, CACHE_DIR)\n"
+        "u.setSource(OUT_STR)\n"
+        f"{common_inputs}"
+        "u.setLog(CONS_LOG)\n"
+        "u.setVerbose(True)\n"
+        "u.op('nmr-str-consistency-check')\n"
     )
 
 
 def _nmr_bmrbdep_driver_script(
     *, cs_list: list, atypical_cs_list: list, atypical_restraint_list: list,
-    bmrb_id: int, log: str, out_str: str, work_dir: str, cache_dir: str,
+    bmrb_id: int, merge_log: str, consist_log: str, out_str: str, work_dir: str, cache_dir: str,
 ) -> str:
     """Driver for BMRBdep (BMRB-only) deposition: merge chemical shifts (NMR-STAR
     nm-uni-str/nm-shi and NEF nm-uni-nef in chem_shift_file_path_list, plus any
     nm-shi-* variants in atypical_chem_shift_file_path_list) and optional topology
     (nm-aux-* in atypical_restraint_file_path_list) into one NMR-STAR. No
-    coordinates. Single op: nmr-cs-mr-merge with conversion_server=True."""
+    coordinates.
+    2 step ops: nmr-cs-mr-merge and nmr-str-consistency-check.
+    Similar input params as repl_cs case (except for coordinates) with conversion_server=True."""
+    common_inputs = (
+        "u.addInput(name='nonblk_anomalous_cs', value=True, type='param')\n"
+        "u.addInput(name='nonblk_bad_nterm', value=True, type='param')\n"
+        "u.addInput(name='resolve_conflict', value=True, type='param')\n"
+        "u.addInput(name='check_mandatory_tag', value=True, type='param')\n"
+        "u.addInput(name='remediation', value=True, type='param')\n"
+        "u.addInput(name='conversion_server', value=True, type='param')\n"
+    )
     atypical_cs_input = (
         "u.addInput(name='atypical_chem_shift_file_path_list', value=ATYPICAL_CS, type='file_dict_list')\n"
         if atypical_cs_list else ""
@@ -575,7 +598,8 @@ def _nmr_bmrbdep_driver_script(
         f"ATYPICAL_CS = {atypical_cs_list!r}\n"
         f"ATYPICAL_R = {atypical_restraint_list!r}\n"
         f"BMRB_ID = {bmrb_id!r}\n"
-        f"LOG = {log!r}\n"
+        f"MERGE_LOG = {merge_log!r}\n"
+        f"CONS_LOG = {consist_log!r}\n"
         f"OUT_STR = {out_str!r}\n"
         f"WORK_DIR = {work_dir!r}\n"
         f"CACHE_DIR = {cache_dir!r}\n"
@@ -584,19 +608,21 @@ def _nmr_bmrbdep_driver_script(
         "u.addInput(name='chem_shift_file_path_list', value=CS_LIST, type='file_dict_list')\n"
         f"{atypical_cs_input}"
         f"{atypical_r_input}"
-        "u.addInput(name='nonblk_anomalous_cs', value=True, type='param')\n"
-        "u.addInput(name='nonblk_bad_nterm', value=True, type='param')\n"
-        "u.addInput(name='resolve_conflict', value=True, type='param')\n"
-        "u.addInput(name='check_mandatory_tag', value=False, type='param')\n"
-        "u.addInput(name='remediation', value=True, type='param')\n"
-        "u.addInput(name='conversion_server', value=True, type='param')\n"
+        f"{common_inputs}"
         # conversion_server mode derives entry_id = C_<conversion_id> from this
         # (the conversion_id matches CNV_ID_PAT ^C_[1-9]\\d{6}$ as C_<id>).
         "u.addInput(name='bmrb_id', value=BMRB_ID, type='param')\n"
-        "u.setLog(LOG)\n"
+        "u.setLog(MERGE_LOG)\n"
         "u.setDestination(OUT_STR)\n"
         "u.setVerbose(True)\n"
         "u.op('nmr-cs-mr-merge')\n"
+        "# Step 2: consistency check\n"
+        "u.setWorkspace(WORK_DIR, CACHE_DIR)\n"
+        "u.setSource(OUT_STR)\n"
+        f"{common_inputs}"
+        "u.setLog(CONS_LOG)\n"
+        "u.setVerbose(True)\n"
+        "u.op('nmr-str-consistency-check')\n"
     )
 
 
@@ -968,9 +994,10 @@ def nmr_data_conversion(
 
     if target == 'bmrbdep':
         # BMRB-only: merge chemical shifts (+ optional topology) into NMR-STAR with
-        # no coordinates. Single op: nmr-cs-mr-merge with conversion_server=True.
-        nmr_log = log_d / f'C_{conversion_id}-nmr-data-bmrb_only.json'
-        report_path = nmr_log
+        # no coordinates. 2 step ops: nmr-cs-mr-merge + nmr-str-consistency-check with conversion_server=True.
+        merge_log = log_d / f'C_{conversion_id}-nmr-data-bmrb_only.json'
+        nmr_log = log_d / f'C_{conversion_id}-nmr-data-str_consist.json'
+        report_path = merge_log  # first task report
         cs_list = []
         for f in files:
             ft = f['file_type']
@@ -994,15 +1021,16 @@ def nmr_data_conversion(
         driver_text = _nmr_bmrbdep_driver_script(
             cs_list=cs_list, atypical_cs_list=atypical_cs_list,
             atypical_restraint_list=atypical_restraint_list, bmrb_id=conversion_id,
-            log=str(nmr_log), out_str=str(out_str),
+            merge_log=str(merge_log), consit_log=str(nmr_log), out_str=str(out_str),
             work_dir=str(work_d), cache_dir=str(cache_d),
         )
     elif target == 'repl_cs':
         # Replacing CS: replace the assigned chemical shifts in the OneDep-processed
         # NMR-STAR unified data file (nm-uni-str) with the correct ones (nm-shi),
-        # against the coordinates. Single op: nmr-str-replace-cs.
-        nmr_log = log_d / f'C_{conversion_id}-nmr-data-repl_cs.json'
-        report_path = nmr_log
+        # against the coordinates. 2 step ops: nmr-str-replace-cs + nmr-str-consistency-check.
+        replace_log = log_d / f'C_{conversion_id}-nmr-data-repl_cs.json'
+        nmr_log = log_d / f'C_{conversion_id}-nmr-data-str_consist.json'
+        report_path = replace_log  # first task report
         if uni is None or uni['file_type'] != 'nm-uni-str' or not cs_files:
             reason = ('repl_cs requires an NMR-STAR unified data file (nm-uni-str) '
                       'and at least one assigned chemical shift (nm-shi) file')
@@ -1014,8 +1042,9 @@ def nmr_data_conversion(
             return False
         driver_text = _nmr_replace_cs_driver_script(
             src=str(in_dir / uni['original_name']), cif=str(model_cif),
-            cs_list=_cs_dict_list(cs_files), report_log=str(nmr_log),
-            out_str=str(out_str), work_dir=str(work_d), cache_dir=str(cache_d),
+            cs_list=_cs_dict_list(cs_files), replace_log=str(replace_log),
+            consist_log=str(nmr_log), out_str=str(out_str), work_dir=str(work_d),
+            cache_dir=str(cache_d),
         )
     elif uni is not None:
         # OneDep combined: single NMR unified data file.
