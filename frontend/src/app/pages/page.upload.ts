@@ -452,16 +452,15 @@ export class Upload implements OnDestroy {
   private readonly DEPSYS_FILE_TYPES: Record<TargetDepsys, (value: string) => boolean> = {
     [TargetDepsys.onedep]: (v) =>
       v.startsWith('co-') ||
+      v.startsWith('nm-uni-') ||
       v === 'nm-shi' ||
       v.startsWith('nm-pea-') ||
       v.startsWith('nm-res-') ||
-      v.startsWith('nm-aux-') ||
-      v.startsWith('nm-uni-'),
+      v.startsWith('nm-aux-'),
     [TargetDepsys.repl_cs]: (v) => v.startsWith('co-') || v === 'nm-uni-str' || v === 'nm-shi',
     [TargetDepsys.bmrbdep]: (v) =>
       v.startsWith('nm-uni-') ||
-      v === 'nm-shi' ||
-      v.startsWith('nm-shi-') ||
+      v.startsWith('nm-shi') ||
       v.startsWith('nm-csp-') ||
       (v.startsWith('nm-aux-') && v !== 'nm-aux-xea'),
   };
