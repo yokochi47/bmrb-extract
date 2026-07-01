@@ -919,9 +919,19 @@ export class Summary implements OnDestroy {
     return 'rgba(120,120,120,0.4)';
   }
 
-  /** ECharts option for a per-residue stacked-count bar with secondary-structure
-   * bands drawn as markAreas. */
-  private perResidueOption(c: PerResidueChart): object {
+  /** Secondary-structure bands as a markArea overlay (shared by the per-residue
+   * bar and line charts). A markArea attached to a category axis snaps to bin
+   * centres for a line series but to bin edges for a bar series — inconsistent,
+   * and centre-anchored bands stop at the middle of the border bins. Instead
+   * anchor it to a hidden value axis (xAxisIndex 1) whose value v maps to the
+   * category fraction v/n: value i sits on bin i's left edge, so [start, end + 1]
+   * covers the full bins of the band's first and last residues. Returns the
+   * hidden axis and the invisible line series that carries the markArea; splice
+   * both into a chart whose primary (category) data sits at xAxisIndex 0. */
+  private bandOverlay(
+    categories: string[],
+    bands: { start: number; end: number; type: string; label: string }[],
+  ): { markerAxis: object; holderSeries: object } {
     const markArea = {
       silent: true,
       // Secondary-structure word (struct_conf, e.g. HELX_P / STRN) annotated at
@@ -935,9 +945,9 @@ export class Summary implements OnDestroy {
         color: '#64748b',
         distance: 11,
       },
-      data: c.bands.map((b) => [
+      data: bands.map((b) => [
         {
-          xAxis: c.categories[b.start],
+          xAxis: b.start,
           // Translucent fill with a thin, more saturated border so the band's
           // left/right edges read as condensed colored lines (the band spans the
           // full plot height, so the top/bottom borders sit at the frame edges).
@@ -948,27 +958,44 @@ export class Summary implements OnDestroy {
           },
           name: b.label,
         },
-        { xAxis: c.categories[b.end] },
+        { xAxis: b.end + 1 },
       ]),
     };
+    // Hidden value axis matching the category axis pixel extent (n bins over the
+    // grid): value i lands on bin i's left edge, value n on the last bin's right
+    // edge, so fractional band bounds render exactly against it.
+    const markerAxis = {
+      type: 'value',
+      min: 0,
+      max: categories.length,
+      show: false,
+      axisPointer: { show: false },
+    };
+    return {
+      markerAxis,
+      holderSeries: { type: 'line', xAxisIndex: 1, data: [], silent: true, markArea },
+    };
+  }
+
+  /** ECharts option for a per-residue stacked-count bar with secondary-structure
+   * bands drawn as markAreas. */
+  private perResidueOption(c: PerResidueChart): object {
+    const { markerAxis, holderSeries } = this.bandOverlay(c.categories, c.bands);
     const interval = Math.max(0, Math.ceil(c.categories.length / 24) - 1);
     return {
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-      legend: { bottom: 0, type: 'scroll' },
+      // Exclude the invisible band-holder line series from the legend.
+      legend: { bottom: 0, type: 'scroll', data: c.series.map((s) => s.name) },
       grid: { left: 48, right: 16, top: 24, bottom: 72, containLabel: true },
-      xAxis: {
-        type: 'category',
-        data: c.categories,
-        axisLabel: { interval, rotate: -75, fontSize: 8 },
-      },
+      xAxis: [
+        { type: 'category', data: c.categories, axisLabel: { interval, rotate: -75, fontSize: 8 } },
+        markerAxis,
+      ],
       yAxis: { type: 'value', name: '# restraints', minInterval: 1, axisLine: { show: true } },
-      series: c.series.map((s, idx) => ({
-        name: s.name,
-        type: 'bar',
-        stack: 'total',
-        data: s.data,
-        ...(idx === 0 ? { markArea } : {}),
-      })),
+      series: [
+        ...c.series.map((s) => ({ name: s.name, type: 'bar', stack: 'total', data: s.data })),
+        holderSeries,
+      ],
     };
   }
 
@@ -1029,35 +1056,7 @@ export class Summary implements OnDestroy {
    * with secondary-structure bands and an optional threshold line. */
   private lineOption(c: PerResidueLine): object {
     const interval = Math.max(0, Math.ceil(c.categories.length / 24) - 1);
-    const markArea = {
-      silent: true,
-      // Secondary-structure word (struct_conf, e.g. HELX_P / STRN) annotated at
-      // each band's top-left corner, rotated to read top-to-bottom so the
-      // (often narrow) band can carry the label.
-      label: {
-        show: true,
-        position: 'insideTopLeft',
-        rotate: -90,
-        fontSize: 10,
-        color: '#64748b',
-        distance: 11,
-      },
-      data: c.bands.map((b) => [
-        {
-          xAxis: c.categories[b.start],
-          // Translucent fill with a thin, more saturated border so the band's
-          // left/right edges read as condensed colored lines (the band spans the
-          // full plot height, so the top/bottom borders sit at the frame edges).
-          itemStyle: {
-            color: this.bandColor(b.type),
-            borderColor: this.bandEdgeColor(b.type),
-            borderWidth: 1,
-          },
-          name: b.label,
-        },
-        { xAxis: c.categories[b.end] },
-      ]),
-    };
+    const { markerAxis, holderSeries } = this.bandOverlay(c.categories, c.bands);
     const markLine =
       c.threshold !== null
         ? {
@@ -1077,31 +1076,34 @@ export class Summary implements OnDestroy {
         : undefined;
     return {
       tooltip: { trigger: 'axis' },
-      legend: { bottom: 0, type: 'scroll' },
+      // Exclude the invisible band-holder line series from the legend.
+      legend: { bottom: 0, type: 'scroll', data: c.series.map((s) => s.name) },
       grid: { left: 52, right: 16, top: 24, bottom: 64, containLabel: true },
-      xAxis: {
-        type: 'category',
-        data: c.categories,
-        axisLabel: { interval, rotate: -75, fontSize: 8 },
-      },
+      xAxis: [
+        { type: 'category', data: c.categories, axisLabel: { interval, rotate: -75, fontSize: 8 } },
+        markerAxis,
+      ],
       yAxis: {
         type: 'value',
         axisLine: { show: true },
         ...(c.ymin !== null ? { min: c.ymin } : {}),
         ...(c.ymax !== null ? { max: c.ymax } : {}),
       },
-      series: c.series.map((s, idx) => ({
-        name: s.name,
-        type: 'line',
-        data: s.data,
-        connectNulls: false,
-        // Show point symbols so sparse series (e.g. RCI/S², defined only for some
-        // residues) remain visible: an isolated value surrounded by nulls draws
-        // no line segment, so without a symbol it would render as nothing.
-        showSymbol: true,
-        symbolSize: 4,
-        ...(idx === 0 ? { markArea, ...(markLine ? { markLine } : {}) } : {}),
-      })),
+      series: [
+        ...c.series.map((s, idx) => ({
+          name: s.name,
+          type: 'line',
+          data: s.data,
+          connectNulls: false,
+          // Show point symbols so sparse series (e.g. RCI/S², defined only for some
+          // residues) remain visible: an isolated value surrounded by nulls draws
+          // no line segment, so without a symbol it would render as nothing.
+          showSymbol: true,
+          symbolSize: 4,
+          ...(idx === 0 && markLine ? { markLine } : {}),
+        })),
+        holderSeries,
+      ],
     };
   }
 
