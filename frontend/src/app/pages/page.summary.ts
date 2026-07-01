@@ -81,8 +81,9 @@ interface HistogramChart {
   label: string;
   categories: string[];
   series: { name: string; data: number[] }[];
-  /** Outlier markers (chem-shift Z scores): dashed line + short description. */
-  annotations?: { category: string; anomalous: boolean; text: string }[];
+  /** Outlier markers (chem-shift Z scores): dashed line + short description.
+   * `x` is the precise fractional category-axis index of the value. */
+  annotations?: { x: number; anomalous: boolean; text: string }[];
 }
 interface DihedralPlot {
   points: { name: string; x: number; y: number }[];
@@ -778,15 +779,20 @@ export class Summary implements OnDestroy {
         : rangeLabels && step
           ? (value: string) => `[${value}, ${+(parseFloat(value) + step).toFixed(6)})`
           : undefined;
-    // Outlier markers: a dashed vertical line at each annotated value's bin,
-    // red for anomalous shifts (else slate), with a rotated short description.
+    // Outlier markers: a dashed vertical line at each annotated value's precise
+    // position, red for anomalous shifts (else slate), with a rotated short
+    // description. `a.x` is a fractional category index; the category axis snaps
+    // markLines to bin centres, so the markers are anchored to a hidden value
+    // axis (index 1) that spans the same pixel extent — value i lands on band
+    // centre i, letting fractional positions render exactly between bins.
     const ann = h.annotations ?? [];
+    const n = h.categories.length;
     const markLine = ann.length
       ? {
           silent: true,
           symbol: 'none',
           data: ann.map((a) => ({
-            xAxis: a.category,
+            xAxis: a.x,
             lineStyle: { color: a.anomalous ? '#dc2626' : '#475569', type: 'dashed', width: 1 },
             label: {
               show: true,
@@ -806,29 +812,40 @@ export class Summary implements OnDestroy {
           })),
         }
       : undefined;
+    const categoryAxis = {
+      type: 'category',
+      data: h.categories,
+      name: xName,
+      nameLocation: 'middle',
+      nameGap: 40,
+      axisLabel: { rotate: -75, fontSize: 9, formatter: labelFormatter },
+      // Reversed (high → low) to match the convention of NMR spectra.
+      inverse,
+    };
+    // Hidden value axis matching the category axis extent (bands span index
+    // -0.5 … n-0.5); markLine values are fractional indices placed against it.
+    const markerAxis = {
+      type: 'value',
+      min: 0.0,
+      max: n + 1.0,
+      show: false,
+      inverse,
+      axisPointer: { show: false },
+    };
     return {
       title: { text: h.label, left: 'center', textStyle: { fontSize: 12, fontWeight: 'normal' } },
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-      legend: { bottom: 0, type: 'scroll' },
+      // Exclude the invisible marker-holder series from the legend.
+      legend: { bottom: 0, type: 'scroll', data: h.series.map((s) => s.name) },
       grid: { left: 56, right: 16, top: 36, bottom: 64, containLabel: true },
-      xAxis: {
-        type: 'category',
-        data: h.categories,
-        name: xName,
-        nameLocation: 'middle',
-        nameGap: 40,
-        axisLabel: { rotate: -75, fontSize: 9, formatter: labelFormatter },
-        // Reversed (high → low) to match the convention of NMR spectra.
-        inverse,
-      },
+      xAxis: markLine ? [categoryAxis, markerAxis] : categoryAxis,
       yAxis: { type: 'value', name: yName, minInterval: 1 },
-      series: h.series.map((s, idx) => ({
-        name: s.name,
-        type: 'bar',
-        stack: 'total',
-        data: s.data,
-        ...(idx === 0 && markLine ? { markLine } : {}),
-      })),
+      series: [
+        ...h.series.map((s) => ({ name: s.name, type: 'bar', stack: 'total', data: s.data })),
+        ...(markLine
+          ? [{ type: 'line', xAxisIndex: 1, data: [], silent: true, markLine }]
+          : []),
+      ],
     };
   }
 

@@ -1026,25 +1026,28 @@ def _iso_label(key):
 
 def _histogram_annotations(h):
     """Per-outlier annotations for a normalized chemical-shift histogram: a dashed
-    marker at the bin holding each anomalous/unusual value (by Z score) with a
-    short description. Empty for histograms without Z-score annotations."""
+    marker at each anomalous/unusual value (by Z score) with a short description.
+    Empty for histograms without Z-score annotations."""
     rov = h.get('range_of_values') or []
     ann = h.get('annotations') or []
     if len(rov) < 2 or not ann:
         return []
-    r0, scale = rov[0], rov[1] - rov[0]
-    cats = [str(v) for v in rov]
+    r0, rn, scale = rov[0], rov[-1], rov[1] - rov[0]
+    n = len(rov)
     out = []
     for a in sorted(ann, key=lambda x: -(x.get('z_score') or 0)):
         z = a.get('z_score')
         if not isinstance(z, (int, float)) or not scale:
             continue
-        # Each bin spans [v, v + scale); place the marker in the bin that
-        # contains z (floor), not the nearest bin centre (round) — matching the
-        # '[v, v + step)' axis labels on the summary page.
-        idx = max(0, min(len(cats) - 1, int((z - r0) // scale)))
+        # Precise fractional position of z on the category axis. Bin i's band
+        # centre (index i) is the bin midpoint v_i + step/2, so value z sits at
+        # index (z - r0)/step - 0.5. Marking this exact spot (rather than snapping
+        # to the bin) spreads multiple outliers that fall in the same bin, so
+        # their labels no longer stack on one line. Clamped to the plot extent
+        # (band edges of the first/last bins).
+        x = max(0.0, min(n + 1.0, (z - r0) / (rn - r0) * n))
         out.append({
-            'category': cats[idx],
+            'x': x,
             'anomalous': a.get('level') == 'anomalous',
             'text': (f"{a.get('chain_id')}:{a.get('seq_id')}:{a.get('comp_id')}:"
                      f"{a.get('atom_id')}, {a.get('value')} ppm, Z score {z}"),
@@ -1052,7 +1055,7 @@ def _histogram_annotations(h):
     return out
 
 
-def _histogram_chart(stat_list):
+def _histogram_chart(stat_list, inverse=False):
     """Build [{label, categories, series, annotations}] from a stats list's
     `histogram` ({range_of_values, number_of_values: {key: [counts]}}). All-zero
     series are dropped; annotations mark outliers (chem-shift Z scores)."""
@@ -1061,7 +1064,10 @@ def _histogram_chart(stat_list):
         h = st.get('histogram')
         if not isinstance(h, dict) or not h.get('range_of_values'):
             continue
-        categories = [str(v) for v in h['range_of_values']]
+        rov = h.get('range_of_values')
+        scale = rov[1] - rov[0]
+        categories = [f'({v + scale}, {v}]' if inverse else f'[{v}, {v + scale})'
+                      for v in h['range_of_values']]
         nov = h.get('number_of_values') or {}
         series = [
             {'name': _iso_label(k), 'data': v}
@@ -1706,7 +1712,7 @@ def _chem_shift_saveframes(chem_shift_list, aligns):
                 'his_tautomer': _prediction_table(st.get('his_tautomeric_state'), 'his'),
                 'ilv_rotamer': _prediction_table(st.get('ilv_rotameric_state'), 'ilv'),
             },
-            'histogram': _histogram_chart([st]),
+            'histogram': _histogram_chart([st], True),
             'rci': _rci_charts([st]),
             'atom_name_mapping': _atom_name_mapping(st),
         })
