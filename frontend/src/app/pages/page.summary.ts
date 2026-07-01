@@ -773,9 +773,11 @@ export class Summary implements OnDestroy {
     const step =
       h.categories.length >= 2 ? parseFloat(h.categories[1]) - parseFloat(h.categories[0]) : 0;
     const labelFormatter =
-      rangeLabels && step
-        ? (value: string) => `[${value}, ${+(parseFloat(value) + step).toFixed(6)})`
-        : undefined;
+      rangeLabels && step && inverse
+        ? (value: string) => `(${+(parseFloat(value) + step).toFixed(6)}, ${value}]`
+        : rangeLabels && step
+          ? (value: string) => `[${value}, ${+(parseFloat(value) + step).toFixed(6)})`
+          : undefined;
     // Outlier markers: a dashed vertical line at each annotated value's bin,
     // red for anomalous shifts (else slate), with a rotated short description.
     const ann = h.annotations ?? [];
