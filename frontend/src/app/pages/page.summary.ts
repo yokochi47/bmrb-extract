@@ -342,10 +342,13 @@ interface PredictionTable {
   rows: PredictionRow[];
 }
 
-/** One ECharts panel: a title + the option object fed to <app-echart>. */
+/** One ECharts panel: a title + the option object fed to <app-echart>. An
+ * optional `aspect` (plot height / width) sizes the chart proportionally to its
+ * data extent (contact maps, dihedral scatter); omitted panels fill the width. */
 interface ChartPanel {
   title: string;
   option: object;
+  aspect?: number;
 }
 
 @Component({
@@ -501,13 +504,21 @@ export class Summary implements OnDestroy {
     return sf.contact_maps.map((c) => ({
       title: `Distance restraints contact map — Entity_assembly_ID: ${c.chain}`,
       option: this.contactMapOption(c),
+      // Square: symmetric residue × residue axes share the same range.
+      aspect: 1,
     }));
   }
   distAsymContactMapPanels(sf: DistRestraintSaveframe): ChartPanel[] {
-    return sf.asym_contact_maps.map((c) => ({
-      title: `Inter-chain contact map — Entity_assembly_IDs: ${c.chain1} / ${c.chain2}`,
-      option: this.asymContactMapOption(c),
-    }));
+    return sf.asym_contact_maps.map((c) => {
+      const xr = c.xmax - c.xmin;
+      const yr = c.ymax - c.ymin;
+      return {
+        title: `Inter-chain contact map — Entity_assembly_IDs: ${c.chain1} / ${c.chain2}`,
+        option: this.asymContactMapOption(c),
+        // Proportional to the two chains' residue ranges (undistorted cells).
+        aspect: xr > 0 ? yr / xr : 1,
+      };
+    });
   }
 
   /** Dihedral angle restraints grouped by saveframe (sf_framecode). */
@@ -519,13 +530,16 @@ export class Summary implements OnDestroy {
     for (const d of sf.dihedral) {
       if (d.phi_psi)
         panels.push({
+          // Square: both axes span -180..180°, so the plot must stay rectangular.
           title: 'φ / ψ dihedral angles',
           option: this.dihedralOption(d.phi_psi, 'φ', 'ψ'),
+          aspect: 1,
         });
       if (d.chi1_chi2)
         panels.push({
           title: 'χ1 / χ2 dihedral angles',
           option: this.dihedralOption(d.chi1_chi2, 'χ1', 'χ2'),
+          aspect: 1,
         });
     }
     return panels;

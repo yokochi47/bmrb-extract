@@ -985,13 +985,13 @@
           @for (p of distContactMapPanels(sf); track $index) {
             <div class="mb-6">
               <div class="font-medium mb-1">{{ p.title }}</div>
-              <app-echart [option]="p.option" [height]="440" />
+              <app-echart [option]="p.option" [height]="440" [aspect]="p.aspect ?? null" />
             </div>
           }
           @for (p of distAsymContactMapPanels(sf); track $index) {
             <div class="mb-6">
               <div class="font-medium mb-1">{{ p.title }}</div>
-              <app-echart [option]="p.option" [height]="440" />
+              <app-echart [option]="p.option" [height]="440" [aspect]="p.aspect ?? null" />
             </div>
           }
         </p-panel>
@@ -1114,7 +1114,7 @@
           @for (p of dihedScatterPanels(sf); track $index) {
             <div class="mb-6">
               <div class="font-medium mb-1">{{ p.title }}</div>
-              <app-echart [option]="p.option" [height]="460" />
+              <app-echart [option]="p.option" [height]="460" [aspect]="p.aspect ?? null" />
             </div>
           }
 
