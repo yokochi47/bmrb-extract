@@ -27,6 +27,20 @@ export const FILE_TYPE_OPTIONS: readonly FileTypeOption[] = [
       "Assigned chemical shifts (WSV/TSV/CSV; Residue per line, Atom per line, or SPARKY's list)",
     value: 'nm-shi-bar',
   },
+  // Perturbed chemical shifts
+  { label: 'Perturbed chemical shifts (ARIA format)', value: 'nm-csp-ari' },
+  { label: 'Perturbed chemical shifts (GARRET format)', value: 'nm-csp-gar' },
+  { label: 'Perturbed chemical shifts (NMRPIPE format)', value: 'nm-csp-npi' },
+  { label: 'Perturbed chemical shifts (OLIVIA format)', value: 'nm-csp-oli' },
+  { label: 'Perturbed chemical shifts (PIPP format)', value: 'nm-csp-pip' },
+  { label: 'Perturbed chemical shifts (NMRVIEW/CAMRA format)', value: 'nm-csp-ppm' },
+  { label: 'Perturbed chemical shifts (NMR-STAR V2 format, seq+cs loop)', value: 'nm-csp-st2' },
+  { label: 'Perturbed chemical shifts (XEASY format, aka. prot)', value: 'nm-csp-xea' },
+  {
+    label:
+      "Perturbed chemical shifts (WSV/TSV/CSV; Residue per line, Atom per line, or SPARKY's list)",
+    value: 'nm-csp-bar',
+  },
   // NMR restraints
   { label: 'NMR restraints (AMBER format)', value: 'nm-res-amb' },
   { label: 'NMR restraints (ARIA format)', value: 'nm-res-ari' },

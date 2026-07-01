@@ -57,6 +57,8 @@ DROP TYPE IF EXISTS upload_file_type;
 CREATE TYPE upload_file_type AS ENUM (
     'co-cif', 'co-pdb',
     'nm-aux-amb', 'nm-aux-cha', 'nm-aux-gro', 'nm-aux-pdb', 'nm-aux-xea',
+    'nm-csp-ari', 'nm-csp-bar', 'nm-csp-gar', 'nm-csp-npi',
+    'nm-csp-oli', 'nm-csp-pip', 'nm-csp-ppm', 'nm-csp-st2', 'nm-csp-xea',
     'nm-shi',     'nm-shi-ari', 'nm-shi-bar', 'nm-shi-gar', 'nm-shi-npi',
     'nm-shi-oli', 'nm-shi-pip', 'nm-shi-ppm', 'nm-shi-st2', 'nm-shi-xea',
     'nm-pea-any', 'nm-pea-ari', 'nm-pea-bar', 'nm-pea-ccp', 'nm-pea-oli',
