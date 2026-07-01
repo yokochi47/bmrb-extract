@@ -478,6 +478,7 @@ export class Summary implements OnDestroy {
       title: 'Distance restraint target values',
       option: this.histogramOption(h, 'Distance (Å)', '# of distance restraints', {
         rangeLabels: true,
+        yAxisLine: true,
       }),
     }));
   }
@@ -486,6 +487,7 @@ export class Summary implements OnDestroy {
       title: 'Discrepancy in redundant distance restraints',
       option: this.histogramOption(h, 'Normalized discrepancy (%)', '# of redundant restraints', {
         rangeLabels: true,
+        yAxisLine: true,
       }),
     }));
   }
@@ -533,6 +535,7 @@ export class Summary implements OnDestroy {
       title: 'Dihedral angle target values',
       option: this.histogramOption(h, 'Angle (°)', '# of dihedral restraints', {
         rangeLabels: true,
+        yAxisLine: true,
       }),
     }));
   }
@@ -552,6 +555,7 @@ export class Summary implements OnDestroy {
       title: 'Observed RDC values',
       option: this.histogramOption(h, 'Obs. RDC value (Hz)', '# of RDC restraints', {
         rangeLabels: true,
+        yAxisLine: true,
       }),
     }));
   }
@@ -765,9 +769,9 @@ export class Summary implements OnDestroy {
     h: HistogramChart,
     xName: string,
     yName: string,
-    opts: { inverse?: boolean; rangeLabels?: boolean } = {},
+    opts: { inverse?: boolean; rangeLabels?: boolean; yAxisLine?: boolean } = {},
   ): object {
-    const { inverse = false, rangeLabels = false } = opts;
+    const { inverse = false, rangeLabels = false, yAxisLine = false } = opts;
     // Categories are bin lower bounds; the bin spans [v, v + step). When
     // rangeLabels is set, label each tick with that half-open interval so the
     // axis reads as ranges rather than single points.
@@ -839,7 +843,14 @@ export class Summary implements OnDestroy {
       legend: { bottom: 0, type: 'scroll', data: h.series.map((s) => s.name) },
       grid: { left: 56, right: 16, top: 36, bottom: 64, containLabel: true },
       xAxis: markLine ? [categoryAxis, markerAxis] : categoryAxis,
-      yAxis: { type: 'value', name: yName, minInterval: 1 },
+      // A value axis hides its axis line by default; show it for the restraint
+      // histograms (skipped for the chem-shift chart).
+      yAxis: {
+        type: 'value',
+        name: yName,
+        minInterval: 1,
+        ...(yAxisLine ? { axisLine: { show: true } } : {}),
+      },
       series: [
         ...h.series.map((s) => ({ name: s.name, type: 'bar', stack: 'total', data: s.data })),
         ...(markLine
@@ -950,7 +961,7 @@ export class Summary implements OnDestroy {
         data: c.categories,
         axisLabel: { interval, rotate: -75, fontSize: 8 },
       },
-      yAxis: { type: 'value', name: '# restraints', minInterval: 1 },
+      yAxis: { type: 'value', name: '# restraints', minInterval: 1, axisLine: { show: true } },
       series: c.series.map((s, idx) => ({
         name: s.name,
         type: 'bar',
@@ -1075,6 +1086,7 @@ export class Summary implements OnDestroy {
       },
       yAxis: {
         type: 'value',
+        axisLine: { show: true },
         ...(c.ymin !== null ? { min: c.ymin } : {}),
         ...(c.ymax !== null ? { max: c.ymax } : {}),
       },
