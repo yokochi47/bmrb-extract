@@ -282,7 +282,7 @@
           >
             <th class="py-2 px-2 w-10"></th>
             <th class="py-2 px-3">File name</th>
-            <th class="py-2 px-3 w-24 text-right">Size</th>
+            <th class="py-2 px-3 w-32 text-right">Size</th>
             <th class="py-2 px-3 min-w-72">File type</th>
             <th class="py-2 px-2 w-10"></th>
           </tr>
@@ -297,8 +297,8 @@
                   [binary]="true"
                 />
               </td>
-              <td class="py-2 px-3 font-mono text-xs break-all">{{ row.name }}</td>
-              <td class="py-2 px-3 text-right text-surface-400 tabular-nums">
+              <td class="py-2 px-3 font-mono text-base break-all">{{ row.name }}</td>
+              <td class="py-2 px-3 text-right text-base text-surface-400 tabular-nums">
                 {{ formatSize(row.size) }}
               </td>
               <td class="py-2 px-3">
@@ -315,14 +315,14 @@
                   [filter]="true"
                   filterPlaceholder="Search file types..."
                   appendTo="body"
-                  scrollHeight="400px"
+                  scrollHeight="600px"
                   styleClass="w-full"
                 >
                   <ng-template let-group pTemplate="group">
                     <span class="italic underline">{{ group.label }}</span>
                   </ng-template>
                   <ng-template let-item pTemplate="selectedItem">
-                    {{ item.selectedLabel }}
+                    <span class="text-base">{{ item.selectedLabel }}</span>
                   </ng-template>
                 </p-select>
               </td>
