@@ -1024,7 +1024,7 @@ def _iso_label(key):
     return key.replace('_', ' ').strip().title()
 
 
-def _histogram_annotations(h):
+def _histogram_annotations(h, inverse=False):
     """Per-outlier annotations for a normalized chemical-shift histogram: a dashed
     marker at each anomalous/unusual value (by Z score) with a short description.
     Empty for histograms without Z-score annotations."""
@@ -1045,7 +1045,9 @@ def _histogram_annotations(h):
         # to the bin) spreads multiple outliers that fall in the same bin, so
         # their labels no longer stack on one line. Clamped to the plot extent
         # (band edges of the first/last bins).
-        x = max(0.0, min(n + 1.0, (z - r0) / (rn - r0) * n))
+        x = max(0.0, min(n + 1.0,
+                         n + 1.0 - (z - r0) / (rn - r0) * n
+                         if inverse else (z - r0) / (rn - r0) * n))
         out.append({
             'x': x,
             'anomalous': a.get('level') == 'anomalous',
@@ -1077,7 +1079,7 @@ def _histogram_chart(stat_list, inverse=False):
         if series:
             charts.append({'label': st.get('sf_framecode', ''),
                            'categories': categories, 'series': series,
-                           'annotations': _histogram_annotations(h)})
+                           'annotations': _histogram_annotations(h, inverse)})
     return charts
 
 

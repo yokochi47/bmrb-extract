@@ -829,7 +829,7 @@ export class Summary implements OnDestroy {
       min: 0.0,
       max: n + 1.0,
       show: false,
-      inverse,
+      // inverse,
       axisPointer: { show: false },
     };
     return {
