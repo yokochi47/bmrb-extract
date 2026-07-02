@@ -578,8 +578,8 @@
               <div class="font-medium mb-2">Sequence coverage and completeness of assignments</div>
               @for (c of sf.completeness; track $index) {
                 @let cov = seqCoverageOf(sf, c.chain);
-                <p class="text-sm font-bold ml-4 mb-2">Entity_assembly_ID: {{ c.chain }}</p>
-                <p-card>
+                <p class="text-sm font-bold ml-2 mb-2">Entity_assembly_ID: {{ c.chain }}</p>
+                <p-card class="ml-2">
                   @for (cat of c.categories; track $index) {
                     <div class="mb-3 overflow-x-auto">
                       <div class="text-sm font-medium mb-1">{{ cat.label }}</div>

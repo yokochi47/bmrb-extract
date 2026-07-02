@@ -1013,15 +1013,34 @@ _NMR_SUBTYPE_NAMES = {
 _SUPERSCRIPT = str.maketrans('0123456789', '⁰¹²³⁴⁵⁶⁷⁸⁹')
 _ISOTOPE_RE = re.compile(r'(\d+)([a-zA-Z]+)')
 
-
-def _iso_label(key):
-    """Format an isotope-bearing key (e.g. '1h_chemical_shifts', 'all_13c_…',
-    '15n') into a superscript-mass element label like ¹H / ¹³C / ¹⁵N. Falls back
-    to a title-cased label when no isotope token is found."""
+def _normalize_label(key):
+    """1. Format an isotope-bearing key (e.g. '1h_chemical_shifts', 'all_13c_…',
+    '15n') into a superscript-mass element label like ¹H / ¹³C / ¹⁵N.
+    2. Prettify a constraint-type key, e.g. 'medium_range_constraints_backbone-backbone'
+    → 'Medium range (bb-bb)'."""
     m = _ISOTOPE_RE.search(key)
     if m:
         return m.group(1).translate(_SUPERSCRIPT) + m.group(2).upper()
-    return key.replace('_', ' ').strip().title()
+    key = key[0].upper() + key[1:]
+    key = key.replace('_constraints', '')\
+	.replace('backbone-backbone', '(bb-bb)')\
+        .replace('backbone-sidechain', '(bb-sc)')\
+	.replace('sidechain-sidechain', '(sc-sc)')
+    return key.replace('_', ' ').strip()
+
+def _annotation_x(value, rov, inverse=False):
+    """Precise fractional position of `value` on the hidden marker axis (xAxis
+    index 1, spanning 0 … n+1) that overlays the histogram's category axis. Bin
+    i's band centre (index i) is the bin midpoint v_i + step/2, so `value` sits
+    at (value - r0)/(rn - r0) * n. Marking this exact spot (rather than snapping
+    to the bin) spreads multiple outliers that fall in the same bin, so their
+    labels no longer stack on one line. Clamped to the plot extent (band edges of
+    the first/last bins)."""
+    r0, rn, n = rov[0], rov[-1], len(rov)
+    if rn == r0:
+        return 0.0
+    frac = (value - r0) / (rn - r0) * n
+    return max(0.0, min(n + 1.0, n + 1.0 - frac if inverse else frac))
 
 
 def _histogram_annotations(h, inverse=False):
@@ -1032,24 +1051,14 @@ def _histogram_annotations(h, inverse=False):
     ann = h.get('annotations') or []
     if len(rov) < 2 or not ann:
         return []
-    r0, rn, scale = rov[0], rov[-1], rov[1] - rov[0]
-    n = len(rov)
+    scale = rov[1] - rov[0]
     out = []
     for a in sorted(ann, key=lambda x: -(x.get('z_score') or 0)):
         z = a.get('z_score')
         if not isinstance(z, (int, float)) or not scale:
             continue
-        # Precise fractional position of z on the category axis. Bin i's band
-        # centre (index i) is the bin midpoint v_i + step/2, so value z sits at
-        # index (z - r0)/step - 0.5. Marking this exact spot (rather than snapping
-        # to the bin) spreads multiple outliers that fall in the same bin, so
-        # their labels no longer stack on one line. Clamped to the plot extent
-        # (band edges of the first/last bins).
-        x = max(0.0, min(n + 1.0,
-                         n + 1.0 - (z - r0) / (rn - r0) * n
-                         if inverse else (z - r0) / (rn - r0) * n))
         out.append({
-            'x': x,
+            'x': _annotation_x(z, rov, inverse),
             'anomalous': a.get('level') == 'anomalous',
             'text': (f"{a.get('chain_id')}:{a.get('seq_id')}:{a.get('comp_id')}:"
                      f"{a.get('atom_id')}, {a.get('value')} ppm, Z score {z}"),
@@ -1057,10 +1066,41 @@ def _histogram_annotations(h, inverse=False):
     return out
 
 
-def _histogram_chart(stat_list, inverse=False):
+def _discrepancy_annotations(h, inverse=False):
+    """Per-outlier annotations for a distance-discrepancy histogram: a dashed
+    marker at each redundant-restraint outlier's discrepancy value, labelled with
+    the atom pair (red for conflicts). Mirrors the field/label conventions of
+    misc/utils_nmr.py::nmr_dp_report_dist_discrepancy_to_chart_label."""
+    rov = h.get('range_of_values') or []
+    ann = h.get('annotations') or []
+    if len(rov) < 2 or not ann:
+        return []
+    scale = rov[1] - rov[0]
+    out = []
+    for a in sorted(ann, key=lambda x: x.get('discrepancy') or 0):
+        d = a.get('discrepancy')
+        if not isinstance(d, (int, float)) or not scale:
+            continue
+        text = (f"{a.get('chain_id_1')}:{a.get('seq_id_1')}:{a.get('comp_id_1')}:"
+                f"{a.get('atom_id_1')} - ")
+        if 'chain_id_2' in a:
+            text += f"{a.get('chain_id_2')}:{a.get('seq_id_2')}:{a.get('comp_id_2')}:"
+        elif 'seq_id_2' in a:
+            text += f"{a.get('seq_id_2')}:{a.get('comp_id_2')}:"
+        text += f"{a.get('atom_id_2')}, {d}"
+        out.append({
+            'x': _annotation_x(d, rov, inverse),
+            'anomalous': a.get('level') == 'conflict',
+            'text': text,
+        })
+    return out
+
+
+def _histogram_chart(stat_list, inverse=False, annotate=_histogram_annotations):
     """Build [{label, categories, series, annotations}] from a stats list's
     `histogram` ({range_of_values, number_of_values: {key: [counts]}}). All-zero
-    series are dropped; annotations mark outliers (chem-shift Z scores)."""
+    series are dropped; `annotate` marks outliers (chem-shift Z scores by default,
+    distance discrepancies for the discrepancy histogram)."""
     charts = []
     for st in stat_list or []:
         h = st.get('histogram')
@@ -1072,14 +1112,14 @@ def _histogram_chart(stat_list, inverse=False):
                       for v in h['range_of_values']]
         nov = h.get('number_of_values') or {}
         series = [
-            {'name': _iso_label(k), 'data': v}
+            {'name': _normalize_label(k), 'data': v}
             for k, v in nov.items()
             if isinstance(v, list) and any(v)
         ]
         if series:
             charts.append({'label': st.get('sf_framecode', ''),
                            'categories': categories, 'series': series,
-                           'annotations': _histogram_annotations(h, inverse)})
+                           'annotations': annotate(h, inverse)})
     return charts
 
 
@@ -1150,13 +1190,6 @@ def _struct_conf_bands(struct_conf):
     return bands
 
 
-def _constraint_label(key):
-    """Prettify a constraint-type key, e.g. 'medium_range_constraints_backbone-backbone'
-    → 'Medium range backbone-backbone'."""
-    s = key.replace('_constraints', '').replace('_', ' ').strip()
-    return s[:1].upper() + s[1:] if s else key
-
-
 def _per_residue_charts(stat_list):
     """Per-chain stacked per-residue constraint counts from `constraints_per_residue`,
     with secondary-structure bands. All-zero metrics are dropped."""
@@ -1169,7 +1202,7 @@ def _per_residue_charts(stat_list):
                 continue
             cats = [f"{comp[i] if i < len(comp) else ''} {seq[i]}".strip() for i in range(len(seq))]
             series = [
-                {'name': _constraint_label(k), 'data': v}
+                {'name': _normalize_label(k), 'data': v}
                 for k, v in pr.items()
                 if k not in _PER_RESIDUE_SKIP and isinstance(v, list)
                 and any(isinstance(x, (int, float)) and x for x in v)
@@ -1187,35 +1220,58 @@ def _per_residue_charts(stat_list):
 
 
 def _discrepancy_charts(stat_list):
-    """Histogram charts from `histogram_of_discrepancy` (same shape as `histogram`)."""
+    """Histogram charts from `histogram_of_discrepancy` (same shape as `histogram`),
+    with outlier markers for redundant-restraint discrepancies."""
     out = []
     for st in stat_list or []:
         hd = st.get('histogram_of_discrepancy')
         if isinstance(hd, dict) and hd.get('range_of_values'):
-            out.extend(_histogram_chart([{'sf_framecode': st.get('sf_framecode', ''), 'histogram': hd}]))
+            out.extend(_histogram_chart([{'sf_framecode': st.get('sf_framecode', ''), 'histogram': hd}],
+                                        annotate=_discrepancy_annotations))
+    return out
+
+
+def _map_bands(seq, struct_conf):
+    """Secondary-structure bands for a contact-map axis: {start, end, type, label}
+    with start/end as residue seq_id VALUES (each band spans [start-0.5, end+0.5]
+    on the value axis). Empty when the axis has no struct_conf."""
+    seq = seq or []
+    out = []
+    for b in _struct_conf_bands(struct_conf):
+        if b['start'] < len(seq) and b['end'] < len(seq):
+            out.append({'start': seq[b['start']], 'end': seq[b['end']],
+                        'type': b['type'], 'label': b['label']})
     return out
 
 
 def _contact_map_charts(stat_list):
     """Symmetric contact maps from `constraints_on_contact_map`: per chain, one
-    series per constraint type with points [seq_id_1, seq_id_2, total]."""
+    series per constraint type with points [seq_id_1, seq_id_2, total]. `bands`
+    are the secondary-structure regions, drawn on both axes (shared sequence)."""
     charts = []
     for st in stat_list or []:
         for cm in st.get('constraints_on_contact_map') or []:
             seq = cm.get('seq_id') or []
             if not seq:
                 continue
+            comp = cm.get('comp_id') or []
+            comp_by_seq = {s: comp[i] for i, s in enumerate(seq) if i < len(comp)}
             series = []
             for k, v in cm.items():
                 if k in _PER_RESIDUE_SKIP or not isinstance(v, list):
                     continue
-                pts = [[d['seq_id_1'], d['seq_id_2'], d.get('total', 1)]
+                # Each point carries the two residues' names so the tooltip can
+                # label them "<comp> <seq>" (see the frontend contactMapOption).
+                pts = [{'value': [d['seq_id_1'], d['seq_id_2'], d.get('total', 1)],
+                        'c1': comp_by_seq.get(d['seq_id_1'], ''),
+                        'c2': comp_by_seq.get(d['seq_id_2'], '')}
                        for d in v if isinstance(d, dict) and 'seq_id_1' in d]
                 if pts:
-                    series.append({'name': _constraint_label(k), 'points': pts})
+                    series.append({'name': _normalize_label(k), 'points': pts})
             if series:
                 charts.append({'chain': cm.get('chain_id'), 'label': st.get('sf_framecode', ''),
-                               'min': min(seq), 'max': max(seq), 'series': series})
+                               'min': min(seq), 'max': max(seq), 'series': series,
+                               'bands': _map_bands(seq, cm.get('struct_conf'))})
     return charts
 
 
@@ -1223,7 +1279,7 @@ def _dim_atom(d):
     """Spectral-dimension atom label, e.g. isotope 13 + type 'C' → ¹³C."""
     iso = d.get('atom_isotope_number')
     atom = d.get('atom_type') or ''
-    return _iso_label(f'{iso}{atom}') if iso and atom else atom
+    return _normalize_label(f'{iso}{atom}') if iso and atom else atom
 
 
 def _spectral_peak_saveframes(sp_list, aligns):
@@ -1311,18 +1367,30 @@ def _asym_contact_map_charts(stat_list):
             s2 = cm.get('seq_id_2') or []
             if not s1 or not s2:
                 continue
+            c1 = cm.get('comp_id_1') or []
+            c2 = cm.get('comp_id_2') or []
+            comp1_by_seq = {s: c1[i] for i, s in enumerate(s1) if i < len(c1)}
+            comp2_by_seq = {s: c2[i] for i, s in enumerate(s2) if i < len(c2)}
             series = []
             for k, v in cm.items():
                 if isinstance(v, list) and v and isinstance(v[0], dict) and 'seq_id_1' in v[0]:
-                    pts = [[d['seq_id_1'], d['seq_id_2'], d.get('total', 1)] for d in v]
+                    # Each point carries the two residues' names so the tooltip can
+                    # label them "<chain> <comp> <seq>" (see asymContactMapOption).
+                    pts = [{'value': [d['seq_id_1'], d['seq_id_2'], d.get('total', 1)],
+                            'c1': comp1_by_seq.get(d['seq_id_1'], ''),
+                            'c2': comp2_by_seq.get(d['seq_id_2'], '')}
+                           for d in v]
                     if pts:
-                        series.append({'name': _constraint_label(k), 'points': pts})
+                        series.append({'name': _normalize_label(k), 'points': pts})
             if series:
                 charts.append({
                     'chain1': cm.get('chain_id_1'), 'chain2': cm.get('chain_id_2'),
                     'label': st.get('sf_framecode', ''),
                     'xmin': min(s1), 'xmax': max(s1), 'ymin': min(s2), 'ymax': max(s2),
                     'series': series,
+                    # Per-chain secondary-structure bands: chain 1 on x, chain 2 on y.
+                    'xbands': _map_bands(s1, cm.get('struct_conf_1')),
+                    'ybands': _map_bands(s2, cm.get('struct_conf_2')),
                 })
     return charts
 
@@ -1580,7 +1648,7 @@ def _completeness_of(st):
         categories = []
         for key, label in _COMPLETENESS_CATEGORIES:
             groups = [
-                {'group': _iso_label(g.get('atom_group', '')),
+                {'group': _normalize_label(g.get('atom_group', '')),
                  'target': g.get('number_of_target_shifts'),
                  'assigned': g.get('number_of_assigned_shifts'),
                  'pct': round((g.get('completeness') or 0) * 100, 1)}
@@ -1614,7 +1682,7 @@ def _completeness_of(st):
 def _assignments_of(st):
     """Total assignment counts per isotope for one saveframe → [{label, count}]."""
     noa = st.get('number_of_assignments') or {}
-    return [{'label': _iso_label(k), 'count': v}
+    return [{'label': _normalize_label(k), 'count': v}
             for k, v in noa.items() if isinstance(v, (int, float))]
 
 
@@ -1882,10 +1950,10 @@ def _flat_constraint_tree(item, mode, top, expand):
     """Build a one-level <li>top<ul>per-classification</ul></li> for a flat
     {classification: value} restraint dict (dihedral-angle / RDC style, where
     classifications are not further nested). `mode` selects the leaf rendering
-    ('count' or 'mc'); classifications are prettified with _constraint_label."""
+    ('count' or 'mc'); classifications are prettified with _normalize_label."""
     html = '<li>' + top
     if expand:
-        subs = ''.join(f'<li>{_constraint_label(k)}: {_dist_leaf(item, k, mode)}</li>' for k in item)
+        subs = ''.join(f'<li>{_normalize_label(k)}: {_dist_leaf(item, k, mode)}</li>' for k in item)
         if subs:
             html += '<ul>' + subs + '</ul>'
     return html + '</li>'

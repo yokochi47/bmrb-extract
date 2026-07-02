@@ -118,13 +118,30 @@ interface PerResidueChart {
   series: { name: string; data: number[] }[];
   bands: { start: number; end: number; type: string; label: string }[];
 }
-/** Contact map: per chain, one series of [seq_id_1, seq_id_2, total] per type. */
+/** A secondary-structure region on a map axis; start/end are residue seq_id
+ * values (the band spans [start-0.5, end+0.5]). */
+interface MapBand {
+  start: number;
+  end: number;
+  type: string;
+  label: string;
+}
+/** One contact-map point: value = [seq_id_1, seq_id_2, total]; c1/c2 are the two
+ * residues' names (comp_id), for the "<comp> <seq>" tooltip label. */
+interface ContactPoint {
+  value: number[];
+  c1: string;
+  c2: string;
+}
+/** Contact map: per chain, one series of contact points per type. `bands` are
+ * the secondary-structure regions, drawn on both axes. */
 interface ContactMapChart {
   chain: string;
   label: string;
   min: number;
   max: number;
-  series: { name: string; points: number[][] }[];
+  series: { name: string; points: ContactPoint[] }[];
+  bands: MapBand[];
 }
 /** One spectral-peak-list saveframe's preview content, in display order. */
 interface SpectralPeakSaveframe {
@@ -152,7 +169,8 @@ interface PerResidueLine {
   ymax: number | null;
   threshold: number | null;
 }
-/** Asymmetric (inter-chain) contact map: distinct x/y residue ranges. */
+/** Asymmetric (inter-chain) contact map: distinct x/y residue ranges. `xbands`
+ * (chain 1) are drawn vertically, `ybands` (chain 2) horizontally. */
 interface AsymContactMap {
   chain1: string;
   chain2: string;
@@ -161,7 +179,9 @@ interface AsymContactMap {
   xmax: number;
   ymin: number;
   ymax: number;
-  series: { name: string; points: number[][] }[];
+  series: { name: string; points: ContactPoint[] }[];
+  xbands: MapBand[];
+  ybands: MapBand[];
 }
 /** A chemical-shift-prediction validation row (predicted vs coordinate state). */
 interface PredictionRow {
@@ -479,7 +499,7 @@ export class Summary implements OnDestroy {
   distHistogramPanels(sf: DistRestraintSaveframe): ChartPanel[] {
     return sf.histogram.map((h) => ({
       title: 'Distance restraint target values',
-      option: this.histogramOption(h, 'Distance (Å)', '# of distance restraints', {
+      option: this.histogramOption(h, 'Target distance (Å)', '# of distance restraints', {
         rangeLabels: true,
         yAxisLine: true,
       }),
@@ -547,7 +567,7 @@ export class Summary implements OnDestroy {
   dihedHistogramPanels(sf: DihedRestraintSaveframe): ChartPanel[] {
     return sf.histogram.map((h) => ({
       title: 'Dihedral angle target values',
-      option: this.histogramOption(h, 'Angle (°)', '# of dihedral restraints', {
+      option: this.histogramOption(h, 'Angle (°)', '# of dihedral angle restraints', {
         rangeLabels: true,
         yAxisLine: true,
       }),
@@ -858,11 +878,13 @@ export class Summary implements OnDestroy {
       grid: { left: 56, right: 16, top: 36, bottom: 64, containLabel: true },
       xAxis: markLine ? [categoryAxis, markerAxis] : categoryAxis,
       // A value axis hides its axis line by default; show it for the restraint
-      // histograms (skipped for the chem-shift chart).
+      // histograms (skipped for the chem-shift chart). Tick marks are shown on
+      // every histogram's y-axis.
       yAxis: {
         type: 'value',
         name: yName,
         minInterval: 1,
+        axisTick: { show: true },
         ...(yAxisLine ? { axisLine: { show: true } } : {}),
       },
       series: [
@@ -1005,7 +1027,7 @@ export class Summary implements OnDestroy {
         { type: 'category', data: c.categories, axisLabel: { interval, rotate: -75, fontSize: 8 } },
         markerAxis,
       ],
-      yAxis: { type: 'value', name: '# restraints', minInterval: 1, axisLine: { show: true } },
+      yAxis: { type: 'value', name: '# of restraints', minInterval: 1, axisLine: { show: true } },
       series: [
         ...c.series.map((s) => ({ name: s.name, type: 'bar', stack: 'total', data: s.data })),
         holderSeries,
@@ -1013,31 +1035,87 @@ export class Summary implements OnDestroy {
     };
   }
 
+  /** Translucent fill for a contact-map secondary-structure band. The low alpha
+   * lets vertical (x) and horizontal (y) bands blend where they cross. */
+  private mapBandColor(type: string): string {
+    if (type === 'helix') return 'rgba(204,47,0,0.08)';
+    if (type === 'strand') return 'rgba(0,156,209,0.08)';
+    if (type === 'turn') return 'rgba(200,204,0,0.10)';
+    return 'rgba(120,120,120,0.06)';
+  }
+
+  /** A markArea overlaying secondary-structure regions on a contact map: `xbands`
+   * become vertical bands (full height), `ybands` horizontal bands (full width).
+   * Bands sit at residue value coordinates, so [start-0.5, end+0.5] covers the
+   * whole residues; the translucent fills blend where the two axes' structures
+   * coincide. */
+  private mapBandMarkArea(xbands: MapBand[], ybands: MapBand[]): object {
+    const label = (rotate: number, position: string, offset: number[], type: string) => ({
+      show: true,
+      position,
+      offset,
+      rotate,
+      fontSize: 9,
+      fontStyle: 'italic' as const,
+      color: this.bandEdgeColor(type),
+    });
+    const vertical = xbands.map((b) => [
+      {
+        xAxis: b.start - 0.5,
+        itemStyle: { color: this.mapBandColor(b.type) },
+        name: b.label,
+        label: label(-90, 'insideTopLeft', [8, -4], b.type),
+      },
+      { xAxis: b.end + 0.5 },
+    ]);
+    const horizontal = ybands.map((b) => [
+      {
+        yAxis: b.start - 0.5,
+        itemStyle: { color: this.mapBandColor(b.type) },
+        name: b.label,
+        label: label(0, 'insideStartTop', [8, 2], b.type),
+      },
+      { yAxis: b.end + 0.5 },
+    ]);
+    return { silent: true, data: [...vertical, ...horizontal] };
+  }
+
   /** ECharts option for a symmetric contact map: scatter of [seq1, seq2] points
    * sized by restraint count, on a square residue×residue grid (y inverted). */
   private contactMapOption(c: ContactMapChart): object {
-    const axis = (name: string) => ({
+    const axis = () => ({
       type: 'value' as const,
-      name,
       min: c.min,
       max: c.max,
       minInterval: 1,
+      // No axis line / ticks / title: the residue-range start (residue 0) needs
+      // no emphasis, and the bands carry the residue context.
+      axisLine: { show: false },
+      axisTick: { show: false },
     });
+    // Symmetric map: the same sequence bands read on both axes.
+    const markArea = this.mapBandMarkArea(c.bands, c.bands);
     return {
       tooltip: {
         trigger: 'item',
-        formatter: (p: { data?: number[] }) =>
-          p.data ? `${p.data[0]} ↔ ${p.data[1]}<br/>count: ${p.data[2]}` : '',
+        formatter: (p: { data?: ContactPoint }) => {
+          const d = p.data;
+          return d
+            ? `${d.c1} ${d.value[0]} ↔ ${d.c2} ${d.value[1]}<br/>count: ${d.value[2]}`
+            : '';
+        },
       },
-      legend: { bottom: 0, type: 'scroll' },
+      // Plain (not scroll) so the constraint-type entries wrap onto multiple lines.
+      legend: { bottom: 0, type: 'plain' },
       grid: { left: 48, right: 24, top: 16, bottom: 48, containLabel: true },
-      xAxis: axis('Residue'),
-      yAxis: { ...axis('Residue'), inverse: true },
-      series: c.series.map((s) => ({
+      xAxis: axis(),
+      yAxis: { ...axis(), inverse: true },
+      series: c.series.map((s, idx) => ({
         name: s.name,
         type: 'scatter',
         data: s.points,
         symbolSize: (v: number[]) => Math.min(16, 4 + 2 * (v[2] || 1)),
+        ...(idx === 0 ? { markArea } : {}),
       })),
     };
   }
@@ -1048,20 +1126,42 @@ export class Summary implements OnDestroy {
     return {
       tooltip: {
         trigger: 'item',
-        formatter: (p: { data?: number[] }) =>
-          p.data
-            ? `${c.chain1}:${p.data[0]} ↔ ${c.chain2}:${p.data[1]}<br/>count: ${p.data[2]}`
-            : '',
+        formatter: (p: { data?: ContactPoint }) => {
+          const d = p.data;
+          return d
+            ? `${c.chain1} ${d.c1} ${d.value[0]} ↔ ${c.chain2} ${d.c2} ${d.value[1]}<br/>count: ${d.value[2]}`
+            : '';
+        },
       },
-      legend: { bottom: 0, type: 'scroll' },
+      // Plain (not scroll) so the constraint-type entries wrap onto multiple lines.
+      legend: { bottom: 0, type: 'plain' },
       grid: { left: 48, right: 24, top: 16, bottom: 48, containLabel: true },
-      xAxis: { type: 'value', name: `Chain ${c.chain1}`, min: c.xmin, max: c.xmax, minInterval: 1 },
-      yAxis: { type: 'value', name: `Chain ${c.chain2}`, min: c.ymin, max: c.ymax, minInterval: 1 },
-      series: c.series.map((s) => ({
+      // No axis lines / ticks: the residue-range start (residue 0)
+      // needs no emphasis, and the bands carry the residue context.
+      xAxis: {
+        type: 'value',
+        name: 'Entity_assembly_ID ${c.chain1}',
+        min: c.xmin,
+        max: c.xmax,
+        minInterval: 1,
+        axisLine: { show: false },
+        axisTick: { show: false },
+      },
+      yAxis: {
+        type: 'value',
+        name: 'Entity_assembly_ID ${c.chain2}',
+        min: c.ymin,
+        max: c.ymax,
+        minInterval: 1,
+        axisLine: { show: false },
+        axisTick: { show: false },
+      },
+      series: c.series.map((s, idx) => ({
         name: s.name,
         type: 'scatter',
         data: s.points,
         symbolSize: (v: number[]) => Math.min(16, 4 + 2 * (v[2] || 1)),
+        ...(idx === 0 ? { markArea: this.mapBandMarkArea(c.xbands, c.ybands) } : {}),
       })),
     };
   }
