@@ -9,11 +9,13 @@ import {
   viewChild,
 } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { CardModule } from 'primeng/card';
 import { TableModule } from 'primeng/table';
 import { PanelModule } from 'primeng/panel';
 import { CheckboxModule } from 'primeng/checkbox';
+import { ButtonModule } from 'primeng/button';
 
 import { PageService, TargetDepsys } from './page.service';
 import { API_URL } from '../../site.config';
@@ -381,12 +383,21 @@ interface ChartPanel {
 
 @Component({
   selector: 'app-summary',
-  imports: [FormsModule, CardModule, TableModule, PanelModule, CheckboxModule, EchartComponent],
+  imports: [
+    FormsModule,
+    CardModule,
+    TableModule,
+    PanelModule,
+    CheckboxModule,
+    ButtonModule,
+    EchartComponent,
+  ],
   templateUrl: './page.summary.html',
 })
 export class Summary implements OnDestroy {
   private pageService = inject(PageService);
   private http = inject(HttpClient);
+  private router = inject(Router);
 
   /** Selected files of the latest run, ordered by upload time (server-side). */
   files = signal<UploadFileRow[]>([]);
@@ -685,6 +696,21 @@ export class Summary implements OnDestroy {
 
   /** A conversion run exists (the validation/approval UI only applies then). */
   processed = computed(() => this.pageService.pageState().conversionId !== null);
+
+  /** Whether the "Proceed to download" button is shown (Terms #7). Hidden in the
+   * Error case (blocking NMR error → must re-upload) and while the NMR data
+   * report is unavailable/still loading. In the Warning case it shows but is only
+   * enabled once every issue is acknowledged (canApprove); in the OK case there
+   * is nothing to acknowledge, so it is enabled immediately. */
+  showProceed = computed(
+    () => this.processed() && this.nmrAvailable() === true && !this.hasBlockingError(),
+  );
+
+  /** Navigate to the download page once the status is approved (Terms #7). */
+  proceedToDownload(): void {
+    if (!this.canApprove()) return;
+    this.router.navigate(['/download'], { queryParamsHandling: 'preserve' });
+  }
 
   /** Host element for the Mol* canvas (only present while showViewer()). */
   private coordinateHost = viewChild<ElementRef<HTMLDivElement>>('molstarHost');

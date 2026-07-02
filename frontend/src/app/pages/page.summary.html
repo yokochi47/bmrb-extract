@@ -1579,4 +1579,18 @@
       }
     }
   </p-card>
+
+  <!-- Proceed to download (Terms #7): hidden on blocking error / no NMR report;
+       enabled once every flagged issue is acknowledged (immediately when OK). -->
+  @if (showProceed()) {
+    <div class="mt-8">
+      <p-button
+        label="Proceed to download"
+        icon="pi pi-download"
+        severity="success"
+        [disabled]="!canApprove()"
+        (click)="proceedToDownload()"
+      />
+    </div>
+  }
 </div>
