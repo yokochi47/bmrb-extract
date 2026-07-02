@@ -1111,9 +1111,10 @@ def _histogram_chart(stat_list, inverse=False, annotate=_histogram_annotations):
         categories = [f'({v + scale}, {v}]' if inverse else f'[{v}, {v + scale})'
                       for v in h['range_of_values']]
         nov = h.get('number_of_values') or {}
+        # Order distance constraint-type series canonically (no-op for others).
         series = [
             {'name': _normalize_label(k), 'data': v}
-            for k, v in nov.items()
+            for k, v in sorted(nov.items(), key=lambda kv: _constraint_order(kv[0]))
             if isinstance(v, list) and any(v)
         ]
         if series:
@@ -1160,6 +1161,38 @@ _STRUCT_CONF_TYPES = {'HELX': 'helix', 'STRN': 'strand', 'TURN': 'turn'}
 _PER_RESIDUE_SKIP = {'chain_id', 'seq_id', 'comp_id', 'struct_conf'}
 
 
+def _constraint_order(key):
+    """Canonical display order for a distance-restraint constraint-type key:
+    intra-residue, sequential (bb-bb, bb-sc, sc-sc), medium range (bb-bb, bb-sc,
+    sc-sc), long range, inter-chain, symmetric. Returns a sort tuple; keys that
+    aren't distance constraint types (e.g. chem-shift isotopes) fall to the end,
+    keeping their original order under a stable sort. Matches on prefix so the
+    hyphen/underscore spelling of the keys doesn't matter."""
+    k = key.lower()
+    # Backbone/side-chain sub-order within sequential / medium-range groups.
+    if 'backbone-backbone' in k:
+        sub = 0
+    elif 'backbone-sidechain' in k:
+        sub = 1
+    elif 'sidechain-sidechain' in k:
+        sub = 2
+    else:
+        sub = 3
+    if k.startswith('intra'):
+        return (0, 0)
+    if k.startswith('sequential'):
+        return (1, sub)
+    if k.startswith('medium'):
+        return (2, sub)
+    if k.startswith('long'):
+        return (3, 0)
+    if k.startswith('inter'):
+        return (4, 0)
+    if k.startswith('symmetric'):
+        return (5, 0)
+    return (99, 0)
+
+
 def _sc_type(sc):
     """Secondary-structure class from a struct_conf token (e.g. 'HELX_P:AA1')."""
     if not sc:
@@ -1203,7 +1236,7 @@ def _per_residue_charts(stat_list):
             cats = [f"{comp[i] if i < len(comp) else ''} {seq[i]}".strip() for i in range(len(seq))]
             series = [
                 {'name': _normalize_label(k), 'data': v}
-                for k, v in pr.items()
+                for k, v in sorted(pr.items(), key=lambda kv: _constraint_order(kv[0]))
                 if k not in _PER_RESIDUE_SKIP and isinstance(v, list)
                 and any(isinstance(x, (int, float)) and x for x in v)
             ]
@@ -1257,7 +1290,7 @@ def _contact_map_charts(stat_list):
             comp = cm.get('comp_id') or []
             comp_by_seq = {s: comp[i] for i, s in enumerate(seq) if i < len(comp)}
             series = []
-            for k, v in cm.items():
+            for k, v in sorted(cm.items(), key=lambda kv: _constraint_order(kv[0])):
                 if k in _PER_RESIDUE_SKIP or not isinstance(v, list):
                     continue
                 # Each point carries the two residues' names so the tooltip can
@@ -1372,7 +1405,7 @@ def _asym_contact_map_charts(stat_list):
             comp1_by_seq = {s: c1[i] for i, s in enumerate(s1) if i < len(c1)}
             comp2_by_seq = {s: c2[i] for i, s in enumerate(s2) if i < len(c2)}
             series = []
-            for k, v in cm.items():
+            for k, v in sorted(cm.items(), key=lambda kv: _constraint_order(kv[0])):
                 if isinstance(v, list) and v and isinstance(v[0], dict) and 'seq_id_1' in v[0]:
                     # Each point carries the two residues' names so the tooltip can
                     # label them "<chain> <comp> <seq>" (see asymContactMapOption).
