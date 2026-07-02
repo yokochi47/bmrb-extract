@@ -1066,11 +1066,11 @@ def _histogram_annotations(h, inverse=False):
     return out
 
 
-def _discrepancy_annotations(h, inverse=False):
-    """Per-outlier annotations for a distance-discrepancy histogram: a dashed
-    marker at each redundant-restraint outlier's discrepancy value, labelled with
-    the atom pair (red for conflicts). Mirrors the field/label conventions of
-    misc/utils_nmr.py::nmr_dp_report_dist_discrepancy_to_chart_label."""
+def _discrepancy_ann(h, text_fn, inverse=False):
+    """Per-outlier annotations for a *-discrepancy histogram: a dashed marker at
+    each redundant-restraint outlier's discrepancy value (red for conflicts),
+    labelled by `text_fn(a, discrepancy)`. Shared by the distance, dihedral-angle
+    and RDC discrepancy charts."""
     rov = h.get('range_of_values') or []
     ann = h.get('annotations') or []
     if len(rov) < 2 or not ann:
@@ -1081,19 +1081,49 @@ def _discrepancy_annotations(h, inverse=False):
         d = a.get('discrepancy')
         if not isinstance(d, (int, float)) or not scale:
             continue
-        text = (f"{a.get('chain_id_1')}:{a.get('seq_id_1')}:{a.get('comp_id_1')}:"
-                f"{a.get('atom_id_1')} - ")
-        if 'chain_id_2' in a:
-            text += f"{a.get('chain_id_2')}:{a.get('seq_id_2')}:{a.get('comp_id_2')}:"
-        elif 'seq_id_2' in a:
-            text += f"{a.get('seq_id_2')}:{a.get('comp_id_2')}:"
-        text += f"{a.get('atom_id_2')}, {d}"
         out.append({
             'x': _annotation_x(d, rov, inverse),
             'anomalous': a.get('level') == 'conflict',
-            'text': text,
+            'text': text_fn(a, d),
         })
     return out
+
+
+def _dist_discrepancy_text(a, d):
+    """Atom-pair label for a distance-restraint discrepancy outlier. Mirrors
+    misc/utils_nmr.py::nmr_dp_report_dist_discrepancy_to_chart_label."""
+    text = f"{a.get('chain_id_1')}:{a.get('seq_id_1')}:{a.get('comp_id_1')}:{a.get('atom_id_1')} - "
+    if 'chain_id_2' in a:
+        text += f"{a.get('chain_id_2')}:{a.get('seq_id_2')}:{a.get('comp_id_2')}:"
+    elif 'seq_id_2' in a:
+        text += f"{a.get('seq_id_2')}:{a.get('comp_id_2')}:"
+    return text + f"{a.get('atom_id_2')}, {d}"
+
+
+def _dihed_discrepancy_text(a, d):
+    """Single-residue, four-atom label for a dihedral-restraint discrepancy
+    outlier. Mirrors nmr_dp_report_dihed_discrepancy_to_chart_label."""
+    atoms = '-'.join(str(a[k]) for k in ('atom_id_1', 'atom_id_2', 'atom_id_3', 'atom_id_4') if k in a)
+    return f"{a.get('chain_id')}:{a.get('seq_id')}:{a.get('comp_id')}:{atoms}, {d}"
+
+
+def _rdc_discrepancy_text(a, d):
+    """Single-residue, atom-pair label for an RDC-restraint discrepancy outlier.
+    Mirrors nmr_dp_report_rdc_discrepancy_to_chart_label."""
+    return (f"{a.get('chain_id')}:{a.get('seq_id')}:{a.get('comp_id')}:"
+            f"{a.get('atom_id_1')}-{a.get('atom_id_2')}, {d}")
+
+
+def _discrepancy_annotations(h, inverse=False):
+    return _discrepancy_ann(h, _dist_discrepancy_text, inverse)
+
+
+def _dihed_discrepancy_annotations(h, inverse=False):
+    return _discrepancy_ann(h, _dihed_discrepancy_text, inverse)
+
+
+def _rdc_discrepancy_annotations(h, inverse=False):
+    return _discrepancy_ann(h, _rdc_discrepancy_text, inverse)
 
 
 def _histogram_chart(stat_list, inverse=False, annotate=_histogram_annotations):
@@ -1126,22 +1156,24 @@ def _histogram_chart(stat_list, inverse=False, annotate=_histogram_annotations):
 
 def _dihedral_charts(stat_list):
     """Build [{label, phi_psi, chi1_chi2}] scatter+error data from a
-    dihed_restraint stats list. Each plot → {points:[{name,x,y}], errors:[[...]]}.
-    errors arrays are [x, y, x_low, x_high, y_low, y_high] (absolute)."""
+    dihed_restraint stats list. Each plot → {groups:[{comp_id, points:[{x,y,seq_id}]}],
+    errors:[[...]]}. `plot['values']` is keyed by comp_id, so points stay grouped
+    per residue type (one scatter series each); errors arrays are
+    [x, y, x_low, x_high, y_low, y_high] (absolute)."""
     def _plot(plot):
         if not isinstance(plot, dict) or not plot.get('values'):
             return None
-        points, errors = [], []
-        for vals in plot['values'].values():
-            for p in vals:
-                if len(p) >= 3:
-                    points.append({'name': str(p[2]), 'x': p[0], 'y': p[1]})
+        groups, errors = [], []
+        for comp_id, vals in plot['values'].items():
+            pts = [{'x': p[0], 'y': p[1], 'seq_id': ':'.join(p[2].split(':')[:2])} for p in vals if len(p) >= 3]
+            if pts:
+                groups.append({'comp_id': comp_id, 'points': pts})
         for errs in (plot.get('errors') or {}).values():
             for e in errs:
                 errors.append(e)
-        if not points:
+        if not groups:
             return None
-        return {'points': points, 'errors': errors}
+        return {'groups': groups, 'errors': errors}
 
     charts = []
     for st in stat_list or []:
@@ -1252,15 +1284,16 @@ def _per_residue_charts(stat_list):
     return charts
 
 
-def _discrepancy_charts(stat_list):
+def _discrepancy_charts(stat_list, annotate=_discrepancy_annotations):
     """Histogram charts from `histogram_of_discrepancy` (same shape as `histogram`),
-    with outlier markers for redundant-restraint discrepancies."""
+    with outlier markers for redundant-restraint discrepancies. `annotate` selects
+    the outlier-label style (distance / dihedral-angle / RDC)."""
     out = []
     for st in stat_list or []:
         hd = st.get('histogram_of_discrepancy')
         if isinstance(hd, dict) and hd.get('range_of_values'):
             out.extend(_histogram_chart([{'sf_framecode': st.get('sf_framecode', ''), 'histogram': hd}],
-                                        annotate=_discrepancy_annotations))
+                                        annotate=annotate))
     return out
 
 
@@ -2078,6 +2111,7 @@ def _dihed_restraint_saveframes(dihed_list, aligns):
             'sequence_coverage': _sequence_coverage(st, aligns),
             'constraint_lists': _flat_constraint_lists(st),
             'histogram': _histogram_chart([st]),
+            'discrepancy': _discrepancy_charts([st], annotate=_dihed_discrepancy_annotations),
             'dihedral': _dihedral_charts([st]),
             'per_residue': _per_residue_value_charts([st], -180, 180),
             'atom_name_mapping': _atom_name_mapping(st),
@@ -2105,6 +2139,7 @@ def _rdc_restraint_saveframes(rdc_list, aligns):
             'constraint_lists': _flat_constraint_lists(st),
             'range': range_text,
             'histogram': _histogram_chart([st]),
+            'discrepancy': _discrepancy_charts([st], annotate=_rdc_discrepancy_annotations),
             'per_residue': _per_residue_value_charts([st]),
             'atom_name_mapping': _atom_name_mapping(st),
         })

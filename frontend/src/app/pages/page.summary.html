@@ -1118,11 +1118,17 @@
             </div>
           }
 
-          <!-- Target-value histogram -->
+          <!-- Target-value histogram + discrepancy -->
           @for (p of dihedHistogramPanels(sf); track $index) {
             <div class="mb-6">
               <div class="font-medium mb-1">{{ p.title }}</div>
               <app-echart [option]="p.option" [height]="380" />
+            </div>
+          }
+          @for (p of dihedDiscrepancyPanels(sf); track $index) {
+            <div class="mb-6">
+              <div class="font-medium mb-1">{{ p.title }}</div>
+              <app-echart [option]="p.option" [height]="360" />
             </div>
           }
 
@@ -1255,8 +1261,14 @@
             </div>
           }
 
-          <!-- Observed-value histogram -->
+          <!-- Observed-value histogram + discrepancy -->
           @for (p of rdcHistogramPanels(sf); track $index) {
+            <div class="mb-6">
+              <div class="font-medium mb-1">{{ p.title }}</div>
+              <app-echart [option]="p.option" [height]="360" />
+            </div>
+          }
+          @for (p of rdcDiscrepancyPanels(sf); track $index) {
             <div class="mb-6">
               <div class="font-medium mb-1">{{ p.title }}</div>
               <app-echart [option]="p.option" [height]="360" />

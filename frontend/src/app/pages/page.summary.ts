@@ -86,7 +86,9 @@ interface HistogramChart {
   annotations?: { x: number; anomalous: boolean; text: string }[];
 }
 interface DihedralPlot {
-  points: { name: string; x: number; y: number }[];
+  /** Points grouped by residue type (comp_id); each group is one scatter series
+   * so the legend categorizes by comp_id. `seq_id` labels the point on hover. */
+  groups: { comp_id: string; points: { x: number; y: number; seq_id: string | number }[] }[];
   /** Each error array is [x, y, x_low, x_high, y_low, y_high] (absolute). */
   errors: number[][];
 }
@@ -275,6 +277,7 @@ interface DihedRestraintSaveframe {
    * constraints); each `html` is a ready-to-render <ul> tree (via [innerHTML]). */
   constraint_lists: { key: string; title: string; html: string }[];
   histogram: HistogramChart[];
+  discrepancy: HistogramChart[];
   dihedral: DihedralChart[];
   per_residue: PerResidueLine[];
   atom_name_mapping: AtomNameMappingRow[];
@@ -292,6 +295,7 @@ interface RdcRestraintSaveframe {
   constraint_lists: { key: string; title: string; html: string }[];
   range: string;
   histogram: HistogramChart[];
+  discrepancy: HistogramChart[];
   per_residue: PerResidueLine[];
   atom_name_mapping: AtomNameMappingRow[];
 }
@@ -573,6 +577,17 @@ export class Summary implements OnDestroy {
       }),
     }));
   }
+  dihedDiscrepancyPanels(sf: DihedRestraintSaveframe): ChartPanel[] {
+    return sf.discrepancy.map((h) => ({
+      title: 'Discrepancy in redundant dihedral angle restraints',
+      option: this.histogramOption(
+        h,
+        'Discrepancy in dihedral angle restraints (°)',
+        '# of redundant restraints',
+        { rangeLabels: true, yAxisLine: true },
+      ),
+    }));
+  }
   dihedPerResiduePanels(sf: DihedRestraintSaveframe): ChartPanel[] {
     return sf.per_residue.map((c) => ({
       title: `Dihedral angles per residue — Entity_assembly_ID: ${c.chain}`,
@@ -591,6 +606,17 @@ export class Summary implements OnDestroy {
         rangeLabels: true,
         yAxisLine: true,
       }),
+    }));
+  }
+  rdcDiscrepancyPanels(sf: RdcRestraintSaveframe): ChartPanel[] {
+    return sf.discrepancy.map((h) => ({
+      title: 'Discrepancy in redundant RDC restraints',
+      option: this.histogramOption(
+        h,
+        'Discrepancy in RDC restraints (Hz)',
+        '# of redundant restraints',
+        { rangeLabels: true, yAxisLine: true },
+      ),
     }));
   }
   rdcPerResiduePanelsOf(sf: RdcRestraintSaveframe): ChartPanel[] {
@@ -889,9 +915,7 @@ export class Summary implements OnDestroy {
       },
       series: [
         ...h.series.map((s) => ({ name: s.name, type: 'bar', stack: 'total', data: s.data })),
-        ...(markLine
-          ? [{ type: 'line', xAxisIndex: 1, data: [], silent: true, markLine }]
-          : []),
+        ...(markLine ? [{ type: 'line', xAxisIndex: 1, data: [], silent: true, markLine }] : []),
       ],
     };
   }
@@ -906,16 +930,26 @@ export class Summary implements OnDestroy {
       max: 180,
       interval: 90,
       splitLine: { show: true },
+      // No axis line / tick marks; the split-line grid conveys the ±180° scale.
+      axisLine: { show: false },
+      axisTick: { show: false },
     });
     return {
       tooltip: {
         trigger: 'item',
-        formatter: (p: { data?: { name?: string; value?: number[] } }) =>
+        // seriesName is the comp_id (residue type), data.name is the seq_id.
+        formatter: (p: {
+          seriesName?: string;
+          data?: { name?: string | number; value?: number[] };
+        }) =>
           p.data?.value
-            ? `${p.data.name ?? ''}<br/>${xName}: ${p.data.value[0]}°<br/>${yName}: ${p.data.value[1]}°`
+            ? `${p.data.name} ${p.seriesName}<br/>${xName}: ${p.data.value[0]}°<br/>${yName}: ${p.data.value[1]}°`
             : '',
       },
-      grid: { left: 56, right: 24, top: 24, bottom: 48, containLabel: true },
+      // Legend of residue types (comp_id); plain so the many entries wrap onto
+      // multiple lines. Excludes the invisible error series.
+      legend: { bottom: 0, type: 'plain', data: plot.groups.map((g) => g.comp_id) },
+      grid: { left: 56, right: 24, top: 24, bottom: 64, containLabel: true },
       xAxis: axis(`${xName} (°)`),
       yAxis: axis(`${yName} (°)`),
       series: [
@@ -928,13 +962,15 @@ export class Summary implements OnDestroy {
           encode: { x: 0, y: 1 },
           renderItem: this.errorBarRenderItem,
         },
-        {
+        // One scatter series per residue type (comp_id) → categorized legend.
+        ...plot.groups.map((g) => ({
+          name: g.comp_id,
           type: 'scatter',
           z: 2,
           symbolSize: 6,
-          itemStyle: { color: '#2563eb', opacity: 0.7 },
-          data: plot.points.map((pt) => ({ name: pt.name, value: [pt.x, pt.y] })),
-        },
+          itemStyle: { opacity: 0.7 },
+          data: g.points.map((pt) => ({ name: pt.seq_id, value: [pt.x, pt.y] })),
+        })),
       ],
     };
   }
@@ -1100,9 +1136,7 @@ export class Summary implements OnDestroy {
         trigger: 'item',
         formatter: (p: { data?: ContactPoint }) => {
           const d = p.data;
-          return d
-            ? `${d.c1} ${d.value[0]} ↔ ${d.c2} ${d.value[1]}<br/>count: ${d.value[2]}`
-            : '';
+          return d ? `${d.c1} ${d.value[0]} ↔ ${d.c2} ${d.value[1]}<br/>count: ${d.value[2]}` : '';
         },
       },
       // Plain (not scroll) so the constraint-type entries wrap onto multiple lines.
