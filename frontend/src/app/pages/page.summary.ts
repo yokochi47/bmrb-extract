@@ -87,10 +87,14 @@ interface HistogramChart {
 }
 interface DihedralPlot {
   /** Points grouped by residue type (comp_id); each group is one scatter series
-   * so the legend categorizes by comp_id. `seq_id` labels the point on hover. */
-  groups: { comp_id: string; points: { x: number; y: number; seq_id: string | number }[] }[];
-  /** Each error array is [x, y, x_low, x_high, y_low, y_high] (absolute). */
-  errors: number[][];
+   * (plus an error-bar series sharing its name, so the legend toggles both).
+   * `seq_id` labels the point on hover; each error array is
+   * [x, y, x_low, x_high, y_low, y_high] (absolute). */
+  groups: {
+    comp_id: string;
+    points: { x: number; y: number; seq_id: string | number }[];
+    errors: number[][];
+  }[];
 }
 interface DihedralChart {
   label: string;
@@ -953,16 +957,9 @@ export class Summary implements OnDestroy {
       xAxis: axis(`${xName} (°)`),
       yAxis: axis(`${yName} (°)`),
       series: [
-        {
-          // Bidirectional error bars drawn beneath the points.
-          type: 'custom',
-          silent: true,
-          z: 1,
-          data: plot.errors,
-          encode: { x: 0, y: 1 },
-          renderItem: this.errorBarRenderItem,
-        },
         // One scatter series per residue type (comp_id) → categorized legend.
+        // Listed first so each gets a consecutive palette colour and provides the
+        // legend icon colour.
         ...plot.groups.map((g) => ({
           name: g.comp_id,
           type: 'scatter',
@@ -970,6 +967,17 @@ export class Summary implements OnDestroy {
           symbolSize: 6,
           itemStyle: { opacity: 0.7 },
           data: g.points.map((pt) => ({ name: pt.seq_id, value: [pt.x, pt.y] })),
+        })),
+        // Matching error-bar series per comp_id, drawn beneath the points. Sharing
+        // the comp_id name makes the legend toggle show/hide bars with the points.
+        ...plot.groups.map((g) => ({
+          name: g.comp_id,
+          type: 'custom',
+          silent: true,
+          z: 1,
+          data: g.errors,
+          encode: { x: 0, y: 1 },
+          renderItem: this.errorBarRenderItem,
         })),
       ],
     };

@@ -1156,24 +1156,24 @@ def _histogram_chart(stat_list, inverse=False, annotate=_histogram_annotations):
 
 def _dihedral_charts(stat_list):
     """Build [{label, phi_psi, chi1_chi2}] scatter+error data from a
-    dihed_restraint stats list. Each plot → {groups:[{comp_id, points:[{x,y,seq_id}]}],
-    errors:[[...]]}. `plot['values']` is keyed by comp_id, so points stay grouped
-    per residue type (one scatter series each); errors arrays are
-    [x, y, x_low, x_high, y_low, y_high] (absolute)."""
+    dihed_restraint stats list. Each plot → {groups:[{comp_id, points:[{x,y,seq_id}],
+    errors:[[...]]}]}. `plot['values']`/`plot['errors']` are keyed by comp_id, so
+    points and their error bars stay grouped per residue type (one scatter + one
+    error-bar series each, sharing a name so the legend toggles both). Error
+    arrays are [x, y, x_low, x_high, y_low, y_high] (absolute)."""
     def _plot(plot):
         if not isinstance(plot, dict) or not plot.get('values'):
             return None
-        groups, errors = [], []
+        errors_by_comp = plot.get('errors') or {}
+        groups = []
         for comp_id, vals in plot['values'].items():
             pts = [{'x': p[0], 'y': p[1], 'seq_id': ':'.join(p[2].split(':')[:2])} for p in vals if len(p) >= 3]
             if pts:
-                groups.append({'comp_id': comp_id, 'points': pts})
-        for errs in (plot.get('errors') or {}).values():
-            for e in errs:
-                errors.append(e)
+                groups.append({'comp_id': comp_id, 'points': pts,
+                               'errors': errors_by_comp.get(comp_id) or []})
         if not groups:
             return None
-        return {'groups': groups, 'errors': errors}
+        return {'groups': groups}
 
     charts = []
     for st in stat_list or []:
@@ -1393,7 +1393,8 @@ def _angle_label(key):
     """Per-residue value-series label: 'phi_angle_constraints' → φ,
     'H-N_bond_vectors' → H-N, etc."""
     base = key.replace('_angle_constraints', '').replace('_bond_vectors', '').replace('_constraints', '')
-    return _ANGLE_LABELS.get(base, base.replace('_', ' '))
+    return base.replace('_', ' ')
+    # return _ANGLE_LABELS.get(base, base.replace('_', ' '))
 
 
 def _per_residue_value_charts(stat_list, ymin=None, ymax=None):
