@@ -309,6 +309,7 @@
                     [ngModel]="row.fileType"
                     (ngModelChange)="setFileType(i, $event)"
                     [options]="fileTypeOptions()"
+                    [disabled]="readOnly()"
                     [group]="true"
                     optionGroupLabel="label"
                     optionGroupChildren="items"
