@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { CardModule } from 'primeng/card';
 import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
+import { MessageModule } from 'primeng/message';
 
 import { PageService } from './page.service';
 import { API_URL } from '../../site.config';
@@ -43,7 +44,7 @@ const OUTPUT_TYPE_LABELS: Record<string, string> = {
  */
 @Component({
   selector: 'app-download',
-  imports: [FormsModule, CardModule, TableModule, ButtonModule],
+  imports: [FormsModule, CardModule, TableModule, ButtonModule, MessageModule],
   templateUrl: './page.download.html',
 })
 export class Download {
@@ -153,19 +154,17 @@ export class Download {
     if (!this.verified() || this.sending() || !token) return;
     this.sending.set(true);
     this.sendError.set(null);
-    this.http
-      .post(API_URL + 'send_resume_url', { token, email: this.email().trim() })
-      .subscribe({
-        next: () => {
-          this.emailSent.set(true);
-          this.sending.set(false);
-        },
-        error: (err) => {
-          console.error('Failed to send resume URL', err);
-          this.sendError.set('Could not send the email. Please try again later.');
-          this.sending.set(false);
-        },
-      });
+    this.http.post(API_URL + 'send_resume_url', { token, email: this.email().trim() }).subscribe({
+      next: () => {
+        this.emailSent.set(true);
+        this.sending.set(false);
+      },
+      error: (err) => {
+        console.error('Failed to send resume URL', err);
+        this.sendError.set('Could not send the email. Please try again later.');
+        this.sending.set(false);
+      },
+    });
   }
 
   /** Download the results zip, then flip the session to read-only. GET

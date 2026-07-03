@@ -1,8 +1,16 @@
 <div class="card">
   <div class="font-semibold text-2xl mb-6">Download</div>
 
+  <!-- Read-only after download (Terms #8): the session no longer accepts changes. -->
+  @if (downloaded()) {
+    <p-message severity="info" styleClass="mb-6 w-full" [closable]="false">
+      <i class="pi pi-lock mr-2"></i>You have downloaded the conversion results — this session is
+      now read-only and can no longer accept file changes or re-uploads.
+    </p-message>
+  }
+
   @if (publicId()) {
-    <p class="text-base mb-4">
+    <p class="text-xl mb-4">
       This session and conversion results are accessible until
       <strong>{{ expiryDate() ?? 'the session expiry date' }}</strong
       >. Meanwhile, you can re-upload data files unless you download the conversion results below.
@@ -63,27 +71,8 @@
       }
     </div>
 
-    <!-- Conversion results zip -->
-    <div class="mb-6">
-      <p class="text-base mb-2">
-        Conversion results: <span class="font-mono">{{ zipName() }}</span>
-      </p>
-      <p-button
-        label="Download {{ zipName() }}"
-        icon="pi pi-download"
-        severity="success"
-        (click)="download()"
-      />
-      @if (downloaded()) {
-        <p class="text-sm text-surface-500 mt-2">
-          <i class="pi pi-lock mr-1"></i>You have downloaded the results — this session is now
-          read-only and cannot accept re-uploads.
-        </p>
-      }
-    </div>
-
     <!-- Table of file contents packaged in the zip -->
-    <p-card header="Table of file contents" styleClass="mb-6">
+    <p-card header="File contents packaged in a ZIP file: {{ zipName() }}" styleClass="mb-6">
       @if (files().length) {
         <p-table [value]="files()" styleClass="p-datatable-sm">
           <ng-template pTemplate="header">
@@ -112,27 +101,12 @@
       }
     </p-card>
 
-    <!-- Human-readable conversion report(s) -->
-    <p-card header="Conversion report">
-      @if (reports().length) {
-        @for (r of reports(); track r.name) {
-          <div class="mb-4 last:mb-0">
-            <div class="font-mono text-sm mb-1">{{ r.name }}</div>
-            <pre
-              class="m-0 px-3 py-2 text-xs leading-snug overflow-auto max-h-96 whitespace-pre-wrap break-words rounded border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900"
-              >{{ r.text }}</pre
-            >
-            @if (r.truncated) {
-              <p class="text-xs text-surface-500 mt-1">
-                Report truncated — download the results for the full file.
-              </p>
-            }
-          </div>
-        }
-      } @else {
-        <p class="text-surface-500 text-sm">No conversion report is available for this conversion.</p>
-      }
-    </p-card>
+    <p-button
+      label="Download {{ zipName() }}"
+      icon="pi pi-download"
+      severity="success"
+      (click)="download()"
+    />
   } @else {
     <p class="text-surface-500 py-4">
       No conversion results are available yet. Process your files on the
@@ -140,3 +114,10 @@
     </p>
   }
 </div>
+
+@if (publicId()) {
+  <!-- Conversion statics report -->
+  <div class="card">
+    <div class="font-semibold text-xl mb-6">Conversion statistics</div>
+  </div>
+}

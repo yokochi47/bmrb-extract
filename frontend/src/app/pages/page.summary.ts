@@ -16,6 +16,7 @@ import { TableModule } from 'primeng/table';
 import { PanelModule } from 'primeng/panel';
 import { CheckboxModule } from 'primeng/checkbox';
 import { ButtonModule } from 'primeng/button';
+import { MessageModule } from 'primeng/message';
 
 import { PageService, TargetDepsys } from './page.service';
 import { API_URL } from '../../site.config';
@@ -394,6 +395,7 @@ interface ChartPanel {
     PanelModule,
     CheckboxModule,
     ButtonModule,
+    MessageModule,
     EchartComponent,
   ],
   templateUrl: './page.summary.html',
@@ -705,6 +707,9 @@ export class Summary implements OnDestroy {
 
   /** Read-only after download. */
   locked = computed(() => this.pageService.pageState().downloaded);
+
+  /** The conversion results have been downloaded (drives the read-only notice). */
+  downloaded = computed(() => this.pageService.pageState().downloaded);
 
   /** A conversion run exists (the validation/approval UI only applies then). */
   processed = computed(() => this.pageService.pageState().conversionId !== null);
