@@ -91,15 +91,48 @@ export class Download {
    * (from GET /api/session via the page state). */
   expiryDate = computed(() => this.pageService.pageState().tokenExpiry);
 
-  /** Optional recipient for the resume URL. */
+  /** Optional recipient for the resume URL, and its verification state. */
   email = signal('');
+  verifying = signal(false);
+  /** Address passed format + MX verification → the Send button is enabled. */
+  verified = signal(false);
+  /** A verification attempt has completed for the current address. */
+  emailChecked = signal(false);
   emailSent = signal(false);
 
-  /** Email the resume URL to the user (see the Communication tab). */
+  /** Editing the address invalidates any prior verification. */
+  onEmailChange(value: string): void {
+    this.email.set(value);
+    this.verified.set(false);
+    this.emailChecked.set(false);
+  }
+
+  /** Verify the address (format + MX deliverability) via POST /api/verify_email;
+   * gates the Send button. Runs on blur. */
+  verifyEmail(): void {
+    const email = this.email().trim();
+    if (!email || this.verifying()) return;
+    this.verifying.set(true);
+    this.http.post<{ valid: boolean }>(API_URL + 'verify_email', { email }).subscribe({
+      next: (res) => {
+        this.verified.set(!!res.valid);
+        this.emailChecked.set(true);
+        this.verifying.set(false);
+      },
+      error: (err) => {
+        console.error('Failed to verify email', err);
+        this.verified.set(false);
+        this.emailChecked.set(true);
+        this.verifying.set(false);
+      },
+    });
+  }
+
+  /** Email the resume URL to the verified recipient (see the Communication tab). */
   sendResumeUrl(): void {
-    // TODO(backend): POST the email + resume URL to a notification endpoint,
-    // validate the address, and record it as a communication.
-    if (!this.email().trim()) return;
+    // TODO(backend): POST the verified email + resume URL to a notification
+    // endpoint and record it as a communication (the next job).
+    if (!this.verified()) return;
     this.emailSent.set(true);
   }
 

@@ -585,6 +585,33 @@ async def get_output_files():
     return {'files': files}, 200
 
 
+@app.route('/api/verify_email', methods=['POST'])
+async def verify_email():
+    """Validate a recipient address for the download page's "Send this URL by
+    mail" (before the URL is emailed). Checks the address format and that its
+    domain has MX records (deliverability); no SMTP-RCPT probe (unreliable /
+    often blocked). Returns: { valid: bool }.
+
+    JSON body: { email }
+    """
+    body = request.get_json(silent=True) or {}
+    email = (body.get('email') or '').strip()
+    if not email:
+        return {'error': 'email is required'}, 400
+
+    # Lazy import so the service keeps running if the image predates the
+    # py3-validate-email dependency (rebuild required for this endpoint).
+    try:
+        from validate_email import validate_email as _validate_email
+    except ImportError:
+        return {'error': 'email validation unavailable'}, 503
+
+    valid = bool(
+        _validate_email(email, check_blacklist=False, check_smtp=False, dns_timeout=5)
+    )
+    return {'valid': valid}, 200
+
+
 # ── Coordinate geometry validation (pdbx_validate_* outliers in the converted mmCIF) ──
 
 # Display order + friendly labels for the geometry-outlier categories maxit writes

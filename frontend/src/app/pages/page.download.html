@@ -19,23 +19,34 @@
       <a [href]="resumeUrl()" class="text-primary underline break-all">{{ resumeUrl() }}</a>
     </p>
 
-    <!-- Optional: email the resume URL (see the Communication tab) -->
+    <!-- Optional: email the resume URL (see the Communication tab). The address
+         is verified (format + MX) before Send is enabled. -->
     <div class="flex flex-wrap items-center gap-3 mb-6">
       <label for="resume-email" class="text-base">Send this URL by mail (optional):</label>
       <input
         id="resume-email"
         type="email"
         [ngModel]="email()"
-        (ngModelChange)="email.set($event)"
+        (ngModelChange)="onEmailChange($event)"
+        (blur)="verifyEmail()"
         [disabled]="emailSent()"
         placeholder="foo@mail.org"
         class="border border-surface-300 dark:border-surface-600 rounded px-3 py-1.5 text-base bg-transparent"
       />
-      <p-button
-        label="Send"
-        (click)="sendResumeUrl()"
-        [disabled]="!email().trim() || emailSent()"
-      />
+      @if (verifying()) {
+        <span class="text-surface-500 text-sm">
+          <i class="pi pi-spin pi-spinner mr-1"></i>Verifying…
+        </span>
+      } @else if (verified()) {
+        <span class="text-teal-600 dark:text-teal-400 text-sm">
+          <i class="pi pi-check-circle mr-1"></i>Verified
+        </span>
+      } @else if (emailChecked() && email().trim()) {
+        <span class="text-red-600 dark:text-red-400 text-sm">
+          <i class="pi pi-times-circle mr-1"></i>Not a deliverable address
+        </span>
+      }
+      <p-button label="Send" (click)="sendResumeUrl()" [disabled]="!verified() || emailSent()" />
       @if (emailSent()) {
         <span class="text-teal-600 dark:text-teal-400 text-sm">
           <i class="pi pi-check-circle mr-1"></i>Sent
