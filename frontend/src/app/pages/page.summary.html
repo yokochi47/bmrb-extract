@@ -126,6 +126,7 @@
                     [ngModel]="isAcked('geo:' + m.key)"
                     [binary]="true"
                     [disabled]="locked()"
+                    [class.ack-glow]="!isAcked('geo:' + m.key) && !locked()"
                     (onChange)="toggleAck('geo:' + m.key)"
                   />
                   <span class="font-medium px-2 py-0.5 rounded" style="background-color: gold">
@@ -1488,6 +1489,7 @@
                       [ngModel]="isAcked('nmrerr:' + g.type)"
                       [binary]="true"
                       [disabled]="locked()"
+                      [class.ack-glow]="!isAcked('nmrerr:' + g.type) && !locked()"
                       (onChange)="toggleAck('nmrerr:' + g.type)"
                     />
                   }
@@ -1554,6 +1556,7 @@
                       [ngModel]="isAcked('nmrwarn:' + g.type)"
                       [binary]="true"
                       [disabled]="locked()"
+                      [class.ack-glow]="!isAcked('nmrwarn:' + g.type) && !locked()"
                       (onChange)="toggleAck('nmrwarn:' + g.type)"
                     />
                   }

@@ -399,6 +399,30 @@ interface ChartPanel {
     EchartComponent,
   ],
   templateUrl: './page.summary.html',
+  // Glow still-unacknowledged warning checkboxes to draw the eye (paused for
+  // users who prefer reduced motion).
+  styles: [
+    `
+      @keyframes ack-glow {
+        0%,
+        100% {
+          box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+        }
+        50% {
+          box-shadow: 0 0 8px 3px rgba(245, 158, 11, 0.75);
+        }
+      }
+      .ack-glow {
+        border-radius: 6px;
+        animation: ack-glow 1.4s ease-in-out infinite;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .ack-glow {
+          animation: none;
+        }
+      }
+    `,
+  ],
 })
 export class Summary implements OnDestroy {
   private pageService = inject(PageService);
