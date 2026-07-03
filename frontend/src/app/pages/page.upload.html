@@ -221,6 +221,19 @@
     </ul>
   </p-card>
 
+  <!-- ── File chooser ────────────────────────────────────────────────────────── -->
+  <div class="mb-4">
+    <input #fileInput type="file" multiple hidden (change)="onFilesChosen($event)" />
+    <p-button
+      label="Choose Files"
+      icon="pi pi-upload"
+      [disabled]="isLocked()"
+      (click)="fileInput.click()"
+    />
+  </div>
+</div>
+
+<div class="card">
   <!-- ── Previous upload status banner ──────────────────────────────────────── -->
   <!-- Reflects the latest run's outcome (from GET /api/progress). Clicking a
        banner re-opens the processing dialog to review that run's status/log. -->
@@ -260,17 +273,6 @@
       </button>
     </p-message>
   }
-
-  <!-- ── File chooser ────────────────────────────────────────────────────────── -->
-  <div class="mb-6">
-    <input #fileInput type="file" multiple hidden (change)="onFilesChosen($event)" />
-    <p-button
-      label="Choose Files"
-      icon="pi pi-upload"
-      [disabled]="isLocked()"
-      (click)="fileInput.click()"
-    />
-  </div>
 
   <!-- ── Uploaded files table ────────────────────────────────────────────────── -->
   @if (rows().length > 0) {

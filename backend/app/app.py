@@ -1596,14 +1596,16 @@ def _seq_align(info):
         ref, test = ca.get('ref_chain_id'), ca.get('test_chain_id')
         a = by_pair.get((ref, test)) or {}
         cov = ca.get('sequence_coverage')
-        coord = ca.get('ref_auth_chain_id') or ref or ''
+        auth_ref = ca.get('ref_auth_chain_id') or ref or ''
         ref_gauge = a.get('ref_gauge_code') or ''
         test_gauge = a.get('test_gauge_code') or ''
         if ref_gauge == test_gauge:
             test_gauge = ''
         rows.append({
-            'chain': (f"Auth_asym_ID (model): {coord} ↔ Entity_assembly_ID (NMR data): {test}"
-                      if (coord or test) else ''),
+            'chain': (f"Auth_asym_ID (model): {auth_ref}, Label_asym_ID (model): {ref} ↔ Entity_assembly_ID (NMR data): {test}"
+                      if ((auth_ref or test) and (auth_ref != ref))
+                      f"Auth_asym_ID (model): {auth_ref} ↔ Entity_assembly_ID (NMR data): {test}"
+                      if (auth_ref or test) else ''),
             'length': ca.get('length'), 'matched': ca.get('matched'),
             'conflict': ca.get('conflict'), 'unmapped': ca.get('unmapped'),
             'coverage': round(cov * 100, 1) if isinstance(cov, (int, float)) else None,

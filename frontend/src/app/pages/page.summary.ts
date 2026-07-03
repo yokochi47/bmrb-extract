@@ -547,10 +547,10 @@ export class Summary implements OnDestroy {
     return sf.contact_maps.map((c) => ({
       title: `Distance restraints contact map — Entity_assembly_ID: ${c.chain}`,
       option: this.contactMapOption(c),
-      // Square residue × residue plot; margins reserve the right-side legend
-      // (left 48 + right 150) so the box widens rather than squashing the plot.
+      // Square residue × residue plot; marginX reserves the right-side legend
+      // (left 48 + legend width) so the box widens rather than squashing the plot.
       aspect: 1,
-      marginX: 248,
+      marginX: 48 + this.legendReserve(c.series.map((s) => s.name)),
       marginY: 32,
     }));
   }
@@ -564,8 +564,8 @@ export class Summary implements OnDestroy {
         // Proportional to the two chains' residue ranges (undistorted cells);
         // margins reserve the right-side legend so the plot keeps that ratio.
         aspect: xr > 0 ? yr / xr : 1,
-        marginX: 248,
-        marginY: 32,
+        marginX: 48 + this.legendReserve(c.series.map((s) => s.name)),
+        marginY: 48,
       };
     });
   }
@@ -1178,6 +1178,32 @@ export class Summary implements OnDestroy {
 
   /** ECharts option for a symmetric contact map: scatter of [seq1, seq2] points
    * sized by restraint count, on a square residue×residue grid (y inverted). */
+  /** Max px width for a contact-map right-side legend before labels truncate,
+   * so a very long constraint name (e.g. a hydrogen-bond description) can't eat
+   * the plot. */
+  private static readonly LEGEND_CAP = 300;
+
+  /** Right-margin (px) to reserve for the vertical legend of `names`, sized to
+   * the longest label (≈ 82 + 5.8·chars) and capped at LEGEND_CAP. Used for both
+   * grid.right (option) and the plot marginX (panel) so they stay in sync. */
+  private legendReserve(names: string[]): number {
+    const maxLen = names.reduce((m, n) => Math.max(m, n.length), 0);
+    return Math.min(Summary.LEGEND_CAP, Math.round(82 + 5.8 * maxLen));
+  }
+
+  /** Vertical right-side legend for the contact maps; labels wider than the cap
+   * truncate with an ellipsis (full text shown on legend hover). */
+  private mapLegend(): object {
+    return {
+      orient: 'vertical',
+      right: 8,
+      top: 'middle',
+      type: 'plain',
+      textStyle: { width: Summary.LEGEND_CAP - 82, overflow: 'truncate' },
+      tooltip: { show: true },
+    };
+  }
+
   private contactMapOption(c: ContactMapChart): object {
     const axis = () => ({
       type: 'value' as const,
@@ -1199,10 +1225,15 @@ export class Summary implements OnDestroy {
           return d ? `${d.c1} ${d.value[0]} ↔ ${d.c2} ${d.value[1]}<br/>count: ${d.value[2]}` : '';
         },
       },
-      // Plain (not scroll) so the constraint-type entries wrap onto multiple lines.
-      // Constraint-type legend on the right (labels are longer, e.g. "medium range (bb-sc)").
-      legend: { orient: 'vertical', right: 8, top: 'middle', type: 'plain' },
-      grid: { left: 48, right: 200, top: 16, bottom: 16, containLabel: true },
+      // Constraint-type legend on the right, sized to the longest label.
+      legend: this.mapLegend(),
+      grid: {
+        left: 48,
+        right: this.legendReserve(c.series.map((s) => s.name)),
+        top: 16,
+        bottom: 16,
+        containLabel: true,
+      },
       xAxis: axis(),
       yAxis: { ...axis(), inverse: true },
       series: c.series.map((s, idx) => ({
@@ -1228,14 +1259,20 @@ export class Summary implements OnDestroy {
             : '';
         },
       },
-      // Constraint-type legend on the right (labels are longer, e.g. "medium range (bb-sc)").
-      legend: { orient: 'vertical', right: 8, top: 'middle', type: 'plain' },
-      grid: { left: 48, right: 200, top: 16, bottom: 16, containLabel: true },
+      // Constraint-type legend on the right, sized to the longest label.
+      legend: this.mapLegend(),
+      grid: {
+        left: 48,
+        right: this.legendReserve(c.series.map((s) => s.name)),
+        top: 16,
+        bottom: 16,
+        containLabel: true,
+      },
       // No axis lines / ticks: the residue-range start (residue 0)
       // needs no emphasis, and the bands carry the residue context.
       xAxis: {
         type: 'value',
-        name: 'Entity_assembly_ID ${c.chain1}',
+        name: `Entity_assembly_ID ${c.chain1}`,
         min: c.xmin,
         max: c.xmax,
         minInterval: 1,
@@ -1244,7 +1281,7 @@ export class Summary implements OnDestroy {
       },
       yAxis: {
         type: 'value',
-        name: 'Entity_assembly_ID ${c.chain2}',
+        name: `Entity_assembly_ID ${c.chain2}`,
         min: c.ymin,
         max: c.ymax,
         minInterval: 1,
