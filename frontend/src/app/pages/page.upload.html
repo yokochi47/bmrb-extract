@@ -297,6 +297,7 @@
                     [ngModel]="row.selected"
                     (ngModelChange)="setSelected(i, $event)"
                     [binary]="true"
+                    [disabled]="readOnly()"
                   />
                 </td>
                 <td class="py-2 px-3 font-mono text-base break-all">{{ row.name }}</td>
@@ -338,6 +339,7 @@
                     [text]="true"
                     [rounded]="true"
                     size="small"
+                    [disabled]="readOnly()"
                     (click)="removeRow(i)"
                   />
                 </td>

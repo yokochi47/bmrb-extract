@@ -155,8 +155,16 @@ export class Upload implements OnDestroy {
 
   /** Choose Files is disabled after the session is locked or downloaded. */
   isLocked = computed(
-    () => this.state().lockedSession || this.state().expiredSession || !this.state().firstUpload,
+    () =>
+      this.state().lockedSession ||
+      this.state().expiredSession ||
+      this.state().downloaded ||
+      !this.state().firstUpload,
   );
+
+  /** Read-only once the results were downloaded (or the session expired): the
+   * file-list selection checkboxes and remove buttons are then locked. */
+  readOnly = computed(() => this.state().downloaded || this.state().expiredSession);
 
   importBmrbEntry = signal(false);
   bmrbId = signal<number | null>(null);

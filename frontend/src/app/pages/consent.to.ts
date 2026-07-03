@@ -20,7 +20,10 @@ export class ConsentTo {
 
   locked = computed(() => {
     const state = this.pageService.pageState();
-    return state.lockedSession || state.expiredSession || !state.firstUpload;
+    // Also locked once results were downloaded — the session is then read-only.
+    return (
+      state.lockedSession || state.expiredSession || state.downloaded || !state.firstUpload
+    );
   });
 
   onChange() {
