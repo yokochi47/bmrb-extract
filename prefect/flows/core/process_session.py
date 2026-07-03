@@ -213,8 +213,8 @@ async def _update_session_status(token: str, status: SessionStatusCode) -> None:
 # mirror coordinate_conversion / nmr_data_conversion / _generate_nef_release.
 _OUTPUT_FILE_SPECS = (
     ('C_{cid}_model.cif', 'pdbx'),
-    ('C_{cid}-nmr-data.str', 'nmr-star'),
-    ('C_{cid}-nmr-data.nef', 'nef'),
+    ('C_{cid}_nmr-data.str', 'nmr-star'),
+    ('C_{cid}_nmr-data.nef', 'nef'),
 )
 
 # Report files produced in the run's log/ dir: maxit-ccd's coordinate-check log
@@ -795,7 +795,7 @@ def _run_nmr_driver(
     # Stream the driver's combined stdout+stderr to a tailable log so the
     # progress dialog can show NmrDpUtility output live during the long run.
     # `python -u` keeps the child unbuffered so lines land in the file as emitted.
-    stdout_log = ws.log_dir(conversion_id, run_number, workspace_base) / f'C_{conversion_id}-nmr-data.stdout.log'
+    stdout_log = ws.log_dir(conversion_id, run_number, workspace_base) / f'C_{conversion_id}_nmr-data.stdout.log'
     failed_reason = None
     try:
         cmd = [
@@ -866,11 +866,11 @@ def _generate_nef_release(
     entry_id: str,
 ) -> Path | None:
     """Release a NEF file from the converted NMR-STAR via nmr-str2nef-release.
-    Writes out_dir/C_<id>-nmr-data.nef and log/C_<id>-nmr-data-nef_release.json.
+    Writes out_dir/C_<id>_nmr-data.nef and log/C_<id>_nmr-data-nef_release.json.
     Best-effort: a failure is logged and returns None (the NMR-STAR is the primary
     output, so this never affects the run's success)."""
-    out_nef = out_dir / f'C_{conversion_id}-nmr-data.nef'
-    nef_report = log_d / f'C_{conversion_id}-nmr-data-nef_release.json'
+    out_nef = out_dir / f'C_{conversion_id}_nmr-data.nef'
+    nef_report = log_d / f'C_{conversion_id}_nmr-data-nef_release.json'
     driver_text = _nmr_nef_release_driver_script(
         src=str(src), cif=str(cif), report_log=str(nef_report), out_nef=str(out_nef),
         entry_id=entry_id, work_dir=str(work_d), cache_dir=str(cache_d),
@@ -879,7 +879,7 @@ def _generate_nef_release(
     driver = work_d / 'nef_release_driver.py'
     driver.write_text(driver_text)
 
-    stdout_log = log_d / f'C_{conversion_id}-nmr-data-nef_release.stdout.log'
+    stdout_log = log_d / f'C_{conversion_id}_nmr-data-nef_release.stdout.log'
     try:
         cmd = [
             'docker', 'run', '--rm',
@@ -917,7 +917,7 @@ def nmr_data_conversion(
 
     OneDep / Replacing-CS deposition, validated against the model mmCIF from
     coordinate_conversion (output/C_<id>_model.cif), producing
-    output/C_<id>-nmr-data.str via `docker run python <driver>`:
+    output/C_<id>_nmr-data.str via `docker run python <driver>`:
 
     - OneDep combined: a single NMR unified data file (nm-uni-nef/str) ->
       nmr-(nef/str)-consistency-check then nmr-(nef/str)2str-deposit.
@@ -961,8 +961,8 @@ def nmr_data_conversion(
     work_d = ws.work_dir(conversion_id, run_number, workspace_base)
     cache_d = ws.cache_dir(conversion_id, workspace_base)
     model_cif = out_dir / f'C_{conversion_id}_model.cif'
-    deposit_log = log_d / f'C_{conversion_id}-nmr-data-str_deposit.json'
-    out_str = out_dir / f'C_{conversion_id}-nmr-data.str'
+    deposit_log = log_d / f'C_{conversion_id}_nmr-data-str_deposit.json'
+    out_str = out_dir / f'C_{conversion_id}_nmr-data.str'
     entry_id = f'C_{conversion_id}'
 
     # OneDep / repl_cs validate against coordinates; bmrbdep has none.
@@ -997,8 +997,8 @@ def nmr_data_conversion(
     if target == 'bmrbdep':
         # BMRB-only: merge chemical shifts (+ optional topology) into NMR-STAR with
         # no coordinates. 2 step ops: nmr-cs-mr-merge + nmr-str-consistency-check with conversion_server=True.
-        merge_log = log_d / f'C_{conversion_id}-nmr-data-bmrb_only.json'
-        nmr_log = log_d / f'C_{conversion_id}-nmr-data-str_consist.json'
+        merge_log = log_d / f'C_{conversion_id}_nmr-data-bmrb_only.json'
+        nmr_log = log_d / f'C_{conversion_id}_nmr-data-str_consist.json'
         report_path = merge_log  # first task report
         cs_list = []
         for f in files:
@@ -1030,8 +1030,8 @@ def nmr_data_conversion(
         # Replacing CS: replace the assigned chemical shifts in the OneDep-processed
         # NMR-STAR unified data file (nm-uni-str) with the correct ones (nm-shi),
         # against the coordinates. 2 step ops: nmr-str-replace-cs + nmr-str-consistency-check.
-        replace_log = log_d / f'C_{conversion_id}-nmr-data-repl_cs.json'
-        nmr_log = log_d / f'C_{conversion_id}-nmr-data-str_consist.json'
+        replace_log = log_d / f'C_{conversion_id}_nmr-data-repl_cs.json'
+        nmr_log = log_d / f'C_{conversion_id}_nmr-data-str_consist.json'
         report_path = replace_log  # first task report
         if uni is None or uni['file_type'] != 'nm-uni-str' or not cs_files:
             reason = ('repl_cs requires an NMR-STAR unified data file (nm-uni-str) '
@@ -1052,9 +1052,9 @@ def nmr_data_conversion(
         # OneDep combined: single NMR unified data file.
         nmr_log = deposit_log
         is_nef = uni['file_type'] == 'nm-uni-nef'
-        consist_log = log_d / f'C_{conversion_id}-nmr-data-{"nef" if is_nef else "str"}_consist.json'
+        consist_log = log_d / f'C_{conversion_id}_nmr-data-{"nef" if is_nef else "str"}_consist.json'
         report_path = consist_log  # first task (consistency-check) report
-        next_src = work_d / f'C_{conversion_id}-nmr-data-next.{"nef" if is_nef else "str"}'
+        next_src = work_d / f'C_{conversion_id}_nmr-data-next.{"nef" if is_nef else "str"}'
         driver_text = _nmr_driver_script(
             is_nef=is_nef, src=str(in_dir / uni['original_name']), cif=str(model_cif),
             consist_log=str(consist_log), deposit_log=str(deposit_log),
@@ -1064,9 +1064,9 @@ def nmr_data_conversion(
     else:
         # OneDep separated: merge chemical shifts + restraints/topology/peaks, then deposit.
         nmr_log = deposit_log
-        merge_log = log_d / f'C_{conversion_id}-cs_mr_merge.json'
+        merge_log = log_d / f'C_{conversion_id}_cs_mr_merge.json'
         report_path = merge_log  # first task (cs-mr-merge) report
-        merged_str = work_d / f'C_{conversion_id}-cs-mr-merged.str'
+        merged_str = work_d / f'C_{conversion_id}_cs-mr-merged.str'
         atypical_list, restraint_list = [], []
         for f in aux_files:
             name = f['original_name']

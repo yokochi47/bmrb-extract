@@ -299,7 +299,7 @@ _PROGRESS_TASKS = [
 ]
 _TASK_LOG_FILE = {
     'convert_model': 'C_{cid}_model-check.log',
-    'convert_nmr_data': 'C_{cid}-nmr-data.stdout.log',
+    'convert_nmr_data': 'C_{cid}_nmr-data.stdout.log',
 }
 _LOG_TAIL_BYTES = 64 * 1024
 
