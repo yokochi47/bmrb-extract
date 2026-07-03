@@ -101,10 +101,21 @@
       }
     </p-card>
 
+    <!-- Acknowledgment gate (Terms #7): download stays disabled until every
+         warning is acknowledged on the Upload summary page. -->
+    @if (!approved()) {
+      <p-message severity="warn" styleClass="mb-3 w-full" [closable]="false">
+        <i class="pi pi-exclamation-triangle mr-2"></i>Before downloading, acknowledge all reported
+        warnings on the
+        <a routerLink="/summary" queryParamsHandling="preserve" class="underline">Upload summary</a>
+        page (Terms &amp; Conditions #7).
+      </p-message>
+    }
     <p-button
       label="Download {{ zipName() }}"
       icon="pi pi-download"
       severity="success"
+      [disabled]="!approved()"
       (click)="download()"
     />
   } @else {

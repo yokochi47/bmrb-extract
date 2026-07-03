@@ -1,5 +1,6 @@
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { CardModule } from 'primeng/card';
 import { TableModule } from 'primeng/table';
@@ -33,7 +34,7 @@ const OUTPUT_TYPE_LABELS: Record<string, string> = {
  */
 @Component({
   selector: 'app-download',
-  imports: [FormsModule, CardModule, TableModule, ButtonModule, MessageModule],
+  imports: [RouterLink, FormsModule, CardModule, TableModule, ButtonModule, MessageModule],
   templateUrl: './page.download.html',
 })
 export class Download {
@@ -83,6 +84,9 @@ export class Download {
 
   /** True once the results were downloaded — the session becomes read-only. */
   downloaded = computed(() => this.pageService.pageState().downloaded);
+
+  /** All warnings acknowledged on the summary page (Terms #7) — gates download. */
+  approved = computed(() => this.pageService.pageState().approved);
 
   /** Date (YYYY-MM-DD) until which the session and results stay accessible
    * (from GET /api/session via the page state). */
