@@ -166,6 +166,9 @@ export class Upload implements OnDestroy {
    * file-list selection checkboxes and remove buttons are then locked. */
   readOnly = computed(() => this.state().downloaded || this.state().expiredSession);
 
+  /** The conversion results have been downloaded (drives the read-only notice). */
+  downloaded = computed(() => this.state().downloaded);
+
   importBmrbEntry = signal(false);
   bmrbId = signal<number | null>(null);
   bmrbValidationState = signal<BmrbValidationState>('idle');
