@@ -942,14 +942,16 @@ def nmr_data_conversion(
     files = manifest['files']
     uni = next((f for f in files if f['file_type'].startswith('nm-uni-')), None)
     cs_files = [f for f in files if f['file_type'] == 'nm-shi']
-    shi_variant_files = [f for f in files if f['file_type'].startswith('nm-shi-')]
+    cs_variant_files = [f for f in files
+                        if f['file_type'].startswith('nm-shi-')
+                        or f['file_type'].startswith('nm-csp-')]  # perturbed chemical shifts
     aux_files = [f for f in files if f['file_type'].startswith(('nm-res-', 'nm-aux-', 'nm-pea-'))]
 
     if target not in ('onedep', 'repl_cs', 'bmrbdep'):
         print(f'[{conversion_id}] NMR conversion for target={target} not implemented '
               f'in this pilot; skipping')
         return True
-    if uni is None and not cs_files and not shi_variant_files and not aux_files:
+    if uni is None and not cs_files and not cs_variant_files and not aux_files:
         print(f'[{conversion_id}] No NMR data files — skipping NMR conversion')
         return True
 
@@ -1007,7 +1009,7 @@ def nmr_data_conversion(
             elif ft == 'nm-uni-nef':
                 cs_list.append({'file_name': str(in_dir / f['original_name']),
                                 'file_type': 'nef', 'original_file_name': f['original_name']})
-        atypical_cs_list = _dict_list(shi_variant_files)  # nm-shi-* kept as-is
+        atypical_cs_list = _dict_list(cs_variant_files)  # nm-shi-* and nm-csp-* kept as-is
         atypical_restraint_list = _dict_list(
             [f for f in files if f['file_type'].startswith('nm-aux-')])  # topology, as-is
         if not cs_list and not atypical_cs_list:
