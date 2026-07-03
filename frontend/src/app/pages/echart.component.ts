@@ -80,6 +80,11 @@ export class EchartComponent implements OnDestroy {
   aspect = input<number | null>(null);
   /** Upper bound on the proportional height (px). */
   maxHeight = input(700);
+  /** Horizontal / vertical chart chrome in px (grid margins + legend). Subtracted
+   * so `aspect` applies to the plot area, not the whole box — e.g. a square
+   * contact map stays square even with a wide right-side legend. */
+  marginX = input(0);
+  marginY = input(0);
 
   private host = viewChild<ElementRef<HTMLDivElement>>('host');
   private chart: EChartInstance | null = null;
@@ -91,15 +96,17 @@ export class EchartComponent implements OnDestroy {
    * so the chart fills its container). */
   maxWidth = computed<number | null>(() => {
     const a = this.aspect();
-    return a ? Math.round(this.maxHeight() / a) : null;
+    return a ? Math.round((this.maxHeight() - this.marginY()) / a + this.marginX()) : null;
   });
 
-  /** Height (px) honoring the aspect ratio, clamped to [height, maxHeight]. */
+  /** Height (px) so the plot area (width − marginX) honours the aspect ratio,
+   * clamped to [height, maxHeight]. */
   boxHeight = computed<number>(() => {
     const a = this.aspect();
     const w = this.hostWidth();
     if (!a || !w) return this.height();
-    return Math.round(Math.min(this.maxHeight(), Math.max(this.height(), w * a)));
+    const boxH = a * Math.max(0, w - this.marginX()) + this.marginY();
+    return Math.round(Math.min(this.maxHeight(), Math.max(this.height(), boxH)));
   });
 
   constructor() {

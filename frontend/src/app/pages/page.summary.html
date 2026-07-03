@@ -985,13 +985,25 @@
           @for (p of distContactMapPanels(sf); track $index) {
             <div class="mb-6">
               <div class="font-medium mb-1">{{ p.title }}</div>
-              <app-echart [option]="p.option" [height]="440" [aspect]="p.aspect ?? null" />
+              <app-echart
+                [option]="p.option"
+                [height]="440"
+                [aspect]="p.aspect ?? null"
+                [marginX]="p.marginX ?? 0"
+                [marginY]="p.marginY ?? 0"
+              />
             </div>
           }
           @for (p of distAsymContactMapPanels(sf); track $index) {
             <div class="mb-6">
               <div class="font-medium mb-1">{{ p.title }}</div>
-              <app-echart [option]="p.option" [height]="440" [aspect]="p.aspect ?? null" />
+              <app-echart
+                [option]="p.option"
+                [height]="440"
+                [aspect]="p.aspect ?? null"
+                [marginX]="p.marginX ?? 0"
+                [marginY]="p.marginY ?? 0"
+              />
             </div>
           }
         </p-panel>
@@ -1584,6 +1596,15 @@
        enabled once every flagged issue is acknowledged (immediately when OK). -->
   @if (showProceed()) {
     <div class="mt-8">
+      @if (warningStatus()) {
+        <p class="text-xl mb-4">
+          You can download the conversion results
+          <strong
+            >once you have reviewed all the warnings displayed above and checked all the boxes to
+            acknowledge them.</strong
+          >
+        </p>
+      }
       <p-button
         label="Proceed to download"
         icon="pi pi-download"

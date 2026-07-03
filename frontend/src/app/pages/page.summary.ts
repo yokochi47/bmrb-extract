@@ -379,6 +379,10 @@ interface ChartPanel {
   title: string;
   option: object;
   aspect?: number;
+  /** Chart chrome (px) so `aspect` applies to the plot area, not the whole box:
+   * grid left+right (marginX) and top+bottom (marginY). */
+  marginX?: number;
+  marginY?: number;
 }
 
 @Component({
@@ -543,8 +547,11 @@ export class Summary implements OnDestroy {
     return sf.contact_maps.map((c) => ({
       title: `Distance restraints contact map — Entity_assembly_ID: ${c.chain}`,
       option: this.contactMapOption(c),
-      // Square: symmetric residue × residue axes share the same range.
+      // Square residue × residue plot; margins reserve the right-side legend
+      // (left 48 + right 150) so the box widens rather than squashing the plot.
       aspect: 1,
+      marginX: 248,
+      marginY: 32,
     }));
   }
   distAsymContactMapPanels(sf: DistRestraintSaveframe): ChartPanel[] {
@@ -554,8 +561,11 @@ export class Summary implements OnDestroy {
       return {
         title: `Inter-chain contact map — Entity_assembly_IDs: ${c.chain1} / ${c.chain2}`,
         option: this.asymContactMapOption(c),
-        // Proportional to the two chains' residue ranges (undistorted cells).
+        // Proportional to the two chains' residue ranges (undistorted cells);
+        // margins reserve the right-side legend so the plot keeps that ratio.
         aspect: xr > 0 ? yr / xr : 1,
+        marginX: 248,
+        marginY: 32,
       };
     });
   }
@@ -705,6 +715,10 @@ export class Summary implements OnDestroy {
   showProceed = computed(
     () => this.processed() && this.nmrAvailable() === true && !this.hasBlockingError(),
   );
+
+  /** Warning status: the button is shown but there are issues to acknowledge
+   * first (in the OK case there are none). */
+  warningStatus = computed(() => this.showProceed() && this.acknowledgeableKeys().length > 0);
 
   /** Navigate to the download page once the status is approved (Terms #7). */
   proceedToDownload(): void {
@@ -953,15 +967,20 @@ export class Summary implements OnDestroy {
   /** ECharts option for a dihedral scatter with custom bidirectional error bars
    * (a `custom` series — no third-party plugin). */
   private dihedralOption(plot: DihedralPlot, xName: string, yName: string): object {
-    const axis = (name: string) => ({
+    const axis = (name: string, nameGap: number) => ({
       type: 'value' as const,
       name,
+      // Centre the title along each axis (bottom-centre / left-centre) so it never
+      // collides with the right-side legend. onZero:false keeps the axis (and its
+      // title) at the grid edge rather than the centre 0-crossing; the ±180° grid
+      // is still conveyed by the split lines.
+      nameLocation: 'middle' as const,
+      nameGap,
       min: -180,
       max: 180,
       interval: 90,
       splitLine: { show: true },
-      // No axis line / tick marks; the split-line grid conveys the ±180° scale.
-      axisLine: { show: false },
+      axisLine: { show: false, onZero: false },
       axisTick: { show: false },
     });
     return {
@@ -978,10 +997,17 @@ export class Summary implements OnDestroy {
       },
       // Legend of residue types (comp_id); plain so the many entries wrap onto
       // multiple lines. Excludes the invisible error series.
-      legend: { bottom: 0, type: 'plain', data: plot.groups.map((g) => g.comp_id) },
-      grid: { left: 56, right: 24, top: 24, bottom: 64, containLabel: true },
-      xAxis: axis(`${xName} (°)`),
-      yAxis: axis(`${yName} (°)`),
+      // Residue-type legend on the right (comp_id entries are short).
+      legend: {
+        orient: 'vertical',
+        right: 8,
+        top: 'middle',
+        type: 'plain',
+        data: plot.groups.map((g) => g.comp_id),
+      },
+      grid: { left: 56, right: 76, top: 24, bottom: 24, containLabel: true },
+      xAxis: axis(`${xName} (°)`, 28),
+      yAxis: axis(`${yName} (°)`, 40),
       series: [
         // One scatter series per residue type (comp_id) → categorized legend.
         // Listed first so each gets a consecutive palette colour and provides the
@@ -1174,8 +1200,9 @@ export class Summary implements OnDestroy {
         },
       },
       // Plain (not scroll) so the constraint-type entries wrap onto multiple lines.
-      legend: { bottom: 0, type: 'plain' },
-      grid: { left: 48, right: 24, top: 16, bottom: 48, containLabel: true },
+      // Constraint-type legend on the right (labels are longer, e.g. "medium range (bb-sc)").
+      legend: { orient: 'vertical', right: 8, top: 'middle', type: 'plain' },
+      grid: { left: 48, right: 200, top: 16, bottom: 16, containLabel: true },
       xAxis: axis(),
       yAxis: { ...axis(), inverse: true },
       series: c.series.map((s, idx) => ({
@@ -1201,9 +1228,9 @@ export class Summary implements OnDestroy {
             : '';
         },
       },
-      // Plain (not scroll) so the constraint-type entries wrap onto multiple lines.
-      legend: { bottom: 0, type: 'plain' },
-      grid: { left: 48, right: 24, top: 16, bottom: 48, containLabel: true },
+      // Constraint-type legend on the right (labels are longer, e.g. "medium range (bb-sc)").
+      legend: { orient: 'vertical', right: 8, top: 'middle', type: 'plain' },
+      grid: { left: 48, right: 200, top: 16, bottom: 16, containLabel: true },
       // No axis lines / ticks: the residue-range start (residue 0)
       // needs no emphasis, and the bands carry the residue context.
       xAxis: {

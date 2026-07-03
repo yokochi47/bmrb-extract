@@ -1,13 +1,16 @@
 <div class="card">
-  <div class="font-semibold text-2xl mb-6"><i class="pi pi-download mr-2"></i>Download</div>
+  <div class="font-semibold text-2xl mb-6">Download</div>
 
   @if (publicId()) {
     <p class="text-base mb-4">
       This session and conversion results are accessible until
-      <strong>{{ expiryDate() ?? 'the session expiry date' }}</strong>. Meanwhile, you can re-upload
-      data files unless you download the conversion results below. In case of re-upload, sequences
-      must be consistent with the previous submission except for extended sequences.
-      <strong>Once you download the conversion results, you can no longer re-upload data files.</strong>
+      <strong>{{ expiryDate() ?? 'the session expiry date' }}</strong
+      >. Meanwhile, you can re-upload data files unless you download the conversion results below.
+      In case of re-upload, sequences must be consistent with the previous submission except for
+      extended sequences.
+      <strong
+        >Once you download the conversion results, you can no longer re-upload data files.</strong
+      >
     </p>
 
     <!-- Tokenized URL to resume/review the session -->
@@ -28,7 +31,11 @@
         placeholder="foo@mail.org"
         class="border border-surface-300 dark:border-surface-600 rounded px-3 py-1.5 text-base bg-transparent"
       />
-      <p-button label="Send" (click)="sendResumeUrl()" [disabled]="!email().trim() || emailSent()" />
+      <p-button
+        label="Send"
+        (click)="sendResumeUrl()"
+        [disabled]="!email().trim() || emailSent()"
+      />
       @if (emailSent()) {
         <span class="text-teal-600 dark:text-teal-400 text-sm">
           <i class="pi pi-check-circle mr-1"></i>Sent
