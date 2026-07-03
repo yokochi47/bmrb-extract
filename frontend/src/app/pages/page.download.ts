@@ -15,6 +15,13 @@ interface OutputFileRow {
   file_size: number;
 }
 
+/** One human-readable text report (output_file type 'text_report'). */
+interface ReportFile {
+  name: string;
+  text: string;
+  truncated: boolean;
+}
+
 /** Human-readable labels for the OutputFileType values (GET /api/output_files). */
 const OUTPUT_TYPE_LABELS: Record<string, string> = {
   pdbx: 'Coordinates (PDBx/mmCIF)',
@@ -44,7 +51,7 @@ export class Download {
   private http = inject(HttpClient);
 
   constructor() {
-    // Load the result-file listing once the session token is available.
+    // Load the result-file listing and text report(s) once the token is known.
     let fetched = false;
     effect(() => {
       const token = this.pageService.pageState().tokenBase;
@@ -56,11 +63,20 @@ export class Download {
           next: (res) => this.files.set(res.files ?? []),
           error: (err) => console.error('Failed to load output files', err),
         });
+      this.http
+        .get<{ reports: ReportFile[] }>(API_URL + 'report', { params: { token } })
+        .subscribe({
+          next: (res) => this.reports.set(res.reports ?? []),
+          error: (err) => console.error('Failed to load conversion report', err),
+        });
     });
   }
 
   /** Conversion result files bundled in the zip (GET /api/output_files). */
   files = signal<OutputFileRow[]>([]);
+
+  /** Human-readable text report(s) of the conversion (GET /api/report). */
+  reports = signal<ReportFile[]>([]);
 
   /** A NEF file was produced — else the table shows the NEF-unavailable note. */
   hasNef = computed(() => this.files().some((f) => f.file_type === 'nef'));

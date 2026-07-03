@@ -591,6 +591,66 @@ async def get_output_files():
     return {'files': files}, 200
 
 
+# Cap the human-readable report text returned to the download page (per file).
+_REPORT_MAX_BYTES = 512 * 1024
+
+
+@app.route('/api/report', methods=['GET'])
+async def get_report():
+    """Return the latest run's human-readable text report file(s) — output_file
+    type 'text_report' (e.g. the coordinate-check log) — for the download page's
+    conversion-report card. Token-scoped, read-only. Each file's text is capped
+    at _REPORT_MAX_BYTES (truncated flag set when it was longer).
+    Returns: { reports: [{ name, text, truncated }] }
+    """
+    token = request.args.get('token')
+    if not token:
+        return {'error': 'token is required'}, 400
+
+    async with async_session_factory() as db:
+        session_row = (
+            await db.execute(select(Session).where(Session.token == token))
+        ).scalar_one_or_none()
+        if session_row is None:
+            return {'error': 'session not found'}, 404
+        conversion_id = session_row.conversion_id
+        run_number = session_row.latest_run_number
+        if conversion_id is None or run_number < 1:
+            return {'reports': []}, 200
+
+        rows = (
+            (
+                await db.execute(
+                    select(OutputFile)
+                    .where(
+                        OutputFile.conversion_id == conversion_id,
+                        OutputFile.run_number == run_number,
+                        OutputFile.file_type == OutputFileType.text_report.value,
+                    )
+                    .order_by(OutputFile.ordinal.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    reports = []
+    for row in rows:
+        fpath = Path(row.stored_path)
+        if not fpath.is_file():
+            continue
+        try:
+            with open(fpath, 'rb') as fh:
+                data = fh.read(_REPORT_MAX_BYTES + 1)
+        except OSError:
+            continue
+        truncated = len(data) > _REPORT_MAX_BYTES
+        text = data[:_REPORT_MAX_BYTES].decode('utf-8', errors='ignore')
+        reports.append({'name': fpath.name, 'text': text, 'truncated': truncated})
+
+    return {'reports': reports}, 200
+
+
 @app.route('/api/verify_email', methods=['POST'])
 async def verify_email():
     """Validate a recipient address for the download page's "Send this URL by

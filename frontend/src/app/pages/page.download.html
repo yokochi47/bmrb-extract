@@ -112,11 +112,26 @@
       }
     </p-card>
 
-    <!-- Human-readable conversion report / statistics -->
+    <!-- Human-readable conversion report(s) -->
     <p-card header="Conversion report">
-      <!-- TODO(backend): render the human-readable report (conversion statistics,
-           pseudo-atom name mapping, warnings, etc.). -->
-      <p class="text-surface-500 text-sm">The conversion report will be shown here.</p>
+      @if (reports().length) {
+        @for (r of reports(); track r.name) {
+          <div class="mb-4 last:mb-0">
+            <div class="font-mono text-sm mb-1">{{ r.name }}</div>
+            <pre
+              class="m-0 px-3 py-2 text-xs leading-snug overflow-auto max-h-96 whitespace-pre-wrap break-words rounded border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900"
+              >{{ r.text }}</pre
+            >
+            @if (r.truncated) {
+              <p class="text-xs text-surface-500 mt-1">
+                Report truncated — download the results for the full file.
+              </p>
+            }
+          </div>
+        }
+      } @else {
+        <p class="text-surface-500 text-sm">No conversion report is available for this conversion.</p>
+      }
     </p-card>
   } @else {
     <p class="text-surface-500 py-4">
