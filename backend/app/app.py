@@ -1,9 +1,11 @@
 import hashlib
 import html
+import io
 import json
 import os
 import re
 import traceback
+import zipfile
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -446,6 +448,89 @@ async def get_coordinate():
         as_attachment=False,
         download_name=f'C_{conversion_id}_model.cif',
         conditional=True,
+    )
+
+
+@app.route('/api/download', methods=['GET'])
+async def download_results():
+    """Stream the session's latest-run conversion results as C_<cid>.zip and mark
+    the session downloaded (Terms #7 / #8). Token-scoped.
+
+    The zip bundles every output_file of the latest run (converted coordinate,
+    NMR-STAR, optional NEF, and the report files). Unlike GET /api/coordinate
+    (a read-only preview), this is the official download: it requires the user to
+    have approved the status, flips session.downloaded — which locks the session
+    read-only (no further re-upload) — and stamps each output_file with
+    downloaded / downloaded_at / client_ip / user_agent.
+    """
+    token = request.args.get('token')
+    if not token:
+        return {'error': 'token is required'}, 400
+
+    async with async_session_factory() as db:
+        session_row = (
+            await db.execute(select(Session).where(Session.token == token))
+        ).scalar_one_or_none()
+        if session_row is None:
+            return {'error': 'session not found'}, 404
+        conversion_id = session_row.conversion_id
+        run_number = session_row.latest_run_number
+        if conversion_id is None or run_number < 1:
+            return {'error': 'no conversion results available'}, 404
+        if not session_row.approved:
+            return {'error': 'results not approved for download'}, 409
+
+        output_rows = (
+            (
+                await db.execute(
+                    select(OutputFile)
+                    .where(
+                        OutputFile.conversion_id == conversion_id,
+                        OutputFile.run_number == run_number,
+                    )
+                    .order_by(OutputFile.ordinal.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        # Build the zip from the files present on disk (best-effort: skip a
+        # missing row so a partial harvest still yields a usable archive).
+        buf = io.BytesIO()
+        added = 0
+        with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for row in output_rows:
+                fpath = Path(row.stored_path)
+                if fpath.is_file():
+                    zf.write(str(fpath), arcname=fpath.name)
+                    added += 1
+        if added == 0:
+            return {'error': 'no conversion results available'}, 404
+        buf.seek(0)
+
+        # Record the download and lock the session read-only (Terms #7 / #8).
+        await db.execute(
+            update(OutputFile)
+            .where(
+                OutputFile.conversion_id == conversion_id,
+                OutputFile.run_number == run_number,
+            )
+            .values(
+                downloaded=True,
+                downloaded_at=datetime.now(),
+                client_ip=request.remote_addr,
+                user_agent=request.headers.get('User-Agent', ''),
+            )
+        )
+        session_row.downloaded = True
+        await db.commit()
+
+    return send_file(
+        buf,
+        mimetype='application/zip',
+        as_attachment=True,
+        download_name=f'C_{conversion_id}.zip',
     )
 
 
