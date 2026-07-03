@@ -2637,6 +2637,8 @@ async def delete_upload():
         ).scalar_one_or_none()
         if session_row is None:
             return {'error': 'session not found'}, 404
+        if session_row.downloaded:
+            return {'error': 'session is locked after download'}, 409
 
         upload_row = (
             await db.execute(
@@ -2692,6 +2694,8 @@ async def patch_upload():
         ).scalar_one_or_none()
         if session_row is None:
             return {'error': 'session not found'}, 404
+        if session_row.downloaded:
+            return {'error': 'session is locked after download'}, 409
 
         upload_row = (
             await db.execute(
