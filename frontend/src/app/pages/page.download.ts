@@ -48,9 +48,9 @@ export class Download {
   /** True once the results were downloaded — the session becomes read-only. */
   downloaded = computed(() => this.pageService.pageState().downloaded);
 
-  /** Date (YYYY-MM-DD) until which the session and results stay accessible. */
-  // TODO(backend): expose the session expiry date (e.g. from GET /api/session).
-  expiryDate = signal<string | null>(null);
+  /** Date (YYYY-MM-DD) until which the session and results stay accessible
+   * (from GET /api/session via the page state). */
+  expiryDate = computed(() => this.pageService.pageState().tokenExpiry);
 
   /** Optional recipient for the resume URL. */
   email = signal('');

@@ -22,6 +22,9 @@ export interface PageState {
   adminUser: boolean;
   tokenBase: string | null;
   conversionId: number | null;
+  /** Date (YYYY-MM-DD) the session and its results stay accessible; null until
+   * the session is restored from the backend. */
+  tokenExpiry: string | null;
   /** User has acknowledged all warnings (Terms #7) — gates download. */
   approved: boolean;
   /** Conversion results have been downloaded — session is read-only. */
@@ -54,6 +57,7 @@ export class PageService {
     adminUser: false,
     tokenBase: null,
     conversionId: null,
+    tokenExpiry: null,
     approved: false,
     downloaded: false,
   });
@@ -93,6 +97,7 @@ export class PageService {
         .get<{
           conversion_id: number | null;
           expired: boolean;
+          token_expiry: string;
           consented: boolean;
           target_depsys: string;
           related_bmrb_id: number | null;
@@ -103,6 +108,7 @@ export class PageService {
           next: ({
             conversion_id,
             expired,
+            token_expiry,
             consented,
             target_depsys,
             related_bmrb_id,
@@ -118,6 +124,7 @@ export class PageService {
                 ...prev,
                 consentedTo: !!consented,
                 conversionId: conversion_id,
+                tokenExpiry: token_expiry,
                 targetDepsys:
                   TargetDepsys[target_depsys as keyof typeof TargetDepsys] ?? TargetDepsys.onedep,
                 relatedBmrbId: related_bmrb_id,

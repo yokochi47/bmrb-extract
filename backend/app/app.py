@@ -150,6 +150,8 @@ async def get_session():
         return {
             'conversion_id': session_row.conversion_id,
             'expired': expired,
+            # Date (YYYY-MM-DD) the session and its results stay accessible.
+            'token_expiry': session_row.token_expiry.date().isoformat(),
             'consented': bool(session_row.consented),
             'target_depsys': session_row.target_depsys,
             'related_bmrb_id': session_row.related_bmrb_id,
