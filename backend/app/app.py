@@ -536,6 +536,55 @@ async def download_results():
     )
 
 
+@app.route('/api/output_files', methods=['GET'])
+async def get_output_files():
+    """List the session's latest-run conversion result files — the contents of the
+    C_<cid>.zip download: name, output_file_type and size. Token-scoped, read-only
+    (mirrors GET /api/download's file selection, so only files present on disk are
+    listed). Returns: { files: [{ name, file_type, file_size }] }
+    """
+    token = request.args.get('token')
+    if not token:
+        return {'error': 'token is required'}, 400
+
+    async with async_session_factory() as db:
+        session_row = (
+            await db.execute(select(Session).where(Session.token == token))
+        ).scalar_one_or_none()
+        if session_row is None:
+            return {'error': 'session not found'}, 404
+        conversion_id = session_row.conversion_id
+        run_number = session_row.latest_run_number
+        if conversion_id is None or run_number < 1:
+            return {'files': []}, 200
+
+        rows = (
+            (
+                await db.execute(
+                    select(OutputFile)
+                    .where(
+                        OutputFile.conversion_id == conversion_id,
+                        OutputFile.run_number == run_number,
+                    )
+                    .order_by(OutputFile.ordinal.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    files = [
+        {
+            'name': Path(row.stored_path).name,
+            'file_type': row.file_type,
+            'file_size': row.file_size,
+        }
+        for row in rows
+        if Path(row.stored_path).is_file()
+    ]
+    return {'files': files}, 200
+
+
 # ── Coordinate geometry validation (pdbx_validate_* outliers in the converted mmCIF) ──
 
 # Display order + friendly labels for the geometry-outlier categories maxit writes

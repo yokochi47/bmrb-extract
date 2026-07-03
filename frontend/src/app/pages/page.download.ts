@@ -1,10 +1,29 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { CardModule } from 'primeng/card';
+import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
 
 import { PageService } from './page.service';
 import { API_URL } from '../../site.config';
+
+/** One conversion-result file bundled in the download zip. */
+interface OutputFileRow {
+  name: string;
+  file_type: string;
+  file_size: number;
+}
+
+/** Human-readable labels for the OutputFileType values (GET /api/output_files). */
+const OUTPUT_TYPE_LABELS: Record<string, string> = {
+  pdbx: 'Coordinates (PDBx/mmCIF)',
+  'nmr-star': 'NMR data (NMR-STAR)',
+  nef: 'NMR data (NEF)',
+  text_report: 'Conversion report (text)',
+  json_report: 'Validation report (JSON)',
+  compressed: 'Archive',
+};
 
 /**
  * Download page (Terms #7) — see the "Download" UI mockup: a tokenized resume
@@ -12,17 +31,39 @@ import { API_URL } from '../../site.config';
  * results zip, a table of its file contents, and the human-readable conversion
  * report/statistics.
  *
- * Scaffold: the resume URL, public id and zip name are wired from session
- * state; the expiry date, email send, zip stream, file-contents table and
- * report still need backend endpoints (each marked TODO(backend) below).
+ * The email send and the human-readable report still need backend endpoints
+ * (marked TODO(backend) below).
  */
 @Component({
   selector: 'app-download',
-  imports: [FormsModule, CardModule, ButtonModule],
+  imports: [FormsModule, CardModule, TableModule, ButtonModule],
   templateUrl: './page.download.html',
 })
 export class Download {
   private pageService = inject(PageService);
+  private http = inject(HttpClient);
+
+  constructor() {
+    // Load the result-file listing once the session token is available.
+    let fetched = false;
+    effect(() => {
+      const token = this.pageService.pageState().tokenBase;
+      if (!token || fetched) return;
+      fetched = true;
+      this.http
+        .get<{ files: OutputFileRow[] }>(API_URL + 'output_files', { params: { token } })
+        .subscribe({
+          next: (res) => this.files.set(res.files ?? []),
+          error: (err) => console.error('Failed to load output files', err),
+        });
+    });
+  }
+
+  /** Conversion result files bundled in the zip (GET /api/output_files). */
+  files = signal<OutputFileRow[]>([]);
+
+  /** A NEF file was produced — else the table shows the NEF-unavailable note. */
+  hasNef = computed(() => this.files().some((f) => f.file_type === 'nef'));
 
   /** Public conversion id (C_<id>) and the results zip file name. */
   publicId = computed(() => {
@@ -37,9 +78,7 @@ export class Download {
     return token ? `${window.location.origin}/info?token=${token}` : '';
   });
 
-  /** Direct link to the conversion-results zip. */
-  // TODO(backend): implement GET /api/download?token=… to stream the zip
-  // (and record that the user downloaded).
+  /** Direct link to the conversion-results zip (GET /api/download). */
   zipUrl = computed(() => {
     const token = this.pageService.pageState().tokenBase;
     return token ? `${API_URL}download?token=${encodeURIComponent(token)}` : '';
@@ -64,13 +103,25 @@ export class Download {
     this.emailSent.set(true);
   }
 
-  /** Download the results zip, then flip the session to read-only. */
+  /** Download the results zip, then flip the session to read-only. GET
+   * /api/download also persists downloaded=true and stamps the output files. */
   download(): void {
     const url = this.zipUrl();
     if (!url) return;
     window.location.href = url;
-    // TODO(backend): persist downloaded=true so the read-only state (no further
-    // re-upload) survives a reload and is enforced server-side.
     this.pageService.pageState.update((prev) => ({ ...prev, downloaded: true }));
+  }
+
+  /** Human-readable label for an output_file_type. */
+  typeLabel(fileType: string): string {
+    return OUTPUT_TYPE_LABELS[fileType] ?? fileType;
+  }
+
+  /** Format a byte count as a compact size string. */
+  formatSize(bytes: number): string {
+    if (!bytes) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
   }
 }

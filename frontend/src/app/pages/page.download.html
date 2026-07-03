@@ -64,9 +64,32 @@
 
     <!-- Table of file contents packaged in the zip -->
     <p-card header="Table of file contents" styleClass="mb-6">
-      <!-- TODO(backend): list the files in the zip (name / type / size), noting
-           NEF file unavailability when applicable. -->
-      <p class="text-surface-500 text-sm">File contents will be listed here.</p>
+      @if (files().length) {
+        <p-table [value]="files()" styleClass="p-datatable-sm">
+          <ng-template pTemplate="header">
+            <tr>
+              <th>File name</th>
+              <th>Content</th>
+              <th class="w-28 text-right">Size</th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-f>
+            <tr>
+              <td class="font-mono break-all">{{ f.name }}</td>
+              <td>{{ typeLabel(f.file_type) }}</td>
+              <td class="text-right tabular-nums">{{ formatSize(f.file_size) }}</td>
+            </tr>
+          </ng-template>
+        </p-table>
+        @if (!hasNef()) {
+          <p class="text-sm text-amber-700 dark:text-amber-400 mt-3">
+            <i class="pi pi-exclamation-triangle mr-1"></i>An NMR Exchange Format (NEF) file is not
+            included for this conversion.
+          </p>
+        }
+      } @else {
+        <p class="text-surface-500 text-sm">No result files are available for this conversion.</p>
+      }
     </p-card>
 
     <!-- Human-readable conversion report / statistics -->
