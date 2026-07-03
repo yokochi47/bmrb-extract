@@ -459,13 +459,53 @@ async def get_coordinate():
     )
 
 
+def _download_output_rows(rows):
+    """Filter a run's output_file rows to the set bundled in the download zip:
+    the deposition files (coordinate, NMR-STAR, optional NEF) plus only the last
+    conversion task's JSON report. The maxit coordinate-check log (text_report)
+    and the intermediate JSON reports are dropped — the summary page still reads
+    the full harvest, but the download carries just the final deliverables.
+
+    "Last conversion task's JSON report" = the most recently written json_report,
+    excluding the optional NMR-STAR→NEF release report (*-nef_release.json): that
+    step runs last but is optional, so its report is ignored here. `rows` order is
+    preserved.
+    """
+    json_rows = [
+        r
+        for r in rows
+        if r.file_type == OutputFileType.json_report.value
+        and 'nef_release' not in Path(r.stored_path).name
+    ]
+    chosen_json = None
+    if json_rows:
+        def _mtime(r):
+            try:
+                return Path(r.stored_path).stat().st_mtime
+            except OSError:
+                return -1.0
+        chosen_json = max(json_rows, key=_mtime)
+
+    kept = []
+    for row in rows:
+        if row.file_type == OutputFileType.text_report.value:
+            continue
+        if row.file_type == OutputFileType.json_report.value:
+            if row is chosen_json:
+                kept.append(row)
+            continue
+        kept.append(row)
+    return kept
+
+
 @app.route('/api/download', methods=['GET'])
 async def download_results():
     """Stream the session's latest-run conversion results as C_<cid>.zip and mark
     the session downloaded (Terms #7 / #8). Token-scoped.
 
-    The zip bundles every output_file of the latest run (converted coordinate,
-    NMR-STAR, optional NEF, and the report files). Unlike GET /api/coordinate
+    The zip bundles the deposition files (converted coordinate, NMR-STAR, optional
+    NEF) and the last conversion task's JSON report (see _download_output_rows).
+    Unlike GET /api/coordinate
     (a read-only preview), this is the official download: it requires the user to
     have approved the status, flips session.downloaded — which locks the session
     read-only (no further re-upload) — and stamps each output_file with
@@ -508,7 +548,7 @@ async def download_results():
         buf = io.BytesIO()
         added = 0
         with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
-            for row in output_rows:
+            for row in _download_output_rows(output_rows):
                 fpath = Path(row.stored_path)
                 if fpath.is_file():
                     zf.write(str(fpath), arcname=fpath.name)
@@ -585,7 +625,7 @@ async def get_output_files():
             'file_type': row.file_type,
             'file_size': row.file_size,
         }
-        for row in rows
+        for row in _download_output_rows(rows)
         if Path(row.stored_path).is_file()
     ]
     return {'files': files}, 200
