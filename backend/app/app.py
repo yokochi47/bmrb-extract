@@ -4,9 +4,11 @@ import io
 import json
 import os
 import re
+import smtplib
 import traceback
 import zipfile
 from datetime import datetime, timedelta
+from email.message import EmailMessage
 from pathlib import Path
 
 import httpx
@@ -18,6 +20,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import NullPool
 
 from core.models import (
+    Communication,
+    DeliveryStatusCode,
     OutputFile,
     OutputFileType,
     Session,
@@ -38,7 +42,9 @@ from core.site_config import (
     FAILURE_VALIDITY_PERIOD_IN_DAYS,
     SERVICE_ADMIN_EMAIL,
     SERVICE_DATABASE_URL,
+    SERVICE_HELP_EMAIL,
     SERVICE_HOST,
+    SMTP_SERVER,
     WORKSPACE_BASE_PATH,
 )
 
@@ -610,6 +616,91 @@ async def verify_email():
         _validate_email(email, check_blacklist=False, check_smtp=False, dns_timeout=5)
     )
     return {'valid': valid}, 200
+
+
+def _send_email(to_address: str, subject: str, content: str) -> str:
+    """Send a plain-text email via the internal relay (port 25, best-effort).
+    Returns the DeliveryStatusCode value ('sent' or 'failed')."""
+    try:
+        msg = EmailMessage()
+        msg['Subject'] = subject
+        msg['From'] = SERVICE_ADMIN_EMAIL
+        msg['To'] = to_address
+        msg['Reply-To'] = SERVICE_HELP_EMAIL
+        msg.set_content(content)
+        with smtplib.SMTP(SMTP_SERVER, 25, timeout=15) as smtp:
+            smtp.send_message(msg)
+        return DeliveryStatusCode.sent.value
+    except Exception as exc:  # noqa: BLE001
+        app.logger.error('resume-url email to %s failed: %s', to_address, exc)
+        return DeliveryStatusCode.failed.value
+
+
+@app.route('/api/send_resume_url', methods=['POST'])
+async def send_resume_url():
+    """Email the session's resumable URL to a recipient and log it as a
+    communication. JSON body: { token, email }. The address is re-validated
+    (format + MX) server-side; the URL is https://<host>/info?token=<token>.
+    Returns: { delivery_status }.
+    """
+    body = request.get_json(silent=True) or {}
+    token = body.get('token')
+    email = (body.get('email') or '').strip()
+    if not token or not email:
+        return {'error': 'token and email are required'}, 400
+
+    # Re-validate server-side (don't trust the client's verified flag).
+    try:
+        from validate_email import validate_email as _validate_email
+    except ImportError:
+        return {'error': 'email validation unavailable'}, 503
+    if not bool(_validate_email(email, check_blacklist=False, check_smtp=False, dns_timeout=5)):
+        return {'error': 'invalid email address'}, 400
+
+    async with async_session_factory() as db:
+        session_row = (
+            await db.execute(select(Session).where(Session.token == token))
+        ).scalar_one_or_none()
+        if session_row is None:
+            return {'error': 'session not found'}, 404
+        conversion_id = session_row.conversion_id
+        if conversion_id is None:
+            return {'error': 'session not yet processed'}, 409
+
+        resume_url = f'https://{SERVICE_HOST}/info?token={token}'
+        subject = f'Resume your NMR data conversion session (C_{conversion_id})'
+        content = (
+            f'You can resume or review your NMR data conversion session '
+            f'(C_{conversion_id}) until it expires using this link:\n\n'
+            f'{resume_url}\n\n'
+            f'If you did not request this message, please ignore it.\n'
+            f'For assistance, contact {SERVICE_HELP_EMAIL}.\n'
+        )
+        delivery_status = _send_email(email, subject, content)
+
+        # Log it in the communication table (ordinal per conversion).
+        max_ord = (
+            await db.execute(
+                select(func.max(Communication.ordinal)).where(
+                    Communication.conversion_id == conversion_id
+                )
+            )
+        ).scalar_one_or_none() or 0
+        db.add(
+            Communication(
+                conversion_id=conversion_id,
+                ordinal=max_ord + 1,
+                subject=subject,
+                content=content,
+                email_address=email,
+                delivery_status=delivery_status,
+            )
+        )
+        await db.commit()
+
+    if delivery_status != DeliveryStatusCode.sent.value:
+        return {'error': 'failed to send email', 'delivery_status': delivery_status}, 502
+    return {'delivery_status': delivery_status}, 200
 
 
 # ── Coordinate geometry validation (pdbx_validate_* outliers in the converted mmCIF) ──

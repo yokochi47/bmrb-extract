@@ -98,7 +98,9 @@ export class Download {
   verified = signal(false);
   /** A verification attempt has completed for the current address. */
   emailChecked = signal(false);
+  sending = signal(false);
   emailSent = signal(false);
+  sendError = signal<string | null>(null);
 
   /** Editing the address invalidates any prior verification. */
   onEmailChange(value: string): void {
@@ -128,12 +130,26 @@ export class Download {
     });
   }
 
-  /** Email the resume URL to the verified recipient (see the Communication tab). */
+  /** Email the resume URL to the verified recipient (POST /api/send_resume_url,
+   * which sends the mail and logs it as a communication). */
   sendResumeUrl(): void {
-    // TODO(backend): POST the verified email + resume URL to a notification
-    // endpoint and record it as a communication (the next job).
-    if (!this.verified()) return;
-    this.emailSent.set(true);
+    const token = this.pageService.pageState().tokenBase;
+    if (!this.verified() || this.sending() || !token) return;
+    this.sending.set(true);
+    this.sendError.set(null);
+    this.http
+      .post(API_URL + 'send_resume_url', { token, email: this.email().trim() })
+      .subscribe({
+        next: () => {
+          this.emailSent.set(true);
+          this.sending.set(false);
+        },
+        error: (err) => {
+          console.error('Failed to send resume URL', err);
+          this.sendError.set('Could not send the email. Please try again later.');
+          this.sending.set(false);
+        },
+      });
   }
 
   /** Download the results zip, then flip the session to read-only. GET

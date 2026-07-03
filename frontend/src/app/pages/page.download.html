@@ -46,10 +46,19 @@
           <i class="pi pi-times-circle mr-1"></i>Not a deliverable address
         </span>
       }
-      <p-button label="Send" (click)="sendResumeUrl()" [disabled]="!verified() || emailSent()" />
+      <p-button
+        label="Send"
+        (click)="sendResumeUrl()"
+        [loading]="sending()"
+        [disabled]="!verified() || emailSent()"
+      />
       @if (emailSent()) {
         <span class="text-teal-600 dark:text-teal-400 text-sm">
           <i class="pi pi-check-circle mr-1"></i>Sent
+        </span>
+      } @else if (sendError()) {
+        <span class="text-red-600 dark:text-red-400 text-sm">
+          <i class="pi pi-times-circle mr-1"></i>{{ sendError() }}
         </span>
       }
     </div>
