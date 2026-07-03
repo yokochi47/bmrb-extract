@@ -1591,27 +1591,29 @@
       }
     }
   </p-card>
-
-  <!-- Proceed to download (Terms #7): hidden on blocking error / no NMR report;
-       enabled once every flagged issue is acknowledged (immediately when OK). -->
-  @if (showProceed()) {
-    <div class="mt-8">
-      @if (warningStatus()) {
-        <p class="text-xl mb-4">
-          You can download the conversion results
-          <strong
-            >once you have reviewed all the warnings displayed above and checked all the boxes to
-            acknowledge them.</strong
-          >
-        </p>
-      }
-      <p-button
-        label="Proceed to download"
-        icon="pi pi-download"
-        severity="success"
-        [disabled]="!canApprove()"
-        (click)="proceedToDownload()"
-      />
-    </div>
-  }
 </div>
+
+<!-- Proceed to download (Terms #7): hidden on blocking error / no NMR report;
+       enabled once every flagged issue is acknowledged (immediately when OK). -->
+@if (showProceed()) {
+  <div class="card">
+    @if (warningStatus()) {
+      <p class="text-xl mb-4">
+        You can download the conversion results
+        <strong
+          >once you have reviewed all the warnings displayed above and checked all the boxes to
+          acknowledge them.</strong
+        >
+      </p>
+    } @else {
+      You can download the conversion results.
+    }
+    <p-button
+      label="Proceed to download"
+      icon="pi pi-download"
+      severity="success"
+      [disabled]="!canApprove()"
+      (click)="proceedToDownload()"
+    />
+  </div>
+}
