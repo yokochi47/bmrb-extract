@@ -886,12 +886,12 @@
                 @if (cl.key === 'number') {
                   @if (sf.range) {
                     <span class="text-sm text-surface-600 dark:text-surface-300"
-                      >— target range {{ sf.range }}</span
+                      >— target range <strong>{{ sf.range }}</strong></span
                     >
                   }
                   @if (sf.exp_type) {
                     <span class="text-sm text-surface-600 dark:text-surface-300"
-                      >· {{ sf.exp_type }}</span
+                      >· <strong>{{ sf.exp_type }}</strong></span
                     >
                   }
                 }
@@ -1053,7 +1053,7 @@
                 {{ cl.title }}
                 @if (cl.key === 'number' && sf.exp_type) {
                   <span class="text-sm text-surface-600 dark:text-surface-300"
-                    >— {{ sf.exp_type }}</span
+                    >— <strong>{{ sf.exp_type }}</strong></span
                   >
                 }
               </div>
@@ -1198,12 +1198,12 @@
                 @if (cl.key === 'number') {
                   @if (sf.range) {
                     <span class="text-sm text-surface-600 dark:text-surface-300"
-                      >— observed range {{ sf.range }}</span
+                      >— observed range <strong>{{ sf.range }}</strong></span
                     >
                   }
                   @if (sf.exp_type) {
                     <span class="text-sm text-surface-600 dark:text-surface-300"
-                      >· {{ sf.exp_type }}</span
+                      >· <strong>{{ sf.exp_type }}</strong></span
                     >
                   }
                 }

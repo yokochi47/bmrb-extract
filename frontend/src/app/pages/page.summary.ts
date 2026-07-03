@@ -559,13 +559,15 @@ export class Summary implements OnDestroy {
       const xr = c.xmax - c.xmin;
       const yr = c.ymax - c.ymin;
       return {
-        title: `Inter-chain contact map — Entity_assembly_IDs: ${c.chain1} / ${c.chain2}`,
+        title: `Inter-chain contact map — Entity_assembly_IDs: ${c.chain1} ↔ ${c.chain2}`,
         option: this.asymContactMapOption(c),
         // Proportional to the two chains' residue ranges (undistorted cells);
         // margins reserve the right-side legend so the plot keeps that ratio.
         aspect: xr > 0 ? yr / xr : 1,
         marginX: 48 + this.legendReserve(c.series.map((s) => s.name)),
-        marginY: 48,
+        // top 16 + bottom 40 + x-tick labels; matches the asym grid so the plot
+        // stays proportional and the x-axis title has room.
+        marginY: 72,
       };
     });
   }
@@ -1265,14 +1267,19 @@ export class Summary implements OnDestroy {
         left: 48,
         right: this.legendReserve(c.series.map((s) => s.name)),
         top: 16,
-        bottom: 16,
+        // Extra bottom room so the centred x-axis title isn't clipped (matched
+        // by marginY on the panel so the plot keeps its aspect).
+        bottom: 40,
         containLabel: true,
       },
       // No axis lines / ticks: the residue-range start (residue 0)
       // needs no emphasis, and the bands carry the residue context.
       xAxis: {
         type: 'value',
-        name: `Entity_assembly_ID ${c.chain1}`,
+        name: `Entity_assembly_ID: ${c.chain1}`,
+        // Centre the title under the axis (was at the right end).
+        nameLocation: 'middle',
+        nameGap: 28,
         min: c.xmin,
         max: c.xmax,
         minInterval: 1,
@@ -1281,7 +1288,12 @@ export class Summary implements OnDestroy {
       },
       yAxis: {
         type: 'value',
-        name: `Entity_assembly_ID ${c.chain2}`,
+        name: `Entity_assembly_ID: ${c.chain2}`,
+        // Rotate the title vertically along the axis so it doesn't run into the
+        // element above the chart.
+        nameLocation: 'middle',
+        nameRotate: 90,
+        nameGap: 44,
         min: c.ymin,
         max: c.ymax,
         minInterval: 1,

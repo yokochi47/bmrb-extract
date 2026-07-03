@@ -225,7 +225,10 @@ async def get_upload_files():
     token regardless of selection or run, with the fields needed to rebuild the
     upload table rows. BMRB-sourced rows are excluded — they are auto-managed at
     process time and are not user-editable.
-    Returns: { files: [{ ordinal, original_name, file_size, file_type, selected }] }
+    `uploaded_at` is the naive UTC wall-clock time (as in GET /api/files), best
+    used to tell re-uploaded rows apart from a fresh upload.
+    Returns: { files: [{ ordinal, original_name, file_size, file_type, selected,
+    uploaded_at }] }
     """
     token = request.args.get('token')
     if not token:
@@ -238,6 +241,10 @@ async def get_upload_files():
         if session_row is None:
             return {'error': 'session not found'}, 404
 
+        # naive local (DB session tz) → UTC wall-clock time; see GET /api/files.
+        uploaded_at_utc = func.timezone(
+            'UTC', func.timezone(func.current_setting('TIMEZONE'), UploadFile.uploaded_at)
+        )
         result = await db.execute(
             select(
                 UploadFile.ordinal,
@@ -245,6 +252,7 @@ async def get_upload_files():
                 UploadFile.file_size,
                 UploadFile.file_type,
                 UploadFile.selected,
+                uploaded_at_utc.label('uploaded_at_utc'),
             )
             .where(
                 UploadFile.token == token,
@@ -259,6 +267,11 @@ async def get_upload_files():
                 'file_size': row.file_size,
                 'file_type': row.file_type,
                 'selected': bool(row.selected),
+                'uploaded_at': (
+                    row.uploaded_at_utc.isoformat(sep=' ', timespec='minutes')
+                    if row.uploaded_at_utc is not None
+                    else None
+                ),
             }
             for row in result.all()
         ]
@@ -1167,7 +1180,7 @@ def _dihedral_charts(stat_list):
         errors_by_comp = plot.get('errors') or {}
         groups = []
         for comp_id, vals in plot['values'].items():
-            pts = [{'x': p[0], 'y': p[1], 'seq_id': ':'.join(p[2].split(':')[:2])} for p in vals if len(p) >= 3]
+            pts = [{'x': p[0], 'y': p[1], 'seq_id': ':'.join(p[2].split(':')[:2]) + ':'} for p in vals if len(p) >= 3]
             if pts:
                 groups.append({'comp_id': comp_id, 'points': pts,
                                'errors': errors_by_comp.get(comp_id) or []})
@@ -1602,9 +1615,9 @@ def _seq_align(info):
         if ref_gauge == test_gauge:
             test_gauge = ''
         rows.append({
-            'chain': (f"Auth_asym_ID (model): {auth_ref}, Label_asym_ID (model): {ref} ↔ Entity_assembly_ID (NMR data): {test}"
+            'chain': (f"Auth_asym_ID: {auth_ref}, Label_asym_ID: {ref} (model) ↔ Entity_assembly_ID: {test} (NMR data)"
                       if ((auth_ref or test) and (auth_ref != ref))
-                      f"Auth_asym_ID (model): {auth_ref} ↔ Entity_assembly_ID (NMR data): {test}"
+                      else f"Auth_asym_ID: {auth_ref} (model) ↔ Entity_assembly_ID: {test} (NMR_DATA)"
                       if (auth_ref or test) else ''),
             'length': ca.get('length'), 'matched': ca.get('matched'),
             'conflict': ca.get('conflict'), 'unmapped': ca.get('unmapped'),
