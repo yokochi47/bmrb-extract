@@ -1,5 +1,8 @@
 .env
 actions_runner*
+actions-runner/
+actions-runner*.tar.gz
+misc/
 backend/app/__pycache__
 certbot/cert/accounts
 certbot/cert/renewal
