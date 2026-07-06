@@ -26,7 +26,7 @@ const OUTPUT_TYPE_LABELS: Record<string, string> = {
   'nmr-star': 'NMR data (NMR-STAR)',
   nef: 'NMR data (NEF)',
   text_report: 'Conversion report (text)',
-  json_report: 'Validation report (JSON)',
+  json_report: 'Conversion report (JSON)',
   compressed: 'Archive',
 };
 
