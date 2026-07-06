@@ -619,6 +619,23 @@ async def get_output_files():
             .all()
         )
 
+        # The NEF release runs deferred (after the session completes). It is "still
+        # generating" while its workflow row is pending/processing and no NEF output
+        # has been harvested yet — the download page polls on this.
+        nef_status = (
+            await db.execute(
+                select(Workflow.status).where(
+                    Workflow.conversion_id == conversion_id,
+                    Workflow.run_number == run_number,
+                    Workflow.task == WfTaskCode.nef_release.value,
+                )
+            )
+        ).scalar_one_or_none()
+
+    has_nef = any(row.file_type == OutputFileType.nef.value for row in rows)
+    nef_generating = (
+        nef_status in (WfStatusCode.pending.value, WfStatusCode.processing.value) and not has_nef
+    )
     files = [
         {
             'name': Path(row.stored_path).name,
@@ -628,7 +645,7 @@ async def get_output_files():
         for row in _download_output_rows(rows)
         if Path(row.stored_path).is_file()
     ]
-    return {'files': files}, 200
+    return {'files': files, 'nef_generating': nef_generating}, 200
 
 
 @app.route('/api/verify_email', methods=['POST'])

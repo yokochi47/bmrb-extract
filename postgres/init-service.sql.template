@@ -187,7 +187,7 @@ CREATE TABLE IF NOT EXISTS communication (
 );
 
 DROP TYPE IF EXISTS wf_task_code;
-CREATE TYPE wf_task_code as ENUM ('issue_conversion', 'convert_model', 'convert_nmr_data', 'session_exchange', 'session_lock', 'session_cleanup', 'notification', 'communication');
+CREATE TYPE wf_task_code as ENUM ('issue_conversion', 'convert_model', 'convert_nmr_data', 'nef_release', 'session_exchange', 'session_lock', 'session_cleanup', 'notification', 'communication');
 
 DROP TYPE IF EXISTS wf_stats_code;
 CREATE TYPE wf_status_code as ENUM ('created', 'pending', 'aborted', 'processing', 'completed', 'failed');

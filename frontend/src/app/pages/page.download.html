@@ -90,7 +90,12 @@
             </tr>
           </ng-template>
         </p-table>
-        @if (!hasNef()) {
+        @if (nefGenerating()) {
+          <p class="text-sm text-surface-500 mt-3">
+            <i class="pi pi-spin pi-spinner mr-1"></i>An NMR Exchange Format (NEF) file is still
+            being generated — it will appear here shortly.
+          </p>
+        } @else if (!hasNef()) {
           <p class="text-sm text-amber-700 dark:text-amber-400 mt-3">
             <i class="pi pi-exclamation-triangle mr-1"></i>An NMR Exchange Format (NEF) file is not
             included for this conversion.

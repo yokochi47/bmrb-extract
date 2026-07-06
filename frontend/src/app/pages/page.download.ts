@@ -1,4 +1,5 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpClient } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -6,6 +7,8 @@ import { CardModule } from 'primeng/card';
 import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
 import { MessageModule } from 'primeng/message';
+import { timer } from 'rxjs';
+import { switchMap, takeWhile } from 'rxjs/operators';
 
 import { PageService } from './page.service';
 import { API_URL } from '../../site.config';
@@ -40,18 +43,33 @@ const OUTPUT_TYPE_LABELS: Record<string, string> = {
 export class Download {
   private pageService = inject(PageService);
   private http = inject(HttpClient);
+  private destroyRef = inject(DestroyRef);
 
   constructor() {
-    // Load the result-file listing once the session token is known.
-    let fetched = false;
+    // Load the result-file listing once the session token is known, then keep
+    // polling while the deferred NEF release is still generating (so the .nef row
+    // appears on its own); stops as soon as nef_generating clears.
+    let started = false;
     effect(() => {
       const token = this.pageService.pageState().tokenBase;
-      if (!token || fetched) return;
-      fetched = true;
-      this.http
-        .get<{ files: OutputFileRow[] }>(API_URL + 'output_files', { params: { token } })
+      if (!token || started) return;
+      started = true;
+      timer(0, 5000)
+        .pipe(
+          switchMap(() =>
+            this.http.get<{ files: OutputFileRow[]; nef_generating?: boolean }>(
+              API_URL + 'output_files',
+              { params: { token } },
+            ),
+          ),
+          takeWhile((res) => !!res.nef_generating, true),
+          takeUntilDestroyed(this.destroyRef),
+        )
         .subscribe({
-          next: (res) => this.files.set(res.files ?? []),
+          next: (res) => {
+            this.files.set(res.files ?? []);
+            this.nefGenerating.set(!!res.nef_generating);
+          },
           error: (err) => console.error('Failed to load output files', err),
         });
     });
@@ -59,6 +77,9 @@ export class Download {
 
   /** Conversion result files bundled in the zip (GET /api/output_files). */
   files = signal<OutputFileRow[]>([]);
+
+  /** The deferred NMR-STAR→NEF release is still running (poll until it clears). */
+  nefGenerating = signal(false);
 
   /** A NEF file was produced — else the table shows the NEF-unavailable note. */
   hasNef = computed(() => this.files().some((f) => f.file_type === 'nef'));

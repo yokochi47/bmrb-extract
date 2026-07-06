@@ -141,6 +141,7 @@ class WfTaskCode(str, Enum):
     convert_model = 'convert_model'
     convert_nmr_data = 'convert_nmr_data'
     issue_conversion = 'issue_conversion'
+    nef_release = 'nef_release'
     notification = 'notification'
     session_cleanup = 'session_cleanup'
     session_exchange = 'session_exchange'

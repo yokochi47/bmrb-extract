@@ -912,7 +912,7 @@ def nmr_data_conversion(
     run_number: int,
     archive_base: str = ARCHIVE_BASE_PATH,
     workspace_base: str = WORKSPACE_BASE_PATH,
-) -> bool:
+) -> tuple[bool, bool]:
     """Convert NMR data to NMR-STAR with py-wwpdb_utils_nmr (NmrDpUtility).
 
     OneDep / Replacing-CS deposition, validated against the model mmCIF from
@@ -934,8 +934,10 @@ def nmr_data_conversion(
       nmr-cs-mr-merge with conversion_server=True.
 
     Drives the convert_nmr_data workflow row (processing -> completed/failed).
-    Returns True on success (and when there is nothing to convert), False on
-    failure.
+    Returns (ok, attempt_nef): `ok` is True on success (and when there is nothing
+    to convert), False on failure; `attempt_nef` is True when a deferred NEF
+    release should run (the flow runs it after the session is marked completed, so
+    it stays off the summary critical path).
     """
     manifest = json.loads((Path(archive_base) / token / 'manifest.json').read_text())
     target = manifest.get('target_depsys')
@@ -950,10 +952,10 @@ def nmr_data_conversion(
     if target not in ('onedep', 'repl_cs', 'bmrbdep'):
         print(f'[{conversion_id}] NMR conversion for target={target} not implemented '
               f'in this pilot; skipping')
-        return True
+        return True, False
     if uni is None and not cs_files and not cs_variant_files and not aux_files:
         print(f'[{conversion_id}] No NMR data files — skipping NMR conversion')
-        return True
+        return True, False
 
     in_dir = ws.input_dir(conversion_id, run_number, workspace_base)
     out_dir = ws.output_dir(conversion_id, run_number, workspace_base)
@@ -973,7 +975,7 @@ def nmr_data_conversion(
             conversion_id, run_number, WfTaskCode.convert_nmr_data, WfStatusCode.failed,
             finished=True, log_path=str(deposit_log), detail=reason,
         ))
-        return False
+        return False, False
 
     def _cs_dict_list(shift_files):
         return [
@@ -1019,7 +1021,7 @@ def nmr_data_conversion(
                 conversion_id, run_number, WfTaskCode.convert_nmr_data, WfStatusCode.failed,
                 finished=True, log_path=str(nmr_log), detail=reason,
             ))
-            return False
+            return False, False
         driver_text = _nmr_bmrbdep_driver_script(
             cs_list=cs_list, atypical_cs_list=atypical_cs_list,
             atypical_restraint_list=atypical_restraint_list, bmrb_id=conversion_id,
@@ -1041,7 +1043,7 @@ def nmr_data_conversion(
                 conversion_id, run_number, WfTaskCode.convert_nmr_data, WfStatusCode.failed,
                 finished=True, log_path=str(nmr_log), detail=reason,
             ))
-            return False
+            return False, False
         driver_text = _nmr_replace_cs_driver_script(
             src=str(in_dir / uni['original_name']), cif=str(model_cif),
             cs_list=_cs_dict_list(cs_files), replace_log=str(replace_log),
@@ -1089,20 +1091,21 @@ def nmr_data_conversion(
     )
 
     # OneDep combined and repl_cs (onedep_combined): when the run produced a clean
-    # (non-blocking) NMR-STAR whose content is fully NEF-representable, also emit a
-    # NEF release file as an additional output. nmr_log is the *final* report here
-    # (str_deposit.json / repl_cs.json). Best-effort — never affects run success.
-    if ok and report_status != 'Error' and onedep_combined:
-        if _nef_release_eligible(nmr_log, conversion_id):
-            _generate_nef_release(
-                conversion_id, run_number, workspace_base,
-                src=out_str, cif=model_cif, out_dir=out_dir, log_d=log_d,
-                work_d=work_d, cache_d=cache_d, entry_id=entry_id,
-            )
-        else:
-            print(f'[{conversion_id}] NEF release skipped (content not fully NEF-representable)')
+    # (non-blocking) NMR-STAR whose content is fully NEF-representable, a NEF
+    # release file is emitted as an additional output. The actual generation is
+    # DEFERRED to the flow (after the session is marked completed) so it stays off
+    # the summary critical path; here we only decide whether it applies. nmr_log is
+    # the *final* report (str_deposit.json / repl_cs.json).
+    attempt_nef = bool(
+        ok
+        and report_status != 'Error'
+        and onedep_combined
+        and _nef_release_eligible(nmr_log, conversion_id)
+    )
+    if onedep_combined and ok and report_status != 'Error' and not attempt_nef:
+        print(f'[{conversion_id}] NEF release skipped (content not fully NEF-representable)')
 
-    return ok
+    return ok, attempt_nef
 
 
 def _send_admin_email(subject: str, content: str) -> str:
@@ -1228,6 +1231,87 @@ def notify_new_conversion(
     return delivery_status
 
 
+async def _start_nef_workflow(conversion_id: int, run_number: int) -> None:
+    """Create (or reset) the nef_release workflow row = processing so the download
+    page can surface a 'NEF still generating' state while the deferred NEF release
+    runs. Inserts with the next ordinal, or resets an existing row on re-run."""
+    engine = create_async_engine(SERVICE_DATABASE_URL, poolclass=NullPool)
+    try:
+        async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+            existing = (
+                await db.execute(
+                    select(Workflow).where(
+                        Workflow.conversion_id == conversion_id,
+                        Workflow.run_number == run_number,
+                        Workflow.task == WfTaskCode.nef_release,
+                    )
+                )
+            ).scalar_one_or_none()
+            if existing is None:
+                max_ord = (
+                    await db.execute(
+                        select(func.max(Workflow.ordinal)).where(
+                            Workflow.conversion_id == conversion_id,
+                            Workflow.run_number == run_number,
+                        )
+                    )
+                ).scalar_one_or_none() or 0
+                await db.execute(
+                    Workflow.__table__.insert().values(
+                        conversion_id=conversion_id,
+                        run_number=run_number,
+                        ordinal=max_ord + 1,
+                        task=WfTaskCode.nef_release,
+                        status=WfStatusCode.processing,
+                        started_at=func.now(),
+                    )
+                )
+            else:
+                await db.execute(
+                    update(Workflow)
+                    .where(
+                        Workflow.conversion_id == conversion_id,
+                        Workflow.run_number == run_number,
+                        Workflow.task == WfTaskCode.nef_release,
+                    )
+                    .values(status=WfStatusCode.processing, started_at=func.now(), finished_at=None)
+                )
+            await db.commit()
+    finally:
+        await engine.dispose()
+
+
+def _run_nef_release(conversion_id: int, run_number: int, workspace_base: str) -> None:
+    """Deferred NMR-STAR -> NEF release: runs AFTER the session is marked completed
+    (off the summary critical path). Tracks a nef_release workflow row, generates
+    the NEF, then re-harvests so the .nef output (and its report) are recorded.
+    Best-effort — the run outcome is already fixed, so this never changes it."""
+    out_dir = ws.output_dir(conversion_id, run_number, workspace_base)
+    log_d = ws.log_dir(conversion_id, run_number, workspace_base)
+    work_d = ws.work_dir(conversion_id, run_number, workspace_base)
+    cache_d = ws.cache_dir(conversion_id, workspace_base)
+    ws.ensure_run_dirs(conversion_id, run_number, workspace_base)  # deferred step needs work/
+    nef_report = log_d / f'C_{conversion_id}_nmr-data-nef_release.json'
+
+    asyncio.run(_start_nef_workflow(conversion_id, run_number))
+    nef = _generate_nef_release(
+        conversion_id, run_number, workspace_base,
+        src=out_dir / f'C_{conversion_id}_nmr-data.str',
+        cif=out_dir / f'C_{conversion_id}_model.cif',
+        out_dir=out_dir, log_d=log_d, work_d=work_d, cache_d=cache_d,
+        entry_id=f'C_{conversion_id}',
+    )
+    if nef is not None:
+        # Re-harvest so the new .nef appears in output_file (full replace).
+        _harvest_output_files(conversion_id, run_number, workspace_base)
+    asyncio.run(_update_workflow_status(
+        conversion_id, run_number, WfTaskCode.nef_release,
+        WfStatusCode.completed if nef is not None else WfStatusCode.failed,
+        finished=True, log_path=str(nef_report),
+        detail=None if nef is not None else 'NEF release generation failed',
+    ))
+
+
 @flow(name='process-session')
 def process_session(
     token: str,
@@ -1258,6 +1342,8 @@ def process_session(
         f'({len(manifest["files"])} selected files, target={manifest["target_depsys"]})'
     )
 
+    success = False
+    attempt_nef = False
     try:
         issue_conversion(token, conversion_id, run_number, archive_base, workspace_base)
         # First run only: notify the admin that a new conversion was issued.
@@ -1265,7 +1351,8 @@ def process_session(
             notify_new_conversion(token, conversion_id, run_number, archive_base)
         coord_ok = coordinate_conversion(token, conversion_id, run_number, archive_base, workspace_base)
         if coord_ok:
-            nmr_ok = nmr_data_conversion(token, conversion_id, run_number, archive_base, workspace_base)
+            nmr_ok, attempt_nef = nmr_data_conversion(
+                token, conversion_id, run_number, archive_base, workspace_base)
         else:
             # Model conversion failed: the NMR step needs C_<id>_model.cif, so
             # short-circuit and mark convert_nmr_data aborted.
@@ -1276,55 +1363,64 @@ def process_session(
             ))
             nmr_ok = False
         success = coord_ok and nmr_ok
+
+        print(f'[{conversion_id}] Run #{run_number} complete — success={success}')
+
+        # Harvest the produced output files (converted coordinate, NMR-STAR) into
+        # the output_file table (best-effort: independent of the run outcome, so
+        # the user can still download whatever partial output exists). The optional
+        # NEF is added by a second harvest inside the deferred NEF step below.
+        try:
+            harvested = _harvest_output_files(conversion_id, run_number, workspace_base)
+            print(f'[{conversion_id}] harvested {len(harvested)} output file(s): {harvested}')
+        except Exception as exc:  # noqa: BLE001
+            print(f'[{conversion_id}] output harvest FAILED ({exc})')
+
+        # A blocking NMR report (report_status='Error') flags critical, user-blocking
+        # issues: treat it as a failed run even though the conversion task completed.
+        # (The blocker detail lives on the convert_nmr_data workflow row and is also
+        # surfaced to the user via /api/progress.)
+        blocked = False
+        if success:
+            try:
+                blocked = asyncio.run(_nmr_report_status(conversion_id, run_number)) == 'Error'
+            except Exception as exc:  # noqa: BLE001
+                print(f'[{conversion_id}] could not read NMR report status ({exc})')
+
+        # Record the session lifecycle outcome for this run. This is what makes the
+        # Upload summary reachable (/api/progress `done`), so it happens BEFORE the
+        # deferred NEF release — the summary never waits on NEF.
+        session_status = (
+            SessionStatusCode.completed if (success and not blocked) else SessionStatusCode.failed
+        )
+        try:
+            asyncio.run(_update_session_status(token, session_status))
+            print(f'[{conversion_id}] session status -> {session_status.value} (blocked={blocked})')
+        except Exception as exc:  # noqa: BLE001
+            print(f'[{conversion_id}] session status update FAILED ({exc})')
+
+        # Refresh the footer's software/resource versions from the images just used,
+        # so a fix delivered via an upstream image is immediately observable after a
+        # verification run (best-effort; also captured on a schedule).
+        try:
+            from versions import capture_versions
+            capture_versions(workspace_base)
+        except Exception as exc:  # noqa: BLE001
+            print(f'[{conversion_id}] version capture FAILED ({exc})')
+
+        # Deferred NMR-STAR -> NEF release: runs only now (after the session is
+        # marked completed) so the summary is reachable without waiting for it.
+        # Best-effort — never changes the already-recorded run outcome.
+        if success and not blocked and attempt_nef:
+            try:
+                _run_nef_release(conversion_id, run_number, workspace_base)
+            except Exception as exc:  # noqa: BLE001
+                print(f'[{conversion_id}] NEF release FAILED ({exc})')
     finally:
-        # work/ is pure scratch — drop it whether the run succeeded or failed.
-        # output/ and log/ are kept for the validity period (download).
+        # work/ is pure scratch — drop it last (the deferred NEF step above uses
+        # it). output/ and log/ are kept for the validity period (download).
         scratch = ws.work_dir(conversion_id, run_number, workspace_base)
         if scratch.exists():
             shutil.rmtree(scratch, ignore_errors=True)
 
-    print(f'[{conversion_id}] Run #{run_number} complete — success={success}')
-
-    # Harvest the produced output files (converted coordinate, NMR-STAR, optional
-    # NEF) into the output_file table (best-effort: independent of the run outcome,
-    # so the user can still download whatever partial output exists).
-    try:
-        harvested = _harvest_output_files(conversion_id, run_number, workspace_base)
-        print(f'[{conversion_id}] harvested {len(harvested)} output file(s): {harvested}')
-    except Exception as exc:  # noqa: BLE001
-        print(f'[{conversion_id}] output harvest FAILED ({exc})')
-
-    # A blocking NMR report (report_status='Error') flags critical, user-blocking
-    # issues: treat it as a failed run even though the conversion task completed.
-    # (The blocker detail lives on the convert_nmr_data workflow row and is also
-    # surfaced to the user via /api/progress.)
-    blocked = False
-    if success:
-        try:
-            blocked = asyncio.run(_nmr_report_status(conversion_id, run_number)) == 'Error'
-        except Exception as exc:  # noqa: BLE001
-            print(f'[{conversion_id}] could not read NMR report status ({exc})')
-
-    # Record the session lifecycle outcome for this run (best-effort: the run is
-    # already done, so a DB hiccup here is logged rather than masking the result).
-    session_status = (
-        SessionStatusCode.completed if (success and not blocked) else SessionStatusCode.failed
-    )
-    try:
-        asyncio.run(_update_session_status(token, session_status))
-        print(f'[{conversion_id}] session status -> {session_status.value} (blocked={blocked})')
-    except Exception as exc:  # noqa: BLE001
-        print(f'[{conversion_id}] session status update FAILED ({exc})')
-
-    # Refresh the footer's software/resource versions from the images just used,
-    # so a fix delivered via an upstream image is immediately observable after a
-    # verification run (best-effort; also captured on a schedule).
-    try:
-        from versions import capture_versions
-        capture_versions(workspace_base)
-    except Exception as exc:  # noqa: BLE001
-        print(f'[{conversion_id}] version capture FAILED ({exc})')
-
-    # TODO: insert output_file rows with run_number=run_number (PK = conversion_id,
-    #       run_number, ordinal), stored_path pointing under the workspace output/ dir.
     return {'success': success, 'run_number': run_number}
