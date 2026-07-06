@@ -1231,10 +1231,11 @@ def notify_new_conversion(
     return delivery_status
 
 
-async def _start_nef_workflow(conversion_id: int, run_number: int) -> None:
+async def _start_nef_workflow(conversion_id: int, run_number: int, log_path: str) -> None:
     """Create (or reset) the nef_release workflow row = processing so the download
     page can surface a 'NEF still generating' state while the deferred NEF release
-    runs. Inserts with the next ordinal, or resets an existing row on re-run."""
+    runs. Inserts with the next ordinal, or resets an existing row on re-run.
+    log_path is the NEF release report path (workflow.log_path is NOT NULL)."""
     engine = create_async_engine(SERVICE_DATABASE_URL, poolclass=NullPool)
     try:
         async with async_sessionmaker(engine, expire_on_commit=False)() as db:
@@ -1264,6 +1265,7 @@ async def _start_nef_workflow(conversion_id: int, run_number: int) -> None:
                         task=WfTaskCode.nef_release,
                         status=WfStatusCode.processing,
                         started_at=func.now(),
+                        log_path=log_path,
                     )
                 )
             else:
@@ -1293,7 +1295,7 @@ def _run_nef_release(conversion_id: int, run_number: int, workspace_base: str) -
     ws.ensure_run_dirs(conversion_id, run_number, workspace_base)  # deferred step needs work/
     nef_report = log_d / f'C_{conversion_id}_nmr-data-nef_release.json'
 
-    asyncio.run(_start_nef_workflow(conversion_id, run_number))
+    asyncio.run(_start_nef_workflow(conversion_id, run_number, str(nef_report)))
     nef = _generate_nef_release(
         conversion_id, run_number, workspace_base,
         src=out_dir / f'C_{conversion_id}_nmr-data.str',
