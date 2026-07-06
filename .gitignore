@@ -3,7 +3,8 @@ actions_runner*
 actions-runner/
 actions-runner*.tar.gz
 misc/
-backend/app/__pycache__
+**/__pycache__/
+prefect/data/.sdk_telemetry/
 certbot/cert/accounts
 certbot/cert/renewal
 certbot/cert/renewal-hooks
