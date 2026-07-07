@@ -115,7 +115,7 @@ CREATE TABLE IF NOT EXISTS upload_file (
 DROP TYPE IF EXISTS output_file_type;
 CREATE TYPE output_file_type AS ENUM (
     'pdbx', 'nmr-star', 'nef',
-    'json_report', 'text_report',
+    'json_report', 'pdf_report', 'text_report',
     'compressed'
 );
 

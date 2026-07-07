@@ -66,6 +66,15 @@ class UploadFileType(str, Enum):
     nm_aux_gro = 'nm-aux-gro'
     nm_aux_pdb = 'nm-aux-pdb'
     nm_aux_xea = 'nm-aux-xea'
+    nm_csp_ari = 'nm-csp-ari'
+    nm_csp_bar = 'nm-csp-bar'
+    nm_csp_gar = 'nm-csp-gar'
+    nm_csp_npi = 'nm-csp-npi'
+    nm_csp_oli = 'nm-csp-oli'
+    nm_csp_pip = 'nm-csp-pip'
+    nm_csp_ppm = 'nm-csp-ppm'
+    nm_csp_st2 = 'nm-csp-st2'
+    nm_csp_xea = 'nm-csp-xea'
     nm_pea_any = 'nm-pea-any'
     nm_pea_ari = 'nm-pea-ari'
     nm_pea_bar = 'nm-pea-bar'
@@ -125,6 +134,7 @@ class OutputFileType(str, Enum):
     nef = 'nef'
     nmr_star = 'nmr-star'
     pdbx = 'pdbx'
+    pdf_report = 'pdf_report'
     text_report = 'text_report'
 
 
