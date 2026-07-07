@@ -65,7 +65,16 @@
             "nm-shi-pip",
             "nm-shi-ppm",
             "nm-shi-st2",
-            "nm-shi-xea"
+            "nm-shi-xea",
+            "nm-csp-ari",
+            "nm-csp-bar",
+            "nm-csp-gar",
+            "nm-csp-npi",
+            "nm-csp-oli",
+            "nm-csp-pip",
+            "nm-csp-ppm",
+            "nm-csp-st2",
+            "nm-csp-xea"
           ]
         },
         "original_file_name": {
@@ -3990,18 +3999,14 @@
           ]
         },
         "under_sampling_type": {
-          "oneOf": [
-            {
-              "type": "string",
-              "enum": [
-                "folded",
-                "aliased",
-                "not observed"
-              ]
-            },
-            {
-              "type": "null"
-            }
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "folded",
+            "aliased",
+            "not observed"
           ]
         },
         "encoding_code": {
@@ -4063,22 +4068,18 @@
           ]
         },
         "type": {
-          "oneOf": [
-            {
-              "type": "string",
-              "enum": [
-                "onebond",
-                "jcoupling",
-                "jmultibond",
-                "relayed",
-                "relayed-alternate",
-                "through-space",
-                "through-space?"
-              ]
-            },
-            {
-              "type": "null"
-            }
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "onebond",
+            "jcoupling",
+            "jmultibond",
+            "relayed",
+            "relayed-alternate",
+            "through-space",
+            "through-space?"
           ]
         }
       },
@@ -5295,6 +5296,10 @@
           "type": "string",
           "minLength": 1
         },
+        "distance_type": {
+          "type": "string",
+          "minLength": 1
+        },
         "dihedral_angle_name": {
           "type": "string",
           "minLength": 1
@@ -5454,6 +5459,16 @@
           "description": "Total number of parsed item (chemical shifts, restraints, spectral peaks) with warnings.",
           "type": "integer",
           "minimum": 0
+        },
+        "atom_name_mapping": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/definitions/atom_name_mapping",
+            "minItems": 1
+          }
         }
       },
       "required": [
