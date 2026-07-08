@@ -463,7 +463,7 @@
               <tbody>
                 @for (p of restraintProps(); track $index) {
                   <tr class="border-b border-surface-100 dark:border-surface-800">
-                    <td class="px-2 py-1 font-medium align-top w-96">{{ p.label }}</td>
+                    <td class="px-2 py-1 font-medium align-top w-96" [innerHTML]="p.label"></td>
                     <td class="px-2 py-1 break-all">{{ p.value }}</td>
                   </tr>
                 }
