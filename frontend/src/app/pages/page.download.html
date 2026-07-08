@@ -135,5 +135,23 @@
   <!-- Conversion statics report -->
   <div class="card">
     <div class="font-semibold text-xl mb-6">Conversion statistics</div>
+
+    <!-- /information/output_statistics/[entry_id, entry_title, entry_authors, submission_date, processed_date, processed_site, file_name, file_type, file_size, md5_checksum, model/* (if not null)] -->
+    <p-card header="Entry information" styleClass="mb-6"></p-card>
+
+    <!-- /information/output_statistics/assembly/* -->
+    <p-card header="Assembly information" styleClass="mb-6"></p-card>
+
+    <!-- /information/output_statistics/entity/* -->
+    <p-card header="Entity information" styleClass="mb-6"></p-card>
+
+    <!-- /information/output_statistics/software/* -->
+    <p-card header="Software information" styleClass="mb-6"></p-card>
+
+    <!-- /information/output_statistics/chem_shift_summary, chem_shift (subsection)] -->
+    <p-card header="Chemical shift validation" styleClass="mb-6"></p-card>
+
+    <!-- /information/output_statistics/[restraint_summary, dist_restraint (subsection), dihed_restraint (subsection), rdc_restraint (subsection), spectral_peak (subsection)]] -->
+    <p-card header="NMR restraint analysiss" styleClass="mb-6"></p-card>
   </div>
 }
