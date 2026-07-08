@@ -12,12 +12,23 @@ import { switchMap, takeWhile } from 'rxjs/operators';
 
 import { PageService } from './page.service';
 import { API_URL } from '../../site.config';
+import { fileTypeLabel } from './file-types';
 
 /** One conversion-result file bundled in the download zip. */
 interface OutputFileRow {
   name: string;
   file_type: string;
   file_size: number;
+}
+
+/** A selected upload file participating in the conversion (GET /api/files). */
+interface UploadFileRow {
+  original_name: string;
+  file_size: number;
+  file_type: string;
+  source: string;
+  /** Upload time as a naive UTC string ("YYYY-MM-DD HH:mm"); see GET /api/files. */
+  uploaded_at: string | null;
 }
 
 // ── Conversion statistics (GET /api/output_statistics) ─────────────────────────
@@ -208,6 +219,23 @@ export class Download {
       statsFetched = true;
       this.loadStatistics(token);
     });
+
+    // Load the upload (input) file listing once, for the provenance card.
+    let inputFilesFetched = false;
+    effect(() => {
+      const token = this.pageService.pageState().tokenBase;
+      if (!token || inputFilesFetched) return;
+      inputFilesFetched = true;
+      this.loadInputFiles(token);
+    });
+  }
+
+  /** Fetch GET /api/files → the files the user uploaded for this conversion. */
+  private loadInputFiles(token: string): void {
+    this.http.get<{ files: UploadFileRow[] }>(API_URL + 'files', { params: { token } }).subscribe({
+      next: (res) => this.inputFiles.set(res.files ?? []),
+      error: (err) => console.error('Failed to load upload files', err),
+    });
   }
 
   /** Fetch GET /api/output_statistics → the pruned output_statistics subtree. */
@@ -230,6 +258,11 @@ export class Download {
 
   /** Conversion result files bundled in the zip (GET /api/output_files). */
   files = signal<OutputFileRow[]>([]);
+
+  /** Files the user uploaded for this conversion (GET /api/files). */
+  inputFiles = signal<UploadFileRow[]>([]);
+  /** Show the Source column only when a file did not come from the user. */
+  showInputSource = computed(() => this.inputFiles().some((f) => f.source !== 'user'));
 
   /** The deferred NMR-STAR→NEF release is still running (poll until it clears). */
   nefGenerating = signal(false);
@@ -491,6 +524,20 @@ export class Download {
   /** Human-readable label for an output_file_type. */
   typeLabel(fileType: string): string {
     return OUTPUT_TYPE_LABELS[fileType] ?? fileType;
+  }
+
+  /** Human-readable label for an upload (input) file type. */
+  inputTypeLabel(value: string): string {
+    return fileTypeLabel(value);
+  }
+
+  sourceLabel(source: string): string {
+    return source === 'bmrb' ? 'BMRB' : 'User';
+  }
+
+  /** Date portion only of the naive-UTC upload timestamp ("YYYY-MM-DD"). */
+  uploadDate(value: string | null): string {
+    return value ? value.slice(0, 10) : '';
   }
 
   /** Build a Property/Value row, or null when the value is empty (so the caller

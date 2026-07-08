@@ -144,8 +144,45 @@
       </p>
     } @else {
       <!-- /information/output_statistics/[entry_id, entry_title, entry_authors, submission_date, processed_date, processed_site, file_name, file_type, file_size, md5_checksum, model/* (if not null)] -->
-      <p-card header="Entry information" styleClass="mb-6">
+      <p-card header="Provenance information" styleClass="mb-6">
         <div class="overflow-x-auto">
+          <p class="text-lg mb-2">Input files</p>
+          <p-table
+            [value]="inputFiles()"
+            styleClass="p-datatable-sm mb-6"
+            [tableStyle]="{ 'min-width': '50rem' }"
+          >
+            <ng-template pTemplate="header">
+              <tr>
+                <th>Original file name</th>
+                <th class="w-28">Size</th>
+                <th>File type</th>
+                <th class="w-32">Upload date</th>
+                @if (showInputSource()) {
+                  <th class="w-24">Source</th>
+                }
+              </tr>
+            </ng-template>
+            <ng-template pTemplate="body" let-file let-i="rowIndex">
+              <tr>
+                <td class="font-mono break-all">{{ file.original_name }}</td>
+                <td>{{ formatSize(file.file_size) }}</td>
+                <td>{{ inputTypeLabel(file.file_type) }}</td>
+                <td>{{ uploadDate(file.uploaded_at) }}</td>
+                @if (showInputSource()) {
+                  <td>{{ sourceLabel(file.source) }}</td>
+                }
+              </tr>
+            </ng-template>
+            <ng-template pTemplate="emptymessage">
+              <tr>
+                <td [attr.colspan]="showInputSource() ? 6 : 5" class="text-center text-surface-500 py-4">
+                  No files found for this conversion.
+                </td>
+              </tr>
+            </ng-template>
+          </p-table>
+          <p class="text-lg mb-2">Output files</p>
           <table class="w-full text-sm border-collapse">
             <tbody>
               @for (p of entryProps(); track $index) {
