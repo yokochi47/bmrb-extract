@@ -1,10 +1,14 @@
 import hashlib
 import html
+import io
 import json
 import os
 import re
+import smtplib
 import traceback
+import zipfile
 from datetime import datetime, timedelta
+from email.message import EmailMessage
 from pathlib import Path
 
 import httpx
@@ -16,6 +20,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import NullPool
 
 from core.models import (
+    Communication,
+    DeliveryStatusCode,
     OutputFile,
     OutputFileType,
     Session,
@@ -36,7 +42,9 @@ from core.site_config import (
     FAILURE_VALIDITY_PERIOD_IN_DAYS,
     SERVICE_ADMIN_EMAIL,
     SERVICE_DATABASE_URL,
+    SERVICE_HELP_EMAIL,
     SERVICE_HOST,
+    SMTP_SERVER,
     WORKSPACE_BASE_PATH,
 )
 
@@ -148,6 +156,9 @@ async def get_session():
         return {
             'conversion_id': session_row.conversion_id,
             'expired': expired,
+            # Date (YYYY-MM-DD) the session and its results stay accessible.
+            'token_expiry': session_row.token_expiry.date().isoformat(),
+            'consented': bool(session_row.consented),
             'target_depsys': session_row.target_depsys,
             'related_bmrb_id': session_row.related_bmrb_id,
             'approved': bool(session_row.approved),
@@ -224,7 +235,10 @@ async def get_upload_files():
     token regardless of selection or run, with the fields needed to rebuild the
     upload table rows. BMRB-sourced rows are excluded — they are auto-managed at
     process time and are not user-editable.
-    Returns: { files: [{ ordinal, original_name, file_size, file_type, selected }] }
+    `uploaded_at` is the naive UTC wall-clock time (as in GET /api/files), best
+    used to tell re-uploaded rows apart from a fresh upload.
+    Returns: { files: [{ ordinal, original_name, file_size, file_type, selected,
+    uploaded_at }] }
     """
     token = request.args.get('token')
     if not token:
@@ -237,6 +251,10 @@ async def get_upload_files():
         if session_row is None:
             return {'error': 'session not found'}, 404
 
+        # naive local (DB session tz) → UTC wall-clock time; see GET /api/files.
+        uploaded_at_utc = func.timezone(
+            'UTC', func.timezone(func.current_setting('TIMEZONE'), UploadFile.uploaded_at)
+        )
         result = await db.execute(
             select(
                 UploadFile.ordinal,
@@ -244,6 +262,7 @@ async def get_upload_files():
                 UploadFile.file_size,
                 UploadFile.file_type,
                 UploadFile.selected,
+                uploaded_at_utc.label('uploaded_at_utc'),
             )
             .where(
                 UploadFile.token == token,
@@ -258,6 +277,11 @@ async def get_upload_files():
                 'file_size': row.file_size,
                 'file_type': row.file_type,
                 'selected': bool(row.selected),
+                'uploaded_at': (
+                    row.uploaded_at_utc.isoformat(sep=' ', timespec='minutes')
+                    if row.uploaded_at_utc is not None
+                    else None
+                ),
             }
             for row in result.all()
         ]
@@ -275,7 +299,7 @@ _PROGRESS_TASKS = [
 ]
 _TASK_LOG_FILE = {
     'convert_model': 'C_{cid}_model-check.log',
-    'convert_nmr_data': 'C_{cid}-nmr-data.stdout.log',
+    'convert_nmr_data': 'C_{cid}_nmr-data.stdout.log',
 }
 _LOG_TAIL_BYTES = 64 * 1024
 
@@ -433,6 +457,307 @@ async def get_coordinate():
         download_name=f'C_{conversion_id}_model.cif',
         conditional=True,
     )
+
+
+def _download_output_rows(rows):
+    """Filter a run's output_file rows to the set bundled in the download zip:
+    the deposition files (coordinate, NMR-STAR, optional NEF) plus only the last
+    conversion task's JSON report. The maxit coordinate-check log (text_report)
+    and the intermediate JSON reports are dropped — the summary page still reads
+    the full harvest, but the download carries just the final deliverables.
+
+    "Last conversion task's JSON report" = the most recently written json_report,
+    excluding the optional NMR-STAR→NEF release report (*-nef_release.json): that
+    step runs last but is optional, so its report is ignored here. `rows` order is
+    preserved.
+    """
+    json_rows = [
+        r
+        for r in rows
+        if r.file_type == OutputFileType.json_report.value
+        and 'nef_release' not in Path(r.stored_path).name
+    ]
+    chosen_json = None
+    if json_rows:
+        def _mtime(r):
+            try:
+                return Path(r.stored_path).stat().st_mtime
+            except OSError:
+                return -1.0
+        chosen_json = max(json_rows, key=_mtime)
+
+    kept = []
+    for row in rows:
+        if row.file_type == OutputFileType.text_report.value:
+            continue
+        if row.file_type == OutputFileType.json_report.value:
+            if row is chosen_json:
+                kept.append(row)
+            continue
+        kept.append(row)
+    return kept
+
+
+@app.route('/api/download', methods=['GET'])
+async def download_results():
+    """Stream the session's latest-run conversion results as C_<cid>.zip and mark
+    the session downloaded (Terms #7 / #8). Token-scoped.
+
+    The zip bundles the deposition files (converted coordinate, NMR-STAR, optional
+    NEF) and the last conversion task's JSON report (see _download_output_rows).
+    Unlike GET /api/coordinate
+    (a read-only preview), this is the official download: it requires the user to
+    have approved the status, flips session.downloaded — which locks the session
+    read-only (no further re-upload) — and stamps each output_file with
+    downloaded / downloaded_at / client_ip / user_agent.
+    """
+    token = request.args.get('token')
+    if not token:
+        return {'error': 'token is required'}, 400
+
+    async with async_session_factory() as db:
+        session_row = (
+            await db.execute(select(Session).where(Session.token == token))
+        ).scalar_one_or_none()
+        if session_row is None:
+            return {'error': 'session not found'}, 404
+        conversion_id = session_row.conversion_id
+        run_number = session_row.latest_run_number
+        if conversion_id is None or run_number < 1:
+            return {'error': 'no conversion results available'}, 404
+        if not session_row.approved:
+            return {'error': 'results not approved for download'}, 409
+
+        output_rows = (
+            (
+                await db.execute(
+                    select(OutputFile)
+                    .where(
+                        OutputFile.conversion_id == conversion_id,
+                        OutputFile.run_number == run_number,
+                    )
+                    .order_by(OutputFile.ordinal.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        # Build the zip from the files present on disk (best-effort: skip a
+        # missing row so a partial harvest still yields a usable archive).
+        buf = io.BytesIO()
+        added = 0
+        with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for row in _download_output_rows(output_rows):
+                fpath = Path(row.stored_path)
+                if fpath.is_file():
+                    zf.write(str(fpath), arcname=fpath.name)
+                    added += 1
+        if added == 0:
+            return {'error': 'no conversion results available'}, 404
+        buf.seek(0)
+
+        # Record the download and lock the session read-only (Terms #7 / #8).
+        await db.execute(
+            update(OutputFile)
+            .where(
+                OutputFile.conversion_id == conversion_id,
+                OutputFile.run_number == run_number,
+            )
+            .values(
+                downloaded=True,
+                downloaded_at=datetime.now(),
+                client_ip=request.remote_addr,
+                user_agent=request.headers.get('User-Agent', ''),
+            )
+        )
+        session_row.downloaded = True
+        await db.commit()
+
+    return send_file(
+        buf,
+        mimetype='application/zip',
+        as_attachment=True,
+        download_name=f'C_{conversion_id}.zip',
+    )
+
+
+@app.route('/api/output_files', methods=['GET'])
+async def get_output_files():
+    """List the session's latest-run conversion result files — the contents of the
+    C_<cid>.zip download: name, output_file_type and size. Token-scoped, read-only
+    (mirrors GET /api/download's file selection, so only files present on disk are
+    listed). Returns: { files: [{ name, file_type, file_size }] }
+    """
+    token = request.args.get('token')
+    if not token:
+        return {'error': 'token is required'}, 400
+
+    async with async_session_factory() as db:
+        session_row = (
+            await db.execute(select(Session).where(Session.token == token))
+        ).scalar_one_or_none()
+        if session_row is None:
+            return {'error': 'session not found'}, 404
+        conversion_id = session_row.conversion_id
+        run_number = session_row.latest_run_number
+        if conversion_id is None or run_number < 1:
+            return {'files': []}, 200
+
+        rows = (
+            (
+                await db.execute(
+                    select(OutputFile)
+                    .where(
+                        OutputFile.conversion_id == conversion_id,
+                        OutputFile.run_number == run_number,
+                    )
+                    .order_by(OutputFile.ordinal.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        # The NEF release runs deferred (after the session completes). It is "still
+        # generating" while its workflow row is pending/processing and no NEF output
+        # has been harvested yet — the download page polls on this.
+        nef_status = (
+            await db.execute(
+                select(Workflow.status).where(
+                    Workflow.conversion_id == conversion_id,
+                    Workflow.run_number == run_number,
+                    Workflow.task == WfTaskCode.nef_release.value,
+                )
+            )
+        ).scalar_one_or_none()
+
+    has_nef = any(row.file_type == OutputFileType.nef.value for row in rows)
+    nef_generating = (
+        nef_status in (WfStatusCode.pending.value, WfStatusCode.processing.value) and not has_nef
+    )
+    files = [
+        {
+            'name': Path(row.stored_path).name,
+            'file_type': row.file_type,
+            'file_size': row.file_size,
+        }
+        for row in _download_output_rows(rows)
+        if Path(row.stored_path).is_file()
+    ]
+    return {'files': files, 'nef_generating': nef_generating}, 200
+
+
+@app.route('/api/verify_email', methods=['POST'])
+async def verify_email():
+    """Validate a recipient address for the download page's "Send this URL by
+    mail" (before the URL is emailed). Checks the address format and that its
+    domain has MX records (deliverability); no SMTP-RCPT probe (unreliable /
+    often blocked). Returns: { valid: bool }.
+
+    JSON body: { email }
+    """
+    body = request.get_json(silent=True) or {}
+    email = (body.get('email') or '').strip()
+    if not email:
+        return {'error': 'email is required'}, 400
+
+    # Lazy import so the service keeps running if the image predates the
+    # py3-validate-email dependency (rebuild required for this endpoint).
+    try:
+        from validate_email import validate_email as _validate_email
+    except ImportError:
+        return {'error': 'email validation unavailable'}, 503
+
+    valid = bool(
+        _validate_email(email, check_blacklist=False, check_smtp=False, dns_timeout=5)
+    )
+    return {'valid': valid}, 200
+
+
+def _send_email(to_address: str, subject: str, content: str) -> str:
+    """Send a plain-text email via the internal relay (port 25, best-effort).
+    Returns the DeliveryStatusCode value ('sent' or 'failed')."""
+    try:
+        msg = EmailMessage()
+        msg['Subject'] = subject
+        msg['From'] = SERVICE_ADMIN_EMAIL
+        msg['To'] = to_address
+        msg['Reply-To'] = SERVICE_HELP_EMAIL
+        msg.set_content(content)
+        with smtplib.SMTP(SMTP_SERVER, 25, timeout=15) as smtp:
+            smtp.send_message(msg)
+        return DeliveryStatusCode.sent.value
+    except Exception as exc:  # noqa: BLE001
+        app.logger.error('resume-url email to %s failed: %s', to_address, exc)
+        return DeliveryStatusCode.failed.value
+
+
+@app.route('/api/send_resume_url', methods=['POST'])
+async def send_resume_url():
+    """Email the session's resumable URL to a recipient and log it as a
+    communication. JSON body: { token, email }. The address is re-validated
+    (format + MX) server-side; the URL is https://<host>/info?token=<token>.
+    Returns: { delivery_status }.
+    """
+    body = request.get_json(silent=True) or {}
+    token = body.get('token')
+    email = (body.get('email') or '').strip()
+    if not token or not email:
+        return {'error': 'token and email are required'}, 400
+
+    # Re-validate server-side (don't trust the client's verified flag).
+    try:
+        from validate_email import validate_email as _validate_email
+    except ImportError:
+        return {'error': 'email validation unavailable'}, 503
+    if not bool(_validate_email(email, check_blacklist=False, check_smtp=False, dns_timeout=5)):
+        return {'error': 'invalid email address'}, 400
+
+    async with async_session_factory() as db:
+        session_row = (
+            await db.execute(select(Session).where(Session.token == token))
+        ).scalar_one_or_none()
+        if session_row is None:
+            return {'error': 'session not found'}, 404
+        conversion_id = session_row.conversion_id
+        if conversion_id is None:
+            return {'error': 'session not yet processed'}, 409
+
+        resume_url = f'https://{SERVICE_HOST}/info?token={token}'
+        subject = f'Resume your NMR data conversion session (C_{conversion_id})'
+        content = (
+            f'You can resume or review your NMR data conversion session '
+            f'(C_{conversion_id}) until it expires using this link:\n\n'
+            f'{resume_url}\n\n'
+            f'If you did not request this message, please ignore it.\n'
+            f'For assistance, contact {SERVICE_HELP_EMAIL}.\n'
+        )
+        delivery_status = _send_email(email, subject, content)
+
+        # Log it in the communication table (ordinal per conversion).
+        max_ord = (
+            await db.execute(
+                select(func.max(Communication.ordinal)).where(
+                    Communication.conversion_id == conversion_id
+                )
+            )
+        ).scalar_one_or_none() or 0
+        db.add(
+            Communication(
+                conversion_id=conversion_id,
+                ordinal=max_ord + 1,
+                subject=subject,
+                content=content,
+                email_address=email,
+                delivery_status=delivery_status,
+            )
+        )
+        await db.commit()
+
+    if delivery_status != DeliveryStatusCode.sent.value:
+        return {'error': 'failed to send email', 'delivery_status': delivery_status}, 502
+    return {'delivery_status': delivery_status}, 200
 
 
 # ── Coordinate geometry validation (pdbx_validate_* outliers in the converted mmCIF) ──
@@ -1012,35 +1337,52 @@ _NMR_SUBTYPE_NAMES = {
 _SUPERSCRIPT = str.maketrans('0123456789', '⁰¹²³⁴⁵⁶⁷⁸⁹')
 _ISOTOPE_RE = re.compile(r'(\d+)([a-zA-Z]+)')
 
-
-def _iso_label(key):
-    """Format an isotope-bearing key (e.g. '1h_chemical_shifts', 'all_13c_…',
-    '15n') into a superscript-mass element label like ¹H / ¹³C / ¹⁵N. Falls back
-    to a title-cased label when no isotope token is found."""
+def _normalize_label(key):
+    """1. Format an isotope-bearing key (e.g. '1h_chemical_shifts', 'all_13c_…',
+    '15n') into a superscript-mass element label like ¹H / ¹³C / ¹⁵N.
+    2. Prettify a constraint-type key, e.g. 'medium_range_constraints_backbone-backbone'
+    → 'Medium range (bb-bb)'."""
     m = _ISOTOPE_RE.search(key)
     if m:
         return m.group(1).translate(_SUPERSCRIPT) + m.group(2).upper()
-    return key.replace('_', ' ').strip().title()
+    key = key[0].upper() + key[1:]
+    key = key.replace('_constraints', '')\
+	.replace('backbone-backbone', '(bb-bb)')\
+        .replace('backbone-sidechain', '(bb-sc)')\
+	.replace('sidechain-sidechain', '(sc-sc)')
+    return key.replace('_', ' ').strip()
+
+def _annotation_x(value, rov, inverse=False):
+    """Precise fractional position of `value` on the hidden marker axis (xAxis
+    index 1, spanning 0 … n+1) that overlays the histogram's category axis. Bin
+    i's band centre (index i) is the bin midpoint v_i + step/2, so `value` sits
+    at (value - r0)/(rn - r0) * n. Marking this exact spot (rather than snapping
+    to the bin) spreads multiple outliers that fall in the same bin, so their
+    labels no longer stack on one line. Clamped to the plot extent (band edges of
+    the first/last bins)."""
+    r0, rn, n = rov[0], rov[-1], len(rov)
+    if rn == r0:
+        return 0.0
+    frac = (value - r0) / (rn - r0) * n
+    return max(0.0, min(n + 1.0, n + 1.0 - frac if inverse else frac))
 
 
-def _histogram_annotations(h):
+def _histogram_annotations(h, inverse=False):
     """Per-outlier annotations for a normalized chemical-shift histogram: a dashed
-    marker at the bin holding each anomalous/unusual value (by Z score) with a
-    short description. Empty for histograms without Z-score annotations."""
+    marker at each anomalous/unusual value (by Z score) with a short description.
+    Empty for histograms without Z-score annotations."""
     rov = h.get('range_of_values') or []
     ann = h.get('annotations') or []
     if len(rov) < 2 or not ann:
         return []
-    r0, scale = rov[0], rov[1] - rov[0]
-    cats = [str(v) for v in rov]
+    scale = rov[1] - rov[0]
     out = []
     for a in sorted(ann, key=lambda x: -(x.get('z_score') or 0)):
         z = a.get('z_score')
         if not isinstance(z, (int, float)) or not scale:
             continue
-        idx = max(0, min(len(cats) - 1, round((z - r0) / scale)))
         out.append({
-            'category': cats[idx],
+            'x': _annotation_x(z, rov, inverse),
             'anomalous': a.get('level') == 'anomalous',
             'text': (f"{a.get('chain_id')}:{a.get('seq_id')}:{a.get('comp_id')}:"
                      f"{a.get('atom_id')}, {a.get('value')} ppm, Z score {z}"),
@@ -1048,47 +1390,114 @@ def _histogram_annotations(h):
     return out
 
 
-def _histogram_chart(stat_list):
+def _discrepancy_ann(h, text_fn, inverse=False):
+    """Per-outlier annotations for a *-discrepancy histogram: a dashed marker at
+    each redundant-restraint outlier's discrepancy value (red for conflicts),
+    labelled by `text_fn(a, discrepancy)`. Shared by the distance, dihedral-angle
+    and RDC discrepancy charts."""
+    rov = h.get('range_of_values') or []
+    ann = h.get('annotations') or []
+    if len(rov) < 2 or not ann:
+        return []
+    scale = rov[1] - rov[0]
+    out = []
+    for a in sorted(ann, key=lambda x: x.get('discrepancy') or 0):
+        d = a.get('discrepancy')
+        if not isinstance(d, (int, float)) or not scale:
+            continue
+        out.append({
+            'x': _annotation_x(d, rov, inverse),
+            'anomalous': a.get('level') == 'conflict',
+            'text': text_fn(a, d),
+        })
+    return out
+
+
+def _dist_discrepancy_text(a, d):
+    """Atom-pair label for a distance-restraint discrepancy outlier. Mirrors
+    misc/utils_nmr.py::nmr_dp_report_dist_discrepancy_to_chart_label."""
+    text = f"{a.get('chain_id_1')}:{a.get('seq_id_1')}:{a.get('comp_id_1')}:{a.get('atom_id_1')} - "
+    if 'chain_id_2' in a:
+        text += f"{a.get('chain_id_2')}:{a.get('seq_id_2')}:{a.get('comp_id_2')}:"
+    elif 'seq_id_2' in a:
+        text += f"{a.get('seq_id_2')}:{a.get('comp_id_2')}:"
+    return text + f"{a.get('atom_id_2')}, {d}"
+
+
+def _dihed_discrepancy_text(a, d):
+    """Single-residue, four-atom label for a dihedral-restraint discrepancy
+    outlier. Mirrors nmr_dp_report_dihed_discrepancy_to_chart_label."""
+    atoms = '-'.join(str(a[k]) for k in ('atom_id_1', 'atom_id_2', 'atom_id_3', 'atom_id_4') if k in a)
+    return f"{a.get('chain_id')}:{a.get('seq_id')}:{a.get('comp_id')}:{atoms}, {d}"
+
+
+def _rdc_discrepancy_text(a, d):
+    """Single-residue, atom-pair label for an RDC-restraint discrepancy outlier.
+    Mirrors nmr_dp_report_rdc_discrepancy_to_chart_label."""
+    return (f"{a.get('chain_id')}:{a.get('seq_id')}:{a.get('comp_id')}:"
+            f"{a.get('atom_id_1')}-{a.get('atom_id_2')}, {d}")
+
+
+def _discrepancy_annotations(h, inverse=False):
+    return _discrepancy_ann(h, _dist_discrepancy_text, inverse)
+
+
+def _dihed_discrepancy_annotations(h, inverse=False):
+    return _discrepancy_ann(h, _dihed_discrepancy_text, inverse)
+
+
+def _rdc_discrepancy_annotations(h, inverse=False):
+    return _discrepancy_ann(h, _rdc_discrepancy_text, inverse)
+
+
+def _histogram_chart(stat_list, inverse=False, annotate=_histogram_annotations):
     """Build [{label, categories, series, annotations}] from a stats list's
     `histogram` ({range_of_values, number_of_values: {key: [counts]}}). All-zero
-    series are dropped; annotations mark outliers (chem-shift Z scores)."""
+    series are dropped; `annotate` marks outliers (chem-shift Z scores by default,
+    distance discrepancies for the discrepancy histogram)."""
     charts = []
     for st in stat_list or []:
         h = st.get('histogram')
         if not isinstance(h, dict) or not h.get('range_of_values'):
             continue
-        categories = [str(v) for v in h['range_of_values']]
+        rov = h.get('range_of_values')
+        scale = rov[1] - rov[0]
+        categories = [f'({v + scale}, {v}]' if inverse else f'[{v}, {v + scale})'
+                      for v in h['range_of_values']]
         nov = h.get('number_of_values') or {}
+        # Order distance constraint-type series canonically (no-op for others).
         series = [
-            {'name': _iso_label(k), 'data': v}
-            for k, v in nov.items()
+            {'name': _normalize_label(k), 'data': v}
+            for k, v in sorted(nov.items(), key=lambda kv: _constraint_order(kv[0]))
             if isinstance(v, list) and any(v)
         ]
         if series:
             charts.append({'label': st.get('sf_framecode', ''),
                            'categories': categories, 'series': series,
-                           'annotations': _histogram_annotations(h)})
+                           'annotations': annotate(h, inverse)})
     return charts
 
 
 def _dihedral_charts(stat_list):
     """Build [{label, phi_psi, chi1_chi2}] scatter+error data from a
-    dihed_restraint stats list. Each plot → {points:[{name,x,y}], errors:[[...]]}.
-    errors arrays are [x, y, x_low, x_high, y_low, y_high] (absolute)."""
+    dihed_restraint stats list. Each plot → {groups:[{comp_id, points:[{x,y,seq_id}],
+    errors:[[...]]}]}. `plot['values']`/`plot['errors']` are keyed by comp_id, so
+    points and their error bars stay grouped per residue type (one scatter + one
+    error-bar series each, sharing a name so the legend toggles both). Error
+    arrays are [x, y, x_low, x_high, y_low, y_high] (absolute)."""
     def _plot(plot):
         if not isinstance(plot, dict) or not plot.get('values'):
             return None
-        points, errors = [], []
-        for vals in plot['values'].values():
-            for p in vals:
-                if len(p) >= 3:
-                    points.append({'name': str(p[2]), 'x': p[0], 'y': p[1]})
-        for errs in (plot.get('errors') or {}).values():
-            for e in errs:
-                errors.append(e)
-        if not points:
+        errors_by_comp = plot.get('errors') or {}
+        groups = []
+        for comp_id, vals in plot['values'].items():
+            pts = [{'x': p[0], 'y': p[1], 'seq_id': ':'.join(p[2].split(':')[:2]) + ':'} for p in vals if len(p) >= 3]
+            if pts:
+                groups.append({'comp_id': comp_id, 'points': pts,
+                               'errors': errors_by_comp.get(comp_id) or []})
+        if not groups:
             return None
-        return {'points': points, 'errors': errors}
+        return {'groups': groups}
 
     charts = []
     for st in stat_list or []:
@@ -1106,6 +1515,38 @@ def _dihedral_charts(stat_list):
 
 _STRUCT_CONF_TYPES = {'HELX': 'helix', 'STRN': 'strand', 'TURN': 'turn'}
 _PER_RESIDUE_SKIP = {'chain_id', 'seq_id', 'comp_id', 'struct_conf'}
+
+
+def _constraint_order(key):
+    """Canonical display order for a distance-restraint constraint-type key:
+    intra-residue, sequential (bb-bb, bb-sc, sc-sc), medium range (bb-bb, bb-sc,
+    sc-sc), long range, inter-chain, symmetric. Returns a sort tuple; keys that
+    aren't distance constraint types (e.g. chem-shift isotopes) fall to the end,
+    keeping their original order under a stable sort. Matches on prefix so the
+    hyphen/underscore spelling of the keys doesn't matter."""
+    k = key.lower()
+    # Backbone/side-chain sub-order within sequential / medium-range groups.
+    if 'backbone-backbone' in k:
+        sub = 0
+    elif 'backbone-sidechain' in k:
+        sub = 1
+    elif 'sidechain-sidechain' in k:
+        sub = 2
+    else:
+        sub = 3
+    if k.startswith('intra'):
+        return (0, 0)
+    if k.startswith('sequential'):
+        return (1, sub)
+    if k.startswith('medium'):
+        return (2, sub)
+    if k.startswith('long'):
+        return (3, 0)
+    if k.startswith('inter'):
+        return (4, 0)
+    if k.startswith('symmetric'):
+        return (5, 0)
+    return (99, 0)
 
 
 def _sc_type(sc):
@@ -1138,13 +1579,6 @@ def _struct_conf_bands(struct_conf):
     return bands
 
 
-def _constraint_label(key):
-    """Prettify a constraint-type key, e.g. 'medium_range_constraints_backbone-backbone'
-    → 'Medium range backbone-backbone'."""
-    s = key.replace('_constraints', '').replace('_', ' ').strip()
-    return s[:1].upper() + s[1:] if s else key
-
-
 def _per_residue_charts(stat_list):
     """Per-chain stacked per-residue constraint counts from `constraints_per_residue`,
     with secondary-structure bands. All-zero metrics are dropped."""
@@ -1157,8 +1591,8 @@ def _per_residue_charts(stat_list):
                 continue
             cats = [f"{comp[i] if i < len(comp) else ''} {seq[i]}".strip() for i in range(len(seq))]
             series = [
-                {'name': _constraint_label(k), 'data': v}
-                for k, v in pr.items()
+                {'name': _normalize_label(k), 'data': v}
+                for k, v in sorted(pr.items(), key=lambda kv: _constraint_order(kv[0]))
                 if k not in _PER_RESIDUE_SKIP and isinstance(v, list)
                 and any(isinstance(x, (int, float)) and x for x in v)
             ]
@@ -1174,36 +1608,60 @@ def _per_residue_charts(stat_list):
     return charts
 
 
-def _discrepancy_charts(stat_list):
-    """Histogram charts from `histogram_of_discrepancy` (same shape as `histogram`)."""
+def _discrepancy_charts(stat_list, annotate=_discrepancy_annotations):
+    """Histogram charts from `histogram_of_discrepancy` (same shape as `histogram`),
+    with outlier markers for redundant-restraint discrepancies. `annotate` selects
+    the outlier-label style (distance / dihedral-angle / RDC)."""
     out = []
     for st in stat_list or []:
         hd = st.get('histogram_of_discrepancy')
         if isinstance(hd, dict) and hd.get('range_of_values'):
-            out.extend(_histogram_chart([{'sf_framecode': st.get('sf_framecode', ''), 'histogram': hd}]))
+            out.extend(_histogram_chart([{'sf_framecode': st.get('sf_framecode', ''), 'histogram': hd}],
+                                        annotate=annotate))
+    return out
+
+
+def _map_bands(seq, struct_conf):
+    """Secondary-structure bands for a contact-map axis: {start, end, type, label}
+    with start/end as residue seq_id VALUES (each band spans [start-0.5, end+0.5]
+    on the value axis). Empty when the axis has no struct_conf."""
+    seq = seq or []
+    out = []
+    for b in _struct_conf_bands(struct_conf):
+        if b['start'] < len(seq) and b['end'] < len(seq):
+            out.append({'start': seq[b['start']], 'end': seq[b['end']],
+                        'type': b['type'], 'label': b['label']})
     return out
 
 
 def _contact_map_charts(stat_list):
     """Symmetric contact maps from `constraints_on_contact_map`: per chain, one
-    series per constraint type with points [seq_id_1, seq_id_2, total]."""
+    series per constraint type with points [seq_id_1, seq_id_2, total]. `bands`
+    are the secondary-structure regions, drawn on both axes (shared sequence)."""
     charts = []
     for st in stat_list or []:
         for cm in st.get('constraints_on_contact_map') or []:
             seq = cm.get('seq_id') or []
             if not seq:
                 continue
+            comp = cm.get('comp_id') or []
+            comp_by_seq = {s: comp[i] for i, s in enumerate(seq) if i < len(comp)}
             series = []
-            for k, v in cm.items():
+            for k, v in sorted(cm.items(), key=lambda kv: _constraint_order(kv[0])):
                 if k in _PER_RESIDUE_SKIP or not isinstance(v, list):
                     continue
-                pts = [[d['seq_id_1'], d['seq_id_2'], d.get('total', 1)]
+                # Each point carries the two residues' names so the tooltip can
+                # label them "<comp> <seq>" (see the frontend contactMapOption).
+                pts = [{'value': [d['seq_id_1'], d['seq_id_2'], d.get('total', 1)],
+                        'c1': comp_by_seq.get(d['seq_id_1'], ''),
+                        'c2': comp_by_seq.get(d['seq_id_2'], '')}
                        for d in v if isinstance(d, dict) and 'seq_id_1' in d]
                 if pts:
-                    series.append({'name': _constraint_label(k), 'points': pts})
+                    series.append({'name': _normalize_label(k), 'points': pts})
             if series:
                 charts.append({'chain': cm.get('chain_id'), 'label': st.get('sf_framecode', ''),
-                               'min': min(seq), 'max': max(seq), 'series': series})
+                               'min': min(seq), 'max': max(seq), 'series': series,
+                               'bands': _map_bands(seq, cm.get('struct_conf'))})
     return charts
 
 
@@ -1211,7 +1669,7 @@ def _dim_atom(d):
     """Spectral-dimension atom label, e.g. isotope 13 + type 'C' → ¹³C."""
     iso = d.get('atom_isotope_number')
     atom = d.get('atom_type') or ''
-    return _iso_label(f'{iso}{atom}') if iso and atom else atom
+    return _normalize_label(f'{iso}{atom}') if iso and atom else atom
 
 
 def _spectral_peak_saveframes(sp_list, aligns):
@@ -1259,7 +1717,8 @@ def _angle_label(key):
     """Per-residue value-series label: 'phi_angle_constraints' → φ,
     'H-N_bond_vectors' → H-N, etc."""
     base = key.replace('_angle_constraints', '').replace('_bond_vectors', '').replace('_constraints', '')
-    return _ANGLE_LABELS.get(base, base.replace('_', ' '))
+    return base.replace('_', ' ')
+    # return _ANGLE_LABELS.get(base, base.replace('_', ' '))
 
 
 def _per_residue_value_charts(stat_list, ymin=None, ymax=None):
@@ -1299,18 +1758,30 @@ def _asym_contact_map_charts(stat_list):
             s2 = cm.get('seq_id_2') or []
             if not s1 or not s2:
                 continue
+            c1 = cm.get('comp_id_1') or []
+            c2 = cm.get('comp_id_2') or []
+            comp1_by_seq = {s: c1[i] for i, s in enumerate(s1) if i < len(c1)}
+            comp2_by_seq = {s: c2[i] for i, s in enumerate(s2) if i < len(c2)}
             series = []
-            for k, v in cm.items():
+            for k, v in sorted(cm.items(), key=lambda kv: _constraint_order(kv[0])):
                 if isinstance(v, list) and v and isinstance(v[0], dict) and 'seq_id_1' in v[0]:
-                    pts = [[d['seq_id_1'], d['seq_id_2'], d.get('total', 1)] for d in v]
+                    # Each point carries the two residues' names so the tooltip can
+                    # label them "<chain> <comp> <seq>" (see asymContactMapOption).
+                    pts = [{'value': [d['seq_id_1'], d['seq_id_2'], d.get('total', 1)],
+                            'c1': comp1_by_seq.get(d['seq_id_1'], ''),
+                            'c2': comp2_by_seq.get(d['seq_id_2'], '')}
+                           for d in v]
                     if pts:
-                        series.append({'name': _constraint_label(k), 'points': pts})
+                        series.append({'name': _normalize_label(k), 'points': pts})
             if series:
                 charts.append({
                     'chain1': cm.get('chain_id_1'), 'chain2': cm.get('chain_id_2'),
                     'label': st.get('sf_framecode', ''),
                     'xmin': min(s1), 'xmax': max(s1), 'ymin': min(s2), 'ymax': max(s2),
                     'series': series,
+                    # Per-chain secondary-structure bands: chain 1 on x, chain 2 on y.
+                    'xbands': _map_bands(s1, cm.get('struct_conf_1')),
+                    'ybands': _map_bands(s2, cm.get('struct_conf_2')),
                 })
     return charts
 
@@ -1449,14 +1920,16 @@ def _seq_align(info):
         ref, test = ca.get('ref_chain_id'), ca.get('test_chain_id')
         a = by_pair.get((ref, test)) or {}
         cov = ca.get('sequence_coverage')
-        coord = ca.get('ref_auth_chain_id') or ref or ''
+        auth_ref = ca.get('ref_auth_chain_id') or ref or ''
         ref_gauge = a.get('ref_gauge_code') or ''
         test_gauge = a.get('test_gauge_code') or ''
         if ref_gauge == test_gauge:
             test_gauge = ''
         rows.append({
-            'chain': (f"Auth_asym_ID (model): {coord} ↔ Entity_assembly_ID (NMR data): {test}"
-                      if (coord or test) else ''),
+            'chain': (f"Auth_asym_ID: {auth_ref}, Label_asym_ID: {ref} (model) ↔ Entity_assembly_ID: {test} (NMR data)"
+                      if ((auth_ref or test) and (auth_ref != ref))
+                      else f"Auth_asym_ID: {auth_ref} (model) ↔ Entity_assembly_ID: {test} (NMR_DATA)"
+                      if (auth_ref or test) else ''),
             'length': ca.get('length'), 'matched': ca.get('matched'),
             'conflict': ca.get('conflict'), 'unmapped': ca.get('unmapped'),
             'coverage': round(cov * 100, 1) if isinstance(cov, (int, float)) else None,
@@ -1568,7 +2041,7 @@ def _completeness_of(st):
         categories = []
         for key, label in _COMPLETENESS_CATEGORIES:
             groups = [
-                {'group': _iso_label(g.get('atom_group', '')),
+                {'group': _normalize_label(g.get('atom_group', '')),
                  'target': g.get('number_of_target_shifts'),
                  'assigned': g.get('number_of_assigned_shifts'),
                  'pct': round((g.get('completeness') or 0) * 100, 1)}
@@ -1602,7 +2075,7 @@ def _completeness_of(st):
 def _assignments_of(st):
     """Total assignment counts per isotope for one saveframe → [{label, count}]."""
     noa = st.get('number_of_assignments') or {}
-    return [{'label': _iso_label(k), 'count': v}
+    return [{'label': _normalize_label(k), 'count': v}
             for k, v in noa.items() if isinstance(v, (int, float))]
 
 
@@ -1702,7 +2175,7 @@ def _chem_shift_saveframes(chem_shift_list, aligns):
                 'his_tautomer': _prediction_table(st.get('his_tautomeric_state'), 'his'),
                 'ilv_rotamer': _prediction_table(st.get('ilv_rotameric_state'), 'ilv'),
             },
-            'histogram': _histogram_chart([st]),
+            'histogram': _histogram_chart([st], True),
             'rci': _rci_charts([st]),
             'atom_name_mapping': _atom_name_mapping(st),
         })
@@ -1794,16 +2267,16 @@ def _dist_constraint_tree(item, mode, top, expand):
         return html + '</li>'
     inner = ''
     if 'intra-residue_constraints' in item:
-        inner += ('<li>Intra-residue restraints, <em>i = j</em> : '
+        inner += ('<li>Intra-residue restraints (<em>| i - j | = 0</em>) : '
                   + _dist_leaf(item, 'intra-residue_constraints', mode) + '</li>')
     for prefix, label, rng in (
-        ('sequential', 'Sequential restraints', '<em>| i - j | = 1</em>'),
-        ('medium_range', 'Medium range restraints', '<em>1 &lt; | i - j | &lt; 5</em>'),
+        ('sequential', 'Sequential restraints', '(<em>| i - j | = 1</em>)'),
+        ('medium_range', 'Medium range restraints', '(<em>1 &lt; | i - j | &lt; 5</em>)'),
     ):
         keys = [k for k in item if k.startswith(prefix)]
         if not keys:
             continue
-        inner += f'<li>{label}, {rng} : ' + _dist_agg(item, keys, mode)
+        inner += f'<li>{label} {rng} : ' + _dist_agg(item, keys, mode)
         subs = ''.join(
             f'<li>{lbl}: {_dist_leaf(item, k, mode)}</li>'
             for k, lbl in ((f'{prefix}_constraints_backbone-backbone', 'Backbone-backbone'),
@@ -1815,7 +2288,7 @@ def _dist_constraint_tree(item, mode, top, expand):
             inner += '<ul>' + subs + '</ul>'
         inner += '</li>'
     if 'long_range_constraints' in item:
-        inner += ('<li>Long range restraints, <em>| i - j | &gt;= 5</em> : '
+        inner += ('<li>Long range restraints (<em>| i - j | ≥ 5)</em> : '
                   + _dist_leaf(item, 'long_range_constraints', mode) + '</li>')
     if 'inter-chain_constraints' in item:
         inner += '<li>Inter-chain restraints: ' + _dist_leaf(item, 'inter-chain_constraints', mode) + '</li>'
@@ -1870,10 +2343,10 @@ def _flat_constraint_tree(item, mode, top, expand):
     """Build a one-level <li>top<ul>per-classification</ul></li> for a flat
     {classification: value} restraint dict (dihedral-angle / RDC style, where
     classifications are not further nested). `mode` selects the leaf rendering
-    ('count' or 'mc'); classifications are prettified with _constraint_label."""
+    ('count' or 'mc'); classifications are prettified with _normalize_label."""
     html = '<li>' + top
     if expand:
-        subs = ''.join(f'<li>{_constraint_label(k)}: {_dist_leaf(item, k, mode)}</li>' for k in item)
+        subs = ''.join(f'<li>{_normalize_label(k)}: {_dist_leaf(item, k, mode)}</li>' for k in item)
         if subs:
             html += '<ul>' + subs + '</ul>'
     return html + '</li>'
@@ -1965,6 +2438,7 @@ def _dihed_restraint_saveframes(dihed_list, aligns):
             'sequence_coverage': _sequence_coverage(st, aligns),
             'constraint_lists': _flat_constraint_lists(st),
             'histogram': _histogram_chart([st]),
+            'discrepancy': _discrepancy_charts([st], annotate=_dihed_discrepancy_annotations),
             'dihedral': _dihedral_charts([st]),
             'per_residue': _per_residue_value_charts([st], -180, 180),
             'atom_name_mapping': _atom_name_mapping(st),
@@ -1992,6 +2466,7 @@ def _rdc_restraint_saveframes(rdc_list, aligns):
             'constraint_lists': _flat_constraint_lists(st),
             'range': range_text,
             'histogram': _histogram_chart([st]),
+            'discrepancy': _discrepancy_charts([st], annotate=_rdc_discrepancy_annotations),
             'per_residue': _per_residue_value_charts([st]),
             'atom_name_mapping': _atom_name_mapping(st),
         })
@@ -2185,6 +2660,69 @@ async def get_nmr_preview():
     return {'available': True, **_nmr_preview_data(report)}
 
 
+# Sub-sections of output_statistics excluded from the download-page summary: the
+# large per-shift/per-restraint validation tables. The summary objects
+# (chem_shift_summary, restraint_summary) ARE kept — the page shows them.
+_OUTPUT_STATS_EXCLUDE = {
+    'chem_shift',
+    'dist_restraint', 'dihed_restraint', 'rdc_restraint', 'spectral_peak',
+}
+
+
+@app.route('/api/output_statistics', methods=['GET'])
+async def get_output_statistics():
+    """Conversion statistics (information.output_statistics) from the same report
+    as /api/nmr_preview (the convert_nmr_data workflow log_path JSON). Returns the
+    subtree pruned of the validation sections (_OUTPUT_STATS_EXCLUDE) — the
+    download page shows only the entry/assembly/entity/software metadata.
+    Token-scoped, read-only; available=false when there is no report yet."""
+    token = request.args.get('token')
+    if not token:
+        return {'error': 'token is required'}, 400
+
+    async with async_session_factory() as db:
+        session_row = (
+            await db.execute(select(Session).where(Session.token == token))
+        ).scalar_one_or_none()
+        if session_row is None:
+            return {'error': 'session not found'}, 404
+        conversion_id = session_row.conversion_id
+        run_number = session_row.latest_run_number
+        if conversion_id is None or run_number < 1:
+            return {'available': False}
+        wf = (
+            await db.execute(
+                select(Workflow).where(
+                    Workflow.conversion_id == conversion_id,
+                    Workflow.run_number == run_number,
+                    Workflow.task == WfTaskCode.convert_nmr_data.value,
+                )
+            )
+        ).scalar_one_or_none()
+
+    if wf is None or not wf.log_path or not Path(wf.log_path).is_file():
+        return {'available': False}
+    try:
+        report = json.loads(Path(wf.log_path).read_text())
+    except Exception:  # noqa: BLE001
+        return {'available': False}
+
+    stats = report.get('information', {}).get('output_statistics')
+    if not stats:
+        return {'available': False}
+    pruned = {k: v for k, v in stats.items() if k not in _OUTPUT_STATS_EXCLUDE}
+    # restraint_summary: keep only the scalar restraint counts for the key-value
+    # card — drop the average/violation tables (all arrays) and any non-scalar.
+    rs = pruned.get('restraint_summary')
+    if isinstance(rs, dict):
+        pruned['restraint_summary'] = {
+            k: v for k, v in rs.items()
+            if isinstance(v, (int, float, str))
+            and 'average' not in k and 'violation' not in k
+        }
+    return {'available': True, 'statistics': pruned}
+
+
 @app.route('/api/session', methods=['PATCH'])
 async def update_session():
     body = request.get_json(silent=True) or {}
@@ -2259,6 +2797,33 @@ async def new_consent():
         await db.commit()
         await db.refresh(new_session)
         return {'token': str(new_session.token)}
+
+
+@app.route('/api/consent', methods=['POST'])
+async def update_consent():
+    """Set session.consented — the user's agreement to the Terms & Privacy Policy.
+    Toggled when the user checks/unchecks the consent box on an existing session;
+    persisting it means a revoked consent is enforced on reload / direct URL.
+
+    JSON body: { token, consented }. 400 missing token / non-bool; 404 no session.
+    """
+    body = request.get_json(silent=True) or {}
+    token = body.get('token')
+    consented = body.get('consented')
+
+    if not token or not isinstance(consented, bool):
+        return {'error': 'token and boolean consented are required'}, 400
+
+    async with async_session_factory() as db:
+        session_row = (
+            await db.execute(select(Session).where(Session.token == token))
+        ).scalar_one_or_none()
+        if session_row is None:
+            return {'error': 'session not found'}, 404
+        session_row.consented = consented
+        await db.commit()
+
+    return {'consented': consented}, 200
 
 
 # ── File upload ───────────────────────────────────────────────────────────────
@@ -2361,6 +2926,8 @@ async def delete_upload():
         ).scalar_one_or_none()
         if session_row is None:
             return {'error': 'session not found'}, 404
+        if session_row.downloaded:
+            return {'error': 'session is locked after download'}, 409
 
         upload_row = (
             await db.execute(
@@ -2416,6 +2983,8 @@ async def patch_upload():
         ).scalar_one_or_none()
         if session_row is None:
             return {'error': 'session not found'}, 404
+        if session_row.downloaded:
+            return {'error': 'session is locked after download'}, 409
 
         upload_row = (
             await db.execute(

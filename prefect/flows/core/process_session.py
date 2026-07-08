@@ -213,8 +213,8 @@ async def _update_session_status(token: str, status: SessionStatusCode) -> None:
 # mirror coordinate_conversion / nmr_data_conversion / _generate_nef_release.
 _OUTPUT_FILE_SPECS = (
     ('C_{cid}_model.cif', 'pdbx'),
-    ('C_{cid}-nmr-data.str', 'nmr-star'),
-    ('C_{cid}-nmr-data.nef', 'nef'),
+    ('C_{cid}_nmr-data.str', 'nmr-star'),
+    ('C_{cid}_nmr-data.nef', 'nef'),
 )
 
 # Report files produced in the run's log/ dir: maxit-ccd's coordinate-check log
@@ -467,6 +467,13 @@ def _nmr_merge_driver_script(
     (same settings as the combined str case). The merge writes its JSON log
     (setLog) and the merged NMR-STAR (setDestination); the deposit consumes both.
     """
+    common_inputs = (
+        "u.addInput(name='coordinate_file_path', value=CIF, type='file')\n"
+        "u.addInput(name='nonblk_anomalous_cs', value=True, type='param')\n"
+        "u.addInput(name='nonblk_bad_nterm', value=True, type='param')\n"
+        "u.addInput(name='resolve_conflict', value=True, type='param')\n"
+        "u.addInput(name='check_mandatory_tag', value=True, type='param')\n"
+    )
     restraint_input = (
         "u.addInput(name='restraint_file_path_list', value=RESTRAINT, type='file_dict_list')\n"
         if restraint_list else ""
@@ -490,11 +497,7 @@ def _nmr_merge_driver_script(
         "u.addInput(name='chem_shift_file_path_list', value=CS_LIST, type='file_dict_list')\n"
         "u.addInput(name='atypical_restraint_file_path_list', value=ATYPICAL, type='file_dict_list')\n"
         f"{restraint_input}"
-        "u.addInput(name='coordinate_file_path', value=CIF, type='file')\n"
-        "u.addInput(name='nonblk_anomalous_cs', value=True, type='param')\n"
-        "u.addInput(name='nonblk_bad_nterm', value=True, type='param')\n"
-        "u.addInput(name='resolve_conflict', value=True, type='param')\n"
-        "u.addInput(name='check_mandatory_tag', value=False, type='param')\n"
+        f"{common_inputs}"
         "u.addInput(name='remediation', value=True, type='param')\n"
         "u.setLog(MERGE_LOG)\n"
         "u.setDestination(MERGED_STR)\n"
@@ -503,12 +506,8 @@ def _nmr_merge_driver_script(
         "# Step 2: deposit the merged NMR-STAR (same as the combined str case)\n"
         "u.setWorkspace(WORK_DIR, CACHE_DIR)\n"
         "u.setSource(MERGED_STR)\n"
-        "u.addInput(name='coordinate_file_path', value=CIF, type='file')\n"
+        f"{common_inputs}"
         "u.addInput(name='report_file_path', value=MERGE_LOG, type='file')\n"
-        "u.addInput(name='nonblk_anomalous_cs', value=True, type='param')\n"
-        "u.addInput(name='nonblk_bad_nterm', value=True, type='param')\n"
-        "u.addInput(name='resolve_conflict', value=True, type='param')\n"
-        "u.addInput(name='check_mandatory_tag', value=True, type='param')\n"
         "u.setLog(DEP_LOG)\n"
         "u.setDestination(OUT_STR)\n"
         "u.addOutput(name='entry_id', value=ENTRY_ID, type='param')\n"
@@ -519,48 +518,72 @@ def _nmr_merge_driver_script(
 
 
 def _nmr_replace_cs_driver_script(
-    *, src: str, cif: str, cs_list: list, report_log: str, out_str: str,
-    work_dir: str, cache_dir: str,
+    *, src: str, cif: str, cs_list: list, replace_log: str, consist_log: str,
+    out_str: str, work_dir: str, cache_dir: str,
 ) -> str:
     """Driver for OneDep repl_cs (replacing assigned chemical shifts): replace the
     chemical shifts in the OneDep-processed NMR-STAR unified data file (setSource)
     with the correct ones (chem_shift_file_path_list), against the coordinates,
-    writing the report (setLog) and the resulting NMR-STAR (setDestination). A
-    single op: nmr-str-replace-cs. Same input params as the OneDep case."""
-    return (
-        "from nmr.NmrDpUtility import NmrDpUtility\n"
-        f"SRC = {src!r}\n"
-        f"CIF = {cif!r}\n"
-        f"CS_LIST = {cs_list!r}\n"
-        f"REPORT_LOG = {report_log!r}\n"
-        f"OUT_STR = {out_str!r}\n"
-        f"WORK_DIR = {work_dir!r}\n"
-        f"CACHE_DIR = {cache_dir!r}\n"
-        "u = NmrDpUtility()\n"
-        "u.setWorkspace(WORK_DIR, CACHE_DIR)\n"
-        "u.setSource(SRC)\n"
-        "u.addInput(name='chem_shift_file_path_list', value=CS_LIST, type='file_dict_list')\n"
+    writing the report (setLog) and the resulting NMR-STAR (setDestination).
+    2 step ops: nmr-str-replace-cs and nmr-str-consistency-check.
+    Same input params as the OneDep case."""
+    common_inputs = (
         "u.addInput(name='coordinate_file_path', value=CIF, type='file')\n"
         "u.addInput(name='nonblk_anomalous_cs', value=True, type='param')\n"
         "u.addInput(name='nonblk_bad_nterm', value=True, type='param')\n"
         "u.addInput(name='resolve_conflict', value=True, type='param')\n"
         "u.addInput(name='check_mandatory_tag', value=True, type='param')\n"
-        "u.setLog(REPORT_LOG)\n"
+        "u.addInput(name='remediation', value=True, type='param')\n"
+    )
+    return (
+        "from nmr.NmrDpUtility import NmrDpUtility\n"
+        f"SRC = {src!r}\n"
+        f"CIF = {cif!r}\n"
+        f"CS_LIST = {cs_list!r}\n"
+        f"REPL_LOG = {replace_log!r}\n"
+        f"CONS_LOG = {consist_log!r}\n"
+        f"OUT_STR = {out_str!r}\n"
+        f"WORK_DIR = {work_dir!r}\n"
+        f"CACHE_DIR = {cache_dir!r}\n"
+        "u = NmrDpUtility()\n"
+        "# Step 1: replace chemical shifts into NMR-STAR\n"
+        "u.setWorkspace(WORK_DIR, CACHE_DIR)\n"
+        "u.setSource(SRC)\n"
+        f"{common_inputs}"
+        "u.addInput(name='chem_shift_file_path_list', value=CS_LIST, type='file_dict_list')\n"
+        "u.setLog(REPL_LOG)\n"
         "u.setDestination(OUT_STR)\n"
         "u.setVerbose(True)\n"
         "u.op('nmr-str-replace-cs')\n"
+        "# Step 2: consistency check\n"
+        "u.setWorkspace(WORK_DIR, CACHE_DIR)\n"
+        "u.setSource(OUT_STR)\n"
+        f"{common_inputs}"
+        "u.setLog(CONS_LOG)\n"
+        "u.setVerbose(True)\n"
+        "u.op('nmr-str-consistency-check')\n"
     )
 
 
 def _nmr_bmrbdep_driver_script(
     *, cs_list: list, atypical_cs_list: list, atypical_restraint_list: list,
-    bmrb_id: int, log: str, out_str: str, work_dir: str, cache_dir: str,
+    bmrb_id: int, merge_log: str, consist_log: str, out_str: str, work_dir: str, cache_dir: str,
 ) -> str:
     """Driver for BMRBdep (BMRB-only) deposition: merge chemical shifts (NMR-STAR
     nm-uni-str/nm-shi and NEF nm-uni-nef in chem_shift_file_path_list, plus any
     nm-shi-* variants in atypical_chem_shift_file_path_list) and optional topology
     (nm-aux-* in atypical_restraint_file_path_list) into one NMR-STAR. No
-    coordinates. Single op: nmr-cs-mr-merge with conversion_server=True."""
+    coordinates.
+    2 step ops: nmr-cs-mr-merge and nmr-str-consistency-check.
+    Similar input params as repl_cs case (except for coordinates) with conversion_server=True."""
+    common_inputs = (
+        "u.addInput(name='nonblk_anomalous_cs', value=True, type='param')\n"
+        "u.addInput(name='nonblk_bad_nterm', value=True, type='param')\n"
+        "u.addInput(name='resolve_conflict', value=True, type='param')\n"
+        "u.addInput(name='check_mandatory_tag', value=True, type='param')\n"
+        "u.addInput(name='remediation', value=True, type='param')\n"
+        "u.addInput(name='conversion_server', value=True, type='param')\n"
+    )
     atypical_cs_input = (
         "u.addInput(name='atypical_chem_shift_file_path_list', value=ATYPICAL_CS, type='file_dict_list')\n"
         if atypical_cs_list else ""
@@ -575,7 +598,8 @@ def _nmr_bmrbdep_driver_script(
         f"ATYPICAL_CS = {atypical_cs_list!r}\n"
         f"ATYPICAL_R = {atypical_restraint_list!r}\n"
         f"BMRB_ID = {bmrb_id!r}\n"
-        f"LOG = {log!r}\n"
+        f"MERGE_LOG = {merge_log!r}\n"
+        f"CONS_LOG = {consist_log!r}\n"
         f"OUT_STR = {out_str!r}\n"
         f"WORK_DIR = {work_dir!r}\n"
         f"CACHE_DIR = {cache_dir!r}\n"
@@ -584,19 +608,21 @@ def _nmr_bmrbdep_driver_script(
         "u.addInput(name='chem_shift_file_path_list', value=CS_LIST, type='file_dict_list')\n"
         f"{atypical_cs_input}"
         f"{atypical_r_input}"
-        "u.addInput(name='nonblk_anomalous_cs', value=True, type='param')\n"
-        "u.addInput(name='nonblk_bad_nterm', value=True, type='param')\n"
-        "u.addInput(name='resolve_conflict', value=True, type='param')\n"
-        "u.addInput(name='check_mandatory_tag', value=False, type='param')\n"
-        "u.addInput(name='remediation', value=True, type='param')\n"
-        "u.addInput(name='conversion_server', value=True, type='param')\n"
+        f"{common_inputs}"
         # conversion_server mode derives entry_id = C_<conversion_id> from this
         # (the conversion_id matches CNV_ID_PAT ^C_[1-9]\\d{6}$ as C_<id>).
         "u.addInput(name='bmrb_id', value=BMRB_ID, type='param')\n"
-        "u.setLog(LOG)\n"
+        "u.setLog(MERGE_LOG)\n"
         "u.setDestination(OUT_STR)\n"
         "u.setVerbose(True)\n"
         "u.op('nmr-cs-mr-merge')\n"
+        "# Step 2: consistency check\n"
+        "u.setWorkspace(WORK_DIR, CACHE_DIR)\n"
+        "u.setSource(OUT_STR)\n"
+        f"{common_inputs}"
+        "u.setLog(CONS_LOG)\n"
+        "u.setVerbose(True)\n"
+        "u.op('nmr-str-consistency-check')\n"
     )
 
 
@@ -769,7 +795,7 @@ def _run_nmr_driver(
     # Stream the driver's combined stdout+stderr to a tailable log so the
     # progress dialog can show NmrDpUtility output live during the long run.
     # `python -u` keeps the child unbuffered so lines land in the file as emitted.
-    stdout_log = ws.log_dir(conversion_id, run_number, workspace_base) / f'C_{conversion_id}-nmr-data.stdout.log'
+    stdout_log = ws.log_dir(conversion_id, run_number, workspace_base) / f'C_{conversion_id}_nmr-data.stdout.log'
     failed_reason = None
     try:
         cmd = [
@@ -840,11 +866,11 @@ def _generate_nef_release(
     entry_id: str,
 ) -> Path | None:
     """Release a NEF file from the converted NMR-STAR via nmr-str2nef-release.
-    Writes out_dir/C_<id>-nmr-data.nef and log/C_<id>-nmr-data-nef_release.json.
+    Writes out_dir/C_<id>_nmr-data.nef and log/C_<id>_nmr-data-nef_release.json.
     Best-effort: a failure is logged and returns None (the NMR-STAR is the primary
     output, so this never affects the run's success)."""
-    out_nef = out_dir / f'C_{conversion_id}-nmr-data.nef'
-    nef_report = log_d / f'C_{conversion_id}-nmr-data-nef_release.json'
+    out_nef = out_dir / f'C_{conversion_id}_nmr-data.nef'
+    nef_report = log_d / f'C_{conversion_id}_nmr-data-nef_release.json'
     driver_text = _nmr_nef_release_driver_script(
         src=str(src), cif=str(cif), report_log=str(nef_report), out_nef=str(out_nef),
         entry_id=entry_id, work_dir=str(work_d), cache_dir=str(cache_d),
@@ -853,7 +879,7 @@ def _generate_nef_release(
     driver = work_d / 'nef_release_driver.py'
     driver.write_text(driver_text)
 
-    stdout_log = log_d / f'C_{conversion_id}-nmr-data-nef_release.stdout.log'
+    stdout_log = log_d / f'C_{conversion_id}_nmr-data-nef_release.stdout.log'
     try:
         cmd = [
             'docker', 'run', '--rm',
@@ -886,12 +912,12 @@ def nmr_data_conversion(
     run_number: int,
     archive_base: str = ARCHIVE_BASE_PATH,
     workspace_base: str = WORKSPACE_BASE_PATH,
-) -> bool:
+) -> tuple[bool, bool]:
     """Convert NMR data to NMR-STAR with py-wwpdb_utils_nmr (NmrDpUtility).
 
     OneDep / Replacing-CS deposition, validated against the model mmCIF from
     coordinate_conversion (output/C_<id>_model.cif), producing
-    output/C_<id>-nmr-data.str via `docker run python <driver>`:
+    output/C_<id>_nmr-data.str via `docker run python <driver>`:
 
     - OneDep combined: a single NMR unified data file (nm-uni-nef/str) ->
       nmr-(nef/str)-consistency-check then nmr-(nef/str)2str-deposit.
@@ -908,24 +934,28 @@ def nmr_data_conversion(
       nmr-cs-mr-merge with conversion_server=True.
 
     Drives the convert_nmr_data workflow row (processing -> completed/failed).
-    Returns True on success (and when there is nothing to convert), False on
-    failure.
+    Returns (ok, attempt_nef): `ok` is True on success (and when there is nothing
+    to convert), False on failure; `attempt_nef` is True when a deferred NEF
+    release should run (the flow runs it after the session is marked completed, so
+    it stays off the summary critical path).
     """
     manifest = json.loads((Path(archive_base) / token / 'manifest.json').read_text())
     target = manifest.get('target_depsys')
     files = manifest['files']
     uni = next((f for f in files if f['file_type'].startswith('nm-uni-')), None)
     cs_files = [f for f in files if f['file_type'] == 'nm-shi']
-    shi_variant_files = [f for f in files if f['file_type'].startswith('nm-shi-')]
+    cs_variant_files = [f for f in files
+                        if f['file_type'].startswith('nm-shi-')
+                        or f['file_type'].startswith('nm-csp-')]  # perturbed chemical shifts
     aux_files = [f for f in files if f['file_type'].startswith(('nm-res-', 'nm-aux-', 'nm-pea-'))]
 
     if target not in ('onedep', 'repl_cs', 'bmrbdep'):
         print(f'[{conversion_id}] NMR conversion for target={target} not implemented '
               f'in this pilot; skipping')
-        return True
-    if uni is None and not cs_files and not shi_variant_files and not aux_files:
+        return True, False
+    if uni is None and not cs_files and not cs_variant_files and not aux_files:
         print(f'[{conversion_id}] No NMR data files — skipping NMR conversion')
-        return True
+        return True, False
 
     in_dir = ws.input_dir(conversion_id, run_number, workspace_base)
     out_dir = ws.output_dir(conversion_id, run_number, workspace_base)
@@ -933,8 +963,8 @@ def nmr_data_conversion(
     work_d = ws.work_dir(conversion_id, run_number, workspace_base)
     cache_d = ws.cache_dir(conversion_id, workspace_base)
     model_cif = out_dir / f'C_{conversion_id}_model.cif'
-    deposit_log = log_d / f'C_{conversion_id}-nmr-data-str_deposit.json'
-    out_str = out_dir / f'C_{conversion_id}-nmr-data.str'
+    deposit_log = log_d / f'C_{conversion_id}_nmr-data-str_deposit.json'
+    out_str = out_dir / f'C_{conversion_id}_nmr-data.str'
     entry_id = f'C_{conversion_id}'
 
     # OneDep / repl_cs validate against coordinates; bmrbdep has none.
@@ -945,7 +975,7 @@ def nmr_data_conversion(
             conversion_id, run_number, WfTaskCode.convert_nmr_data, WfStatusCode.failed,
             finished=True, log_path=str(deposit_log), detail=reason,
         ))
-        return False
+        return False, False
 
     def _cs_dict_list(shift_files):
         return [
@@ -968,9 +998,10 @@ def nmr_data_conversion(
 
     if target == 'bmrbdep':
         # BMRB-only: merge chemical shifts (+ optional topology) into NMR-STAR with
-        # no coordinates. Single op: nmr-cs-mr-merge with conversion_server=True.
-        nmr_log = log_d / f'C_{conversion_id}-nmr-data-bmrb_only.json'
-        report_path = nmr_log
+        # no coordinates. 2 step ops: nmr-cs-mr-merge + nmr-str-consistency-check with conversion_server=True.
+        merge_log = log_d / f'C_{conversion_id}_nmr-data-bmrb_only.json'
+        nmr_log = log_d / f'C_{conversion_id}_nmr-data-str_consist.json'
+        report_path = merge_log  # first task report
         cs_list = []
         for f in files:
             ft = f['file_type']
@@ -980,7 +1011,7 @@ def nmr_data_conversion(
             elif ft == 'nm-uni-nef':
                 cs_list.append({'file_name': str(in_dir / f['original_name']),
                                 'file_type': 'nef', 'original_file_name': f['original_name']})
-        atypical_cs_list = _dict_list(shi_variant_files)  # nm-shi-* kept as-is
+        atypical_cs_list = _dict_list(cs_variant_files)  # nm-shi-* and nm-csp-* kept as-is
         atypical_restraint_list = _dict_list(
             [f for f in files if f['file_type'].startswith('nm-aux-')])  # topology, as-is
         if not cs_list and not atypical_cs_list:
@@ -990,19 +1021,20 @@ def nmr_data_conversion(
                 conversion_id, run_number, WfTaskCode.convert_nmr_data, WfStatusCode.failed,
                 finished=True, log_path=str(nmr_log), detail=reason,
             ))
-            return False
+            return False, False
         driver_text = _nmr_bmrbdep_driver_script(
             cs_list=cs_list, atypical_cs_list=atypical_cs_list,
             atypical_restraint_list=atypical_restraint_list, bmrb_id=conversion_id,
-            log=str(nmr_log), out_str=str(out_str),
+            merge_log=str(merge_log), consit_log=str(nmr_log), out_str=str(out_str),
             work_dir=str(work_d), cache_dir=str(cache_d),
         )
     elif target == 'repl_cs':
         # Replacing CS: replace the assigned chemical shifts in the OneDep-processed
         # NMR-STAR unified data file (nm-uni-str) with the correct ones (nm-shi),
-        # against the coordinates. Single op: nmr-str-replace-cs.
-        nmr_log = log_d / f'C_{conversion_id}-nmr-data-repl_cs.json'
-        report_path = nmr_log
+        # against the coordinates. 2 step ops: nmr-str-replace-cs + nmr-str-consistency-check.
+        replace_log = log_d / f'C_{conversion_id}_nmr-data-repl_cs.json'
+        nmr_log = log_d / f'C_{conversion_id}_nmr-data-str_consist.json'
+        report_path = replace_log  # first task report
         if uni is None or uni['file_type'] != 'nm-uni-str' or not cs_files:
             reason = ('repl_cs requires an NMR-STAR unified data file (nm-uni-str) '
                       'and at least one assigned chemical shift (nm-shi) file')
@@ -1011,19 +1043,20 @@ def nmr_data_conversion(
                 conversion_id, run_number, WfTaskCode.convert_nmr_data, WfStatusCode.failed,
                 finished=True, log_path=str(nmr_log), detail=reason,
             ))
-            return False
+            return False, False
         driver_text = _nmr_replace_cs_driver_script(
             src=str(in_dir / uni['original_name']), cif=str(model_cif),
-            cs_list=_cs_dict_list(cs_files), report_log=str(nmr_log),
-            out_str=str(out_str), work_dir=str(work_d), cache_dir=str(cache_d),
+            cs_list=_cs_dict_list(cs_files), replace_log=str(replace_log),
+            consist_log=str(nmr_log), out_str=str(out_str), work_dir=str(work_d),
+            cache_dir=str(cache_d),
         )
     elif uni is not None:
         # OneDep combined: single NMR unified data file.
         nmr_log = deposit_log
         is_nef = uni['file_type'] == 'nm-uni-nef'
-        consist_log = log_d / f'C_{conversion_id}-nmr-data-{"nef" if is_nef else "str"}_consist.json'
+        consist_log = log_d / f'C_{conversion_id}_nmr-data-{"nef" if is_nef else "str"}_consist.json'
         report_path = consist_log  # first task (consistency-check) report
-        next_src = work_d / f'C_{conversion_id}-nmr-data-next.{"nef" if is_nef else "str"}'
+        next_src = work_d / f'C_{conversion_id}_nmr-data-next.{"nef" if is_nef else "str"}'
         driver_text = _nmr_driver_script(
             is_nef=is_nef, src=str(in_dir / uni['original_name']), cif=str(model_cif),
             consist_log=str(consist_log), deposit_log=str(deposit_log),
@@ -1033,9 +1066,9 @@ def nmr_data_conversion(
     else:
         # OneDep separated: merge chemical shifts + restraints/topology/peaks, then deposit.
         nmr_log = deposit_log
-        merge_log = log_d / f'C_{conversion_id}-cs_mr_merge.json'
+        merge_log = log_d / f'C_{conversion_id}_cs_mr_merge.json'
         report_path = merge_log  # first task (cs-mr-merge) report
-        merged_str = work_d / f'C_{conversion_id}-cs-mr-merged.str'
+        merged_str = work_d / f'C_{conversion_id}_cs-mr-merged.str'
         atypical_list, restraint_list = [], []
         for f in aux_files:
             name = f['original_name']
@@ -1058,20 +1091,21 @@ def nmr_data_conversion(
     )
 
     # OneDep combined and repl_cs (onedep_combined): when the run produced a clean
-    # (non-blocking) NMR-STAR whose content is fully NEF-representable, also emit a
-    # NEF release file as an additional output. nmr_log is the *final* report here
-    # (str_deposit.json / repl_cs.json). Best-effort — never affects run success.
-    if ok and report_status != 'Error' and onedep_combined:
-        if _nef_release_eligible(nmr_log, conversion_id):
-            _generate_nef_release(
-                conversion_id, run_number, workspace_base,
-                src=out_str, cif=model_cif, out_dir=out_dir, log_d=log_d,
-                work_d=work_d, cache_d=cache_d, entry_id=entry_id,
-            )
-        else:
-            print(f'[{conversion_id}] NEF release skipped (content not fully NEF-representable)')
+    # (non-blocking) NMR-STAR whose content is fully NEF-representable, a NEF
+    # release file is emitted as an additional output. The actual generation is
+    # DEFERRED to the flow (after the session is marked completed) so it stays off
+    # the summary critical path; here we only decide whether it applies. nmr_log is
+    # the *final* report (str_deposit.json / repl_cs.json).
+    attempt_nef = bool(
+        ok
+        and report_status != 'Error'
+        and onedep_combined
+        and _nef_release_eligible(nmr_log, conversion_id)
+    )
+    if onedep_combined and ok and report_status != 'Error' and not attempt_nef:
+        print(f'[{conversion_id}] NEF release skipped (content not fully NEF-representable)')
 
-    return ok
+    return ok, attempt_nef
 
 
 def _send_admin_email(subject: str, content: str) -> str:
@@ -1197,6 +1231,89 @@ def notify_new_conversion(
     return delivery_status
 
 
+async def _start_nef_workflow(conversion_id: int, run_number: int, log_path: str) -> None:
+    """Create (or reset) the nef_release workflow row = processing so the download
+    page can surface a 'NEF still generating' state while the deferred NEF release
+    runs. Inserts with the next ordinal, or resets an existing row on re-run.
+    log_path is the NEF release report path (workflow.log_path is NOT NULL)."""
+    engine = create_async_engine(SERVICE_DATABASE_URL, poolclass=NullPool)
+    try:
+        async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+            existing = (
+                await db.execute(
+                    select(Workflow).where(
+                        Workflow.conversion_id == conversion_id,
+                        Workflow.run_number == run_number,
+                        Workflow.task == WfTaskCode.nef_release,
+                    )
+                )
+            ).scalar_one_or_none()
+            if existing is None:
+                max_ord = (
+                    await db.execute(
+                        select(func.max(Workflow.ordinal)).where(
+                            Workflow.conversion_id == conversion_id,
+                            Workflow.run_number == run_number,
+                        )
+                    )
+                ).scalar_one_or_none() or 0
+                await db.execute(
+                    Workflow.__table__.insert().values(
+                        conversion_id=conversion_id,
+                        run_number=run_number,
+                        ordinal=max_ord + 1,
+                        task=WfTaskCode.nef_release,
+                        status=WfStatusCode.processing,
+                        started_at=func.now(),
+                        log_path=log_path,
+                    )
+                )
+            else:
+                await db.execute(
+                    update(Workflow)
+                    .where(
+                        Workflow.conversion_id == conversion_id,
+                        Workflow.run_number == run_number,
+                        Workflow.task == WfTaskCode.nef_release,
+                    )
+                    .values(status=WfStatusCode.processing, started_at=func.now(), finished_at=None)
+                )
+            await db.commit()
+    finally:
+        await engine.dispose()
+
+
+def _run_nef_release(conversion_id: int, run_number: int, workspace_base: str) -> None:
+    """Deferred NMR-STAR -> NEF release: runs AFTER the session is marked completed
+    (off the summary critical path). Tracks a nef_release workflow row, generates
+    the NEF, then re-harvests so the .nef output (and its report) are recorded.
+    Best-effort — the run outcome is already fixed, so this never changes it."""
+    out_dir = ws.output_dir(conversion_id, run_number, workspace_base)
+    log_d = ws.log_dir(conversion_id, run_number, workspace_base)
+    work_d = ws.work_dir(conversion_id, run_number, workspace_base)
+    cache_d = ws.cache_dir(conversion_id, workspace_base)
+    ws.ensure_run_dirs(conversion_id, run_number, workspace_base)  # deferred step needs work/
+    nef_report = log_d / f'C_{conversion_id}_nmr-data-nef_release.json'
+
+    asyncio.run(_start_nef_workflow(conversion_id, run_number, str(nef_report)))
+    nef = _generate_nef_release(
+        conversion_id, run_number, workspace_base,
+        src=out_dir / f'C_{conversion_id}_nmr-data.str',
+        cif=out_dir / f'C_{conversion_id}_model.cif',
+        out_dir=out_dir, log_d=log_d, work_d=work_d, cache_d=cache_d,
+        entry_id=f'C_{conversion_id}',
+    )
+    if nef is not None:
+        # Re-harvest so the new .nef appears in output_file (full replace).
+        _harvest_output_files(conversion_id, run_number, workspace_base)
+    asyncio.run(_update_workflow_status(
+        conversion_id, run_number, WfTaskCode.nef_release,
+        WfStatusCode.completed if nef is not None else WfStatusCode.failed,
+        finished=True, log_path=str(nef_report),
+        detail=None if nef is not None else 'NEF release generation failed',
+    ))
+
+
 @flow(name='process-session')
 def process_session(
     token: str,
@@ -1227,6 +1344,8 @@ def process_session(
         f'({len(manifest["files"])} selected files, target={manifest["target_depsys"]})'
     )
 
+    success = False
+    attempt_nef = False
     try:
         issue_conversion(token, conversion_id, run_number, archive_base, workspace_base)
         # First run only: notify the admin that a new conversion was issued.
@@ -1234,7 +1353,8 @@ def process_session(
             notify_new_conversion(token, conversion_id, run_number, archive_base)
         coord_ok = coordinate_conversion(token, conversion_id, run_number, archive_base, workspace_base)
         if coord_ok:
-            nmr_ok = nmr_data_conversion(token, conversion_id, run_number, archive_base, workspace_base)
+            nmr_ok, attempt_nef = nmr_data_conversion(
+                token, conversion_id, run_number, archive_base, workspace_base)
         else:
             # Model conversion failed: the NMR step needs C_<id>_model.cif, so
             # short-circuit and mark convert_nmr_data aborted.
@@ -1245,55 +1365,64 @@ def process_session(
             ))
             nmr_ok = False
         success = coord_ok and nmr_ok
+
+        print(f'[{conversion_id}] Run #{run_number} complete — success={success}')
+
+        # Harvest the produced output files (converted coordinate, NMR-STAR) into
+        # the output_file table (best-effort: independent of the run outcome, so
+        # the user can still download whatever partial output exists). The optional
+        # NEF is added by a second harvest inside the deferred NEF step below.
+        try:
+            harvested = _harvest_output_files(conversion_id, run_number, workspace_base)
+            print(f'[{conversion_id}] harvested {len(harvested)} output file(s): {harvested}')
+        except Exception as exc:  # noqa: BLE001
+            print(f'[{conversion_id}] output harvest FAILED ({exc})')
+
+        # A blocking NMR report (report_status='Error') flags critical, user-blocking
+        # issues: treat it as a failed run even though the conversion task completed.
+        # (The blocker detail lives on the convert_nmr_data workflow row and is also
+        # surfaced to the user via /api/progress.)
+        blocked = False
+        if success:
+            try:
+                blocked = asyncio.run(_nmr_report_status(conversion_id, run_number)) == 'Error'
+            except Exception as exc:  # noqa: BLE001
+                print(f'[{conversion_id}] could not read NMR report status ({exc})')
+
+        # Record the session lifecycle outcome for this run. This is what makes the
+        # Upload summary reachable (/api/progress `done`), so it happens BEFORE the
+        # deferred NEF release — the summary never waits on NEF.
+        session_status = (
+            SessionStatusCode.completed if (success and not blocked) else SessionStatusCode.failed
+        )
+        try:
+            asyncio.run(_update_session_status(token, session_status))
+            print(f'[{conversion_id}] session status -> {session_status.value} (blocked={blocked})')
+        except Exception as exc:  # noqa: BLE001
+            print(f'[{conversion_id}] session status update FAILED ({exc})')
+
+        # Refresh the footer's software/resource versions from the images just used,
+        # so a fix delivered via an upstream image is immediately observable after a
+        # verification run (best-effort; also captured on a schedule).
+        try:
+            from versions import capture_versions
+            capture_versions(workspace_base)
+        except Exception as exc:  # noqa: BLE001
+            print(f'[{conversion_id}] version capture FAILED ({exc})')
+
+        # Deferred NMR-STAR -> NEF release: runs only now (after the session is
+        # marked completed) so the summary is reachable without waiting for it.
+        # Best-effort — never changes the already-recorded run outcome.
+        if success and not blocked and attempt_nef:
+            try:
+                _run_nef_release(conversion_id, run_number, workspace_base)
+            except Exception as exc:  # noqa: BLE001
+                print(f'[{conversion_id}] NEF release FAILED ({exc})')
     finally:
-        # work/ is pure scratch — drop it whether the run succeeded or failed.
-        # output/ and log/ are kept for the validity period (download).
+        # work/ is pure scratch — drop it last (the deferred NEF step above uses
+        # it). output/ and log/ are kept for the validity period (download).
         scratch = ws.work_dir(conversion_id, run_number, workspace_base)
         if scratch.exists():
             shutil.rmtree(scratch, ignore_errors=True)
 
-    print(f'[{conversion_id}] Run #{run_number} complete — success={success}')
-
-    # Harvest the produced output files (converted coordinate, NMR-STAR, optional
-    # NEF) into the output_file table (best-effort: independent of the run outcome,
-    # so the user can still download whatever partial output exists).
-    try:
-        harvested = _harvest_output_files(conversion_id, run_number, workspace_base)
-        print(f'[{conversion_id}] harvested {len(harvested)} output file(s): {harvested}')
-    except Exception as exc:  # noqa: BLE001
-        print(f'[{conversion_id}] output harvest FAILED ({exc})')
-
-    # A blocking NMR report (report_status='Error') flags critical, user-blocking
-    # issues: treat it as a failed run even though the conversion task completed.
-    # (The blocker detail lives on the convert_nmr_data workflow row and is also
-    # surfaced to the user via /api/progress.)
-    blocked = False
-    if success:
-        try:
-            blocked = asyncio.run(_nmr_report_status(conversion_id, run_number)) == 'Error'
-        except Exception as exc:  # noqa: BLE001
-            print(f'[{conversion_id}] could not read NMR report status ({exc})')
-
-    # Record the session lifecycle outcome for this run (best-effort: the run is
-    # already done, so a DB hiccup here is logged rather than masking the result).
-    session_status = (
-        SessionStatusCode.completed if (success and not blocked) else SessionStatusCode.failed
-    )
-    try:
-        asyncio.run(_update_session_status(token, session_status))
-        print(f'[{conversion_id}] session status -> {session_status.value} (blocked={blocked})')
-    except Exception as exc:  # noqa: BLE001
-        print(f'[{conversion_id}] session status update FAILED ({exc})')
-
-    # Refresh the footer's software/resource versions from the images just used,
-    # so a fix delivered via an upstream image is immediately observable after a
-    # verification run (best-effort; also captured on a schedule).
-    try:
-        from versions import capture_versions
-        capture_versions(workspace_base)
-    except Exception as exc:  # noqa: BLE001
-        print(f'[{conversion_id}] version capture FAILED ({exc})')
-
-    # TODO: insert output_file rows with run_number=run_number (PK = conversion_id,
-    #       run_number, ordinal), stored_path pointing under the workspace output/ dir.
     return {'success': success, 'run_number': run_number}

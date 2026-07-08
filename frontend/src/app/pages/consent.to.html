@@ -8,6 +8,7 @@
       [ngModel]="consentedTo()"
       [binary]="true"
       [disabled]="locked()"
+      [class.ack-glow]="!consentedTo() && !locked()"
       (onChange)="onChange()"
     />
     <label for="consentCheck" class="font-semibold text-xl italic pl-2"

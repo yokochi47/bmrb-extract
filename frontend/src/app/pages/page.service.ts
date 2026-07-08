@@ -22,6 +22,9 @@ export interface PageState {
   adminUser: boolean;
   tokenBase: string | null;
   conversionId: number | null;
+  /** Date (YYYY-MM-DD) the session and its results stay accessible; null until
+   * the session is restored from the backend. */
+  tokenExpiry: string | null;
   /** User has acknowledged all warnings (Terms #7) — gates download. */
   approved: boolean;
   /** Conversion results have been downloaded — session is read-only. */
@@ -54,6 +57,7 @@ export class PageService {
     adminUser: false,
     tokenBase: null,
     conversionId: null,
+    tokenExpiry: null,
     approved: false,
     downloaded: false,
   });
@@ -82,16 +86,19 @@ export class PageService {
     // Restore session from URL on page load / refresh
     const token = new URLSearchParams(window.location.search).get('token');
     if (token) {
+      // consentedTo is restored from the backend below (not forced true), so a
+      // revoked consent stays revoked across reloads / direct URLs.
       this.pageState.update((prev) => ({
         ...prev,
         tokenBase: token,
         firstConsent: false,
-        consentedTo: true,
       }));
       this.http
         .get<{
           conversion_id: number | null;
           expired: boolean;
+          token_expiry: string;
+          consented: boolean;
           target_depsys: string;
           related_bmrb_id: number | null;
           approved: boolean;
@@ -101,6 +108,8 @@ export class PageService {
           next: ({
             conversion_id,
             expired,
+            token_expiry,
+            consented,
             target_depsys,
             related_bmrb_id,
             approved,
@@ -113,7 +122,9 @@ export class PageService {
               this.tokenValidation.set('valid');
               this.pageState.update((prev) => ({
                 ...prev,
+                consentedTo: !!consented,
                 conversionId: conversion_id,
+                tokenExpiry: token_expiry,
                 targetDepsys:
                   TargetDepsys[target_depsys as keyof typeof TargetDepsys] ?? TargetDepsys.onedep,
                 relatedBmrbId: related_bmrb_id,
@@ -127,6 +138,20 @@ export class PageService {
           },
         });
     }
+  }
+
+  /** Toggle consent. Updates the in-memory flag, and for an existing session
+   * (token present) persists it via POST /api/consent so a revoked consent is
+   * enforced on reload / direct URL. The first-ever consent (no token yet) is
+   * handled by the effect above, which calls newConsent() to create the session
+   * with consented=true. */
+  setConsent(consented: boolean) {
+    this.pageState.update((prev) => ({ ...prev, consentedTo: consented }));
+    const token = this.pageState().tokenBase;
+    if (!token) return;
+    this.http.post(API_URL + 'consent', { token, consented }).subscribe({
+      error: (err) => console.error('Failed to update consent', err),
+    });
   }
 
   private newConsent() {

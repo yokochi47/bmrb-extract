@@ -9,11 +9,15 @@ import {
   viewChild,
 } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { CardModule } from 'primeng/card';
 import { TableModule } from 'primeng/table';
 import { PanelModule } from 'primeng/panel';
 import { CheckboxModule } from 'primeng/checkbox';
+import { ButtonModule } from 'primeng/button';
+import { MessageModule } from 'primeng/message';
+import { TooltipModule } from 'primeng/tooltip';
 
 import { PageService, TargetDepsys } from './page.service';
 import { API_URL } from '../../site.config';
@@ -81,13 +85,20 @@ interface HistogramChart {
   label: string;
   categories: string[];
   series: { name: string; data: number[] }[];
-  /** Outlier markers (chem-shift Z scores): dashed line + short description. */
-  annotations?: { category: string; anomalous: boolean; text: string }[];
+  /** Outlier markers (chem-shift Z scores): dashed line + short description.
+   * `x` is the precise fractional category-axis index of the value. */
+  annotations?: { x: number; anomalous: boolean; text: string }[];
 }
 interface DihedralPlot {
-  points: { name: string; x: number; y: number }[];
-  /** Each error array is [x, y, x_low, x_high, y_low, y_high] (absolute). */
-  errors: number[][];
+  /** Points grouped by residue type (comp_id); each group is one scatter series
+   * (plus an error-bar series sharing its name, so the legend toggles both).
+   * `seq_id` labels the point on hover; each error array is
+   * [x, y, x_low, x_high, y_low, y_high] (absolute). */
+  groups: {
+    comp_id: string;
+    points: { x: number; y: number; seq_id: string | number }[];
+    errors: number[][];
+  }[];
 }
 interface DihedralChart {
   label: string;
@@ -117,13 +128,30 @@ interface PerResidueChart {
   series: { name: string; data: number[] }[];
   bands: { start: number; end: number; type: string; label: string }[];
 }
-/** Contact map: per chain, one series of [seq_id_1, seq_id_2, total] per type. */
+/** A secondary-structure region on a map axis; start/end are residue seq_id
+ * values (the band spans [start-0.5, end+0.5]). */
+interface MapBand {
+  start: number;
+  end: number;
+  type: string;
+  label: string;
+}
+/** One contact-map point: value = [seq_id_1, seq_id_2, total]; c1/c2 are the two
+ * residues' names (comp_id), for the "<comp> <seq>" tooltip label. */
+interface ContactPoint {
+  value: number[];
+  c1: string;
+  c2: string;
+}
+/** Contact map: per chain, one series of contact points per type. `bands` are
+ * the secondary-structure regions, drawn on both axes. */
 interface ContactMapChart {
   chain: string;
   label: string;
   min: number;
   max: number;
-  series: { name: string; points: number[][] }[];
+  series: { name: string; points: ContactPoint[] }[];
+  bands: MapBand[];
 }
 /** One spectral-peak-list saveframe's preview content, in display order. */
 interface SpectralPeakSaveframe {
@@ -151,7 +179,8 @@ interface PerResidueLine {
   ymax: number | null;
   threshold: number | null;
 }
-/** Asymmetric (inter-chain) contact map: distinct x/y residue ranges. */
+/** Asymmetric (inter-chain) contact map: distinct x/y residue ranges. `xbands`
+ * (chain 1) are drawn vertically, `ybands` (chain 2) horizontally. */
 interface AsymContactMap {
   chain1: string;
   chain2: string;
@@ -160,7 +189,9 @@ interface AsymContactMap {
   xmax: number;
   ymin: number;
   ymax: number;
-  series: { name: string; points: number[][] }[];
+  series: { name: string; points: ContactPoint[] }[];
+  xbands: MapBand[];
+  ybands: MapBand[];
 }
 /** A chemical-shift-prediction validation row (predicted vs coordinate state). */
 interface PredictionRow {
@@ -169,6 +200,12 @@ interface PredictionRow {
   predicted: string;
   observed: string;
   consistent: boolean | null;
+}
+interface CitationRow {
+  title: string;
+  authors: string;
+  journal: string;
+  doi: string;
 }
 interface AlignChainRow {
   chain: string;
@@ -254,6 +291,7 @@ interface DihedRestraintSaveframe {
    * constraints); each `html` is a ready-to-render <ul> tree (via [innerHTML]). */
   constraint_lists: { key: string; title: string; html: string }[];
   histogram: HistogramChart[];
+  discrepancy: HistogramChart[];
   dihedral: DihedralChart[];
   per_residue: PerResidueLine[];
   atom_name_mapping: AtomNameMappingRow[];
@@ -271,6 +309,7 @@ interface RdcRestraintSaveframe {
   constraint_lists: { key: string; title: string; html: string }[];
   range: string;
   histogram: HistogramChart[];
+  discrepancy: HistogramChart[];
   per_residue: PerResidueLine[];
   atom_name_mapping: AtomNameMappingRow[];
 }
@@ -339,22 +378,71 @@ interface NmrPreview {
 interface PredictionTable {
   title: string;
   rows: PredictionRow[];
+  tooltip: CitationRow[];
 }
 
-/** One ECharts panel: a title + the option object fed to <app-echart>. */
+/** One ECharts panel: a title + the option object fed to <app-echart>. An
+ * optional `aspect` (plot height / width) sizes the chart proportionally to its
+ * data extent (contact maps, dihedral scatter); omitted panels fill the width. */
 interface ChartPanel {
   title: string;
   option: object;
+  aspect?: number;
+  /** Chart chrome (px) so `aspect` applies to the plot area, not the whole box:
+   * grid left+right (marginX) and top+bottom (marginY). */
+  marginX?: number;
+  marginY?: number;
 }
 
 @Component({
   selector: 'app-summary',
-  imports: [FormsModule, CardModule, TableModule, PanelModule, CheckboxModule, EchartComponent],
+  imports: [
+    FormsModule,
+    CardModule,
+    TableModule,
+    PanelModule,
+    CheckboxModule,
+    ButtonModule,
+    MessageModule,
+    TooltipModule,
+    EchartComponent,
+  ],
   templateUrl: './page.summary.html',
+  // Glow still-unacknowledged warning checkboxes to draw the eye (paused for
+  // users who prefer reduced motion).
+  styles: [
+    `
+      @keyframes ack-glow {
+        0%,
+        100% {
+          box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+        }
+        50% {
+          box-shadow: 0 0 8px 3px rgba(245, 158, 11, 0.75);
+        }
+      }
+      .ack-glow {
+        border-radius: 6px;
+        animation: ack-glow 1.4s ease-in-out infinite;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .ack-glow {
+          animation: none;
+        }
+      }
+      /* Let the citation tooltip size to its content (overrides PrimeNG's
+         default tooltip max-width). ::ng-deep reaches the body-appended
+         tooltip element, which lives outside this component's DOM. */
+      ::ng-deep .cite-tooltip .p-tooltip-text {
+        width: fit-content;
+      }
+    `,
+  ],
 })
 export class Summary implements OnDestroy {
   private pageService = inject(PageService);
   private http = inject(HttpClient);
+  private router = inject(Router);
 
   /** Selected files of the latest run, ordered by upload time (server-side). */
   files = signal<UploadFileRow[]>([]);
@@ -423,14 +511,67 @@ export class Summary implements OnDestroy {
   /** Assigned chemical shifts grouped by saveframe (sf_framecode). */
   chemShiftSaveframes = computed(() => this.nmrPreview()?.chem_shift_saveframes ?? []);
 
-  /** CS-prediction tables (present ones only) for one saveframe. */
   predictionTablesOf(sf: ChemShiftSaveframe): PredictionTable[] {
     const p = sf.predictions;
     return [
-      { title: 'Cysteine redox state', rows: p.cys_redox },
-      { title: 'Proline cis/trans peptide bond', rows: p.pro_cis_trans },
-      { title: 'Histidine tautomeric state', rows: p.his_tautomer },
-      { title: 'Ile/Leu/Val rotameric state', rows: p.ilv_rotamer },
+      {
+        title: 'Cysteine redox state',
+        rows: p.cys_redox,
+        tooltip: [
+          {
+            title: '13C NMR chemical shifts can predict disulfide bond formation.',
+            authors: 'Sharma, D., Rajarathnam, K.',
+            journal: 'J Biomol NMR 18, 165–171 (2000)',
+            doi: '10.1023/A:1008398416292',
+          },
+        ],
+      },
+      {
+        title: 'Proline cis/trans peptide bond',
+        rows: p.pro_cis_trans,
+        tooltip: [
+          {
+            title:
+              'A software tool for the prediction of Xaa-Pro peptide bond conformations in proteins based on 13C chemical shift statistics.',
+            authors: 'Schubert, M., Labudde, D., Oschkinat, H. et al.',
+            journal: 'J Biomol NMR 24, 149–154 (2002)',
+            doi: 'DOI: 10.1023/A:1020997118364',
+          },
+        ],
+      },
+      {
+        title: 'Histidine tautomeric state',
+        rows: p.his_tautomer,
+        tooltip: [
+          {
+            title:
+              'Protonation, Tautomerization, and Rotameric Structure of Histidine: A Comprehensive Study by Magic-Angle-Spinning Solid-State NMR.',
+            authors: 'Shenhui Li and Mei Hong.',
+            journal: 'Journal of the American Chemical Society 2011 133 (5), 1534-1544',
+            doi: '10.1021/ja108943n',
+          },
+        ],
+      },
+      {
+        title: 'Ile/Leu/Val rotameric state',
+        rows: p.ilv_rotamer,
+        tooltip: [
+          {
+            title:
+              'Determination of Isoleucine Side-Chain Conformations in Ground and Excited States of Proteins from Chemical Shifts.',
+            authors: 'D. Flemming Hansen, Philipp Neudecker, and Lewis E. Kay.',
+            journal: 'Journal of the American Chemical Society 2010 132 (22), 7589-7591',
+            doi: '10.1021/ja102090z',
+          },
+          {
+            title:
+              'Dependence of Amino Acid Side Chain 13C Shifts on Dihedral Angle: Application to Conformational Analysis.',
+            authors: 'Robert E. London, Brett D. Wingad, and Geoffrey A. Mueller.',
+            journal: 'Journal of the American Chemical Society 2008 130 (33), 11097-11105',
+            doi: '10.1021/ja802729t',
+          },
+        ],
+      },
     ].filter((t) => t.rows.length > 0);
   }
 
@@ -438,7 +579,12 @@ export class Summary implements OnDestroy {
   chemShiftHistogramPanels(sf: ChemShiftSaveframe): ChartPanel[] {
     return sf.histogram.map((h) => ({
       title: 'Normalized assigned chemical shifts (Z-score)',
-      option: this.histogramOption(h, 'Z-score', '# of chemical shifts'),
+      // Reversed X-axis (high → low Z-score) to match ordinary NMR spectra, and
+      // [v, v + step) range labels since each bin spans a Z-score interval.
+      option: this.histogramOption(h, 'Z-score', '# of chemical shifts', {
+        inverse: true,
+        rangeLabels: true,
+      }),
     }));
   }
 
@@ -470,13 +616,19 @@ export class Summary implements OnDestroy {
   distHistogramPanels(sf: DistRestraintSaveframe): ChartPanel[] {
     return sf.histogram.map((h) => ({
       title: 'Distance restraint target values',
-      option: this.histogramOption(h, 'Distance (Å)', '# of distance restraints'),
+      option: this.histogramOption(h, 'Target distance (Å)', '# of distance restraints', {
+        rangeLabels: true,
+        yAxisLine: true,
+      }),
     }));
   }
   distDiscrepancyPanels(sf: DistRestraintSaveframe): ChartPanel[] {
     return sf.discrepancy.map((h) => ({
       title: 'Discrepancy in redundant distance restraints',
-      option: this.histogramOption(h, 'Normalized discrepancy (%)', '# of redundant restraints'),
+      option: this.histogramOption(h, 'Normalized discrepancy (%)', '# of redundant restraints', {
+        rangeLabels: true,
+        yAxisLine: true,
+      }),
     }));
   }
   distPerResiduePanels(sf: DistRestraintSaveframe): ChartPanel[] {
@@ -489,13 +641,29 @@ export class Summary implements OnDestroy {
     return sf.contact_maps.map((c) => ({
       title: `Distance restraints contact map — Entity_assembly_ID: ${c.chain}`,
       option: this.contactMapOption(c),
+      // Square residue × residue plot; marginX reserves the right-side legend
+      // (left 48 + legend width) so the box widens rather than squashing the plot.
+      aspect: 1,
+      marginX: 48 + this.legendReserve(c.series.map((s) => s.name)),
+      marginY: 32,
     }));
   }
   distAsymContactMapPanels(sf: DistRestraintSaveframe): ChartPanel[] {
-    return sf.asym_contact_maps.map((c) => ({
-      title: `Inter-chain contact map — Entity_assembly_IDs: ${c.chain1} / ${c.chain2}`,
-      option: this.asymContactMapOption(c),
-    }));
+    return sf.asym_contact_maps.map((c) => {
+      const xr = c.xmax - c.xmin;
+      const yr = c.ymax - c.ymin;
+      return {
+        title: `Inter-chain contact map — Entity_assembly_IDs: ${c.chain1} ↔ ${c.chain2}`,
+        option: this.asymContactMapOption(c),
+        // Proportional to the two chains' residue ranges (undistorted cells);
+        // margins reserve the right-side legend so the plot keeps that ratio.
+        aspect: xr > 0 ? yr / xr : 1,
+        marginX: 48 + this.legendReserve(c.series.map((s) => s.name)),
+        // top 16 + bottom 40 + x-tick labels; matches the asym grid so the plot
+        // stays proportional and the x-axis title has room.
+        marginY: 72,
+      };
+    });
   }
 
   /** Dihedral angle restraints grouped by saveframe (sf_framecode). */
@@ -507,13 +675,16 @@ export class Summary implements OnDestroy {
     for (const d of sf.dihedral) {
       if (d.phi_psi)
         panels.push({
+          // Square: both axes span -180..180°, so the plot must stay rectangular.
           title: 'φ / ψ dihedral angles',
           option: this.dihedralOption(d.phi_psi, 'φ', 'ψ'),
+          aspect: 1,
         });
       if (d.chi1_chi2)
         panels.push({
           title: 'χ1 / χ2 dihedral angles',
           option: this.dihedralOption(d.chi1_chi2, 'χ1', 'χ2'),
+          aspect: 1,
         });
     }
     return panels;
@@ -521,7 +692,21 @@ export class Summary implements OnDestroy {
   dihedHistogramPanels(sf: DihedRestraintSaveframe): ChartPanel[] {
     return sf.histogram.map((h) => ({
       title: 'Dihedral angle target values',
-      option: this.histogramOption(h, 'Angle (°)', '# of dihedral restraints'),
+      option: this.histogramOption(h, 'Angle (°)', '# of dihedral angle restraints', {
+        rangeLabels: true,
+        yAxisLine: true,
+      }),
+    }));
+  }
+  dihedDiscrepancyPanels(sf: DihedRestraintSaveframe): ChartPanel[] {
+    return sf.discrepancy.map((h) => ({
+      title: 'Discrepancy in redundant dihedral angle restraints',
+      option: this.histogramOption(
+        h,
+        'Discrepancy in dihedral angle restraints (°)',
+        '# of redundant restraints',
+        { rangeLabels: true, yAxisLine: true },
+      ),
     }));
   }
   dihedPerResiduePanels(sf: DihedRestraintSaveframe): ChartPanel[] {
@@ -538,7 +723,21 @@ export class Summary implements OnDestroy {
   rdcHistogramPanels(sf: RdcRestraintSaveframe): ChartPanel[] {
     return sf.histogram.map((h) => ({
       title: 'Observed RDC values',
-      option: this.histogramOption(h, 'Obs. RDC value (Hz)', '# of RDC restraints'),
+      option: this.histogramOption(h, 'Obs. RDC value (Hz)', '# of RDC restraints', {
+        rangeLabels: true,
+        yAxisLine: true,
+      }),
+    }));
+  }
+  rdcDiscrepancyPanels(sf: RdcRestraintSaveframe): ChartPanel[] {
+    return sf.discrepancy.map((h) => ({
+      title: 'Discrepancy in redundant RDC restraints',
+      option: this.histogramOption(
+        h,
+        'Discrepancy in RDC restraints (Hz)',
+        '# of redundant restraints',
+        { rangeLabels: true, yAxisLine: true },
+      ),
     }));
   }
   rdcPerResiduePanelsOf(sf: RdcRestraintSaveframe): ChartPanel[] {
@@ -601,8 +800,30 @@ export class Summary implements OnDestroy {
   /** Read-only after download. */
   locked = computed(() => this.pageService.pageState().downloaded);
 
+  /** The conversion results have been downloaded (drives the read-only notice). */
+  downloaded = computed(() => this.pageService.pageState().downloaded);
+
   /** A conversion run exists (the validation/approval UI only applies then). */
   processed = computed(() => this.pageService.pageState().conversionId !== null);
+
+  /** Whether the "Proceed to download" button is shown (Terms #7). Hidden in the
+   * Error case (blocking NMR error → must re-upload) and while the NMR data
+   * report is unavailable/still loading. In the Warning case it shows but is only
+   * enabled once every issue is acknowledged (canApprove); in the OK case there
+   * is nothing to acknowledge, so it is enabled immediately. */
+  showProceed = computed(
+    () => this.processed() && this.nmrAvailable() === true && !this.hasBlockingError(),
+  );
+
+  /** Warning status: the button is shown but there are issues to acknowledge
+   * first (in the OK case there are none). */
+  warningStatus = computed(() => this.showProceed() && this.acknowledgeableKeys().length > 0);
+
+  /** Navigate to the download page once the status is approved (Terms #7). */
+  proceedToDownload(): void {
+    if (!this.canApprove()) return;
+    this.router.navigate(['/download'], { queryParamsHandling: 'preserve' });
+  }
 
   /** Host element for the Mol* canvas (only present while showViewer()). */
   private coordinateHost = viewChild<ElementRef<HTMLDivElement>>('molstarHost');
@@ -747,16 +968,38 @@ export class Summary implements OnDestroy {
   }
 
   /** ECharts option for a stacked-bar histogram. */
-  private histogramOption(h: HistogramChart, xName: string, yName: string): object {
-    // Outlier markers: a dashed vertical line at each annotated value's bin,
-    // red for anomalous shifts (else slate), with a rotated short description.
+  private histogramOption(
+    h: HistogramChart,
+    xName: string,
+    yName: string,
+    opts: { inverse?: boolean; rangeLabels?: boolean; yAxisLine?: boolean } = {},
+  ): object {
+    const { inverse = false, rangeLabels = false, yAxisLine = false } = opts;
+    // Categories are bin lower bounds; the bin spans [v, v + step). When
+    // rangeLabels is set, label each tick with that half-open interval so the
+    // axis reads as ranges rather than single points.
+    const step =
+      h.categories.length >= 2 ? parseFloat(h.categories[1]) - parseFloat(h.categories[0]) : 0;
+    const labelFormatter =
+      rangeLabels && step && inverse
+        ? (value: string) => `(${+(parseFloat(value) + step).toFixed(6)}, ${value}]`
+        : rangeLabels && step
+          ? (value: string) => `[${value}, ${+(parseFloat(value) + step).toFixed(6)})`
+          : undefined;
+    // Outlier markers: a dashed vertical line at each annotated value's precise
+    // position, red for anomalous shifts (else slate), with a rotated short
+    // description. `a.x` is a fractional category index; the category axis snaps
+    // markLines to bin centres, so the markers are anchored to a hidden value
+    // axis (index 1) that spans the same pixel extent — value i lands on band
+    // centre i, letting fractional positions render exactly between bins.
     const ann = h.annotations ?? [];
+    const n = h.categories.length;
     const markLine = ann.length
       ? {
           silent: true,
           symbol: 'none',
           data: ann.map((a) => ({
-            xAxis: a.category,
+            xAxis: a.x,
             lineStyle: { color: a.anomalous ? '#dc2626' : '#475569', type: 'dashed', width: 1 },
             label: {
               show: true,
@@ -776,69 +1019,117 @@ export class Summary implements OnDestroy {
           })),
         }
       : undefined;
+    const categoryAxis = {
+      type: 'category',
+      data: h.categories,
+      name: xName,
+      nameLocation: 'middle',
+      nameGap: 40,
+      axisLabel: { rotate: -75, fontSize: 9, formatter: labelFormatter },
+      // Reversed (high → low) to match the convention of NMR spectra.
+      inverse,
+    };
+    // Hidden value axis matching the category axis extent (bands span index
+    // -0.5 … n-0.5); markLine values are fractional indices placed against it.
+    const markerAxis = {
+      type: 'value',
+      min: 0.0,
+      max: n + 1.0,
+      show: false,
+      // inverse,
+      axisPointer: { show: false },
+    };
     return {
       title: { text: h.label, left: 'center', textStyle: { fontSize: 12, fontWeight: 'normal' } },
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-      legend: { bottom: 0, type: 'scroll' },
+      // Exclude the invisible marker-holder series from the legend.
+      legend: { bottom: 0, type: 'scroll', data: h.series.map((s) => s.name) },
       grid: { left: 56, right: 16, top: 36, bottom: 64, containLabel: true },
-      xAxis: {
-        type: 'category',
-        data: h.categories,
-        name: xName,
-        nameLocation: 'middle',
-        nameGap: 40,
-        axisLabel: { rotate: -75, fontSize: 9 },
+      xAxis: markLine ? [categoryAxis, markerAxis] : categoryAxis,
+      // A value axis hides its axis line by default; show it for the restraint
+      // histograms (skipped for the chem-shift chart). Tick marks are shown on
+      // every histogram's y-axis.
+      yAxis: {
+        type: 'value',
+        name: yName,
+        minInterval: 1,
+        axisTick: { show: true },
+        ...(yAxisLine ? { axisLine: { show: true } } : {}),
       },
-      yAxis: { type: 'value', name: yName, minInterval: 1 },
-      series: h.series.map((s, idx) => ({
-        name: s.name,
-        type: 'bar',
-        stack: 'total',
-        data: s.data,
-        ...(idx === 0 && markLine ? { markLine } : {}),
-      })),
+      series: [
+        ...h.series.map((s) => ({ name: s.name, type: 'bar', stack: 'total', data: s.data })),
+        ...(markLine ? [{ type: 'line', xAxisIndex: 1, data: [], silent: true, markLine }] : []),
+      ],
     };
   }
 
   /** ECharts option for a dihedral scatter with custom bidirectional error bars
    * (a `custom` series — no third-party plugin). */
   private dihedralOption(plot: DihedralPlot, xName: string, yName: string): object {
-    const axis = (name: string) => ({
+    const axis = (name: string, nameGap: number) => ({
       type: 'value' as const,
       name,
+      // Centre the title along each axis (bottom-centre / left-centre) so it never
+      // collides with the right-side legend. onZero:false keeps the axis (and its
+      // title) at the grid edge rather than the centre 0-crossing; the ±180° grid
+      // is still conveyed by the split lines.
+      nameLocation: 'middle' as const,
+      nameGap,
       min: -180,
       max: 180,
       interval: 90,
       splitLine: { show: true },
+      axisLine: { show: false, onZero: false },
+      axisTick: { show: false },
     });
     return {
       tooltip: {
         trigger: 'item',
-        formatter: (p: { data?: { name?: string; value?: number[] } }) =>
+        // seriesName is the comp_id (residue type), data.name is the seq_id.
+        formatter: (p: {
+          seriesName?: string;
+          data?: { name?: string | number; value?: number[] };
+        }) =>
           p.data?.value
-            ? `${p.data.name ?? ''}<br/>${xName}: ${p.data.value[0]}°<br/>${yName}: ${p.data.value[1]}°`
+            ? `${p.data.name} ${p.seriesName}<br/>${xName}: ${p.data.value[0]}°<br/>${yName}: ${p.data.value[1]}°`
             : '',
       },
-      grid: { left: 56, right: 24, top: 24, bottom: 48, containLabel: true },
-      xAxis: axis(`${xName} (°)`),
-      yAxis: axis(`${yName} (°)`),
+      // Legend of residue types (comp_id); plain so the many entries wrap onto
+      // multiple lines. Excludes the invisible error series.
+      // Residue-type legend on the right (comp_id entries are short).
+      legend: {
+        orient: 'vertical',
+        right: 8,
+        top: 'middle',
+        type: 'plain',
+        data: plot.groups.map((g) => g.comp_id),
+      },
+      grid: { left: 56, right: 76, top: 24, bottom: 24, containLabel: true },
+      xAxis: axis(`${xName} (°)`, 28),
+      yAxis: axis(`${yName} (°)`, 40),
       series: [
-        {
-          // Bidirectional error bars drawn beneath the points.
-          type: 'custom',
-          silent: true,
-          z: 1,
-          data: plot.errors,
-          encode: { x: 0, y: 1 },
-          renderItem: this.errorBarRenderItem,
-        },
-        {
+        // One scatter series per residue type (comp_id) → categorized legend.
+        // Listed first so each gets a consecutive palette colour and provides the
+        // legend icon colour.
+        ...plot.groups.map((g) => ({
+          name: g.comp_id,
           type: 'scatter',
           z: 2,
           symbolSize: 6,
-          itemStyle: { color: '#2563eb', opacity: 0.7 },
-          data: plot.points.map((pt) => ({ name: pt.name, value: [pt.x, pt.y] })),
-        },
+          itemStyle: { opacity: 0.7 },
+          data: g.points.map((pt) => ({ name: pt.seq_id, value: [pt.x, pt.y] })),
+        })),
+        // Matching error-bar series per comp_id, drawn beneath the points. Sharing
+        // the comp_id name makes the legend toggle show/hide bars with the points.
+        ...plot.groups.map((g) => ({
+          name: g.comp_id,
+          type: 'custom',
+          silent: true,
+          z: 1,
+          data: g.errors,
+          encode: { x: 0, y: 1 },
+          renderItem: this.errorBarRenderItem,
+        })),
       ],
     };
   }
@@ -859,9 +1150,19 @@ export class Summary implements OnDestroy {
     return 'rgba(120,120,120,0.4)';
   }
 
-  /** ECharts option for a per-residue stacked-count bar with secondary-structure
-   * bands drawn as markAreas. */
-  private perResidueOption(c: PerResidueChart): object {
+  /** Secondary-structure bands as a markArea overlay (shared by the per-residue
+   * bar and line charts). A markArea attached to a category axis snaps to bin
+   * centres for a line series but to bin edges for a bar series — inconsistent,
+   * and centre-anchored bands stop at the middle of the border bins. Instead
+   * anchor it to a hidden value axis (xAxisIndex 1) whose value v maps to the
+   * category fraction v/n: value i sits on bin i's left edge, so [start, end + 1]
+   * covers the full bins of the band's first and last residues. Returns the
+   * hidden axis and the invisible line series that carries the markArea; splice
+   * both into a chart whose primary (category) data sits at xAxisIndex 0. */
+  private bandOverlay(
+    categories: string[],
+    bands: { start: number; end: number; type: string; label: string }[],
+  ): { markerAxis: object; holderSeries: object } {
     const markArea = {
       silent: true,
       // Secondary-structure word (struct_conf, e.g. HELX_P / STRN) annotated at
@@ -875,9 +1176,9 @@ export class Summary implements OnDestroy {
         color: '#64748b',
         distance: 11,
       },
-      data: c.bands.map((b) => [
+      data: bands.map((b) => [
         {
-          xAxis: c.categories[b.start],
+          xAxis: b.start,
           // Translucent fill with a thin, more saturated border so the band's
           // left/right edges read as condensed colored lines (the band spans the
           // full plot height, so the top/bottom borders sit at the frame edges).
@@ -888,55 +1189,158 @@ export class Summary implements OnDestroy {
           },
           name: b.label,
         },
-        { xAxis: c.categories[b.end] },
+        { xAxis: b.end + 1 },
       ]),
     };
+    // Hidden value axis matching the category axis pixel extent (n bins over the
+    // grid): value i lands on bin i's left edge, value n on the last bin's right
+    // edge, so fractional band bounds render exactly against it.
+    const markerAxis = {
+      type: 'value',
+      min: 0,
+      max: categories.length,
+      show: false,
+      axisPointer: { show: false },
+    };
+    return {
+      markerAxis,
+      holderSeries: { type: 'line', xAxisIndex: 1, data: [], silent: true, markArea },
+    };
+  }
+
+  /** ECharts option for a per-residue stacked-count bar with secondary-structure
+   * bands drawn as markAreas. */
+  private perResidueOption(c: PerResidueChart): object {
+    const { markerAxis, holderSeries } = this.bandOverlay(c.categories, c.bands);
     const interval = Math.max(0, Math.ceil(c.categories.length / 24) - 1);
     return {
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-      legend: { bottom: 0, type: 'scroll' },
+      // Exclude the invisible band-holder line series from the legend.
+      legend: { bottom: 0, type: 'scroll', data: c.series.map((s) => s.name) },
       grid: { left: 48, right: 16, top: 24, bottom: 72, containLabel: true },
-      xAxis: {
-        type: 'category',
-        data: c.categories,
-        axisLabel: { interval, rotate: -75, fontSize: 8 },
-      },
-      yAxis: { type: 'value', name: '# restraints', minInterval: 1 },
-      series: c.series.map((s, idx) => ({
-        name: s.name,
-        type: 'bar',
-        stack: 'total',
-        data: s.data,
-        ...(idx === 0 ? { markArea } : {}),
-      })),
+      xAxis: [
+        { type: 'category', data: c.categories, axisLabel: { interval, rotate: -75, fontSize: 8 } },
+        markerAxis,
+      ],
+      yAxis: { type: 'value', name: '# of restraints', minInterval: 1, axisLine: { show: true } },
+      series: [
+        ...c.series.map((s) => ({ name: s.name, type: 'bar', stack: 'total', data: s.data })),
+        holderSeries,
+      ],
     };
+  }
+
+  /** Translucent fill for a contact-map secondary-structure band. The low alpha
+   * lets vertical (x) and horizontal (y) bands blend where they cross. */
+  private mapBandColor(type: string): string {
+    if (type === 'helix') return 'rgba(204,47,0,0.08)';
+    if (type === 'strand') return 'rgba(0,156,209,0.08)';
+    if (type === 'turn') return 'rgba(200,204,0,0.10)';
+    return 'rgba(120,120,120,0.06)';
+  }
+
+  /** A markArea overlaying secondary-structure regions on a contact map: `xbands`
+   * become vertical bands (full height), `ybands` horizontal bands (full width).
+   * Bands sit at residue value coordinates, so [start-0.5, end+0.5] covers the
+   * whole residues; the translucent fills blend where the two axes' structures
+   * coincide. */
+  private mapBandMarkArea(xbands: MapBand[], ybands: MapBand[]): object {
+    const label = (rotate: number, position: string, offset: number[], type: string) => ({
+      show: true,
+      position,
+      offset,
+      rotate,
+      fontSize: 9,
+      fontStyle: 'italic' as const,
+      color: this.bandEdgeColor(type),
+    });
+    const vertical = xbands.map((b) => [
+      {
+        xAxis: b.start - 0.5,
+        itemStyle: { color: this.mapBandColor(b.type) },
+        name: b.label,
+        label: label(-90, 'insideTopLeft', [8, -4], b.type),
+      },
+      { xAxis: b.end + 0.5 },
+    ]);
+    const horizontal = ybands.map((b) => [
+      {
+        yAxis: b.start - 0.5,
+        itemStyle: { color: this.mapBandColor(b.type) },
+        name: b.label,
+        label: label(0, 'insideStartTop', [8, 2], b.type),
+      },
+      { yAxis: b.end + 0.5 },
+    ]);
+    return { silent: true, data: [...vertical, ...horizontal] };
   }
 
   /** ECharts option for a symmetric contact map: scatter of [seq1, seq2] points
    * sized by restraint count, on a square residue×residue grid (y inverted). */
+  /** Max px width for a contact-map right-side legend before labels truncate,
+   * so a very long constraint name (e.g. a hydrogen-bond description) can't eat
+   * the plot. */
+  private static readonly LEGEND_CAP = 300;
+
+  /** Right-margin (px) to reserve for the vertical legend of `names`, sized to
+   * the longest label (≈ 82 + 5.8·chars) and capped at LEGEND_CAP. Used for both
+   * grid.right (option) and the plot marginX (panel) so they stay in sync. */
+  private legendReserve(names: string[]): number {
+    const maxLen = names.reduce((m, n) => Math.max(m, n.length), 0);
+    return Math.min(Summary.LEGEND_CAP, Math.round(82 + 5.8 * maxLen));
+  }
+
+  /** Vertical right-side legend for the contact maps; labels wider than the cap
+   * truncate with an ellipsis (full text shown on legend hover). */
+  private mapLegend(): object {
+    return {
+      orient: 'vertical',
+      right: 8,
+      top: 'middle',
+      type: 'plain',
+      textStyle: { width: Summary.LEGEND_CAP - 82, overflow: 'truncate' },
+      tooltip: { show: true },
+    };
+  }
+
   private contactMapOption(c: ContactMapChart): object {
-    const axis = (name: string) => ({
+    const axis = () => ({
       type: 'value' as const,
-      name,
       min: c.min,
       max: c.max,
       minInterval: 1,
+      // No axis line / ticks / title: the residue-range start (residue 0) needs
+      // no emphasis, and the bands carry the residue context.
+      axisLine: { show: false },
+      axisTick: { show: false },
     });
+    // Symmetric map: the same sequence bands read on both axes.
+    const markArea = this.mapBandMarkArea(c.bands, c.bands);
     return {
       tooltip: {
         trigger: 'item',
-        formatter: (p: { data?: number[] }) =>
-          p.data ? `${p.data[0]} ↔ ${p.data[1]}<br/>count: ${p.data[2]}` : '',
+        formatter: (p: { data?: ContactPoint }) => {
+          const d = p.data;
+          return d ? `${d.c1} ${d.value[0]} ↔ ${d.c2} ${d.value[1]}<br/>count: ${d.value[2]}` : '';
+        },
       },
-      legend: { bottom: 0, type: 'scroll' },
-      grid: { left: 48, right: 24, top: 16, bottom: 48, containLabel: true },
-      xAxis: axis('Residue'),
-      yAxis: { ...axis('Residue'), inverse: true },
-      series: c.series.map((s) => ({
+      // Constraint-type legend on the right, sized to the longest label.
+      legend: this.mapLegend(),
+      grid: {
+        left: 48,
+        right: this.legendReserve(c.series.map((s) => s.name)),
+        top: 16,
+        bottom: 16,
+        containLabel: true,
+      },
+      xAxis: axis(),
+      yAxis: { ...axis(), inverse: true },
+      series: c.series.map((s, idx) => ({
         name: s.name,
         type: 'scatter',
         data: s.points,
         symbolSize: (v: number[]) => Math.min(16, 4 + 2 * (v[2] || 1)),
+        ...(idx === 0 ? { markArea } : {}),
       })),
     };
   }
@@ -947,20 +1351,58 @@ export class Summary implements OnDestroy {
     return {
       tooltip: {
         trigger: 'item',
-        formatter: (p: { data?: number[] }) =>
-          p.data
-            ? `${c.chain1}:${p.data[0]} ↔ ${c.chain2}:${p.data[1]}<br/>count: ${p.data[2]}`
-            : '',
+        formatter: (p: { data?: ContactPoint }) => {
+          const d = p.data;
+          return d
+            ? `${c.chain1} ${d.c1} ${d.value[0]} ↔ ${c.chain2} ${d.c2} ${d.value[1]}<br/>count: ${d.value[2]}`
+            : '';
+        },
       },
-      legend: { bottom: 0, type: 'scroll' },
-      grid: { left: 48, right: 24, top: 16, bottom: 48, containLabel: true },
-      xAxis: { type: 'value', name: `Chain ${c.chain1}`, min: c.xmin, max: c.xmax, minInterval: 1 },
-      yAxis: { type: 'value', name: `Chain ${c.chain2}`, min: c.ymin, max: c.ymax, minInterval: 1 },
-      series: c.series.map((s) => ({
+      // Constraint-type legend on the right, sized to the longest label.
+      legend: this.mapLegend(),
+      grid: {
+        left: 48,
+        right: this.legendReserve(c.series.map((s) => s.name)),
+        top: 16,
+        // Extra bottom room so the centred x-axis title isn't clipped (matched
+        // by marginY on the panel so the plot keeps its aspect).
+        bottom: 40,
+        containLabel: true,
+      },
+      // No axis lines / ticks: the residue-range start (residue 0)
+      // needs no emphasis, and the bands carry the residue context.
+      xAxis: {
+        type: 'value',
+        name: `Entity_assembly_ID: ${c.chain1}`,
+        // Centre the title under the axis (was at the right end).
+        nameLocation: 'middle',
+        nameGap: 28,
+        min: c.xmin,
+        max: c.xmax,
+        minInterval: 1,
+        axisLine: { show: false },
+        axisTick: { show: false },
+      },
+      yAxis: {
+        type: 'value',
+        name: `Entity_assembly_ID: ${c.chain2}`,
+        // Rotate the title vertically along the axis so it doesn't run into the
+        // element above the chart.
+        nameLocation: 'middle',
+        nameRotate: 90,
+        nameGap: 44,
+        min: c.ymin,
+        max: c.ymax,
+        minInterval: 1,
+        axisLine: { show: false },
+        axisTick: { show: false },
+      },
+      series: c.series.map((s, idx) => ({
         name: s.name,
         type: 'scatter',
         data: s.points,
         symbolSize: (v: number[]) => Math.min(16, 4 + 2 * (v[2] || 1)),
+        ...(idx === 0 ? { markArea: this.mapBandMarkArea(c.xbands, c.ybands) } : {}),
       })),
     };
   }
@@ -969,35 +1411,7 @@ export class Summary implements OnDestroy {
    * with secondary-structure bands and an optional threshold line. */
   private lineOption(c: PerResidueLine): object {
     const interval = Math.max(0, Math.ceil(c.categories.length / 24) - 1);
-    const markArea = {
-      silent: true,
-      // Secondary-structure word (struct_conf, e.g. HELX_P / STRN) annotated at
-      // each band's top-left corner, rotated to read top-to-bottom so the
-      // (often narrow) band can carry the label.
-      label: {
-        show: true,
-        position: 'insideTopLeft',
-        rotate: -90,
-        fontSize: 10,
-        color: '#64748b',
-        distance: 11,
-      },
-      data: c.bands.map((b) => [
-        {
-          xAxis: c.categories[b.start],
-          // Translucent fill with a thin, more saturated border so the band's
-          // left/right edges read as condensed colored lines (the band spans the
-          // full plot height, so the top/bottom borders sit at the frame edges).
-          itemStyle: {
-            color: this.bandColor(b.type),
-            borderColor: this.bandEdgeColor(b.type),
-            borderWidth: 1,
-          },
-          name: b.label,
-        },
-        { xAxis: c.categories[b.end] },
-      ]),
-    };
+    const { markerAxis, holderSeries } = this.bandOverlay(c.categories, c.bands);
     const markLine =
       c.threshold !== null
         ? {
@@ -1017,30 +1431,34 @@ export class Summary implements OnDestroy {
         : undefined;
     return {
       tooltip: { trigger: 'axis' },
-      legend: { bottom: 0, type: 'scroll' },
+      // Exclude the invisible band-holder line series from the legend.
+      legend: { bottom: 0, type: 'scroll', data: c.series.map((s) => s.name) },
       grid: { left: 52, right: 16, top: 24, bottom: 64, containLabel: true },
-      xAxis: {
-        type: 'category',
-        data: c.categories,
-        axisLabel: { interval, rotate: -75, fontSize: 8 },
-      },
+      xAxis: [
+        { type: 'category', data: c.categories, axisLabel: { interval, rotate: -75, fontSize: 8 } },
+        markerAxis,
+      ],
       yAxis: {
         type: 'value',
+        axisLine: { show: true },
         ...(c.ymin !== null ? { min: c.ymin } : {}),
         ...(c.ymax !== null ? { max: c.ymax } : {}),
       },
-      series: c.series.map((s, idx) => ({
-        name: s.name,
-        type: 'line',
-        data: s.data,
-        connectNulls: false,
-        // Show point symbols so sparse series (e.g. RCI/S², defined only for some
-        // residues) remain visible: an isolated value surrounded by nulls draws
-        // no line segment, so without a symbol it would render as nothing.
-        showSymbol: true,
-        symbolSize: 4,
-        ...(idx === 0 ? { markArea, ...(markLine ? { markLine } : {}) } : {}),
-      })),
+      series: [
+        ...c.series.map((s, idx) => ({
+          name: s.name,
+          type: 'line',
+          data: s.data,
+          connectNulls: false,
+          // Show point symbols so sparse series (e.g. RCI/S², defined only for some
+          // residues) remain visible: an isolated value surrounded by nulls draws
+          // no line segment, so without a symbol it would render as nothing.
+          showSymbol: true,
+          symbolSize: 4,
+          ...(idx === 0 && markLine ? { markLine } : {}),
+        })),
+        holderSeries,
+      ],
     };
   }
 

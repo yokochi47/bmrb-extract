@@ -1,5 +1,14 @@
 <div class="card">
   <div class="font-semibold text-2xl mb-6">Upload summary</div>
+
+  <!-- Read-only after download (Terms #8): the session no longer accepts changes. -->
+  @if (downloaded()) {
+    <p-message severity="info" styleClass="mb-6 w-full" [closable]="false">
+      <i class="pi pi-lock mr-2"></i>You have downloaded the conversion results — this session is
+      now read-only and can no longer accept file changes or re-uploads.
+    </p-message>
+  }
+
   <p class="text-xl mb-4">
     This page contains a summary of the uploaded data.
     <strong
@@ -117,6 +126,7 @@
                     [ngModel]="isAcked('geo:' + m.key)"
                     [binary]="true"
                     [disabled]="locked()"
+                    [class.ack-glow]="!isAcked('geo:' + m.key) && !locked()"
                     (onChange)="toggleAck('geo:' + m.key)"
                   />
                   <span class="font-medium px-2 py-0.5 rounded" style="background-color: gold">
@@ -421,7 +431,7 @@
             <thead>
               <tr>
                 <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
-                  Entity_assembly_ID
+                  Chain_ID
                 </th>
                 <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
                   Seq_ID
@@ -482,7 +492,7 @@
                   @if (r.ref || r.test) {
                     @if (r.test_gauge !== '') {
                       <pre
-                        class="m-0 px-2 py-1 text-xs leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
+                        class="m-0 px-2 py-1 text-sm leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
                         >{{ r.ref_gauge }}
 {{ r.ref }}
 {{ r.mid }}
@@ -491,7 +501,7 @@
                       >
                     } @else {
                       <pre
-                        class="m-0 px-2 py-1 text-xs leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
+                        class="m-0 px-2 py-1 text-sm leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
                         >{{ r.ref_gauge }}
 {{ r.ref }}
 {{ r.mid }}
@@ -578,7 +588,8 @@
               <div class="font-medium mb-2">Sequence coverage and completeness of assignments</div>
               @for (c of sf.completeness; track $index) {
                 @let cov = seqCoverageOf(sf, c.chain);
-                <div class="mb-4">
+                <p class="text-sm font-bold m-2">Entity_assembly_ID: {{ c.chain }}</p>
+                <p-card class="ml-2">
                   @for (cat of c.categories; track $index) {
                     <div class="mb-3 overflow-x-auto">
                       <div class="text-sm font-medium mb-1">{{ cat.label }}</div>
@@ -706,24 +717,20 @@
                     </p-panel>
                   }
                   <div class="text-sm text-surface-600 dark:text-surface-300 mb-1">
-                    Entity_assembly_ID: {{ c.chain }}
-                    @if (cov) {
-                      <span>, length: {{ cov.length }}</span>
-                    }
                     @if (c.coverage_pct !== null) {
-                      <span> — sequence coverage: {{ c.coverage_pct }}%</span>
+                      <span>Sequence coverage: {{ c.coverage_pct }}%</span>
                     }
                   </div>
                   @if (cov && (cov.ref || cov.test)) {
                     <pre
-                      class="m-0 mb-3 px-2 py-1 text-xs leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
+                      class="m-0 mb-3 px-2 py-1 text-sm leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
                       >{{ cov.ref_gauge }}
 {{ cov.ref }}
 {{ cov.mid }}
 {{ cov.test }}</pre
                     >
                   }
-                </div>
+                </p-card>
               }
             </div>
           }
@@ -733,6 +740,23 @@
             <div class="mb-6 overflow-x-auto">
               <div class="font-medium mb-2">
                 {{ pt.title }} (predicted by chemical shifts vs coordinates)
+                <i
+                  class="pi pi-bookmark"
+                  [pTooltip]="tooltipContent"
+                  tooltipStyleClass="cite-tooltip"
+                ></i>
+                <ng-template #tooltipContent>
+                  <div class="whitespace-nowrap">
+                    @for (cite of pt.tooltip; track $index) {
+                      <p>{{ cite.title }}</p>
+                      <ul>
+                        <li>{{ cite.authors }}</li>
+                        <li>{{ cite.journal }}</li>
+                        <li>{{ cite.doi }}</li>
+                      </ul>
+                    }
+                  </div>
+                </ng-template>
               </div>
               <table class="w-full text-sm border-collapse">
                 <thead>
@@ -889,12 +913,12 @@
                 @if (cl.key === 'number') {
                   @if (sf.range) {
                     <span class="text-sm text-surface-600 dark:text-surface-300"
-                      >— target range {{ sf.range }}</span
+                      >— target range <strong>{{ sf.range }}</strong></span
                     >
                   }
                   @if (sf.exp_type) {
                     <span class="text-sm text-surface-600 dark:text-surface-300"
-                      >· {{ sf.exp_type }}</span
+                      >· <strong>{{ sf.exp_type }}</strong></span
                     >
                   }
                 }
@@ -917,7 +941,7 @@
                 </div>
                 @if (c.ref || c.test) {
                   <pre
-                    class="m-0 px-2 py-1 text-xs leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
+                    class="m-0 px-2 py-1 text-sm leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
                     >{{ c.ref_gauge }}
 {{ c.ref }}
 {{ c.mid }}
@@ -988,13 +1012,25 @@
           @for (p of distContactMapPanels(sf); track $index) {
             <div class="mb-6">
               <div class="font-medium mb-1">{{ p.title }}</div>
-              <app-echart [option]="p.option" [height]="440" />
+              <app-echart
+                [option]="p.option"
+                [height]="440"
+                [aspect]="p.aspect ?? null"
+                [marginX]="p.marginX ?? 0"
+                [marginY]="p.marginY ?? 0"
+              />
             </div>
           }
           @for (p of distAsymContactMapPanels(sf); track $index) {
             <div class="mb-6">
               <div class="font-medium mb-1">{{ p.title }}</div>
-              <app-echart [option]="p.option" [height]="440" />
+              <app-echart
+                [option]="p.option"
+                [height]="440"
+                [aspect]="p.aspect ?? null"
+                [marginX]="p.marginX ?? 0"
+                [marginY]="p.marginY ?? 0"
+              />
             </div>
           }
         </p-panel>
@@ -1044,7 +1080,7 @@
                 {{ cl.title }}
                 @if (cl.key === 'number' && sf.exp_type) {
                   <span class="text-sm text-surface-600 dark:text-surface-300"
-                    >— {{ sf.exp_type }}</span
+                    >— <strong>{{ sf.exp_type }}</strong></span
                   >
                 }
               </div>
@@ -1066,7 +1102,7 @@
                 </div>
                 @if (c.ref || c.test) {
                   <pre
-                    class="m-0 px-2 py-1 text-xs leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
+                    class="m-0 px-2 py-1 text-sm leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
                     >{{ c.ref_gauge }}
 {{ c.ref }}
 {{ c.mid }}
@@ -1117,15 +1153,21 @@
           @for (p of dihedScatterPanels(sf); track $index) {
             <div class="mb-6">
               <div class="font-medium mb-1">{{ p.title }}</div>
-              <app-echart [option]="p.option" [height]="460" />
+              <app-echart [option]="p.option" [height]="460" [aspect]="p.aspect ?? null" />
             </div>
           }
 
-          <!-- Target-value histogram -->
+          <!-- Target-value histogram + discrepancy -->
           @for (p of dihedHistogramPanels(sf); track $index) {
             <div class="mb-6">
               <div class="font-medium mb-1">{{ p.title }}</div>
               <app-echart [option]="p.option" [height]="380" />
+            </div>
+          }
+          @for (p of dihedDiscrepancyPanels(sf); track $index) {
+            <div class="mb-6">
+              <div class="font-medium mb-1">{{ p.title }}</div>
+              <app-echart [option]="p.option" [height]="360" />
             </div>
           }
 
@@ -1183,12 +1225,12 @@
                 @if (cl.key === 'number') {
                   @if (sf.range) {
                     <span class="text-sm text-surface-600 dark:text-surface-300"
-                      >— observed range {{ sf.range }}</span
+                      >— observed range <strong>{{ sf.range }}</strong></span
                     >
                   }
                   @if (sf.exp_type) {
                     <span class="text-sm text-surface-600 dark:text-surface-300"
-                      >· {{ sf.exp_type }}</span
+                      >· <strong>{{ sf.exp_type }}</strong></span
                     >
                   }
                 }
@@ -1211,7 +1253,7 @@
                 </div>
                 @if (c.ref || c.test) {
                   <pre
-                    class="m-0 px-2 py-1 text-xs leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
+                    class="m-0 px-2 py-1 text-sm leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
                     >{{ c.ref_gauge }}
 {{ c.ref }}
 {{ c.mid }}
@@ -1258,8 +1300,14 @@
             </div>
           }
 
-          <!-- Observed-value histogram -->
+          <!-- Observed-value histogram + discrepancy -->
           @for (p of rdcHistogramPanels(sf); track $index) {
+            <div class="mb-6">
+              <div class="font-medium mb-1">{{ p.title }}</div>
+              <app-echart [option]="p.option" [height]="360" />
+            </div>
+          }
+          @for (p of rdcDiscrepancyPanels(sf); track $index) {
             <div class="mb-6">
               <div class="font-medium mb-1">{{ p.title }}</div>
               <app-echart [option]="p.option" [height]="360" />
@@ -1336,7 +1384,7 @@
                 </div>
                 @if (c.ref || c.test) {
                   <pre
-                    class="m-0 px-2 py-1 text-xs leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
+                    class="m-0 px-2 py-1 text-sm leading-tight overflow-x-auto bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
                     >{{ c.ref_gauge }}
 {{ c.ref }}
 {{ c.mid }}
@@ -1458,6 +1506,7 @@
                       [ngModel]="isAcked('nmrerr:' + g.type)"
                       [binary]="true"
                       [disabled]="locked()"
+                      [class.ack-glow]="!isAcked('nmrerr:' + g.type) && !locked()"
                       (onChange)="toggleAck('nmrerr:' + g.type)"
                     />
                   }
@@ -1524,6 +1573,7 @@
                       [ngModel]="isAcked('nmrwarn:' + g.type)"
                       [binary]="true"
                       [disabled]="locked()"
+                      [class.ack-glow]="!isAcked('nmrwarn:' + g.type) && !locked()"
                       (onChange)="toggleAck('nmrwarn:' + g.type)"
                     />
                   }
@@ -1571,3 +1621,28 @@
     }
   </p-card>
 </div>
+
+<!-- Proceed to download (Terms #7): hidden on blocking error / no NMR report;
+       enabled once every flagged issue is acknowledged (immediately when OK). -->
+@if (showProceed()) {
+  <div class="card">
+    @if (warningStatus()) {
+      <p class="text-xl mb-4">
+        You can download the conversion results
+        <strong
+          >once you have reviewed all the warnings displayed above and checked all the boxes to
+          acknowledge them.</strong
+        >
+      </p>
+    } @else {
+      You can download the conversion results.
+    }
+    <p-button
+      label="Proceed to download"
+      icon="pi pi-download"
+      severity="success"
+      [disabled]="!canApprove()"
+      (click)="proceedToDownload()"
+    />
+  </div>
+}

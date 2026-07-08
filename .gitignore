@@ -1,6 +1,10 @@
 .env
 actions_runner*
-backend/app/__pycache__
+actions-runner/
+actions-runner*.tar.gz
+misc/
+**/__pycache__/
+prefect/data/.sdk_telemetry/
 certbot/cert/accounts
 certbot/cert/renewal
 certbot/cert/renewal-hooks

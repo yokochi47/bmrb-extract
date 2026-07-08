@@ -1,6 +1,14 @@
 <div class="card">
   <div class="font-semibold text-2xl mb-6">Upload files</div>
 
+  <!-- Read-only after download (Terms #8): the session no longer accepts changes. -->
+  @if (downloaded()) {
+    <p-message severity="info" styleClass="mb-6 w-full" [closable]="false">
+      <i class="pi pi-lock mr-2"></i>You have downloaded the conversion results — this session is
+      now read-only and can no longer accept file changes or re-uploads.
+    </p-message>
+  }
+
   <!-- Deposition system selection (hidden once conversion ID is issued) -->
   @if (showSetupSection()) {
     <div class="mb-6">
@@ -179,13 +187,14 @@
           <li>Assigned chemical shift files (NMR-STAR, NEF, or other supported formats)</li>
           Optionally
           <li>
-            Other data files in NMR-STAR V3 format (e.g. relaxation, kinetic, thermodynamic
-            parameters)
+            Other data files in NMR-STAR V3 format (e.g. perturbation, relaxation, kinetic,
+            thermodynamic parameters)
           </li>
           <li>
             Topology file, which describes a molecular assembly (a complete sequence of molecules
             and ligands) and is used when it is not in the primary data file
           </li>
+          <li>Perturbed chemical shift files (software native formats)</li>
         </ul>
       </p-card>
     }
@@ -220,174 +229,183 @@
     </ul>
   </p-card>
 
-  <!-- ── Previous upload status banner ──────────────────────────────────────── -->
-  <!-- Reflects the latest run's outcome (from GET /api/progress). Clicking a
-       banner re-opens the processing dialog to review that run's status/log. -->
-  @if (previousStatus() === 'failed') {
-    <p-message severity="error" styleClass="mb-4 w-full" [closable]="false">
-      <button
-        type="button"
-        class="cursor-pointer bg-transparent border-0 p-0 text-left text-inherit"
-        (click)="reopenProgress()"
-      >
-        <i class="pi pi-times-circle mr-1"></i>The previous conversion needs attention. Click to
-        view the status and log.
-      </button>
-    </p-message>
-  }
-  @if (previousStatus() === 'success') {
-    <p-message severity="success" styleClass="mb-4 w-full" [closable]="false">
-      <button
-        type="button"
-        class="cursor-pointer bg-transparent border-0 p-0 text-left text-inherit"
-        (click)="reopenProgress()"
-      >
-        <i class="pi pi-check-circle mr-1"></i>The previous conversion completed successfully. Click
-        to view the status and log.
-      </button>
-    </p-message>
-  }
-  @if (previousStatus() === 'processing') {
-    <p-message severity="info" styleClass="mb-4 w-full" [closable]="false">
-      <button
-        type="button"
-        class="cursor-pointer bg-transparent border-0 p-0 text-left text-inherit"
-        (click)="reopenProgress()"
-      >
-        <i class="pi pi-spin pi-spinner mr-1"></i>A conversion is in progress. Click to view the
-        live status.
-      </button>
-    </p-message>
-  }
-
   <!-- ── File chooser ────────────────────────────────────────────────────────── -->
-  <div class="mb-6">
-    <input #fileInput type="file" multiple hidden (change)="onFilesChosen($event)" />
-    <p-button
-      label="Choose Files"
-      icon="pi pi-upload"
-      [disabled]="isLocked()"
-      (click)="fileInput.click()"
-    />
-  </div>
+  <input #fileInput type="file" multiple hidden (change)="onFilesChosen($event)" />
+  <p-button
+    label="Choose Files"
+    icon="pi pi-upload"
+    [disabled]="isLocked()"
+    (click)="fileInput.click()"
+  />
+</div>
 
-  <!-- ── Uploaded files table ────────────────────────────────────────────────── -->
-  @if (rows().length > 0) {
-    <div class="mb-4 overflow-x-auto">
-      <table class="w-full text-sm border-collapse">
-        <thead>
-          <tr
-            class="border-b-2 border-surface-200 text-left text-surface-500 text-xs uppercase tracking-wide"
-          >
-            <th class="py-2 px-2 w-10"></th>
-            <th class="py-2 px-3">File name</th>
-            <th class="py-2 px-3 w-24 text-right">Size</th>
-            <th class="py-2 px-3 min-w-72">File type</th>
-            <th class="py-2 px-2 w-10"></th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (row of rows(); track $index; let i = $index) {
-            <tr class="border-b border-surface-100 hover:bg-surface-50 transition-colors">
-              <td class="py-2 px-2 text-center">
-                <p-checkbox
-                  [ngModel]="row.selected"
-                  (ngModelChange)="setSelected(i, $event)"
-                  [binary]="true"
-                />
-              </td>
-              <td class="py-2 px-3 font-mono text-xs break-all">{{ row.name }}</td>
-              <td class="py-2 px-3 text-right text-surface-400 tabular-nums">
-                {{ formatSize(row.size) }}
-              </td>
-              <td class="py-2 px-3">
-                <p-select
-                  [ngModel]="row.fileType"
-                  (ngModelChange)="setFileType(i, $event)"
-                  [options]="fileTypeOptions()"
-                  [group]="true"
-                  optionGroupLabel="label"
-                  optionGroupChildren="items"
-                  optionLabel="label"
-                  optionValue="value"
-                  placeholder="Select file type"
-                  [filter]="true"
-                  filterPlaceholder="Search file types..."
-                  appendTo="body"
-                  scrollHeight="400px"
-                  styleClass="w-full"
-                >
-                  <ng-template let-group pTemplate="group">
-                    <span class="italic underline">{{ group.label }}</span>
-                  </ng-template>
-                  <ng-template let-item pTemplate="selectedItem">
-                    {{ item.selectedLabel }}
-                  </ng-template>
-                </p-select>
-              </td>
-              <td class="py-2 px-2 text-center">
-                <p-button
-                  icon="pi pi-times"
-                  severity="danger"
-                  [text]="true"
-                  [rounded]="true"
-                  size="small"
-                  (click)="removeRow(i)"
-                />
-              </td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Requirement check messages (errors / warnings block processing) -->
-    @if (checks(); as c) {
-      @if (c.errors.length || c.warnings.length || c.recommendations.length) {
-        <div class="mb-6 flex flex-col gap-2">
-          @for (msg of c.errors; track msg) {
-            <p-message severity="error" [closable]="false" styleClass="w-full">
-              <i class="pi pi-times-circle mr-2"></i>{{ msg }}
-            </p-message>
-          }
-          @for (msg of c.warnings; track msg) {
-            <p-message severity="warn" [closable]="false" styleClass="w-full">
-              <i class="pi pi-exclamation-triangle mr-2"></i>{{ msg }}
-            </p-message>
-          }
-          @for (msg of c.recommendations; track msg) {
-            <p-message severity="info" [closable]="false" styleClass="w-full">
-              <i class="pi pi-info-circle mr-2"></i>{{ msg }}
-            </p-message>
-          }
-        </div>
-      } @else {
-        <div class="mb-6 text-sm">
-          <span class="text-green-600 font-medium">
-            <i class="pi pi-check-circle mr-1"></i>File requirements are met.
-          </span>
-        </div>
-      }
-    }
-
-    <!-- Process selected files (disabled until there are no errors or warnings;
-         on re-upload, also until the user changes the file set). -->
-    <p-button
-      label="Process selected files"
-      icon="pi pi-cog"
-      severity="success"
-      [loading]="submitting()"
-      [disabled]="!canProcess() || submitting() || requiresFileOp()"
-      (click)="processFiles()"
-    />
-
-    @if (submitError()) {
-      <p-message severity="error" [closable]="false" styleClass="mt-4 w-full">
-        <i class="pi pi-times-circle mr-2"></i>{{ submitError() }}
+@if (rows().length > 0 || previousStatus()) {
+  <div class="card">
+    <!-- ── Previous upload status banner ──────────────────────────────────────── -->
+    <!-- Reflects the latest run's outcome (from GET /api/progress). Clicking a
+       banner re-opens the processing dialog to review that run's status/log. -->
+    @if (previousStatus() === 'failed') {
+      <p-message severity="error" styleClass="mb-4 w-full" [closable]="false">
+        <button
+          type="button"
+          class="cursor-pointer bg-transparent border-0 p-0 text-left text-inherit"
+          (click)="reopenProgress()"
+        >
+          <i class="pi pi-times-circle mr-1"></i>The previous conversion needs attention. Click to
+          view the status and log.
+        </button>
       </p-message>
     }
-  }
-</div>
+    @if (previousStatus() === 'success') {
+      <p-message severity="success" styleClass="mb-4 w-full" [closable]="false">
+        <button
+          type="button"
+          class="cursor-pointer bg-transparent border-0 p-0 text-left text-inherit"
+          (click)="reopenProgress()"
+        >
+          <i class="pi pi-check-circle mr-1"></i>The previous conversion completed successfully.
+          Click to view the status and log.
+        </button>
+      </p-message>
+    }
+    @if (previousStatus() === 'processing') {
+      <p-message severity="info" styleClass="mb-4 w-full" [closable]="false">
+        <button
+          type="button"
+          class="cursor-pointer bg-transparent border-0 p-0 text-left text-inherit"
+          (click)="reopenProgress()"
+        >
+          <i class="pi pi-spin pi-spinner mr-1"></i>A conversion is in progress. Click to view the
+          live status.
+        </button>
+      </p-message>
+    }
+
+    <!-- ── Uploaded files table ────────────────────────────────────────────────── -->
+    @if (rows().length > 0) {
+      <div class="mb-4 overflow-x-auto">
+        <table class="w-full text-sm border-collapse">
+          <thead>
+            <tr
+              class="border-b-2 border-surface-200 text-left text-surface-500 text-xs uppercase tracking-wide"
+            >
+              <th class="py-2 px-2 w-10"></th>
+              <th class="py-2 px-3">File name</th>
+              <th class="py-2 px-3 w-32 text-right">Size</th>
+              <th class="py-2 px-3 min-w-72">File type</th>
+              <th class="py-2 px-3 w-44">Upload time (UTC)</th>
+              <th class="py-2 px-2 w-10"></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track $index; let i = $index) {
+              <tr class="border-b border-surface-100 hover:bg-surface-50 transition-colors">
+                <td class="py-2 px-2 text-center">
+                  <p-checkbox
+                    [ngModel]="row.selected"
+                    (ngModelChange)="setSelected(i, $event)"
+                    [binary]="true"
+                    [disabled]="readOnly()"
+                  />
+                </td>
+                <td class="py-2 px-3 font-mono text-base break-all">{{ row.name }}</td>
+                <td class="py-2 px-3 text-right text-base text-surface-400 tabular-nums">
+                  {{ formatSize(row.size) }}
+                </td>
+                <td class="py-2 px-3">
+                  <p-select
+                    [ngModel]="row.fileType"
+                    (ngModelChange)="setFileType(i, $event)"
+                    [options]="fileTypeOptions()"
+                    [disabled]="readOnly()"
+                    [group]="true"
+                    optionGroupLabel="label"
+                    optionGroupChildren="items"
+                    optionLabel="label"
+                    optionValue="value"
+                    placeholder="Select file type"
+                    [filter]="true"
+                    filterPlaceholder="Search file types..."
+                    appendTo="body"
+                    scrollHeight="600px"
+                    styleClass="w-full"
+                  >
+                    <ng-template let-group pTemplate="group">
+                      <span class="italic underline">{{ group.label }}</span>
+                    </ng-template>
+                    <ng-template let-item pTemplate="selectedItem">
+                      <span class="text-base">{{ item.selectedLabel }}</span>
+                    </ng-template>
+                  </p-select>
+                </td>
+                <td class="py-2 px-3 text-base text-surface-400 tabular-nums">
+                  {{ row.uploadedAt }}
+                </td>
+                <td class="py-2 px-2 text-center">
+                  <p-button
+                    icon="pi pi-times"
+                    severity="danger"
+                    [text]="true"
+                    [rounded]="true"
+                    size="small"
+                    [disabled]="readOnly()"
+                    (click)="removeRow(i)"
+                  />
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Requirement check messages (errors / warnings block processing) -->
+      @if (checks(); as c) {
+        @if (c.errors.length || c.warnings.length || c.recommendations.length) {
+          <div class="mb-6 flex flex-col gap-2">
+            @for (msg of c.errors; track msg) {
+              <p-message severity="error" [closable]="false" styleClass="w-full">
+                <i class="pi pi-times-circle mr-2"></i>{{ msg }}
+              </p-message>
+            }
+            @for (msg of c.warnings; track msg) {
+              <p-message severity="warn" [closable]="false" styleClass="w-full">
+                <i class="pi pi-exclamation-triangle mr-2"></i>{{ msg }}
+              </p-message>
+            }
+            @for (msg of c.recommendations; track msg) {
+              <p-message severity="info" [closable]="false" styleClass="w-full">
+                <i class="pi pi-info-circle mr-2"></i>{{ msg }}
+              </p-message>
+            }
+          </div>
+        } @else {
+          <div class="mb-6 text-sm">
+            <span class="text-green-600 font-medium">
+              <i class="pi pi-check-circle mr-1"></i>File requirements are met.
+            </span>
+          </div>
+        }
+      }
+
+      <!-- Process selected files (disabled until there are no errors or warnings;
+         on re-upload, also until the user changes the file set). -->
+      <p-button
+        label="Process selected files"
+        icon="pi pi-cog"
+        severity="success"
+        [loading]="submitting()"
+        [disabled]="!canProcess() || submitting() || requiresFileOp()"
+        (click)="processFiles()"
+      />
+
+      @if (submitError()) {
+        <p-message severity="error" [closable]="false" styleClass="mt-4 w-full">
+          <i class="pi pi-times-circle mr-2"></i>{{ submitError() }}
+        </p-message>
+      }
+    }
+  </div>
+}
 
 <!-- BMRB ID validation error dialog -->
 <p-dialog
@@ -437,18 +455,23 @@
   [closable]="progressDone()"
   [dismissableMask]="false"
   (onHide)="closeProgress()"
-  [style]="{ width: '44rem' }"
+  [style]="{ width: '88rem', height: '54rem' }"
+  contentStyleClass="flex flex-col"
 >
-  <p class="text-base leading-relaxed mb-4">
+  <p class="text-base leading-relaxed mb-4 shrink-0">
     Your files are being converted. This can take several minutes — you may keep this dialog open to
     follow the progress, or close it and return later.
   </p>
 
-  <div class="flex flex-col gap-3">
+  <div class="flex flex-col gap-3 flex-1 min-h-0 overflow-auto">
     @for (t of progressTasks(); track t.task) {
-      <div class="border border-surface-200 dark:border-surface-700 rounded-md">
+      <div
+        class="border border-surface-200 dark:border-surface-700 rounded-md flex flex-col"
+        [class.flex-1]="expandedTask() === t.task"
+        [class.min-h-0]="expandedTask() === t.task"
+      >
         <!-- Task header row -->
-        <div class="flex items-center gap-3 px-3 py-2">
+        <div class="flex items-center gap-3 px-3 py-2 shrink-0">
           <i [class]="taskIcon(t.status)" class="text-lg"></i>
           <span class="font-medium flex-1">{{ t.label }}</span>
           @if (t.report_status && t.report_status !== 'OK') {
@@ -482,7 +505,7 @@
           <pre
             #logBox
             (scroll)="onLogScroll()"
-            class="m-0 px-3 py-2 text-xs leading-snug overflow-auto max-h-72 whitespace-pre-wrap break-words border-t border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900"
+            class="m-0 px-3 py-2 text-xs leading-snug overflow-auto flex-1 min-h-0 whitespace-pre-wrap break-words border-t border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900"
             >{{ taskLog() || 'No log output yet…' }}</pre
           >
         }

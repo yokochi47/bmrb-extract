@@ -35,6 +35,8 @@ import { LayoutService } from './layout.service';
       <a
         (click)="itemClick($event)"
         [ngClass]="item().class"
+        [class.opacity-50]="item().disabled"
+        [class.pointer-events-none]="item().disabled"
         [routerLink]="item().routerLink"
         routerLinkActive="active-route"
         [routerLinkActiveOptions]="

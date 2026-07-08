@@ -1,0 +1,521 @@
+<div class="card">
+  <div class="font-semibold text-2xl mb-6">Download</div>
+
+  <!-- Read-only after download (Terms #8): the session no longer accepts changes. -->
+  @if (downloaded()) {
+    <p-message severity="info" styleClass="mb-6 w-full" [closable]="false">
+      <i class="pi pi-lock mr-2"></i>You have downloaded the conversion results — this session is
+      now read-only and can no longer accept file changes or re-uploads.
+    </p-message>
+  }
+
+  @if (publicId()) {
+    <p class="text-xl mb-4">
+      This session and conversion results are accessible until
+      <strong>{{ expiryDate() ?? 'the session expiry date' }}</strong
+      >. Meanwhile, you can re-upload data files unless you download the conversion results below.
+      In case of re-upload, sequences must be consistent with the previous submission except for
+      extended sequences.
+      <strong
+        >Once you download the conversion results, you can no longer re-upload data files.</strong
+      >
+    </p>
+
+    <!-- Tokenized URL to resume/review the session -->
+    <p class="text-base mb-4">
+      To resume the session:
+      <a [href]="resumeUrl()" class="text-primary underline break-all">{{ resumeUrl() }}</a>
+    </p>
+
+    <!-- Optional: email the resume URL (see the Communication tab). The address
+         is verified (format + MX) before Send is enabled. -->
+    <div class="flex flex-wrap items-center gap-3 mb-6">
+      <label for="resume-email" class="text-base">Send this URL by mail (optional):</label>
+      <input
+        id="resume-email"
+        type="email"
+        [ngModel]="email()"
+        (ngModelChange)="onEmailChange($event)"
+        (blur)="verifyEmail()"
+        [disabled]="emailSent()"
+        placeholder="foo@mail.org"
+        class="border border-surface-300 dark:border-surface-600 rounded px-3 py-1.5 text-base bg-transparent"
+      />
+      @if (verifying()) {
+        <span class="text-surface-500 text-sm">
+          <i class="pi pi-spin pi-spinner mr-1"></i>Verifying…
+        </span>
+      } @else if (verified()) {
+        <span class="text-teal-600 dark:text-teal-400 text-sm">
+          <i class="pi pi-check-circle mr-1"></i>Verified
+        </span>
+      } @else if (emailChecked() && email().trim()) {
+        <span class="text-red-600 dark:text-red-400 text-sm">
+          <i class="pi pi-times-circle mr-1"></i>Not a deliverable address
+        </span>
+      }
+      <p-button
+        label="Send"
+        (click)="sendResumeUrl()"
+        [loading]="sending()"
+        [disabled]="!verified() || emailSent()"
+      />
+      @if (emailSent()) {
+        <span class="text-teal-600 dark:text-teal-400 text-sm">
+          <i class="pi pi-check-circle mr-1"></i>Sent
+        </span>
+      } @else if (sendError()) {
+        <span class="text-red-600 dark:text-red-400 text-sm">
+          <i class="pi pi-times-circle mr-1"></i>{{ sendError() }}
+        </span>
+      }
+    </div>
+
+    <!-- Table of file contents packaged in the zip -->
+    <p-card header="File contents packaged in a ZIP file: {{ zipName() }}" styleClass="mb-6">
+      @if (files().length) {
+        <p-table [value]="files()" styleClass="p-datatable-sm">
+          <ng-template pTemplate="header">
+            <tr>
+              <th>File name</th>
+              <th>Content</th>
+              <th class="w-28 text-right">Size</th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-f>
+            <tr>
+              <td class="font-mono break-all">{{ f.name }}</td>
+              <td>{{ typeLabel(f.file_type) }}</td>
+              <td class="text-right tabular-nums">{{ formatSize(f.file_size) }}</td>
+            </tr>
+          </ng-template>
+        </p-table>
+        @if (nefGenerating()) {
+          <p class="text-sm text-surface-500 mt-3">
+            <i class="pi pi-spin pi-spinner mr-1"></i>An NMR Exchange Format (NEF) file is still
+            being generated — it will appear here shortly.
+          </p>
+        } @else if (!hasNef()) {
+          <p class="text-sm text-amber-700 dark:text-amber-400 mt-3">
+            <i class="pi pi-exclamation-triangle mr-1"></i>An NMR Exchange Format (NEF) file is not
+            included for this conversion.
+          </p>
+        }
+      } @else {
+        <p class="text-surface-500 text-sm">No result files are available for this conversion.</p>
+      }
+    </p-card>
+
+    <!-- Acknowledgment gate (Terms #7): download stays disabled until every
+         warning is acknowledged on the Upload summary page. -->
+    @if (!approved()) {
+      <p-message severity="warn" styleClass="mb-3 w-full" [closable]="false">
+        <i class="pi pi-exclamation-triangle mr-2"></i>Before downloading, acknowledge all reported
+        warnings on the
+        <a routerLink="/summary" queryParamsHandling="preserve" class="underline">Upload summary</a>
+        page (Terms &amp; Conditions #7).
+      </p-message>
+    }
+    <p-button
+      label="Download {{ zipName() }}"
+      icon="pi pi-download"
+      severity="success"
+      [disabled]="!approved()"
+      (click)="download()"
+    />
+  } @else {
+    <p class="text-surface-500 py-4">
+      No conversion results are available yet. Process your files on the
+      <strong>Upload files</strong> page first.
+    </p>
+  }
+</div>
+
+@if (publicId()) {
+  <!-- Conversion statics report -->
+  <div class="card">
+    <div class="font-semibold text-2xl mb-6">Conversion statistics</div>
+
+    @if (statsAvailable() === null) {
+      <p class="text-surface-500 py-2"><i class="pi pi-spin pi-spinner mr-2"></i>Loading…</p>
+    } @else if (!statsAvailable()) {
+      <p class="text-surface-500 py-2">
+        Conversion statistics are not available for this conversion.
+      </p>
+    } @else {
+      <!-- /information/output_statistics/[entry_id, entry_title, entry_authors, submission_date, processed_date, processed_site, file_name, file_type, file_size, md5_checksum, model/* (if not null)] -->
+      <p-card header="Provenance information" styleClass="mb-6">
+        <div class="overflow-x-auto">
+          <p class="text-lg mb-2">Input files</p>
+          <table class="w-full text-sm border-collapse mb-6">
+            <thead>
+              <tr>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
+                  Original file name
+                </th>
+                <th
+                  class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 w-28"
+                >
+                  Size
+                </th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
+                  File type
+                </th>
+                <th
+                  class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 w-32 whitespace-nowrap"
+                >
+                  Upload date
+                </th>
+                @if (showInputSource()) {
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 w-24"
+                  >
+                    Source
+                  </th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (file of inputFiles(); track $index) {
+                <tr class="border-b border-surface-100 dark:border-surface-800">
+                  <td class="px-2 py-1 font-mono break-all">{{ file.original_name }}</td>
+                  <td class="px-2 py-1">{{ formatSize(file.file_size) }}</td>
+                  <td class="px-2 py-1">{{ inputTypeLabel(file.file_type) }}</td>
+                  <td class="px-2 py-1">{{ uploadDate(file.uploaded_at) }}</td>
+                  @if (showInputSource()) {
+                    <td class="px-2 py-1">{{ sourceLabel(file.source) }}</td>
+                  }
+                </tr>
+              } @empty {
+                <tr>
+                  <td
+                    [attr.colspan]="showInputSource() ? 5 : 4"
+                    class="text-center text-surface-500 py-4"
+                  >
+                    No files found for this conversion.
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+          <p class="text-lg mb-2">Output files</p>
+          <table class="w-full text-sm border-collapse">
+            <tbody>
+              @for (p of entryProps(); track $index) {
+                <tr class="border-b border-surface-100 dark:border-surface-800">
+                  <td class="px-2 py-1 font-medium align-top w-64">{{ p.label }}</td>
+                  <td class="px-2 py-1 break-all">{{ p.value }}</td>
+                </tr>
+              }
+              @if (modelProps().length) {
+                <tr>
+                  <td
+                    colspan="2"
+                    class="border-t-2 border-dashed border-surface-300 dark:border-surface-600"
+                  ></td>
+                </tr>
+                @for (p of modelProps(); track $index) {
+                  <tr class="border-b border-surface-100 dark:border-surface-800">
+                    <td class="px-2 py-1 font-medium align-top w-64">{{ p.label }}</td>
+                    <td class="px-2 py-1 break-all">{{ p.value }}</td>
+                  </tr>
+                }
+              }
+            </tbody>
+          </table>
+        </div>
+      </p-card>
+
+      <!-- /information/output_statistics/assembly/* -->
+      <p-card header="Assembly information" styleClass="mb-6">
+        <p class="text-base mb-4 mx-4">
+          The following tables show the properties of the molecular assembly and describe each
+          component in the entry.
+        </p>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm border-collapse">
+            <tbody>
+              @for (p of assemblyProps(); track $index) {
+                <tr class="border-b border-surface-100 dark:border-surface-800">
+                  <td class="px-2 py-1 font-medium align-top w-64">{{ p.label }}</td>
+                  <td class="px-2 py-1 break-all">{{ p.value }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        @if (entityAssemblyRows().length) {
+          <div class="font-medium mt-4 mb-2">Components in the molecular assembly</div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm border-collapse">
+              <thead>
+                <tr>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    ID
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    Name
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Entity ID
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    Entity label
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    Chain
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Auth chain
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Exp. data
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Physical state
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    Role
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (c of entityAssemblyRows(); track $index) {
+                  <tr class="border-b border-surface-100 dark:border-surface-800">
+                    <td class="px-2 py-1">{{ c.entity_assembly_id }}</td>
+                    <td class="px-2 py-1">{{ c.entity_assembly_name }}</td>
+                    <td class="px-2 py-1">{{ c.entity_id }}</td>
+                    <td class="px-2 py-1">{{ c.entity_label }}</td>
+                    <td class="px-2 py-1">{{ c.chain_id }}</td>
+                    <td class="px-2 py-1">{{ c.auth_chain_id }}</td>
+                    <td class="px-2 py-1">{{ yesNo(c.experimental_data_reported) }}</td>
+                    <td class="px-2 py-1">{{ c.physical_state }}</td>
+                    <td class="px-2 py-1">{{ c.role }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </p-card>
+
+      <!-- /information/output_statistics/entity/* -->
+      <p-card header="Entity information" styleClass="mb-6">
+        @if (entityRows().length) {
+          <p class="text-base mb-4 mx-4">
+            The following table and one-letter code sequences indicate the molecular entities in the
+            entry.
+          </p>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm border-collapse">
+              <thead>
+                <tr>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    ID
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    Name
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    Type
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    Polymer
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    Auth chains
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Monomers
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Non-std monomer
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    Paramagnetic
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Thiol state
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (e of entityRows(); track $index) {
+                  <tr class="border-b border-surface-100 dark:border-surface-800">
+                    <td class="px-2 py-1">{{ e.entity_id }}</td>
+                    <td class="px-2 py-1">{{ e.name }}</td>
+                    <td class="px-2 py-1">{{ e.type }}</td>
+                    <td class="px-2 py-1">{{ e.polymer_common_type }}</td>
+                    <td class="px-2 py-1">{{ joinChains(e.auth_chain_id) }}</td>
+                    <td class="px-2 py-1">{{ e.number_of_monomers }}</td>
+                    <td class="px-2 py-1">{{ yesNo(e.nstd_monomer) }}</td>
+                    <td class="px-2 py-1">{{ yesNo(e.paramagnetic) }}</td>
+                    <td class="px-2 py-1">{{ e.thiol_state }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          @for (s of entitySequences(); track $index) {
+            <div class="mt-4">
+              <div class="font-medium mb-1">Entity_ID: {{ s.entity_id }}</div>
+              <pre
+                class="m-0 px-2 py-1 text-sm leading-tight overflow-x-auto whitespace-pre-wrap break-all bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
+                >{{ s.seq }}</pre
+              >
+            </div>
+          }
+        } @else {
+          <p class="text-surface-500 py-2">No entity information available.</p>
+        }
+      </p-card>
+
+      <!-- /information/output_statistics/chem_shift_summary (chem_shift array excluded) -->
+      <p-card header="Chemical shift validation" styleClass="mb-6">
+        @if (chemShiftProps().length) {
+          <p class="text-lg mb-2">Assigned chemical shifts summary</p>
+          <p class="text-base mb-4 mx-4">
+            The following table shows overall chemical shift statistics as aggregates over all
+            chemical shift saveframe(s) in the NMR data file. If there were any issues when parsing
+            (e.g., format compliance) or mapping (matching the structure) the chemical shifts data,
+            and reports the completeness of assignment.
+          </p>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm border-collapse">
+              <tbody>
+                @for (p of chemShiftProps(); track $index) {
+                  <tr class="border-b border-surface-100 dark:border-surface-800">
+                    <td class="px-2 py-1 font-medium align-top w-96">{{ p.label }}</td>
+                    <td class="px-2 py-1 break-all">{{ p.value }}</td>
+                  </tr>
+                }
+                @if (chemShiftFullProps().length) {
+                  <tr>
+                    <td
+                      colspan="2"
+                      class="border-t-2 border-dashed border-surface-300 dark:border-surface-600"
+                    ></td>
+                  </tr>
+                  @for (p of chemShiftFullProps(); track $index) {
+                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                      <td class="px-2 py-1 font-medium align-top w-96">{{ p.label }}</td>
+                      <td class="px-2 py-1 break-all">{{ p.value }}</td>
+                    </tr>
+                  }
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <p class="text-surface-500 py-2">
+            Chemical shift validation is not available for this conversion.
+          </p>
+        }
+      </p-card>
+
+      <!-- /information/output_statistics/restraint_summary (average_*/*violation* and the per-restraint validation subsections excluded) -->
+      <p-card header="NMR restraint validation" styleClass="mb-6">
+        @if (restraintProps().length) {
+          <p class="text-lg mb-2">Conformationally restricting restraints</p>
+          <p class="text-base mb-4 mx-4">
+            The following table provides the summary of experimentally observed NMR restraints in
+            different categories. Restraints are classified into different categories based on the
+            sequence separation of the atoms involved.
+          </p>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm border-collapse">
+              <tbody>
+                @for (p of restraintProps(); track $index) {
+                  <tr class="border-b border-surface-100 dark:border-surface-800">
+                    <td class="px-2 py-1 font-medium align-top w-96" [innerHTML]="p.label"></td>
+                    <td class="px-2 py-1 break-all">{{ p.value }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <p class="text-surface-500 py-2">
+            NMR restraint validation is not available for this conversion.
+          </p>
+        }
+      </p-card>
+
+      <!-- /information/output_statistics/software/* -->
+      <p-card header="Software information" styleClass="mb-6">
+        @if (softwareRows().length) {
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm border-collapse">
+              <thead>
+                <tr>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    Name
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    Version
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    Classification
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (sw of softwareRows(); track $index) {
+                  <tr class="border-b border-surface-100 dark:border-surface-800">
+                    <td class="px-2 py-1 break-all">{{ sw.name }}</td>
+                    <td class="px-2 py-1 whitespace-nowrap">{{ sw.version }}</td>
+                    <td class="px-2 py-1">{{ sw.classification }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <p class="text-surface-500 py-2">No software information available.</p>
+        }
+      </p-card>
+    }
+  </div>
+}

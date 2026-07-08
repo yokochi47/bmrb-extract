@@ -49,6 +49,9 @@ interface FileRow {
   /** Server-assigned ordinal; set once the file has been uploaded so edits
    * (type/selection/removal) can be persisted and a re-process skips it. */
   ordinal?: number;
+  /** Upload time as a naive UTC string ("YYYY-MM-DD HH:mm"); present on rows
+   * restored from the backend, absent for a file just chosen this session. */
+  uploadedAt?: string | null;
 }
 
 /** Outcome of the file requirement check for the selected deposition system. */
@@ -152,8 +155,19 @@ export class Upload implements OnDestroy {
 
   /** Choose Files is disabled after the session is locked or downloaded. */
   isLocked = computed(
-    () => this.state().lockedSession || this.state().expiredSession || !this.state().firstUpload,
+    () =>
+      this.state().lockedSession ||
+      this.state().expiredSession ||
+      this.state().downloaded ||
+      !this.state().firstUpload,
   );
+
+  /** Read-only once the results were downloaded (or the session expired): the
+   * file-list selection checkboxes and remove buttons are then locked. */
+  readOnly = computed(() => this.state().downloaded || this.state().expiredSession);
+
+  /** The conversion results have been downloaded (drives the read-only notice). */
+  downloaded = computed(() => this.state().downloaded);
 
   importBmrbEntry = signal(false);
   bmrbId = signal<number | null>(null);
@@ -460,8 +474,8 @@ export class Upload implements OnDestroy {
     [TargetDepsys.repl_cs]: (v) => v.startsWith('co-') || v === 'nm-uni-str' || v === 'nm-shi',
     [TargetDepsys.bmrbdep]: (v) =>
       v.startsWith('nm-uni-') ||
-      v === 'nm-shi' ||
-      v.startsWith('nm-shi-') ||
+      v.startsWith('nm-shi') ||
+      v.startsWith('nm-csp-') ||
       (v.startsWith('nm-aux-') && v !== 'nm-aux-xea'),
   };
 
@@ -550,6 +564,7 @@ export class Upload implements OnDestroy {
     { label: 'Coordinates', match: (v) => v.startsWith('co-') },
     { label: 'NMR unified data', match: (v) => v.startsWith('nm-uni-') },
     { label: 'Assigned chemical shifts', match: (v) => v.startsWith('nm-shi') },
+    { label: 'Perturbed chemical shifts', match: (v) => v.startsWith('nm-csp-') },
     { label: 'NMR restraints', match: (v) => v.startsWith('nm-res-') },
     { label: 'Topology', match: (v) => v.startsWith('nm-aux-') },
     { label: 'Spectral peak lists', match: (v) => v.startsWith('nm-pea-') },
@@ -807,6 +822,7 @@ export class Upload implements OnDestroy {
           file_size: number;
           file_type: string | null;
           selected: boolean;
+          uploaded_at: string | null;
         }[];
       }>(API_URL + 'upload_files', { params: { token } })
       .subscribe({
@@ -818,6 +834,7 @@ export class Upload implements OnDestroy {
               size: f.file_size,
               fileType: f.file_type,
               ordinal: f.ordinal,
+              uploadedAt: f.uploaded_at,
             })),
           ),
         error: (err) => console.error('Failed to load upload files', err),
@@ -1053,6 +1070,9 @@ export class Upload implements OnDestroy {
   /** While true, keep the log pinned to the latest line; set false when the
    * user scrolls up, true again when they scroll back to the bottom. */
   private logFollow = true;
+  /** While true, the dialog auto-expands and tails the currently-running task's
+   * log; turned off once the user manually toggles a log. */
+  private autoLog = true;
   /** Outcome of the latest run, driving the previous-upload status banner. */
   previousStatus = signal<'processing' | 'success' | 'failed' | null>(null);
   /** True when the dialog was opened to inspect a previous run (via the
@@ -1108,6 +1128,7 @@ export class Upload implements OnDestroy {
     this.progressDone.set(false);
     this.expandedTask.set(null);
     this.taskLog.set('');
+    this.autoLog = true;
     this.pollSub?.unsubscribe();
     this.pollSub = timer(0, 2500)
       .pipe(
@@ -1119,7 +1140,16 @@ export class Upload implements OnDestroy {
       )
       .subscribe({
         next: (res) => {
-          this.progressTasks.set(res.tasks ?? []);
+          const tasks = res.tasks ?? [];
+          this.progressTasks.set(tasks);
+          // Auto-tail the running task's log (or the failed one once finished),
+          // unless the user has taken manual control of the log view.
+          if (this.autoLog) {
+            const focus = res.done
+              ? tasks.find((t) => t.status === 'failed')
+              : tasks.find((t) => t.status === 'processing');
+            if (focus && this.expandedTask() !== focus.task) this.showLog(focus.task);
+          }
           if (res.done) {
             this.progressDone.set(true);
             this.pollSub?.unsubscribe();
@@ -1150,13 +1180,9 @@ export class Upload implements OnDestroy {
     }
   }
 
-  /** Expand/collapse a task's log; while expanded (and not done) tail it live. */
-  toggleLog(task: string): void {
+  /** Expand a task's log and tail it live (~2.5s) until the run is done. */
+  private showLog(task: string): void {
     this.logSub?.unsubscribe();
-    if (this.expandedTask() === task) {
-      this.expandedTask.set(null);
-      return;
-    }
     this.expandedTask.set(task);
     this.taskLog.set('');
     this.logFollow = true; // each freshly opened log starts pinned to the latest line
@@ -1175,6 +1201,18 @@ export class Upload implements OnDestroy {
         },
         error: (err) => console.error('Failed to fetch log', err),
       });
+  }
+
+  /** User expand/collapse of a task's log; takes over from the auto-follow so it
+   * no longer jumps to the running task. */
+  toggleLog(task: string): void {
+    this.autoLog = false;
+    if (this.expandedTask() === task) {
+      this.logSub?.unsubscribe();
+      this.expandedTask.set(null);
+      return;
+    }
+    this.showLog(task);
   }
 
   /** Track whether the user is following the tail: re-enable auto-scroll when

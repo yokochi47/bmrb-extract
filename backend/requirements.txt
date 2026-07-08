@@ -4,3 +4,4 @@ SQLAlchemy[asyncio]
 asyncpg
 gitpython
 httpx
+py3-validate-email

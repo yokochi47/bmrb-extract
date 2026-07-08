@@ -16,15 +16,20 @@ export const tokenGuard: CanActivateFn = (route) => {
   const pageService = inject(PageService);
   const token = route.queryParamMap.get('token');
 
-  if (!token || !pageService.pageState().consentedTo) {
+  if (!token) {
     pageService.consentRequired.set(true);
     return false;
   }
 
-  // Fast path: reuse cached validation result from a prior HTTP call.
+  // Fast path: reuse cached token-validity result from a prior HTTP call. Consent
+  // is read live (consentedTo) so an in-session uncheck blocks immediately.
   const cached = pageService.tokenValidation();
   switch (cached) {
     case 'valid':
+      if (!pageService.pageState().consentedTo) {
+        pageService.consentRequired.set(true);
+        return false;
+      }
       return true;
     case 'expired':
       pageService.pageState.update((prev) => ({ ...prev, expiredSession: true }));
@@ -34,20 +39,31 @@ export const tokenGuard: CanActivateFn = (route) => {
       return false;
   }
 
-  // Slow path: validate against DB (tokenValidation is null — first navigation).
+  // Slow path: validate against DB (tokenValidation is null — first navigation /
+  // fresh reload). Consent comes from the backend here so a revoked consent is
+  // enforced even though consentedTo starts false on a fresh page load.
   return inject(HttpClient)
-    .get<{ conversion_id: number | null; expired: boolean }>(API_URL + 'session', {
-      params: { token },
-    })
+    .get<{ conversion_id: number | null; expired: boolean; consented: boolean }>(
+      API_URL + 'session',
+      { params: { token } },
+    )
     .pipe(
-      map(({ conversion_id, expired }) => {
+      map(({ conversion_id, expired, consented }) => {
         if (expired) {
           pageService.tokenValidation.set('expired');
           pageService.pageState.update((prev) => ({ ...prev, expiredSession: true }));
           return false;
         }
         pageService.tokenValidation.set('valid');
-        pageService.pageState.update((prev) => ({ ...prev, conversionId: conversion_id }));
+        pageService.pageState.update((prev) => ({
+          ...prev,
+          conversionId: conversion_id,
+          consentedTo: !!consented,
+        }));
+        if (!consented) {
+          pageService.consentRequired.set(true);
+          return false;
+        }
         return true;
       }),
       catchError(() => {
@@ -85,7 +101,11 @@ export const appRoutes: Routes = [
         canActivate: [tokenGuard],
         loadComponent: () => import('./app/pages/page.summary').then((m) => m.Summary),
       },
-      // { path: 'download', canActivate: [tokenGuard], loadComponent: ... },
+      {
+        path: 'download',
+        canActivate: [tokenGuard],
+        loadComponent: () => import('./app/pages/page.download').then((m) => m.Download),
+      },
       // { path: 'help',     canActivate: [tokenGuard], loadComponent: ... },
     ],
   },
