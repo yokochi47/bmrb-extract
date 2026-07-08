@@ -384,12 +384,45 @@
           <p class="text-surface-500 py-2">No software information available.</p>
         }
       </p-card>
+
+      <!-- /information/output_statistics/chem_shift_summary (chem_shift array excluded) -->
+      <p-card header="Chemical shift validation" styleClass="mb-6">
+        @if (chemShiftProps().length) {
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm border-collapse">
+              <tbody>
+                @for (p of chemShiftProps(); track $index) {
+                  <tr class="border-b border-surface-100 dark:border-surface-800">
+                    <td class="px-2 py-1 font-medium align-top w-96">{{ p.label }}</td>
+                    <td class="px-2 py-1 break-all">{{ p.value }}</td>
+                  </tr>
+                }
+                @if (chemShiftFullProps().length) {
+                  <tr>
+                    <td
+                      colspan="2"
+                      class="border-t-2 border-dashed border-surface-300 dark:border-surface-600"
+                    ></td>
+                  </tr>
+                  @for (p of chemShiftFullProps(); track $index) {
+                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                      <td class="px-2 py-1 font-medium align-top w-96">{{ p.label }}</td>
+                      <td class="px-2 py-1 break-all">{{ p.value }}</td>
+                    </tr>
+                  }
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <p class="text-surface-500 py-2">
+            Chemical shift validation is not available for this conversion.
+          </p>
+        }
+      </p-card>
     }
 
-    <!-- /information/output_statistics/chem_shift_summary, chem_shift (subsection)] -->
-    <p-card header="Chemical shift validation" styleClass="mb-6"></p-card>
-
     <!-- /information/output_statistics/[restraint_summary, dist_restraint (subsection), dihed_restraint (subsection), rdc_restraint (subsection), spectral_peak (subsection)]] -->
-    <p-card header="NMR restraint analysiss" styleClass="mb-6"></p-card>
+    <p-card header="NMR restraint analysis" styleClass="mb-6"></p-card>
   </div>
 }

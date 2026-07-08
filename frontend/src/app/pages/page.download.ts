@@ -80,6 +80,20 @@ interface StatEntity {
   thiol_state?: string;
   formula_weight?: number;
 }
+/** Overall assigned-chemical-shift completeness (output_statistics.chem_shift_summary).
+ * completeness_* are fractions (0–1) shown as percent. */
+interface StatChemShiftSummary {
+  number_of_target_shifts_in_well_defined_region?: number;
+  number_of_assigned_shifts_in_well_defined_region?: number;
+  number_of_favorable_assigned_shifts_in_well_defined_region?: number;
+  completeness_in_well_defined_region?: number;
+  completeness_in_well_defined_region_with_favorable_shift?: number;
+  number_of_target_shifts_in_full_length_region?: number;
+  number_of_assigned_shifts_in_full_length_region?: number;
+  number_of_favorable_assigned_shifts_in_full_length_region?: number;
+  completeness_in_full_length_region?: number;
+  completeness_in_full_length_region_with_favorable_shift?: number;
+}
 interface OutputStatistics {
   file_name?: string;
   file_type?: string;
@@ -95,6 +109,7 @@ interface OutputStatistics {
   software?: StatSoftware[];
   assembly?: StatAssembly;
   entity?: StatEntity[];
+  chem_shift_summary?: StatChemShiftSummary;
 }
 
 /** Human-readable labels for the OutputFileType values (GET /api/output_files). */
@@ -104,6 +119,7 @@ const OUTPUT_TYPE_LABELS: Record<string, string> = {
   nef: 'NMR data (NEF)',
   text_report: 'Conversion report (text)',
   json_report: 'Conversion report (JSON)',
+  pdf_report: 'Conversion report (PDF)',
   compressed: 'Archive',
 };
 
@@ -261,6 +277,55 @@ export class Download {
   /** Software used in the conversion (table). */
   softwareRows = computed<StatSoftware[]>(() => this.statistics()?.software ?? []);
 
+  /** Chemical shift validation card (Property/Value): overall completeness of the
+   * assigned chemical shifts, well-defined region. completeness_* fractions are
+   * shown as percent. The full-length region is a separate group
+   * (chemShiftFullProps), rendered below a divider. */
+  chemShiftProps = computed<KVRow[]>(() => {
+    const c = this.statistics()?.chem_shift_summary;
+    if (!c) return [];
+    return [
+      this.kv(
+        'Total number of shifts (well-defined region)',
+        this.assignedOf(
+          c.number_of_assigned_shifts_in_well_defined_region,
+          c.number_of_target_shifts_in_well_defined_region,
+        ),
+      ),
+      this.kv(
+        'Number of shift outliers (well-defined region)',
+        this.outliers(
+          c.number_of_assigned_shifts_in_well_defined_region,
+          c.number_of_favorable_assigned_shifts_in_well_defined_region,
+        ),
+      ),
+      this.kv('Completeness of assignment (well-defined region)', this.pct(c.completeness_in_well_defined_region)),
+    ].filter((r): r is KVRow => r !== null);
+  });
+
+  /** Full-length-region chem-shift completeness (shown after a divider). */
+  chemShiftFullProps = computed<KVRow[]>(() => {
+    const c = this.statistics()?.chem_shift_summary;
+    if (!c) return [];
+    return [
+      this.kv(
+        'Total number of shifts (full-length)',
+        this.assignedOf(
+          c.number_of_assigned_shifts_in_full_length_region,
+          c.number_of_target_shifts_in_full_length_region,
+        ),
+      ),
+      this.kv(
+        'Number of shift outliers (full-length)',
+        this.outliers(
+          c.number_of_assigned_shifts_in_full_length_region,
+          c.number_of_favorable_assigned_shifts_in_full_length_region,
+        ),
+      ),
+      this.kv('Completeness of assignment (full-length)', this.pct(c.completeness_in_full_length_region)),
+    ].filter((r): r is KVRow => r !== null);
+  });
+
   /** Public conversion id (C_<id>) and the results zip file name. */
   publicId = computed(() => {
     const id = this.pageService.pageState().conversionId;
@@ -373,6 +438,23 @@ export class Download {
   /** Format an optional boolean as Yes/No (empty string when unset). */
   yesNo(value?: boolean): string {
     return value === null || value === undefined ? '' : value ? 'Yes' : 'No';
+  }
+
+  /** Format an optional 0–1 fraction as a percent string (undefined when unset). */
+  private pct(value?: number): string | undefined {
+    return value == null ? undefined : `${(value * 100).toFixed(1)}%`;
+  }
+
+  /** Shift outliers = assigned − favorable assigned (undefined unless both known). */
+  private outliers(assigned?: number, favorable?: number): number | undefined {
+    return assigned == null || favorable == null ? undefined : assigned - favorable;
+  }
+
+  /** Assigned-vs-target count as "{assigned} of {target}" (falls back to the
+   * assigned count alone when the target is unknown; undefined when unassigned). */
+  private assignedOf(assigned?: number, target?: number): string | undefined {
+    if (assigned == null) return undefined;
+    return target == null ? String(assigned) : `${assigned} of ${target}`;
   }
 
   /** Join an author-chain-id list for display in the entity table. */

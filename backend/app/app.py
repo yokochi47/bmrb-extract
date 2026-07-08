@@ -2660,10 +2660,11 @@ async def get_nmr_preview():
     return {'available': True, **_nmr_preview_data(report)}
 
 
-# Sub-sections of output_statistics that are validation reports (chemical-shift
-# validation and NMR restraint analysis); excluded from the download-page summary.
+# Sub-sections of output_statistics excluded from the download-page summary: the
+# large per-shift/per-restraint validation tables and the restraint summary. The
+# chem_shift_summary (overall completeness) IS kept — the page shows it.
 _OUTPUT_STATS_EXCLUDE = {
-    'chem_shift_summary', 'chem_shift', 'restraint_summary',
+    'chem_shift', 'restraint_summary',
     'dist_restraint', 'dihed_restraint', 'rdc_restraint', 'spectral_peak',
 }
 
