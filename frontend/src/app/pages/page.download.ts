@@ -110,7 +110,39 @@ interface OutputStatistics {
   assembly?: StatAssembly;
   entity?: StatEntity[];
   chem_shift_summary?: StatChemShiftSummary;
+  /** Overall NMR restraint counts. The backend already drops the average/violation
+   * tables; values here are scalar counts keyed by (varied) report field names. */
+  restraint_summary?: Record<string, unknown>;
 }
+
+/** Display order of the restraint_summary key-value rows. Keys not listed here
+ * are appended in their original order. */
+const RESTRAINT_KEY_ORDER: string[] = [
+  'total_distance_restraints',
+  'intra-residue',
+  'sequential',
+  'medium_range',
+  'long_range',
+  'inter-chain',
+  'hydrogen_bond_restraints',
+  'disulfide_bond_restraints',
+  'diselenide_bond_restraints',
+  'metal_coordination_restraints',
+  'total_dihedral_angle_restraints',
+  'total_rdc_restraints',
+  'number_of_unmapped_restraints',
+  'number_of_restaints_per_residue',
+  'number_of_long_range_restraints_per_residue',
+];
+
+/** Distance-type codes used in restraint_summary *_dist_types (comma-separated). */
+const DIST_TYPE_LABELS: Record<string, string> = {
+  ir: 'intra-residue',
+  se: 'sequential',
+  mr: 'medium range',
+  lr: 'long range',
+  ic: 'inter-chain',
+};
 
 /** Human-readable labels for the OutputFileType values (GET /api/output_files). */
 const OUTPUT_TYPE_LABELS: Record<string, string> = {
@@ -332,6 +364,33 @@ export class Download {
     ].filter((r): r is KVRow => r !== null);
   });
 
+  /** NMR restraint validation card (Property/Value): the scalar restraint counts.
+   * average_* and *violation* items are excluded (per requirements; the backend
+   * also drops them), and only scalar values are shown. Labels are humanized from
+   * the report's field names since the key set varies by entry. */
+  restraintProps = computed<KVRow[]>(() => {
+    const rs = this.statistics()?.restraint_summary;
+    if (!rs) return [];
+    return Object.entries(rs)
+      .filter(
+        ([k, v]) =>
+          !/average|violation/i.test(k) &&
+          !k.endsWith('_dist_types') &&
+          (typeof v === 'number' || typeof v === 'string'),
+      )
+      .sort(([a], [b]) => this.restraintRank(a) - this.restraintRank(b))
+      .map(([k, v]) => {
+        // For *_bond/metal_coordination restraints, fold the sibling *_dist_types
+        // subclass list into the value as "{count} ({subclasses})".
+        const bond = k.match(
+          /^(hydrogen_bond|disulfide_bond|diselenide_bond|metal_coordination)_restraints$/,
+        );
+        const types = bond ? rs[`${bond[1]}_dist_types`] : undefined;
+        const subclasses = typeof types === 'string' ? this.distTypeSubclasses(types) : '';
+        return { label: this.humanize(k), value: subclasses ? `${v} (${subclasses})` : String(v) };
+      });
+  });
+
   /** Public conversion id (C_<id>) and the results zip file name. */
   publicId = computed(() => {
     const id = this.pageService.pageState().conversionId;
@@ -461,6 +520,29 @@ export class Download {
   private assignedOf(assigned?: number, target?: number): string | undefined {
     if (assigned == null) return undefined;
     return target == null ? String(assigned) : `${assigned} of ${target}`;
+  }
+
+  /** Sort rank of a restraint_summary key (unlisted keys sort to the end). */
+  private restraintRank(key: string): number {
+    const i = RESTRAINT_KEY_ORDER.indexOf(key);
+    return i === -1 ? RESTRAINT_KEY_ORDER.length : i;
+  }
+
+  /** Map a comma-separated *_dist_types code string to readable subclass names
+   * (unknown codes are kept as-is). */
+  private distTypeSubclasses(csv: string): string {
+    return csv
+      .split(',')
+      .map((c) => c.trim())
+      .filter((c) => c)
+      .map((c) => DIST_TYPE_LABELS[c] ?? c)
+      .join(', ');
+  }
+
+  /** Turn a report field name (snake/kebab case) into a readable label. */
+  private humanize(key: string): string {
+    const s = key.replace(/_/g, ' ');
+    return s.charAt(0).toUpperCase() + s.slice(1);
   }
 
   /** Join an author-chain-id list for display in the entity table. */

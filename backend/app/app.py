@@ -2661,10 +2661,10 @@ async def get_nmr_preview():
 
 
 # Sub-sections of output_statistics excluded from the download-page summary: the
-# large per-shift/per-restraint validation tables and the restraint summary. The
-# chem_shift_summary (overall completeness) IS kept — the page shows it.
+# large per-shift/per-restraint validation tables. The summary objects
+# (chem_shift_summary, restraint_summary) ARE kept — the page shows them.
 _OUTPUT_STATS_EXCLUDE = {
-    'chem_shift', 'restraint_summary',
+    'chem_shift',
     'dist_restraint', 'dihed_restraint', 'rdc_restraint', 'spectral_peak',
 }
 
@@ -2710,10 +2710,17 @@ async def get_output_statistics():
     stats = report.get('information', {}).get('output_statistics')
     if not stats:
         return {'available': False}
-    return {
-        'available': True,
-        'statistics': {k: v for k, v in stats.items() if k not in _OUTPUT_STATS_EXCLUDE},
-    }
+    pruned = {k: v for k, v in stats.items() if k not in _OUTPUT_STATS_EXCLUDE}
+    # restraint_summary: keep only the scalar restraint counts for the key-value
+    # card — drop the average/violation tables (all arrays) and any non-scalar.
+    rs = pruned.get('restraint_summary')
+    if isinstance(rs, dict):
+        pruned['restraint_summary'] = {
+            k: v for k, v in rs.items()
+            if isinstance(v, (int, float, str))
+            and 'average' not in k and 'violation' not in k
+        }
+    return {'available': True, 'statistics': pruned}
 
 
 @app.route('/api/session', methods=['PATCH'])

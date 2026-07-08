@@ -381,8 +381,27 @@
         }
       </p-card>
 
-      <!-- /information/output_statistics/[restraint_summary, dist_restraint (subsection), dihed_restraint (subsection), rdc_restraint (subsection), spectral_peak (subsection)]] -->
-      <p-card header="NMR restraint analysis" styleClass="mb-6"></p-card>
+      <!-- /information/output_statistics/restraint_summary (average_*/*violation* and the per-restraint validation subsections excluded) -->
+      <p-card header="NMR restraint validation" styleClass="mb-6">
+        @if (restraintProps().length) {
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm border-collapse">
+              <tbody>
+                @for (p of restraintProps(); track $index) {
+                  <tr class="border-b border-surface-100 dark:border-surface-800">
+                    <td class="px-2 py-1 font-medium align-top w-96">{{ p.label }}</td>
+                    <td class="px-2 py-1 break-all">{{ p.value }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <p class="text-surface-500 py-2">
+            NMR restraint validation is not available for this conversion.
+          </p>
+        }
+      </p-card>
 
       <!-- /information/output_statistics/software/* -->
       <p-card header="Software information" styleClass="mb-6">
