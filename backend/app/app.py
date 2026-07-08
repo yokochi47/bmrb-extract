@@ -2660,6 +2660,61 @@ async def get_nmr_preview():
     return {'available': True, **_nmr_preview_data(report)}
 
 
+# Sub-sections of output_statistics that are validation reports (chemical-shift
+# validation and NMR restraint analysis); excluded from the download-page summary.
+_OUTPUT_STATS_EXCLUDE = {
+    'chem_shift_summary', 'chem_shift', 'restraint_summary',
+    'dist_restraint', 'dihed_restraint', 'rdc_restraint', 'spectral_peak',
+}
+
+
+@app.route('/api/output_statistics', methods=['GET'])
+async def get_output_statistics():
+    """Conversion statistics (information.output_statistics) from the same report
+    as /api/nmr_preview (the convert_nmr_data workflow log_path JSON). Returns the
+    subtree pruned of the validation sections (_OUTPUT_STATS_EXCLUDE) — the
+    download page shows only the entry/assembly/entity/software metadata.
+    Token-scoped, read-only; available=false when there is no report yet."""
+    token = request.args.get('token')
+    if not token:
+        return {'error': 'token is required'}, 400
+
+    async with async_session_factory() as db:
+        session_row = (
+            await db.execute(select(Session).where(Session.token == token))
+        ).scalar_one_or_none()
+        if session_row is None:
+            return {'error': 'session not found'}, 404
+        conversion_id = session_row.conversion_id
+        run_number = session_row.latest_run_number
+        if conversion_id is None or run_number < 1:
+            return {'available': False}
+        wf = (
+            await db.execute(
+                select(Workflow).where(
+                    Workflow.conversion_id == conversion_id,
+                    Workflow.run_number == run_number,
+                    Workflow.task == WfTaskCode.convert_nmr_data.value,
+                )
+            )
+        ).scalar_one_or_none()
+
+    if wf is None or not wf.log_path or not Path(wf.log_path).is_file():
+        return {'available': False}
+    try:
+        report = json.loads(Path(wf.log_path).read_text())
+    except Exception:  # noqa: BLE001
+        return {'available': False}
+
+    stats = report.get('information', {}).get('output_statistics')
+    if not stats:
+        return {'available': False}
+    return {
+        'available': True,
+        'statistics': {k: v for k, v in stats.items() if k not in _OUTPUT_STATS_EXCLUDE},
+    }
+
+
 @app.route('/api/session', methods=['PATCH'])
 async def update_session():
     body = request.get_json(silent=True) or {}

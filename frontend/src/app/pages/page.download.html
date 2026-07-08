@@ -134,19 +134,159 @@
 @if (publicId()) {
   <!-- Conversion statics report -->
   <div class="card">
-    <div class="font-semibold text-xl mb-6">Conversion statistics</div>
+    <div class="font-semibold text-2xl mb-6">Conversion statistics</div>
 
-    <!-- /information/output_statistics/[entry_id, entry_title, entry_authors, submission_date, processed_date, processed_site, file_name, file_type, file_size, md5_checksum, model/* (if not null)] -->
-    <p-card header="Entry information" styleClass="mb-6"></p-card>
+    @if (statsAvailable() === null) {
+      <p class="text-surface-500 py-2"><i class="pi pi-spin pi-spinner mr-2"></i>Loading…</p>
+    } @else if (!statsAvailable()) {
+      <p class="text-surface-500 py-2">Conversion statistics are not available for this conversion.</p>
+    } @else {
+      <!-- /information/output_statistics/[entry_id, entry_title, entry_authors, submission_date, processed_date, processed_site, file_name, file_type, file_size, md5_checksum, model/* (if not null)] -->
+      <p-card header="Entry information" styleClass="mb-6">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm border-collapse">
+            <tbody>
+              @for (p of entryProps(); track $index) {
+                <tr class="border-b border-surface-100 dark:border-surface-800">
+                  <td class="px-2 py-1 font-medium align-top w-64">{{ p.label }}</td>
+                  <td class="px-2 py-1 break-all">{{ p.value }}</td>
+                </tr>
+              }
+              @if (modelProps().length) {
+                <tr>
+                  <td colspan="2" class="border-t-2 border-dashed border-surface-300 dark:border-surface-600"></td>
+                </tr>
+                @for (p of modelProps(); track $index) {
+                  <tr class="border-b border-surface-100 dark:border-surface-800">
+                    <td class="px-2 py-1 font-medium align-top w-64">{{ p.label }}</td>
+                    <td class="px-2 py-1 break-all">{{ p.value }}</td>
+                  </tr>
+                }
+              }
+            </tbody>
+          </table>
+        </div>
+      </p-card>
 
-    <!-- /information/output_statistics/assembly/* -->
-    <p-card header="Assembly information" styleClass="mb-6"></p-card>
+      <!-- /information/output_statistics/assembly/* -->
+      <p-card header="Assembly information" styleClass="mb-6">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm border-collapse">
+            <tbody>
+              @for (p of assemblyProps(); track $index) {
+                <tr class="border-b border-surface-100 dark:border-surface-800">
+                  <td class="px-2 py-1 font-medium align-top w-64">{{ p.label }}</td>
+                  <td class="px-2 py-1 break-all">{{ p.value }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        @if (entityAssemblyRows().length) {
+          <div class="font-medium mt-4 mb-2">Components</div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm border-collapse">
+              <thead>
+                <tr>
+                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap">ID</th>
+                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Name</th>
+                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap">Entity ID</th>
+                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Entity label</th>
+                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Chain</th>
+                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap">Auth chain</th>
+                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap">Exp. data</th>
+                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap">Physical state</th>
+                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Role</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (c of entityAssemblyRows(); track $index) {
+                  <tr class="border-b border-surface-100 dark:border-surface-800">
+                    <td class="px-2 py-1">{{ c.entity_assembly_id }}</td>
+                    <td class="px-2 py-1">{{ c.entity_assembly_name }}</td>
+                    <td class="px-2 py-1">{{ c.entity_id }}</td>
+                    <td class="px-2 py-1">{{ c.entity_label }}</td>
+                    <td class="px-2 py-1">{{ c.chain_id }}</td>
+                    <td class="px-2 py-1">{{ c.auth_chain_id }}</td>
+                    <td class="px-2 py-1">{{ yesNo(c.experimental_data_reported) }}</td>
+                    <td class="px-2 py-1">{{ c.physical_state }}</td>
+                    <td class="px-2 py-1">{{ c.role }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </p-card>
 
-    <!-- /information/output_statistics/entity/* -->
-    <p-card header="Entity information" styleClass="mb-6"></p-card>
+      <!-- /information/output_statistics/entity/* -->
+      <p-card header="Entity information" styleClass="mb-6">
+        @if (entityRows().length) {
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm border-collapse">
+              <thead>
+                <tr>
+                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap">ID</th>
+                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Name</th>
+                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Type</th>
+                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Polymer</th>
+                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Chains</th>
+                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap">Monomers</th>
+                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap">Non-std monomer</th>
+                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Paramagnetic</th>
+                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap">Thiol state</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (e of entityRows(); track $index) {
+                  <tr class="border-b border-surface-100 dark:border-surface-800">
+                    <td class="px-2 py-1">{{ e.entity_id }}</td>
+                    <td class="px-2 py-1">{{ e.name }}</td>
+                    <td class="px-2 py-1">{{ e.type }}</td>
+                    <td class="px-2 py-1">{{ e.polymer_common_type }}</td>
+                    <td class="px-2 py-1">{{ joinChains(e.auth_chain_id) }}</td>
+                    <td class="px-2 py-1">{{ e.number_of_monomers }}</td>
+                    <td class="px-2 py-1">{{ yesNo(e.nstd_monomer) }}</td>
+                    <td class="px-2 py-1">{{ yesNo(e.paramagnetic) }}</td>
+                    <td class="px-2 py-1">{{ e.thiol_state }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <p class="text-surface-500 py-2">No entity information available.</p>
+        }
+      </p-card>
 
-    <!-- /information/output_statistics/software/* -->
-    <p-card header="Software information" styleClass="mb-6"></p-card>
+      <!-- /information/output_statistics/software/* -->
+      <p-card header="Software information" styleClass="mb-6">
+        @if (softwareRows().length) {
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm border-collapse">
+              <thead>
+                <tr>
+                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Name</th>
+                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Version</th>
+                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Classification</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (sw of softwareRows(); track $index) {
+                  <tr class="border-b border-surface-100 dark:border-surface-800">
+                    <td class="px-2 py-1 break-all">{{ sw.name }}</td>
+                    <td class="px-2 py-1 whitespace-nowrap">{{ sw.version }}</td>
+                    <td class="px-2 py-1">{{ sw.classification }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <p class="text-surface-500 py-2">No software information available.</p>
+        }
+      </p-card>
+    }
 
     <!-- /information/output_statistics/chem_shift_summary, chem_shift (subsection)] -->
     <p-card header="Chemical shift validation" styleClass="mb-6"></p-card>

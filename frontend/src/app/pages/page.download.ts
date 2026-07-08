@@ -20,6 +20,82 @@ interface OutputFileRow {
   file_size: number;
 }
 
+// ── Conversion statistics (GET /api/output_statistics) ─────────────────────────
+// All fields optional: the report only partially populates output_statistics, so
+// the UI renders defensively and omits anything missing.
+/** A two-column Property/Value row for the key-value cards. */
+interface KVRow {
+  label: string;
+  value: string;
+}
+interface StatModel {
+  file_name?: string;
+  file_type?: string;
+  struct_title?: string;
+  audit_authors?: string;
+  file_size?: number;
+  md5_checksum?: string;
+}
+interface StatSoftware {
+  name?: string;
+  version?: string;
+  classification?: string;
+}
+interface StatEntityAssembly {
+  entity_assembly_id?: number;
+  entity_assembly_name?: string;
+  entity_id?: number;
+  entity_label?: string;
+  chain_id?: string;
+  auth_chain_id?: string;
+  experimental_data_reported?: boolean;
+  physical_state?: string;
+  role?: string;
+}
+interface StatAssembly {
+  name?: string;
+  number_of_components?: number;
+  organic_ligands?: number;
+  metal_ions?: number;
+  non_standard_bonds?: boolean;
+  paramagnetic?: boolean;
+  thiol_state?: string;
+  molecular_mass?: number;
+  entity_assembly?: StatEntityAssembly[];
+}
+interface StatEntity {
+  entity_id?: number;
+  label?: string;
+  name?: string;
+  type?: string;
+  polymer_common_type?: string;
+  polymer_type?: string;
+  auth_chain_id?: string[];
+  number_of_monomers?: number;
+  number_of_nonpolymer_components?: number;
+  nstd_monomer?: boolean;
+  nstd_linkage?: boolean;
+  paramagnetic?: boolean;
+  thiol_state?: string;
+  formula_weight?: number;
+}
+interface OutputStatistics {
+  file_name?: string;
+  file_type?: string;
+  entry_id?: string;
+  entry_title?: string;
+  entry_authors?: string | null;
+  submission_date?: string | null;
+  processed_date?: string | null;
+  processed_site?: string;
+  file_size?: number;
+  md5_checksum?: string;
+  model?: StatModel | null;
+  software?: StatSoftware[];
+  assembly?: StatAssembly;
+  entity?: StatEntity[];
+}
+
 /** Human-readable labels for the OutputFileType values (GET /api/output_files). */
 const OUTPUT_TYPE_LABELS: Record<string, string> = {
   pdbx: 'Coordinates (PDBx/mmCIF)',
@@ -73,6 +149,34 @@ export class Download {
           error: (err) => console.error('Failed to load output files', err),
         });
     });
+
+    // Load the conversion statistics once (non-polling); mirrors the summary
+    // page's token-gated fetch. statsAvailable stays null until the first reply.
+    let statsFetched = false;
+    effect(() => {
+      const token = this.pageService.pageState().tokenBase;
+      if (!token || statsFetched) return;
+      statsFetched = true;
+      this.loadStatistics(token);
+    });
+  }
+
+  /** Fetch GET /api/output_statistics → the pruned output_statistics subtree. */
+  private loadStatistics(token: string): void {
+    this.http
+      .get<{ available: boolean; statistics?: OutputStatistics }>(API_URL + 'output_statistics', {
+        params: { token },
+      })
+      .subscribe({
+        next: (res) => {
+          this.statistics.set(res.statistics ?? null);
+          this.statsAvailable.set(!!res.available);
+        },
+        error: (err) => {
+          console.error('Failed to load conversion statistics', err);
+          this.statsAvailable.set(false);
+        },
+      });
   }
 
   /** Conversion result files bundled in the zip (GET /api/output_files). */
@@ -83,6 +187,70 @@ export class Download {
 
   /** A NEF file was produced — else the table shows the NEF-unavailable note. */
   hasNef = computed(() => this.files().some((f) => f.file_type === 'nef'));
+
+  /** Conversion statistics subtree (GET /api/output_statistics); null until
+   * loaded or when the report has no output_statistics. */
+  statistics = signal<OutputStatistics | null>(null);
+  /** Tri-state: null = loading, false = not available, true = show the cards. */
+  statsAvailable = signal<boolean | null>(null);
+
+  /** Entry information card (Property/Value): the output-file/entry fields. The
+   * model file is a separate group (modelProps), rendered below a divider. */
+  entryProps = computed<KVRow[]>(() => {
+    const s = this.statistics();
+    if (!s) return [];
+    return [
+      this.kv('Output file name', s.file_name),
+      this.kv('Output file type', s.file_type && this.typeLabel(s.file_type)),
+      this.kv('Entry ID', s.entry_id),
+      this.kv('Entry title', s.entry_title?.trim()),
+      this.kv('Entry authors', s.entry_authors ?? undefined),
+      this.kv('Submission date', s.submission_date ?? undefined),
+      this.kv('Processed date', s.processed_date ?? undefined),
+      this.kv('Processed site', s.processed_site),
+      this.kv('Output file size', s.file_size != null ? this.formatSize(s.file_size) : undefined),
+      this.kv('MD5 checksum', s.md5_checksum),
+    ].filter((r): r is KVRow => r !== null);
+  });
+
+  /** Model-file fields of the Entry card (shown after a divider when present). */
+  modelProps = computed<KVRow[]>(() => {
+    const m = this.statistics()?.model;
+    if (!m) return [];
+    return [
+      this.kv('Model file name', m.file_name),
+      this.kv('Model title', m.struct_title?.trim()),
+      this.kv('Model file type', m.file_type && this.typeLabel(m.file_type)),
+      this.kv('Model authors', m.audit_authors),
+      this.kv('Model file size', m.file_size != null ? this.formatSize(m.file_size) : undefined),
+      this.kv('Model MD5 checksum', m.md5_checksum),
+    ].filter((r): r is KVRow => r !== null);
+  });
+
+  /** Assembly information card (Property/Value); the components list is a table. */
+  assemblyProps = computed<KVRow[]>(() => {
+    const a = this.statistics()?.assembly;
+    if (!a) return [];
+    return [
+      this.kv('Name', a.name),
+      this.kv('Number of components', a.number_of_components),
+      this.kv('Organic ligands', a.organic_ligands),
+      this.kv('Metal ions', a.metal_ions),
+      this.kv('Non-standard bonds', this.yesNo(a.non_standard_bonds)),
+      this.kv('Paramagnetic', this.yesNo(a.paramagnetic)),
+      this.kv('Thiol state', a.thiol_state),
+      this.kv('Molecular mass (Da)', a.molecular_mass),
+    ].filter((r): r is KVRow => r !== null);
+  });
+
+  /** Per-component rows of the molecular assembly (table). */
+  entityAssemblyRows = computed<StatEntityAssembly[]>(
+    () => this.statistics()?.assembly?.entity_assembly ?? [],
+  );
+  /** Entity declarations (table). */
+  entityRows = computed<StatEntity[]>(() => this.statistics()?.entity ?? []);
+  /** Software used in the conversion (table). */
+  softwareRows = computed<StatSoftware[]>(() => this.statistics()?.software ?? []);
 
   /** Public conversion id (C_<id>) and the results zip file name. */
   publicId = computed(() => {
@@ -184,6 +352,23 @@ export class Download {
   /** Human-readable label for an output_file_type. */
   typeLabel(fileType: string): string {
     return OUTPUT_TYPE_LABELS[fileType] ?? fileType;
+  }
+
+  /** Build a Property/Value row, or null when the value is empty (so the caller
+   * filters it out — omitted fields don't appear in the key-value cards). */
+  private kv(label: string, value: string | number | undefined | null): KVRow | null {
+    if (value === null || value === undefined || value === '') return null;
+    return { label, value: String(value) };
+  }
+
+  /** Format an optional boolean as Yes/No (empty string when unset). */
+  yesNo(value?: boolean): string {
+    return value === null || value === undefined ? '' : value ? 'Yes' : 'No';
+  }
+
+  /** Join an author-chain-id list for display in the entity table. */
+  joinChains(value?: string[]): string {
+    return (value ?? []).join(', ');
   }
 
   /** Format a byte count as a compact size string. */
