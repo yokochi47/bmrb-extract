@@ -70,6 +70,7 @@ interface StatEntity {
   type?: string;
   polymer_common_type?: string;
   polymer_type?: string;
+  polymer_seq_one_letter_code?: string;
   auth_chain_id?: string[];
   number_of_monomers?: number;
   number_of_nonpolymer_components?: number;
@@ -249,6 +250,14 @@ export class Download {
   );
   /** Entity declarations (table). */
   entityRows = computed<StatEntity[]>(() => this.statistics()?.entity ?? []);
+
+  /** One-letter polymer sequences, shown as <pre> blocks under the entity table
+   * (only for entities that carry a sequence). */
+  entitySequences = computed<{ entity_id?: number; seq: string }[]>(() =>
+    this.entityRows()
+      .filter((e) => !!e.polymer_seq_one_letter_code)
+      .map((e) => ({ entity_id: e.entity_id, seq: e.polymer_seq_one_letter_code as string })),
+  );
   /** Software used in the conversion (table). */
   softwareRows = computed<StatSoftware[]>(() => this.statistics()?.software ?? []);
 

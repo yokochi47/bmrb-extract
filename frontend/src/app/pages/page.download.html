@@ -139,7 +139,9 @@
     @if (statsAvailable() === null) {
       <p class="text-surface-500 py-2"><i class="pi pi-spin pi-spinner mr-2"></i>Loading…</p>
     } @else if (!statsAvailable()) {
-      <p class="text-surface-500 py-2">Conversion statistics are not available for this conversion.</p>
+      <p class="text-surface-500 py-2">
+        Conversion statistics are not available for this conversion.
+      </p>
     } @else {
       <!-- /information/output_statistics/[entry_id, entry_title, entry_authors, submission_date, processed_date, processed_site, file_name, file_type, file_size, md5_checksum, model/* (if not null)] -->
       <p-card header="Entry information" styleClass="mb-6">
@@ -154,7 +156,10 @@
               }
               @if (modelProps().length) {
                 <tr>
-                  <td colspan="2" class="border-t-2 border-dashed border-surface-300 dark:border-surface-600"></td>
+                  <td
+                    colspan="2"
+                    class="border-t-2 border-dashed border-surface-300 dark:border-surface-600"
+                  ></td>
                 </tr>
                 @for (p of modelProps(); track $index) {
                   <tr class="border-b border-surface-100 dark:border-surface-800">
@@ -188,15 +193,51 @@
             <table class="w-full text-sm border-collapse">
               <thead>
                 <tr>
-                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap">ID</th>
-                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Name</th>
-                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap">Entity ID</th>
-                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Entity label</th>
-                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Chain</th>
-                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap">Auth chain</th>
-                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap">Exp. data</th>
-                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap">Physical state</th>
-                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Role</th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    ID
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    Name
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Entity ID
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    Entity label
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    Chain
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Auth chain
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Exp. data
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Physical state
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    Role
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -226,15 +267,51 @@
             <table class="w-full text-sm border-collapse">
               <thead>
                 <tr>
-                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap">ID</th>
-                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Name</th>
-                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Type</th>
-                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Polymer</th>
-                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Chains</th>
-                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap">Monomers</th>
-                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap">Non-std monomer</th>
-                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Paramagnetic</th>
-                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap">Thiol state</th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    ID
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    Name
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    Type
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    Polymer
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    Auth chains
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Monomers
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Non-std monomer
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    Paramagnetic
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Thiol state
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -254,6 +331,15 @@
               </tbody>
             </table>
           </div>
+          @for (s of entitySequences(); track $index) {
+            <div class="mt-4">
+              <div class="font-medium mb-1">Entity_ID: {{ s.entity_id }}</div>
+              <pre
+                class="m-0 px-2 py-1 text-sm leading-tight overflow-x-auto whitespace-pre-wrap break-all bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
+                >{{ s.seq }}</pre
+              >
+            </div>
+          }
         } @else {
           <p class="text-surface-500 py-2">No entity information available.</p>
         }
@@ -266,9 +352,21 @@
             <table class="w-full text-sm border-collapse">
               <thead>
                 <tr>
-                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Name</th>
-                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Version</th>
-                  <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">Classification</th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    Name
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    Version
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    Classification
+                  </th>
                 </tr>
               </thead>
               <tbody>
