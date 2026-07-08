@@ -740,6 +740,23 @@
             <div class="mb-6 overflow-x-auto">
               <div class="font-medium mb-2">
                 {{ pt.title }} (predicted by chemical shifts vs coordinates)
+                <i
+                  class="pi pi-bookmark"
+                  [pTooltip]="tooltipContent"
+                  tooltipStyleClass="cite-tooltip"
+                ></i>
+                <ng-template #tooltipContent>
+                  <div class="whitespace-nowrap">
+                    @for (cite of pt.tooltip; track $index) {
+                      <p>{{ cite.title }}</p>
+                      <ul>
+                        <li>{{ cite.authors }}</li>
+                        <li>{{ cite.journal }}</li>
+                        <li>{{ cite.doi }}</li>
+                      </ul>
+                    }
+                  </div>
+                </ng-template>
               </div>
               <table class="w-full text-sm border-collapse">
                 <thead>

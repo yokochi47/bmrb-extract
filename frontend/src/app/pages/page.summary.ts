@@ -17,6 +17,7 @@ import { PanelModule } from 'primeng/panel';
 import { CheckboxModule } from 'primeng/checkbox';
 import { ButtonModule } from 'primeng/button';
 import { MessageModule } from 'primeng/message';
+import { TooltipModule } from 'primeng/tooltip';
 
 import { PageService, TargetDepsys } from './page.service';
 import { API_URL } from '../../site.config';
@@ -200,6 +201,12 @@ interface PredictionRow {
   observed: string;
   consistent: boolean | null;
 }
+interface CitationRow {
+  title: string;
+  authors: string;
+  journal: string;
+  doi: string;
+}
 interface AlignChainRow {
   chain: string;
   length: number;
@@ -371,6 +378,7 @@ interface NmrPreview {
 interface PredictionTable {
   title: string;
   rows: PredictionRow[];
+  tooltip: CitationRow[];
 }
 
 /** One ECharts panel: a title + the option object fed to <app-echart>. An
@@ -396,6 +404,7 @@ interface ChartPanel {
     CheckboxModule,
     ButtonModule,
     MessageModule,
+    TooltipModule,
     EchartComponent,
   ],
   templateUrl: './page.summary.html',
@@ -420,6 +429,12 @@ interface ChartPanel {
         .ack-glow {
           animation: none;
         }
+      }
+      /* Let the citation tooltip size to its content (overrides PrimeNG's
+         default tooltip max-width). ::ng-deep reaches the body-appended
+         tooltip element, which lives outside this component's DOM. */
+      ::ng-deep .cite-tooltip .p-tooltip-text {
+        width: fit-content;
       }
     `,
   ],
@@ -496,14 +511,67 @@ export class Summary implements OnDestroy {
   /** Assigned chemical shifts grouped by saveframe (sf_framecode). */
   chemShiftSaveframes = computed(() => this.nmrPreview()?.chem_shift_saveframes ?? []);
 
-  /** CS-prediction tables (present ones only) for one saveframe. */
   predictionTablesOf(sf: ChemShiftSaveframe): PredictionTable[] {
     const p = sf.predictions;
     return [
-      { title: 'Cysteine redox state', rows: p.cys_redox },
-      { title: 'Proline cis/trans peptide bond', rows: p.pro_cis_trans },
-      { title: 'Histidine tautomeric state', rows: p.his_tautomer },
-      { title: 'Ile/Leu/Val rotameric state', rows: p.ilv_rotamer },
+      {
+        title: 'Cysteine redox state',
+        rows: p.cys_redox,
+        tooltip: [
+          {
+            title: '13C NMR chemical shifts can predict disulfide bond formation.',
+            authors: 'Sharma, D., Rajarathnam, K.',
+            journal: 'J Biomol NMR 18, 165–171 (2000)',
+            doi: '10.1023/A:1008398416292',
+          },
+        ],
+      },
+      {
+        title: 'Proline cis/trans peptide bond',
+        rows: p.pro_cis_trans,
+        tooltip: [
+          {
+            title:
+              'A software tool for the prediction of Xaa-Pro peptide bond conformations in proteins based on 13C chemical shift statistics.',
+            authors: 'Schubert, M., Labudde, D., Oschkinat, H. et al.',
+            journal: 'J Biomol NMR 24, 149–154 (2002)',
+            doi: 'DOI: 10.1023/A:1020997118364',
+          },
+        ],
+      },
+      {
+        title: 'Histidine tautomeric state',
+        rows: p.his_tautomer,
+        tooltip: [
+          {
+            title:
+              'Protonation, Tautomerization, and Rotameric Structure of Histidine: A Comprehensive Study by Magic-Angle-Spinning Solid-State NMR.',
+            authors: 'Shenhui Li and Mei Hong.',
+            journal: 'Journal of the American Chemical Society 2011 133 (5), 1534-1544',
+            doi: '10.1021/ja108943n',
+          },
+        ],
+      },
+      {
+        title: 'Ile/Leu/Val rotameric state',
+        rows: p.ilv_rotamer,
+        tooltip: [
+          {
+            title:
+              'Determination of Isoleucine Side-Chain Conformations in Ground and Excited States of Proteins from Chemical Shifts.',
+            authors: 'D. Flemming Hansen, Philipp Neudecker, and Lewis E. Kay.',
+            journal: 'Journal of the American Chemical Society 2010 132 (22), 7589-7591',
+            doi: '10.1021/ja102090z',
+          },
+          {
+            title:
+              'Dependence of Amino Acid Side Chain 13C Shifts on Dihedral Angle: Application to Conformational Analysis.',
+            authors: 'Robert E. London, Brett D. Wingad, and Geoffrey A. Mueller.',
+            journal: 'Journal of the American Chemical Society 2008 130 (33), 11097-11105',
+            doi: '10.1021/ja802729t',
+          },
+        ],
+      },
     ].filter((t) => t.rows.length > 0);
   }
 
