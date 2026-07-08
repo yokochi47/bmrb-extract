@@ -175,6 +175,10 @@
 
       <!-- /information/output_statistics/assembly/* -->
       <p-card header="Assembly information" styleClass="mb-6">
+        <p class="text-base mb-4 mx-4">
+          The following tables show the properties of the molecular assembly and describe each
+          component in the entry.
+        </p>
         <div class="overflow-x-auto">
           <table class="w-full text-sm border-collapse">
             <tbody>
@@ -188,7 +192,7 @@
           </table>
         </div>
         @if (entityAssemblyRows().length) {
-          <div class="font-medium mt-4 mb-2">Components</div>
+          <div class="font-medium mt-4 mb-2">Components in the molecular assembly</div>
           <div class="overflow-x-auto">
             <table class="w-full text-sm border-collapse">
               <thead>
@@ -263,6 +267,10 @@
       <!-- /information/output_statistics/entity/* -->
       <p-card header="Entity information" styleClass="mb-6">
         @if (entityRows().length) {
+          <p class="text-base mb-4 mx-4">
+            The following table and one-letter code sequences indicate the molecular entities in the
+            entry.
+          </p>
           <div class="overflow-x-auto">
             <table class="w-full text-sm border-collapse">
               <thead>
@@ -348,6 +356,13 @@
       <!-- /information/output_statistics/chem_shift_summary (chem_shift array excluded) -->
       <p-card header="Chemical shift validation" styleClass="mb-6">
         @if (chemShiftProps().length) {
+          <p class="text-lg mb-2">Assigned chemical shifts summary</p>
+          <p class="text-base mb-4 mx-4">
+            The following table shows overall chemical shift statistics as aggregates over all
+            chemical shift saveframe(s) in the NMR data file. If there were any issues when parsing
+            (e.g., format compliance) or mapping (matching the structure) the chemical shifts data,
+            and reports the completeness of assignment.
+          </p>
           <div class="overflow-x-auto">
             <table class="w-full text-sm border-collapse">
               <tbody>
@@ -384,6 +399,12 @@
       <!-- /information/output_statistics/restraint_summary (average_*/*violation* and the per-restraint validation subsections excluded) -->
       <p-card header="NMR restraint validation" styleClass="mb-6">
         @if (restraintProps().length) {
+          <p class="text-lg mb-2">Conformationally restricting restraints</p>
+          <p class="text-base mb-4 mx-4">
+            The following table provides the summary of experimentally observed NMR restraints in
+            different categories. Restraints are classified into different categories based on the
+            sequence separation of the atoms involved.
+          </p>
           <div class="overflow-x-auto">
             <table class="w-full text-sm border-collapse">
               <tbody>

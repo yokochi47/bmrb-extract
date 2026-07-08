@@ -137,11 +137,11 @@ const RESTRAINT_KEY_ORDER: string[] = [
 
 /** Distance-type codes used in restraint_summary *_dist_types (comma-separated). */
 const DIST_TYPE_LABELS: Record<string, string> = {
-  ir: 'intra-residue',
-  se: 'sequential',
-  mr: 'medium range',
-  lr: 'long range',
-  ic: 'inter-chain',
+  ir: 'Intra-residue',
+  se: 'Sequential',
+  mr: 'Medium range',
+  lr: 'Long range',
+  ic: 'Inter-chain',
 };
 
 /** Human-readable labels for the OutputFileType values (GET /api/output_files). */
