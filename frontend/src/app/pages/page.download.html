@@ -147,41 +147,57 @@
       <p-card header="Provenance information" styleClass="mb-6">
         <div class="overflow-x-auto">
           <p class="text-lg mb-2">Input files</p>
-          <p-table
-            [value]="inputFiles()"
-            styleClass="p-datatable-sm mb-6"
-            [tableStyle]="{ 'min-width': '50rem' }"
-          >
-            <ng-template pTemplate="header">
+          <table class="w-full text-sm border-collapse mb-6">
+            <thead>
               <tr>
-                <th>Original file name</th>
-                <th class="w-28">Size</th>
-                <th>File type</th>
-                <th class="w-32">Upload date</th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
+                  Original file name
+                </th>
+                <th
+                  class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 w-28"
+                >
+                  Size
+                </th>
+                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
+                  File type
+                </th>
+                <th
+                  class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 w-32 whitespace-nowrap"
+                >
+                  Upload date
+                </th>
                 @if (showInputSource()) {
-                  <th class="w-24">Source</th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 w-24"
+                  >
+                    Source
+                  </th>
                 }
               </tr>
-            </ng-template>
-            <ng-template pTemplate="body" let-file let-i="rowIndex">
-              <tr>
-                <td class="font-mono break-all">{{ file.original_name }}</td>
-                <td>{{ formatSize(file.file_size) }}</td>
-                <td>{{ inputTypeLabel(file.file_type) }}</td>
-                <td>{{ uploadDate(file.uploaded_at) }}</td>
-                @if (showInputSource()) {
-                  <td>{{ sourceLabel(file.source) }}</td>
-                }
-              </tr>
-            </ng-template>
-            <ng-template pTemplate="emptymessage">
-              <tr>
-                <td [attr.colspan]="showInputSource() ? 5 : 4" class="text-center text-surface-500 py-4">
-                  No files found for this conversion.
-                </td>
-              </tr>
-            </ng-template>
-          </p-table>
+            </thead>
+            <tbody>
+              @for (file of inputFiles(); track $index) {
+                <tr class="border-b border-surface-100 dark:border-surface-800">
+                  <td class="px-2 py-1 font-mono break-all">{{ file.original_name }}</td>
+                  <td class="px-2 py-1">{{ formatSize(file.file_size) }}</td>
+                  <td class="px-2 py-1">{{ inputTypeLabel(file.file_type) }}</td>
+                  <td class="px-2 py-1">{{ uploadDate(file.uploaded_at) }}</td>
+                  @if (showInputSource()) {
+                    <td class="px-2 py-1">{{ sourceLabel(file.source) }}</td>
+                  }
+                </tr>
+              } @empty {
+                <tr>
+                  <td
+                    [attr.colspan]="showInputSource() ? 5 : 4"
+                    class="text-center text-surface-500 py-4"
+                  >
+                    No files found for this conversion.
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
           <p class="text-lg mb-2">Output files</p>
           <table class="w-full text-sm border-collapse">
             <tbody>
