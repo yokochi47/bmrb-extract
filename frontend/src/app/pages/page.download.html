@@ -345,46 +345,6 @@
         }
       </p-card>
 
-      <!-- /information/output_statistics/software/* -->
-      <p-card header="Software information" styleClass="mb-6">
-        @if (softwareRows().length) {
-          <div class="overflow-x-auto">
-            <table class="w-full text-sm border-collapse">
-              <thead>
-                <tr>
-                  <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                  >
-                    Name
-                  </th>
-                  <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                  >
-                    Version
-                  </th>
-                  <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                  >
-                    Classification
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (sw of softwareRows(); track $index) {
-                  <tr class="border-b border-surface-100 dark:border-surface-800">
-                    <td class="px-2 py-1 break-all">{{ sw.name }}</td>
-                    <td class="px-2 py-1 whitespace-nowrap">{{ sw.version }}</td>
-                    <td class="px-2 py-1">{{ sw.classification }}</td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        } @else {
-          <p class="text-surface-500 py-2">No software information available.</p>
-        }
-      </p-card>
-
       <!-- /information/output_statistics/chem_shift_summary (chem_shift array excluded) -->
       <p-card header="Chemical shift validation" styleClass="mb-6">
         @if (chemShiftProps().length) {

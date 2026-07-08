@@ -1,3 +1,15 @@
 /* You can add global styles to this file, and also import other style files */
 @use 'primeicons/primeicons.css';
 @use './layout/layout.scss';
+
+/* Turn off PrimeNG's default secondary tint on text buttons app-wide, so the
+   button/icon color is governed by the surrounding context (or a caller's
+   override) instead of --p-button-text-secondary-color. PrimeNG's theme is
+   injected unlayered at runtime, so this higher-specificity, later global rule
+   wins the cascade. */
+.p-button.p-button-text.p-button-secondary {
+  color: var(--p-primary-500);
+  &:not(:disabled):hover {
+    color: var(--p-primary-500);
+  }
+}
