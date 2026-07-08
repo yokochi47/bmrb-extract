@@ -149,10 +149,10 @@ const RESTRAINT_KEY_ORDER: string[] = [
 /** Restraint keys whose display label carries a sequence-separation formula.
  * Rendered as HTML (via [innerHTML]) in the NMR restraint validation table. */
 const RESTRAINT_LABEL_HTML: Record<string, string> = {
-  'intra-residue': 'Intra-residue <em>i = j</em>',
-  sequential: 'Sequential <em>| i - j | = 1</em>',
-  medium_range: 'Medium range <em>1 &lt; | i - j | &lt; 5</em>',
-  long_range: 'Long range <em>| i - j | &gt;= 5</em>',
+  'intra-residue': 'Intra-residue (<em>| i - j | = 0</em>)',
+  sequential: 'Sequential (<em>| i - j | = 1</em>)',
+  medium_range: 'Medium range (<em>1 &lt; | i - j | &lt; 5</em>)',
+  long_range: 'Long range (<em>| i - j | ≥ 5</em>)',
 };
 
 /** Distance-type codes used in restraint_summary *_dist_types (comma-separated). */

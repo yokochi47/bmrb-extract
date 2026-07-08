@@ -2267,16 +2267,16 @@ def _dist_constraint_tree(item, mode, top, expand):
         return html + '</li>'
     inner = ''
     if 'intra-residue_constraints' in item:
-        inner += ('<li>Intra-residue restraints, <em>i = j</em> : '
+        inner += ('<li>Intra-residue restraints (<em>| i - j | = 0</em>) : '
                   + _dist_leaf(item, 'intra-residue_constraints', mode) + '</li>')
     for prefix, label, rng in (
-        ('sequential', 'Sequential restraints', '<em>| i - j | = 1</em>'),
-        ('medium_range', 'Medium range restraints', '<em>1 &lt; | i - j | &lt; 5</em>'),
+        ('sequential', 'Sequential restraints', '(<em>| i - j | = 1</em>)'),
+        ('medium_range', 'Medium range restraints', '(<em>1 &lt; | i - j | &lt; 5</em>)'),
     ):
         keys = [k for k in item if k.startswith(prefix)]
         if not keys:
             continue
-        inner += f'<li>{label}, {rng} : ' + _dist_agg(item, keys, mode)
+        inner += f'<li>{label} {rng} : ' + _dist_agg(item, keys, mode)
         subs = ''.join(
             f'<li>{lbl}: {_dist_leaf(item, k, mode)}</li>'
             for k, lbl in ((f'{prefix}_constraints_backbone-backbone', 'Backbone-backbone'),
@@ -2288,7 +2288,7 @@ def _dist_constraint_tree(item, mode, top, expand):
             inner += '<ul>' + subs + '</ul>'
         inner += '</li>'
     if 'long_range_constraints' in item:
-        inner += ('<li>Long range restraints, <em>| i - j | &gt;= 5</em> : '
+        inner += ('<li>Long range restraints (<em>| i - j | ≥ 5)</em> : '
                   + _dist_leaf(item, 'long_range_constraints', mode) + '</li>')
     if 'inter-chain_constraints' in item:
         inner += '<li>Inter-chain restraints: ' + _dist_leaf(item, 'inter-chain_constraints', mode) + '</li>'
