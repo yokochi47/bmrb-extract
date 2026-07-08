@@ -299,7 +299,10 @@ export class Download {
           c.number_of_favorable_assigned_shifts_in_well_defined_region,
         ),
       ),
-      this.kv('Completeness of assignment (well-defined region)', this.pct(c.completeness_in_well_defined_region)),
+      this.kv(
+        'Completeness of assignment (well-defined region)',
+        this.pct(c.completeness_in_well_defined_region),
+      ),
     ].filter((r): r is KVRow => r !== null);
   });
 
@@ -322,7 +325,10 @@ export class Download {
           c.number_of_favorable_assigned_shifts_in_full_length_region,
         ),
       ),
-      this.kv('Completeness of assignment (full-length)', this.pct(c.completeness_in_full_length_region)),
+      this.kv(
+        'Completeness of assignment (full-length)',
+        this.pct(c.completeness_in_full_length_region),
+      ),
     ].filter((r): r is KVRow => r !== null);
   });
 

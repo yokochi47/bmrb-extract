@@ -4759,6 +4759,14 @@
             "metal_coordination_dist_types": {
               "type": "string"
             },
+            "total_dihedral_angle_restraints": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "total_rdc_restraints": {
+              "type": "integer",
+              "minimum": 0
+            },
             "number_of_unmapped_restraints": {
               "type": "integer",
               "minimum": 0
