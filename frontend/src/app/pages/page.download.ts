@@ -117,6 +117,18 @@ interface StatChemShiftUnmapped {
   error?: number | null;
   ambig_code?: number | null;
 }
+/** One chemical shift outlier (chem_shift[].chemical_shift_outlier). */
+interface StatChemShiftOutlier {
+  auth_chain_id?: string;
+  auth_seq_id?: number;
+  ins_code?: string | null;
+  comp_id?: string;
+  atom_id?: string;
+  value?: number;
+  ambig_code?: number | null;
+  z_score?: number;
+  expected_range?: { min_value?: number; max_value?: number };
+}
 /** Per-saveframe assigned-chemical-shift bookkeeping (output_statistics.chem_shift);
  * the backend prunes each item to these counts (see _CHEM_SHIFT_STATS_KEYS). */
 interface StatChemShiftSaveframe {
@@ -130,6 +142,7 @@ interface StatChemShiftSaveframe {
   number_of_parsed_with_warning?: number;
   number_of_outliers?: number;
   chemical_shift_unmapped?: StatChemShiftUnmapped[];
+  chemical_shift_outlier?: StatChemShiftOutlier[];
 }
 interface OutputStatistics {
   file_name?: string;
@@ -451,10 +464,16 @@ export class Download {
       unmapped: StatChemShiftUnmapped[];
       unmappedCount: number;
       showInsCode: boolean;
+      outlier: StatChemShiftOutlier[];
+      outlierCount: number;
+      showOutlierInsCode: boolean;
     }[]
   >(() =>
     (this.statistics()?.chem_shift ?? []).map((s) => {
       const unmapped = s.chemical_shift_unmapped ?? [];
+      const outlier = s.chemical_shift_outlier ?? [];
+      const hasInsCode = (rows: { ins_code?: string | null }[]) =>
+        rows.some((r) => r.ins_code != null && r.ins_code !== '');
       return {
         title: `Bookkeeping — ${s.list_id}. ${s.sf_framecode} (${s.original_file_name})`.trim(),
         rows: [
@@ -467,8 +486,11 @@ export class Download {
         ].filter((r): r is KVRow => r !== null),
         unmapped,
         unmappedCount: s.number_of_unmapped_to_model ?? unmapped.length,
-        // Hide the Ins code column when no unmapped row carries an insertion code.
-        showInsCode: unmapped.some((u) => u.ins_code != null && u.ins_code !== ''),
+        // Hide the Ins code column when no row carries an insertion code.
+        showInsCode: hasInsCode(unmapped),
+        outlier,
+        outlierCount: s.number_of_outliers ?? outlier.length,
+        showOutlierInsCode: hasInsCode(outlier),
       };
     }),
   );

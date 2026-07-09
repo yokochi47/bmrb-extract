@@ -2687,6 +2687,15 @@ _CHEM_SHIFT_UNMAPPED_KEYS = (
     'value', 'error', 'ambig_code',
 )
 
+# Per-shift columns kept for each chemical shift outlier
+# (output_statistics.chem_shift[].chemical_shift_outlier) — shown in a collapsible
+# table when a saveframe reports outliers. expected_range is kept as its nested
+# {min_value, max_value} object.
+_CHEM_SHIFT_OUTLIER_KEYS = (
+    'auth_chain_id', 'auth_seq_id', 'ins_code', 'comp_id', 'atom_id',
+    'value', 'ambig_code', 'z_score', 'expected_range',
+)
+
 
 @app.route('/api/output_statistics', methods=['GET'])
 async def get_output_statistics():
@@ -2754,6 +2763,13 @@ async def get_output_statistics():
                 row['chemical_shift_unmapped'] = [
                     {k: u[k] for k in _CHEM_SHIFT_UNMAPPED_KEYS if k in u}
                     for u in unmapped if isinstance(u, dict)
+                ]
+            # Chemical shift outliers (rendered as a collapsible table when > 0).
+            outlier = item.get('chemical_shift_outlier')
+            if isinstance(outlier, list) and outlier:
+                row['chemical_shift_outlier'] = [
+                    {k: o[k] for k in _CHEM_SHIFT_OUTLIER_KEYS if k in o}
+                    for o in outlier if isinstance(o, dict)
                 ]
             saveframes.append(row)
         pruned['chem_shift'] = saveframes
