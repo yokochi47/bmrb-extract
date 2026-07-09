@@ -7,6 +7,7 @@ import { CardModule } from 'primeng/card';
 import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
 import { MessageModule } from 'primeng/message';
+import { PanelModule } from 'primeng/panel';
 import { timer } from 'rxjs';
 import { switchMap, takeWhile } from 'rxjs/operators';
 
@@ -105,6 +106,17 @@ interface StatChemShiftSummary {
   completeness_in_full_length_region?: number;
   completeness_in_full_length_region_with_favorable_shift?: number;
 }
+/** One unmapped assigned chemical shift (chem_shift[].chemical_shift_unmapped). */
+interface StatChemShiftUnmapped {
+  auth_chain_id?: string;
+  auth_seq_id?: number;
+  ins_code?: string | null;
+  comp_id?: string;
+  atom_id?: string;
+  value?: number;
+  error?: number | null;
+  ambig_code?: number | null;
+}
 /** Per-saveframe assigned-chemical-shift bookkeeping (output_statistics.chem_shift);
  * the backend prunes each item to these counts (see _CHEM_SHIFT_STATS_KEYS). */
 interface StatChemShiftSaveframe {
@@ -117,6 +129,7 @@ interface StatChemShiftSaveframe {
   number_of_unparsed_with_error?: number;
   number_of_parsed_with_warning?: number;
   number_of_outliers?: number;
+  chemical_shift_unmapped?: StatChemShiftUnmapped[];
 }
 interface OutputStatistics {
   file_name?: string;
@@ -196,7 +209,15 @@ const OUTPUT_TYPE_LABELS: Record<string, string> = {
  */
 @Component({
   selector: 'app-download',
-  imports: [RouterLink, FormsModule, CardModule, TableModule, ButtonModule, MessageModule],
+  imports: [
+    RouterLink,
+    FormsModule,
+    CardModule,
+    TableModule,
+    ButtonModule,
+    MessageModule,
+    PanelModule,
+  ],
   templateUrl: './page.download.html',
 })
 export class Download {
@@ -421,19 +442,35 @@ export class Download {
   });
 
   /** Per-saveframe assigned-chemical-shift bookkeeping (output_statistics.chem_shift),
-   * one Property/Value group per saveframe under the summary table. */
-  chemShiftSaveframes = computed<{ title: string; rows: KVRow[] }[]>(() =>
-    (this.statistics()?.chem_shift ?? []).map((s) => ({
-      title: `Bookkeeping — ${s.list_id}. ${s.sf_framecode} (${s.original_file_name})`.trim(),
-      rows: [
-        this.kv('Number of parsed shifts', s.number_of_parsed),
-        this.kv('Number of shifts mapped to model', s.number_of_mapped_to_model),
-        this.kv('Number of shifts unmapped to model', s.number_of_unmapped_to_model),
-        this.kv('Number of unparsed shifts with error', s.number_of_unparsed_with_error),
-        this.kv('Number of parsed shifts with warning', s.number_of_parsed_with_warning),
-        this.kv('Number of chemical shift outliers', s.number_of_outliers),
-      ].filter((r): r is KVRow => r !== null),
-    })),
+   * one Property/Value group per saveframe under the summary table. `unmapped` holds
+   * the assigned shifts not mapped to the coordinate model (collapsible table). */
+  chemShiftSaveframes = computed<
+    {
+      title: string;
+      rows: KVRow[];
+      unmapped: StatChemShiftUnmapped[];
+      unmappedCount: number;
+      showInsCode: boolean;
+    }[]
+  >(() =>
+    (this.statistics()?.chem_shift ?? []).map((s) => {
+      const unmapped = s.chemical_shift_unmapped ?? [];
+      return {
+        title: `Bookkeeping — ${s.list_id}. ${s.sf_framecode} (${s.original_file_name})`.trim(),
+        rows: [
+          this.kv('Number of parsed shifts', s.number_of_parsed),
+          this.kv('Number of shifts mapped to model', s.number_of_mapped_to_model),
+          this.kv('Number of shifts unmapped to model', s.number_of_unmapped_to_model),
+          this.kv('Number of unparsed shifts with error', s.number_of_unparsed_with_error),
+          this.kv('Number of parsed shifts with warning', s.number_of_parsed_with_warning),
+          this.kv('Number of chemical shift outliers', s.number_of_outliers),
+        ].filter((r): r is KVRow => r !== null),
+        unmapped,
+        unmappedCount: s.number_of_unmapped_to_model ?? unmapped.length,
+        // Hide the Ins code column when no unmapped row carries an insertion code.
+        showInsCode: unmapped.some((u) => u.ins_code != null && u.ins_code !== ''),
+      };
+    }),
   );
 
   /** NMR restraint validation card (Property/Value): the scalar restraint counts.

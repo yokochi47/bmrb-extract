@@ -469,6 +469,87 @@
                   </tbody>
                 </table>
               </div>
+
+              @if (sf.unmappedCount > 0 && sf.unmapped.length) {
+                <p-panel [toggleable]="true" [collapsed]="true" styleClass="mt-2 mb-4">
+                  <ng-template pTemplate="header">
+                    <span class="font-medium">
+                      The following {{ sf.unmappedCount }} assigned chemical shifts were not mapped
+                      to the molecules present in the coordinate file.
+                    </span>
+                  </ng-template>
+                  <div class="overflow-x-auto">
+                    <table class="w-full text-sm border-collapse">
+                      <thead>
+                        <tr>
+                          <th
+                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                          >
+                            Auth chain
+                          </th>
+                          <th
+                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                          >
+                            Auth seq ID
+                          </th>
+                          @if (sf.showInsCode) {
+                            <th
+                              class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                            >
+                              Ins code
+                            </th>
+                          }
+                          <th
+                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                          >
+                            Comp ID
+                          </th>
+                          <th
+                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600"
+                          >
+                            Atom ID
+                          </th>
+                          <th
+                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                          >
+                            Value
+                          </th>
+                          <th
+                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                          >
+                            Uncertainty
+                          </th>
+                          <th
+                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                          >
+                            Ambig code
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (u of sf.unmapped; track $index) {
+                          <tr class="border-b border-surface-100 dark:border-surface-800">
+                            <td class="px-2 py-1">{{ u.auth_chain_id }}</td>
+                            <td class="px-2 py-1">{{ u.auth_seq_id }}</td>
+                            @if (sf.showInsCode) {
+                              <td class="px-2 py-1">{{ u.ins_code }}</td>
+                            }
+                            <td class="px-2 py-1">{{ u.comp_id }}</td>
+                            <td
+                              class="px-2 py-1 border-r border-surface-300 dark:border-surface-600"
+                            >
+                              {{ u.atom_id }}
+                            </td>
+                            <td class="px-2 py-1 tabular-nums">{{ u.value }}</td>
+                            <td class="px-2 py-1 tabular-nums">{{ u.error }}</td>
+                            <td class="px-2 py-1 tabular-nums">{{ u.ambig_code }}</td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                </p-panel>
+              }
             }
           }
         } @else {

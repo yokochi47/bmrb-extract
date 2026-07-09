@@ -2679,6 +2679,14 @@ _CHEM_SHIFT_STATS_KEYS = (
     'number_of_outliers',
 )
 
+# Per-shift columns kept for each unmapped assigned chemical shift
+# (output_statistics.chem_shift[].chemical_shift_unmapped) — shown in a collapsible
+# table when a saveframe has unmapped shifts.
+_CHEM_SHIFT_UNMAPPED_KEYS = (
+    'auth_chain_id', 'auth_seq_id', 'ins_code', 'comp_id', 'atom_id',
+    'value', 'error', 'ambig_code',
+)
+
 
 @app.route('/api/output_statistics', methods=['GET'])
 async def get_output_statistics():
@@ -2735,10 +2743,20 @@ async def get_output_statistics():
     # 'Assigned chemical shift summary' — drop the heavy validation sub-tables.
     cs = pruned.get('chem_shift')
     if isinstance(cs, list):
-        pruned['chem_shift'] = [
-            {k: item[k] for k in _CHEM_SHIFT_STATS_KEYS if k in item}
-            for item in cs if isinstance(item, dict)
-        ]
+        saveframes = []
+        for item in cs:
+            if not isinstance(item, dict):
+                continue
+            row = {k: item[k] for k in _CHEM_SHIFT_STATS_KEYS if k in item}
+            # Unmapped assigned shifts (rendered as a collapsible table when > 0).
+            unmapped = item.get('chemical_shift_unmapped')
+            if isinstance(unmapped, list) and unmapped:
+                row['chemical_shift_unmapped'] = [
+                    {k: u[k] for k in _CHEM_SHIFT_UNMAPPED_KEYS if k in u}
+                    for u in unmapped if isinstance(u, dict)
+                ]
+            saveframes.append(row)
+        pruned['chem_shift'] = saveframes
     return {'available': True, 'statistics': pruned}
 
 
