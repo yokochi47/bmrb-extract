@@ -2778,6 +2778,13 @@ async def get_output_statistics():
                     {k: u[k] for k in _CHEM_SHIFT_UNMAPPED_KEYS if k in u}
                     for u in unparsed if isinstance(u, dict)
                 ]
+            # Duplicated shifts (same column shape as unmapped; collapsible when > 0).
+            duplicated = item.get('chemical_shift_duplicated')
+            if isinstance(duplicated, list) and duplicated:
+                row['chemical_shift_duplicated'] = [
+                    {k: d[k] for k in _CHEM_SHIFT_UNMAPPED_KEYS if k in d}
+                    for d in duplicated if isinstance(d, dict)
+                ]
             saveframes.append(row)
         pruned['chem_shift'] = saveframes
     return {'available': True, 'statistics': pruned}

@@ -723,6 +723,87 @@
                   </div>
                 </p-panel>
               }
+
+              @if (sf.duplicatedCount > 0 && sf.duplicated.length) {
+                <p-panel [toggleable]="true" [collapsed]="true" styleClass="mt-2 mb-4">
+                  <ng-template pTemplate="header">
+                    <span class="font-medium">
+                      The following {{ sf.duplicatedCount }} chemical shifts were reported more than
+                      once in the chemical shift list.
+                    </span>
+                  </ng-template>
+                  <div class="overflow-x-auto">
+                    <table class="w-full text-sm border-collapse">
+                      <thead>
+                        <tr>
+                          <th
+                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                          >
+                            Auth chain
+                          </th>
+                          <th
+                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                          >
+                            Auth seq ID
+                          </th>
+                          @if (sf.showDuplicatedInsCode) {
+                            <th
+                              class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                            >
+                              Ins code
+                            </th>
+                          }
+                          <th
+                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                          >
+                            Comp ID
+                          </th>
+                          <th
+                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600"
+                          >
+                            Atom ID
+                          </th>
+                          <th
+                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                          >
+                            Value
+                          </th>
+                          <th
+                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                          >
+                            Uncertainty
+                          </th>
+                          <th
+                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                          >
+                            Ambig code
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (d of sf.duplicated; track $index) {
+                          <tr class="border-b border-surface-100 dark:border-surface-800">
+                            <td class="px-2 py-1">{{ d.auth_chain_id }}</td>
+                            <td class="px-2 py-1">{{ d.auth_seq_id }}</td>
+                            @if (sf.showDuplicatedInsCode) {
+                              <td class="px-2 py-1">{{ d.ins_code }}</td>
+                            }
+                            <td class="px-2 py-1">{{ d.comp_id }}</td>
+                            <td
+                              class="px-2 py-1 border-r border-surface-300 dark:border-surface-600"
+                            >
+                              {{ d.atom_id }}
+                            </td>
+                            <td class="px-2 py-1 tabular-nums">{{ d.value }}</td>
+                            <td class="px-2 py-1 tabular-nums">{{ d.error }}</td>
+                            <td class="px-2 py-1 tabular-nums">{{ d.ambig_code }}</td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                </p-panel>
+              }
             }
           }
         } @else {
