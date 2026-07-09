@@ -398,9 +398,10 @@ def _nmr_driver_script(
         "u.addInput(name='resolve_conflict', value=True, type='param')\n"
         "u.addInput(name='check_mandatory_tag', value=True, type='param')\n"
         "u.addInput(name='conversion_server', value=True, type='param')\n"
-        f"u.addInput(name='secret_key', value={SECRET_KEY}, type='param')\n"
-        f"u.addInput(name='service_host', value={SERVICE_HOST}, type='param')\n"
+        f"u.addInput(name='secret_key', value={SECRET_KEY!r}, type='param')\n"
+        f"u.addInput(name='service_host', value={SERVICE_HOST!r}, type='param')\n"
         "u.addInput(name='dep_sys_name', value='onedep', type='param')\n"
+        f"u.addOutput(name='entry_id', value={entry_id!r}, type='param')\n"
     )
     if is_nef:
         deposit_out = (
@@ -418,7 +419,6 @@ def _nmr_driver_script(
         f"DEP_LOG = {deposit_log!r}\n"
         f"OUT_STR = {out_str!r}\n"
         f"NEXT_SRC = {next_src!r}\n"
-        f"ENTRY_ID = {entry_id!r}\n"
         f"WORK_DIR = {work_dir!r}\n"
         f"CACHE_DIR = {cache_dir!r}\n"
         "u = NmrDpUtility()\n"
@@ -438,7 +438,6 @@ def _nmr_driver_script(
         "u.setLog(DEP_LOG)\n"
         "u.setVerbose(True)\n"
         f"{deposit_out}"
-        "u.addOutput(name='entry_id', value=ENTRY_ID, type='param')\n"
         "u.addOutput(name='leave_intl_note', value=False, type='param')\n"
         f"u.op({op_deposit!r})\n"
     )
@@ -478,9 +477,10 @@ def _nmr_merge_driver_script(
         "u.addInput(name='nonblk_bad_nterm', value=True, type='param')\n"
         "u.addInput(name='resolve_conflict', value=True, type='param')\n"
         "u.addInput(name='check_mandatory_tag', value=True, type='param')\n"
-        f"u.addInput(name='secret_key', value={SECRET_KEY}, type='param')\n"
-        f"u.addInput(name='service_host', value={SERVICE_HOST}, type='param')\n"
+        f"u.addInput(name='secret_key', value={SECRET_KEY!r}, type='param')\n"
+        f"u.addInput(name='service_host', value={SERVICE_HOST!r}, type='param')\n"
         "u.addInput(name='dep_sys_name', value='onedep', type='param')\n"
+        f"u.addOutput(name='entry_id', value={entry_id!r}, type='param')\n"
     )
     restraint_input = (
         "u.addInput(name='restraint_file_path_list', value=RESTRAINT, type='file_dict_list')\n"
@@ -496,7 +496,6 @@ def _nmr_merge_driver_script(
         f"MERGED_STR = {merged_str!r}\n"
         f"DEP_LOG = {deposit_log!r}\n"
         f"OUT_STR = {out_str!r}\n"
-        f"ENTRY_ID = {entry_id!r}\n"
         f"WORK_DIR = {work_dir!r}\n"
         f"CACHE_DIR = {cache_dir!r}\n"
         "u = NmrDpUtility()\n"
@@ -518,7 +517,6 @@ def _nmr_merge_driver_script(
         "u.addInput(name='report_file_path', value=MERGE_LOG, type='file')\n"
         "u.setLog(DEP_LOG)\n"
         "u.setDestination(OUT_STR)\n"
-        "u.addOutput(name='entry_id', value=ENTRY_ID, type='param')\n"
         "u.addOutput(name='leave_intl_note', value=False, type='param')\n"
         "u.setVerbose(True)\n"
         "u.op('nmr-str2str-deposit')\n"
@@ -543,9 +541,10 @@ def _nmr_replace_cs_driver_script(
         "u.addInput(name='check_mandatory_tag', value=True, type='param')\n"
         "u.addInput(name='remediation', value=True, type='param')\n"
         "u.addInput(name='conversion_server', value=True, type='param')\n"
-        f"u.addInput(name='secret_key', value={SECRET_KEY}, type='param')\n"
-        f"u.addInput(name='service_host', value={SERVICE_HOST}, type='param')\n"
+        f"u.addInput(name='secret_key', value={SECRET_KEY!r}, type='param')\n"
+        f"u.addInput(name='service_host', value={SERVICE_HOST!r}, type='param')\n"
         "u.addInput(name='dep_sys_name', value='repl_cs', type='param')\n"
+        f"u.addOutput(name='entry_id', value={entry_id!r}, type='param')\n"
     )
     return (
         "from nmr.NmrDpUtility import NmrDpUtility\n"
@@ -595,9 +594,10 @@ def _nmr_bmrbdep_driver_script(
         "u.addInput(name='check_mandatory_tag', value=True, type='param')\n"
         "u.addInput(name='remediation', value=True, type='param')\n"
         "u.addInput(name='conversion_server', value=True, type='param')\n"
-        f"u.addInput(name='secret_key', value={SECRET_KEY}, type='param')\n"
-        f"u.addInput(name='service_host', value={SERVICE_HOST}, type='param')\n"
+        f"u.addInput(name='secret_key', value={SECRET_KEY!r}, type='param')\n"
+        f"u.addInput(name='service_host', value={SERVICE_HOST!r}, type='param')\n"
         "u.addInput(name='dep_sys_name', value='bmrbdep', type='param')\n"
+        f"u.addOutput(name='entry_id', value={entry_id!r}, type='param')\n"
     )
     atypical_cs_input = (
         "u.addInput(name='atypical_chem_shift_file_path_list', value=ATYPICAL_CS, type='file_dict_list')\n"
