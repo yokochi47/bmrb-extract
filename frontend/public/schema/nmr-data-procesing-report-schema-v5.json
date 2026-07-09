@@ -5468,6 +5468,11 @@
           "type": "integer",
           "minimum": 0
         },
+        "number_of_outliers": {
+          "description": "Total number of chemical shift outliers.",
+          "type": "integer",
+          "minimum": 0
+        },
         "atom_name_mapping": {
           "type": [
             "array",
