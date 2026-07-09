@@ -141,6 +141,25 @@ interface StatChemShiftOutlier {
   z_score?: number;
   expected_range?: { min_value?: number; max_value?: number };
 }
+/** One completeness entry (one nucleus/atom_group within an assignment category). */
+interface StatCompletenessEntry {
+  atom_group?: string;
+  number_of_assigned_shifts?: number;
+  number_of_target_shifts?: number;
+  completeness?: number | null;
+}
+/** completeness_in_*_region: assignment-category arrays. Schema key spellings are
+ * preserved verbatim (several carry typos in the report generator). */
+interface StatCompletenessRegion {
+  completeness_of_overall_assignments?: StatCompletenessEntry[];
+  completeness_of_favorable_assignments?: StatCompletenessEntry[];
+  completeness_of_backbone_assignments?: StatCompletenessEntry[];
+  completeness_of_sidechain_assignments?: StatCompletenessEntry[];
+  completeness_of_aromatic_assignments?: StatCompletenessEntry[];
+  completeness_of_sugar_assignments?: StatCompletenessEntry[];
+  completeness_of_base_assignments?: StatCompletenessEntry[];
+  completeness_of_stereomethyl_assignments?: StatCompletenessEntry[];
+}
 /** Per-saveframe assigned-chemical-shift bookkeeping (output_statistics.chem_shift);
  * the backend prunes each item to these counts (see _CHEM_SHIFT_STATS_KEYS). */
 interface StatChemShiftSaveframe {
@@ -158,6 +177,104 @@ interface StatChemShiftSaveframe {
   chemical_shift_unparsed?: StatChemShiftUnparsed[];
   /** Duplicated shifts share the unmapped column shape (value/error/ambig_code). */
   chemical_shift_duplicated?: StatChemShiftUnmapped[];
+  completeness_in_well_defined_region?: StatCompletenessRegion;
+  completeness_in_full_length_region?: StatCompletenessRegion;
+}
+
+/** Pivoted completeness table (rows = assignment categories, columns = nuclei)
+ * plus the caption's overall / stereomethyl figures. */
+interface CompletenessView {
+  columns: string[];
+  rows: { label: string; cells: string[] }[];
+  overallPct: number | null;
+  overallAssigned: number | null;
+  overallTarget: number | null;
+  stereo: { assigned: number; target: number } | null;
+}
+/** Assignment categories shown as table rows, in display order (schema spellings). */
+const COMPLETENESS_ROWS: { key: keyof StatCompletenessRegion; label: string }[] = [
+  { key: 'completeness_of_backbone_assignments', label: 'Backbone' },
+  { key: 'completeness_of_sidechain_assignments', label: 'Sidechain' },
+  { key: 'completeness_of_aromatic_assignments', label: 'Aromatic' },
+  { key: 'completeness_of_sugar_assignments', label: 'Sugar' },
+  { key: 'completeness_of_base_assignments', label: 'Base' },
+  { key: 'completeness_of_overall_assignments', label: 'Overall' },
+];
+/** Column (nucleus) order. atom_group values encode the nucleus as an isotope
+ * token (1h / 13c / 15n / 31p); anything without one is the "all" Total column. */
+const NUCLEUS_COLUMNS = ['Total', '¹H', '¹³C', '¹⁵N', '³¹P'];
+
+/** Classify an atom_group string (e.g. "backbone_1h_chemical_shifts",
+ * "overall_all_chemical_shifts") into its nucleus column. */
+function nucleusColumn(atomGroup: string): string {
+  const g = atomGroup.toLowerCase();
+  if (g.includes('1h')) return '¹H';
+  if (g.includes('13c')) return '¹³C';
+  if (g.includes('15n')) return '¹⁵N';
+  if (g.includes('31p')) return '³¹P';
+  return 'Total';
+}
+
+/** Format one completeness cell as "{assigned}/{target} ({pct}%)", or an en-dash
+ * placeholder when the (category, nucleus) pair has no entry. */
+function fmtCompletenessCell(e?: StatCompletenessEntry): string {
+  if (!e) return '– / –';
+  const a = e.number_of_assigned_shifts ?? 0;
+  const t = e.number_of_target_shifts ?? 0;
+  const pct =
+    e.completeness != null
+      ? Math.round(e.completeness * 100)
+      : t
+        ? Math.round((a / t) * 100)
+        : null;
+  return pct == null ? `${a}/${t}` : `${a}/${t} (${pct}%)`;
+}
+
+/** Group a category's entries by nucleus column (first entry per column wins). */
+function byNucleus(entries?: StatCompletenessEntry[]): Map<string, StatCompletenessEntry> {
+  const map = new Map<string, StatCompletenessEntry>();
+  for (const e of entries ?? []) {
+    const col = nucleusColumn(e.atom_group ?? '');
+    if (!map.has(col)) map.set(col, e);
+  }
+  return map;
+}
+
+/** Pivot a completeness-region object into a CompletenessView, or null when empty. */
+function buildCompletenessView(region?: StatCompletenessRegion): CompletenessView | null {
+  if (!region) return null;
+  const present = new Set<string>();
+  for (const { key } of COMPLETENESS_ROWS) {
+    for (const e of region[key] ?? []) {
+      if (e.atom_group) present.add(nucleusColumn(e.atom_group));
+    }
+  }
+  if (!present.size) return null;
+  const columns = NUCLEUS_COLUMNS.filter((n) => present.has(n));
+  const rows = COMPLETENESS_ROWS.flatMap(({ key, label }) => {
+    const arr = region[key];
+    if (!arr || !arr.length) return [];
+    const byGroup = byNucleus(arr);
+    return [{ label, cells: columns.map((c) => fmtCompletenessCell(byGroup.get(c))) }];
+  });
+  if (!rows.length) return null;
+  const overall = byNucleus(region.completeness_of_overall_assignments).get('Total');
+  const stereoByNuc = byNucleus(region.completeness_of_stereomethyl_assignments);
+  const stereo =
+    stereoByNuc.get('Total') ?? region.completeness_of_stereomethyl_assignments?.[0];
+  return {
+    columns,
+    rows,
+    overallPct: overall?.completeness != null ? Math.round(overall.completeness * 100) : null,
+    overallAssigned: overall?.number_of_assigned_shifts ?? null,
+    overallTarget: overall?.number_of_target_shifts ?? null,
+    stereo: stereo
+      ? {
+          assigned: stereo.number_of_assigned_shifts ?? 0,
+          target: stereo.number_of_target_shifts ?? 0,
+        }
+      : null,
+  };
 }
 interface OutputStatistics {
   file_name?: string;
@@ -488,6 +605,7 @@ export class Download {
       duplicated: StatChemShiftUnmapped[];
       duplicatedCount: number;
       showDuplicatedInsCode: boolean;
+      completeness: { phrase: string; view: CompletenessView }[];
     }[]
   >(() =>
     (this.statistics()?.chem_shift ?? []).map((s) => {
@@ -497,6 +615,19 @@ export class Download {
       const duplicated = s.chemical_shift_duplicated ?? [];
       const hasInsCode = (rows: { ins_code?: string | null }[]) =>
         rows.some((r) => r.ins_code != null && r.ins_code !== '');
+      // Completeness pivot tables: well-defined regions and the full structure.
+      const completeness = (
+        [
+          {
+            phrase: 'well-defined regions of the structure',
+            region: s.completeness_in_well_defined_region,
+          },
+          { phrase: 'full structure', region: s.completeness_in_full_length_region },
+        ] as const
+      ).flatMap(({ phrase, region }) => {
+        const view = buildCompletenessView(region);
+        return view ? [{ phrase, view }] : [];
+      });
       return {
         title: `Bookkeeping — ${s.list_id}. ${s.sf_framecode} (${s.original_file_name})`.trim(),
         rows: [
@@ -521,6 +652,7 @@ export class Download {
         duplicated,
         duplicatedCount: duplicated.length,
         showDuplicatedInsCode: hasInsCode(duplicated),
+        completeness,
       };
     }),
   );

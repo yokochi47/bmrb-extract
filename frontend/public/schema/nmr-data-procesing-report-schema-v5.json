@@ -5512,13 +5512,13 @@
       "description": "Template for chemical shift completenesses per atom group in output statistics.",
       "type": "object",
       "properties": {
-        "completeness_of_overall_assignements": {
+        "completeness_of_overall_assignments": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/completeness_of_chem_shift_per_atom_group"
           }
         },
-        "completensss_of_favorable_assignments": {
+        "completeness_of_favorable_assignments": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/completeness_of_chem_shift_per_atom_group"
@@ -5530,7 +5530,7 @@
             "$ref": "#/definitions/completeness_of_chem_shift_per_atom_group"
           }
         },
-        "complentess_of_sidechain_assignments": {
+        "completeness_of_sidechain_assignments": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/completeness_of_chem_shift_per_atom_group"
@@ -5542,7 +5542,7 @@
             "$ref": "#/definitions/completeness_of_chem_shift_per_atom_group"
           }
         },
-        "completeness_of_sugar_assignemnts": {
+        "completeness_of_sugar_assignments": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/completeness_of_chem_shift_per_atom_group"

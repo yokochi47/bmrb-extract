@@ -2696,6 +2696,39 @@ _CHEM_SHIFT_OUTLIER_KEYS = (
     'value', 'ambig_code', 'z_score', 'expected_range',
 )
 
+# Assignment-category arrays kept from each completeness-region object
+# (output_statistics.chem_shift[].completeness_in_*_region).
+_CHEM_SHIFT_COMPLETENESS_KEYS = (
+    'completeness_of_overall_assignments',
+    'completeness_of_favorable_assignments',
+    'completeness_of_backbone_assignments',
+    'completeness_of_sidechain_assignments',
+    'completeness_of_aromatic_assignments',
+    'completeness_of_sugar_assignments',
+    'completeness_of_base_assignments',
+    'completeness_of_stereomethyl_assignments',
+)
+_CHEM_SHIFT_COMPLETENESS_ENTRY_KEYS = (
+    'atom_group', 'number_of_assigned_shifts', 'number_of_target_shifts', 'completeness',
+)
+
+
+def _prune_completeness(region):
+    """Prune a completeness_in_*_region object to its known assignment-category
+    arrays, each entry reduced to atom_group / assigned / target / completeness.
+    Returns None when there is nothing to show."""
+    if not isinstance(region, dict):
+        return None
+    out = {}
+    for key in _CHEM_SHIFT_COMPLETENESS_KEYS:
+        arr = region.get(key)
+        if isinstance(arr, list) and arr:
+            out[key] = [
+                {k: e[k] for k in _CHEM_SHIFT_COMPLETENESS_ENTRY_KEYS if k in e}
+                for e in arr if isinstance(e, dict)
+            ]
+    return out or None
+
 
 @app.route('/api/output_statistics', methods=['GET'])
 async def get_output_statistics():
@@ -2785,6 +2818,13 @@ async def get_output_statistics():
                     {k: d[k] for k in _CHEM_SHIFT_UNMAPPED_KEYS if k in d}
                     for d in duplicated if isinstance(d, dict)
                 ]
+            # Assignment-completeness pivot tables (well-defined / full-length).
+            for region_key in (
+                'completeness_in_well_defined_region', 'completeness_in_full_length_region',
+            ):
+                region = _prune_completeness(item.get(region_key))
+                if region:
+                    row[region_key] = region
             saveframes.append(row)
         pruned['chem_shift'] = saveframes
     return {'available': True, 'statistics': pruned}
