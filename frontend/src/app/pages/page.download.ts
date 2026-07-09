@@ -117,6 +117,18 @@ interface StatChemShiftUnmapped {
   error?: number | null;
   ambig_code?: number | null;
 }
+/** One unparsed chemical shift (chem_shift[].chemical_shift_unparsed); value/error/
+ * ambig_code may be raw strings since the shift could not be parsed. */
+interface StatChemShiftUnparsed {
+  auth_chain_id?: string;
+  auth_seq_id?: number;
+  ins_code?: string | null;
+  comp_id?: string;
+  atom_id?: string;
+  value?: number | string | null;
+  error?: number | string | null;
+  ambig_code?: number | string | null;
+}
 /** One chemical shift outlier (chem_shift[].chemical_shift_outlier). */
 interface StatChemShiftOutlier {
   auth_chain_id?: string;
@@ -143,6 +155,7 @@ interface StatChemShiftSaveframe {
   number_of_outliers?: number;
   chemical_shift_unmapped?: StatChemShiftUnmapped[];
   chemical_shift_outlier?: StatChemShiftOutlier[];
+  chemical_shift_unparsed?: StatChemShiftUnparsed[];
 }
 interface OutputStatistics {
   file_name?: string;
@@ -467,11 +480,15 @@ export class Download {
       outlier: StatChemShiftOutlier[];
       outlierCount: number;
       showOutlierInsCode: boolean;
+      unparsed: StatChemShiftUnparsed[];
+      unparsedCount: number;
+      showUnparsedInsCode: boolean;
     }[]
   >(() =>
     (this.statistics()?.chem_shift ?? []).map((s) => {
       const unmapped = s.chemical_shift_unmapped ?? [];
       const outlier = s.chemical_shift_outlier ?? [];
+      const unparsed = s.chemical_shift_unparsed ?? [];
       const hasInsCode = (rows: { ins_code?: string | null }[]) =>
         rows.some((r) => r.ins_code != null && r.ins_code !== '');
       return {
@@ -491,6 +508,9 @@ export class Download {
         outlier,
         outlierCount: s.number_of_outliers ?? outlier.length,
         showOutlierInsCode: hasInsCode(outlier),
+        unparsed,
+        unparsedCount: s.number_of_unparsed_with_error ?? unparsed.length,
+        showUnparsedInsCode: hasInsCode(unparsed),
       };
     }),
   );

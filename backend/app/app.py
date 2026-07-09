@@ -2771,6 +2771,13 @@ async def get_output_statistics():
                     {k: o[k] for k in _CHEM_SHIFT_OUTLIER_KEYS if k in o}
                     for o in outlier if isinstance(o, dict)
                 ]
+            # Unparsed shifts (same column shape as unmapped; collapsible when > 0).
+            unparsed = item.get('chemical_shift_unparsed')
+            if isinstance(unparsed, list) and unparsed:
+                row['chemical_shift_unparsed'] = [
+                    {k: u[k] for k in _CHEM_SHIFT_UNMAPPED_KEYS if k in u}
+                    for u in unparsed if isinstance(u, dict)
+                ]
             saveframes.append(row)
         pruned['chem_shift'] = saveframes
     return {'available': True, 'statistics': pruned}
