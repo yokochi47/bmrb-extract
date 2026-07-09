@@ -60,6 +60,7 @@ from core.site_config import (  # noqa: E402
     SERVICE_DATABASE_URL,
     SERVICE_HELP_EMAIL,
     SERVICE_HOST,
+    SECRET_KEY,
     SMTP_SERVER,
     ARCHIVE_BASE_PATH,
     WORKSPACE_BASE_PATH,
@@ -396,6 +397,10 @@ def _nmr_driver_script(
         "u.addInput(name='nonblk_bad_nterm', value=True, type='param')\n"
         "u.addInput(name='resolve_conflict', value=True, type='param')\n"
         "u.addInput(name='check_mandatory_tag', value=True, type='param')\n"
+        "u.addInput(name='conversion_server', value=True, type='param')\n"
+        f"u.addInput(name='secret_key', value={SECRET_KEY}, type='param')\n"
+        f"u.addInput(name='service_host', value={SERVICE_HOST}, type='param')\n"
+        "u.addInput(name='dep_sys_name', value='onedep', type='param')\n"
     )
     if is_nef:
         deposit_out = (
@@ -473,6 +478,9 @@ def _nmr_merge_driver_script(
         "u.addInput(name='nonblk_bad_nterm', value=True, type='param')\n"
         "u.addInput(name='resolve_conflict', value=True, type='param')\n"
         "u.addInput(name='check_mandatory_tag', value=True, type='param')\n"
+        f"u.addInput(name='secret_key', value={SECRET_KEY}, type='param')\n"
+        f"u.addInput(name='service_host', value={SERVICE_HOST}, type='param')\n"
+        "u.addInput(name='dep_sys_name', value='onedep', type='param')\n"
     )
     restraint_input = (
         "u.addInput(name='restraint_file_path_list', value=RESTRAINT, type='file_dict_list')\n"
@@ -534,6 +542,10 @@ def _nmr_replace_cs_driver_script(
         "u.addInput(name='resolve_conflict', value=True, type='param')\n"
         "u.addInput(name='check_mandatory_tag', value=True, type='param')\n"
         "u.addInput(name='remediation', value=True, type='param')\n"
+        "u.addInput(name='conversion_server', value=True, type='param')\n"
+        f"u.addInput(name='secret_key', value={SECRET_KEY}, type='param')\n"
+        f"u.addInput(name='service_host', value={SERVICE_HOST}, type='param')\n"
+        "u.addInput(name='dep_sys_name', value='repl_cs', type='param')\n"
     )
     return (
         "from nmr.NmrDpUtility import NmrDpUtility\n"
@@ -583,6 +595,9 @@ def _nmr_bmrbdep_driver_script(
         "u.addInput(name='check_mandatory_tag', value=True, type='param')\n"
         "u.addInput(name='remediation', value=True, type='param')\n"
         "u.addInput(name='conversion_server', value=True, type='param')\n"
+        f"u.addInput(name='secret_key', value={SECRET_KEY}, type='param')\n"
+        f"u.addInput(name='service_host', value={SERVICE_HOST}, type='param')\n"
+        "u.addInput(name='dep_sys_name', value='bmrbdep', type='param')\n"
     )
     atypical_cs_input = (
         "u.addInput(name='atypical_chem_shift_file_path_list', value=ATYPICAL_CS, type='file_dict_list')\n"
