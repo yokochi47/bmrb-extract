@@ -105,6 +105,19 @@ interface StatChemShiftSummary {
   completeness_in_full_length_region?: number;
   completeness_in_full_length_region_with_favorable_shift?: number;
 }
+/** Per-saveframe assigned-chemical-shift bookkeeping (output_statistics.chem_shift);
+ * the backend prunes each item to these counts (see _CHEM_SHIFT_STATS_KEYS). */
+interface StatChemShiftSaveframe {
+  original_file_name?: string | null;
+  list_id?: number;
+  sf_framecode?: string;
+  number_of_parsed?: number;
+  number_of_mapped_to_model?: number;
+  number_of_unmapped_to_model?: number;
+  number_of_unparsed_with_error?: number;
+  number_of_parsed_with_warning?: number;
+  number_of_outliers?: number;
+}
 interface OutputStatistics {
   file_name?: string;
   file_type?: string;
@@ -121,6 +134,7 @@ interface OutputStatistics {
   assembly?: StatAssembly;
   entity?: StatEntity[];
   chem_shift_summary?: StatChemShiftSummary;
+  chem_shift?: StatChemShiftSaveframe[];
   /** Overall NMR restraint counts. The backend already drops the average/violation
    * tables; values here are scalar counts keyed by (varied) report field names. */
   restraint_summary?: Record<string, unknown>;
@@ -405,6 +419,22 @@ export class Download {
       ),
     ].filter((r): r is KVRow => r !== null);
   });
+
+  /** Per-saveframe assigned-chemical-shift bookkeeping (output_statistics.chem_shift),
+   * one Property/Value group per saveframe under the summary table. */
+  chemShiftSaveframes = computed<{ title: string; rows: KVRow[] }[]>(() =>
+    (this.statistics()?.chem_shift ?? []).map((s) => ({
+      title: `Bookkeeping — ${s.list_id}. ${s.sf_framecode} (${s.original_file_name})`.trim(),
+      rows: [
+        this.kv('Number of parsed shifts', s.number_of_parsed),
+        this.kv('Number of shifts mapped to model', s.number_of_mapped_to_model),
+        this.kv('Number of shifts unmapped to model', s.number_of_unmapped_to_model),
+        this.kv('Number of unparsed shifts with error', s.number_of_unparsed_with_error),
+        this.kv('Number of parsed shifts with warning', s.number_of_parsed_with_warning),
+        this.kv('Number of chemical shift outliers', s.number_of_outliers),
+      ].filter((r): r is KVRow => r !== null),
+    })),
+  );
 
   /** NMR restraint validation card (Property/Value): the scalar restraint counts.
    * average_* and *violation* items are excluded (per requirements; the backend

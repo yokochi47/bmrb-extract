@@ -2661,12 +2661,23 @@ async def get_nmr_preview():
 
 
 # Sub-sections of output_statistics excluded from the download-page summary: the
-# large per-shift/per-restraint validation tables. The summary objects
-# (chem_shift_summary, restraint_summary) ARE kept — the page shows them.
+# large per-restraint/per-peak validation tables. The summary objects
+# (chem_shift_summary, restraint_summary) ARE kept — the page shows them. The
+# chem_shift array is kept too, but pruned to per-saveframe bookkeeping counts
+# (_CHEM_SHIFT_STATS_KEYS) rather than its heavy validation sub-tables.
 _OUTPUT_STATS_EXCLUDE = {
-    'chem_shift',
     'dist_restraint', 'dihed_restraint', 'rdc_restraint', 'spectral_peak',
 }
+
+# Per-saveframe chemical-shift bookkeeping fields kept for the download-page
+# 'Assigned chemical shift summary' — the large validation sub-tables (RCI charts,
+# atom-name mapping, per-shift completeness/outlier lists) are dropped.
+_CHEM_SHIFT_STATS_KEYS = (
+    'original_file_name', 'list_id', 'sf_framecode',
+    'number_of_parsed', 'number_of_mapped_to_model', 'number_of_unmapped_to_model',
+    'number_of_unparsed_with_error', 'number_of_parsed_with_warning',
+    'number_of_outliers',
+)
 
 
 @app.route('/api/output_statistics', methods=['GET'])
@@ -2720,6 +2731,14 @@ async def get_output_statistics():
             if isinstance(v, (int, float, str))
             and 'average' not in k and 'violation' not in k
         }
+    # chem_shift: keep only the per-saveframe bookkeeping counts for the
+    # 'Assigned chemical shift summary' — drop the heavy validation sub-tables.
+    cs = pruned.get('chem_shift')
+    if isinstance(cs, list):
+        pruned['chem_shift'] = [
+            {k: item[k] for k in _CHEM_SHIFT_STATS_KEYS if k in item}
+            for item in cs if isinstance(item, dict)
+        ]
     return {'available': True, 'statistics': pruned}
 
 

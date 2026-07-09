@@ -1,12 +1,14 @@
 <div class="card">
   <div class="font-semibold text-2xl mb-6">Download</div>
 
-  <!-- Read-only after download (Terms #8): the session no longer accepts changes. -->
   @if (downloaded()) {
-    <p-message severity="info" styleClass="mb-6 w-full" [closable]="false">
-      <i class="pi pi-lock mr-2"></i>You have downloaded the conversion results — this session is
-      now read-only and can no longer accept file changes or re-uploads.
-    </p-message>
+    <!-- Read-only after download (Terms #8): the session no longer accepts changes. -->
+    <p-card styleClass="mb-6 border-l-4 border-blue-500">
+      <span class="text-blue-700 dark:text-blue-400 font-medium">
+        <i class="pi pi-lock mr-2"></i>You have downloaded the conversion results — this session is
+        now read-only and can no longer accept file changes or re-uploads.
+      </span>
+    </p-card>
   }
 
   @if (publicId()) {
@@ -394,7 +396,7 @@
           </div>
           @for (s of entitySequences(); track $index) {
             <div class="mt-4">
-              <div class="font-medium mb-1">Entity_ID: {{ s.entity_id }}</div>
+              <div class="text-base mb-1 mx-4">One-letter code sequence of Entity_ID: {{ s.entity_id }}</div>
               <pre
                 class="m-0 px-2 py-1 text-sm leading-tight overflow-x-auto whitespace-pre-wrap break-all bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
                 >{{ s.seq }}</pre
@@ -406,8 +408,8 @@
         }
       </p-card>
 
-      <!-- /information/output_statistics/chem_shift_summary (chem_shift array excluded) -->
-      <p-card header="Chemical shift validation" styleClass="mb-6">
+      <!-- /information/output_statistics/chem_shift_summary + per-saveframe chem_shift -->
+      <p-card header="Chemical shift analysis" styleClass="mb-6">
         @if (chemShiftProps().length) {
           <p class="text-lg mb-2">Assigned chemical shifts summary</p>
           <p class="text-base mb-4 mx-4">
@@ -442,6 +444,33 @@
               </tbody>
             </table>
           </div>
+
+          @if (chemShiftSaveframes().length) {
+            <p class="text-lg mt-6 mb-2">Chemical shift validation</p>
+            <p class="text-base mb-4 mx-4">
+              The following tables show the parsing and model-mapping statistics for each individual
+              chemical shift saveframe in the NMR data file.
+            </p>
+            @for (sf of chemShiftSaveframes(); track $index) {
+              <div class="font-medium mt-4 mb-2 break-all">{{ sf.title }}</div>
+              <p class="text-base mb-4 mx-4">
+                The following table shows the results of parsing the chemical shift list and reports
+                the number of nuclei with statistically unusual chemical shifts.
+              </p>
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm border-collapse">
+                  <tbody>
+                    @for (p of sf.rows; track $index) {
+                      <tr class="border-b border-surface-100 dark:border-surface-800">
+                        <td class="px-2 py-1 font-medium align-top w-96">{{ p.label }}</td>
+                        <td class="px-2 py-1 break-all">{{ p.value }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          }
         } @else {
           <p class="text-surface-500 py-2">
             Chemical shift validation is not available for this conversion.
@@ -450,7 +479,7 @@
       </p-card>
 
       <!-- /information/output_statistics/restraint_summary (average_*/*violation* and the per-restraint validation subsections excluded) -->
-      <p-card header="NMR restraint validation" styleClass="mb-6">
+      <p-card header="NMR restraint analysis" styleClass="mb-6">
         @if (restraintProps().length) {
           <p class="text-lg mb-2">Conformationally restricting restraints</p>
           <p class="text-base mb-4 mx-4">
