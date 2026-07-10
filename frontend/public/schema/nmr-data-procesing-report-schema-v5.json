@@ -2295,40 +2295,7 @@
           }
         },
         "histogram": {
-          "description": "Template for histogram of assigned chemical shifts.",
-          "type": "object",
-          "properties": {
-            "range_of_values": {
-              "type": "array",
-              "items": {
-                "type": "number"
-              }
-            },
-            "number_of_values": {
-              "type": "object",
-              "patternProperties": {
-                "^\\d+\\s+_chemical_shifts$": {
-                  "type": "array",
-                  "items": {
-                    "type": "integer",
-                    "minumum": 0
-                  }
-                }
-              }
-            },
-            "annotations": {
-              "type": "array",
-              "items": {
-                "$ref": "#/definitions/chem_shift_annotation"
-              }
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "range_of_values",
-            "number_of_values",
-            "annotations"
-          ]
+          "$ref": "#/definitions/output_stats_chem_shift_histogram"
         },
         "cys_redox_state": {
           "description": "Template for CYS redox state prediction and validation with the coordinates.",
@@ -4689,6 +4656,9 @@
                 "$ref": "#/definitions/output_stats_chem_shift_unmapped"
               },
               {
+                "$ref": "#/definitions/output_stats_chem_shift_histogram"
+              },
+              {
                 "$ref": "#/definitions/output_stats_chem_shift_rci"
               }
             ],
@@ -5468,6 +5438,11 @@
           "type": "integer",
           "minimum": 0
         },
+        "number_of_outliers": {
+          "description": "Total number of chemical shift outliers.",
+          "type": "integer",
+          "minimum": 0
+        },
         "atom_name_mapping": {
           "type": [
             "array",
@@ -5507,13 +5482,13 @@
       "description": "Template for chemical shift completenesses per atom group in output statistics.",
       "type": "object",
       "properties": {
-        "completeness_of_overall_assignements": {
+        "completeness_of_overall_assignments": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/completeness_of_chem_shift_per_atom_group"
           }
         },
-        "completensss_of_favorable_assignments": {
+        "completeness_of_favorable_assignments": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/completeness_of_chem_shift_per_atom_group"
@@ -5525,7 +5500,7 @@
             "$ref": "#/definitions/completeness_of_chem_shift_per_atom_group"
           }
         },
-        "complentess_of_sidechain_assignments": {
+        "completeness_of_sidechain_assignments": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/completeness_of_chem_shift_per_atom_group"
@@ -5537,7 +5512,7 @@
             "$ref": "#/definitions/completeness_of_chem_shift_per_atom_group"
           }
         },
-        "completeness_of_sugar_assignemnts": {
+        "completeness_of_sugar_assignments": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/completeness_of_chem_shift_per_atom_group"
@@ -5644,6 +5619,13 @@
               "type": "number"
             }
           }
+        },
+        "details": {
+          "description": "Details regarding structural factors behind anomalous chemical shifts.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -5760,6 +5742,36 @@
             "integer",
             "null"
           ]
+        }
+      }
+    },
+    "output_stats_chem_shift_histogram": {
+      "description": "Template for histogram of assigned chemical shifts.",
+      "type": "object",
+      "properties": {
+        "range_of_values": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "number_of_values": {
+          "type": "object",
+          "patternProperties": {
+            "^\\d+\\s+_chemical_shifts$": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minumum": 0
+              }
+            }
+          }
+        },
+        "annotations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/chem_shift_annotation"
+          }
         }
       }
     },

@@ -1,12 +1,14 @@
 <div class="card">
   <div class="font-semibold text-2xl mb-6">Upload files</div>
 
-  <!-- Read-only after download (Terms #8): the session no longer accepts changes. -->
   @if (downloaded()) {
-    <p-message severity="info" styleClass="mb-6 w-full" [closable]="false">
-      <i class="pi pi-lock mr-2"></i>You have downloaded the conversion results — this session is
-      now read-only and can no longer accept file changes or re-uploads.
-    </p-message>
+    <!-- Read-only after download (Terms #8): the session no longer accepts changes. -->
+    <p-card styleClass="mb-6 border-l-4 border-blue-500">
+      <span class="text-blue-700 dark:text-blue-400 font-medium">
+        <i class="pi pi-lock mr-2"></i>You have downloaded the conversion results — this session is
+        now read-only and can no longer accept file changes or re-uploads.
+      </span>
+    </p-card>
   }
 
   <!-- Deposition system selection (hidden once conversion ID is issued) -->

@@ -7,12 +7,14 @@ import { CardModule } from 'primeng/card';
 import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
 import { MessageModule } from 'primeng/message';
+import { PanelModule } from 'primeng/panel';
 import { timer } from 'rxjs';
 import { switchMap, takeWhile } from 'rxjs/operators';
 
 import { PageService } from './page.service';
 import { API_URL } from '../../site.config';
 import { fileTypeLabel } from './file-types';
+import { EchartComponent } from './echart.component';
 
 /** One conversion-result file bundled in the download zip. */
 interface OutputFileRow {
@@ -105,6 +107,188 @@ interface StatChemShiftSummary {
   completeness_in_full_length_region?: number;
   completeness_in_full_length_region_with_favorable_shift?: number;
 }
+/** One unmapped assigned chemical shift (chem_shift[].chemical_shift_unmapped). */
+interface StatChemShiftUnmapped {
+  auth_chain_id?: string;
+  auth_seq_id?: number;
+  ins_code?: string | null;
+  comp_id?: string;
+  atom_id?: string;
+  value?: number;
+  error?: number | null;
+  ambig_code?: number | null;
+}
+/** One unparsed chemical shift (chem_shift[].chemical_shift_unparsed); value/error/
+ * ambig_code may be raw strings since the shift could not be parsed. */
+interface StatChemShiftUnparsed {
+  auth_chain_id?: string;
+  auth_seq_id?: number;
+  ins_code?: string | null;
+  comp_id?: string;
+  atom_id?: string;
+  value?: number | string | null;
+  error?: number | string | null;
+  ambig_code?: number | string | null;
+}
+/** One chemical shift outlier (chem_shift[].chemical_shift_outlier). */
+interface StatChemShiftOutlier {
+  auth_chain_id?: string;
+  auth_seq_id?: number;
+  ins_code?: string | null;
+  comp_id?: string;
+  atom_id?: string;
+  value?: number;
+  ambig_code?: number | null;
+  z_score?: number;
+  expected_range?: { min_value?: number; max_value?: number };
+  /** Structural factor behind the outlier (free text), or null when none. */
+  details?: string | null;
+}
+/** One completeness entry (one nucleus/atom_group within an assignment category). */
+interface StatCompletenessEntry {
+  atom_group?: string;
+  number_of_assigned_shifts?: number;
+  number_of_target_shifts?: number;
+  completeness?: number | null;
+}
+/** completeness_in_*_region: assignment-category arrays. Schema key spellings are
+ * preserved verbatim (several carry typos in the report generator). */
+interface StatCompletenessRegion {
+  completeness_of_overall_assignments?: StatCompletenessEntry[];
+  completeness_of_favorable_assignments?: StatCompletenessEntry[];
+  completeness_of_backbone_assignments?: StatCompletenessEntry[];
+  completeness_of_sidechain_assignments?: StatCompletenessEntry[];
+  completeness_of_aromatic_assignments?: StatCompletenessEntry[];
+  completeness_of_sugar_assignments?: StatCompletenessEntry[];
+  completeness_of_base_assignments?: StatCompletenessEntry[];
+  completeness_of_stereomethyl_assignments?: StatCompletenessEntry[];
+}
+/** One assigned-chemical-shift histogram (chem_shift[].histogram), pre-shaped by
+ * the backend into ECharts-ready categories/series (mirrors the summary page). */
+interface HistogramChart {
+  label: string;
+  categories: string[];
+  series: { name: string; data: number[] }[];
+  /** Outlier markers (chem-shift Z scores): dashed line + short description.
+   * `x` is the precise fractional category-axis index of the value. */
+  annotations?: { x: number; anomalous: boolean; text: string }[];
+}
+/** Per-saveframe assigned-chemical-shift bookkeeping (output_statistics.chem_shift);
+ * the backend prunes each item to these counts (see _CHEM_SHIFT_STATS_KEYS). */
+interface StatChemShiftSaveframe {
+  original_file_name?: string | null;
+  list_id?: number;
+  sf_framecode?: string;
+  number_of_parsed?: number;
+  number_of_mapped_to_model?: number;
+  number_of_unmapped_to_model?: number;
+  number_of_unparsed_with_error?: number;
+  number_of_parsed_with_warning?: number;
+  number_of_outliers?: number;
+  chemical_shift_unmapped?: StatChemShiftUnmapped[];
+  chemical_shift_outlier?: StatChemShiftOutlier[];
+  chemical_shift_unparsed?: StatChemShiftUnparsed[];
+  /** Duplicated shifts share the unmapped column shape (value/error/ambig_code). */
+  chemical_shift_duplicated?: StatChemShiftUnmapped[];
+  completeness_in_well_defined_region?: StatCompletenessRegion;
+  completeness_in_full_length_region?: StatCompletenessRegion;
+  histogram?: HistogramChart[];
+}
+
+/** Pivoted completeness table (rows = assignment categories, columns = nuclei)
+ * plus the caption's overall / stereomethyl figures. */
+interface CompletenessView {
+  columns: string[];
+  rows: { label: string; cells: string[] }[];
+  overallPct: number | null;
+  overallAssigned: number | null;
+  overallTarget: number | null;
+  stereo: { assigned: number; target: number } | null;
+}
+/** Assignment categories shown as table rows, in display order (schema spellings). */
+const COMPLETENESS_ROWS: { key: keyof StatCompletenessRegion; label: string }[] = [
+  { key: 'completeness_of_backbone_assignments', label: 'Backbone' },
+  { key: 'completeness_of_sidechain_assignments', label: 'Sidechain' },
+  { key: 'completeness_of_aromatic_assignments', label: 'Aromatic' },
+  { key: 'completeness_of_sugar_assignments', label: 'Sugar' },
+  { key: 'completeness_of_base_assignments', label: 'Base' },
+  { key: 'completeness_of_overall_assignments', label: 'Overall' },
+];
+/** Column (nucleus) order. atom_group values encode the nucleus as an isotope
+ * token (1h / 13c / 15n / 31p); anything without one is the "all" Total column. */
+const NUCLEUS_COLUMNS = ['Total', '¹H', '¹³C', '¹⁵N', '³¹P'];
+
+/** Classify an atom_group string (e.g. "backbone_1h_chemical_shifts",
+ * "overall_all_chemical_shifts") into its nucleus column. */
+function nucleusColumn(atomGroup: string): string {
+  const g = atomGroup.toLowerCase();
+  if (g.includes('1h')) return '¹H';
+  if (g.includes('13c')) return '¹³C';
+  if (g.includes('15n')) return '¹⁵N';
+  if (g.includes('31p')) return '³¹P';
+  return 'Total';
+}
+
+/** Format one completeness cell as "{assigned}/{target} ({pct}%)", or an en-dash
+ * placeholder when the (category, nucleus) pair has no entry. */
+function fmtCompletenessCell(e?: StatCompletenessEntry): string {
+  if (!e) return '– / –';
+  const a = e.number_of_assigned_shifts ?? 0;
+  const t = e.number_of_target_shifts ?? 0;
+  const pct =
+    e.completeness != null
+      ? Math.round(e.completeness * 100)
+      : t
+        ? Math.round((a / t) * 100)
+        : null;
+  return pct == null ? `${a}/${t}` : `${a}/${t} (${pct}%)`;
+}
+
+/** Group a category's entries by nucleus column (first entry per column wins). */
+function byNucleus(entries?: StatCompletenessEntry[]): Map<string, StatCompletenessEntry> {
+  const map = new Map<string, StatCompletenessEntry>();
+  for (const e of entries ?? []) {
+    const col = nucleusColumn(e.atom_group ?? '');
+    if (!map.has(col)) map.set(col, e);
+  }
+  return map;
+}
+
+/** Pivot a completeness-region object into a CompletenessView, or null when empty. */
+function buildCompletenessView(region?: StatCompletenessRegion): CompletenessView | null {
+  if (!region) return null;
+  const present = new Set<string>();
+  for (const { key } of COMPLETENESS_ROWS) {
+    for (const e of region[key] ?? []) {
+      if (e.atom_group) present.add(nucleusColumn(e.atom_group));
+    }
+  }
+  if (!present.size) return null;
+  const columns = NUCLEUS_COLUMNS.filter((n) => present.has(n));
+  const rows = COMPLETENESS_ROWS.flatMap(({ key, label }) => {
+    const arr = region[key];
+    if (!arr || !arr.length) return [];
+    const byGroup = byNucleus(arr);
+    return [{ label, cells: columns.map((c) => fmtCompletenessCell(byGroup.get(c))) }];
+  });
+  if (!rows.length) return null;
+  const overall = byNucleus(region.completeness_of_overall_assignments).get('Total');
+  const stereoByNuc = byNucleus(region.completeness_of_stereomethyl_assignments);
+  const stereo = stereoByNuc.get('Total') ?? region.completeness_of_stereomethyl_assignments?.[0];
+  return {
+    columns,
+    rows,
+    overallPct: overall?.completeness != null ? Math.round(overall.completeness * 100) : null,
+    overallAssigned: overall?.number_of_assigned_shifts ?? null,
+    overallTarget: overall?.number_of_target_shifts ?? null,
+    stereo: stereo
+      ? {
+          assigned: stereo.number_of_assigned_shifts ?? 0,
+          target: stereo.number_of_target_shifts ?? 0,
+        }
+      : null,
+  };
+}
 interface OutputStatistics {
   file_name?: string;
   file_type?: string;
@@ -121,6 +305,7 @@ interface OutputStatistics {
   assembly?: StatAssembly;
   entity?: StatEntity[];
   chem_shift_summary?: StatChemShiftSummary;
+  chem_shift?: StatChemShiftSaveframe[];
   /** Overall NMR restraint counts. The backend already drops the average/violation
    * tables; values here are scalar counts keyed by (varied) report field names. */
   restraint_summary?: Record<string, unknown>;
@@ -182,7 +367,16 @@ const OUTPUT_TYPE_LABELS: Record<string, string> = {
  */
 @Component({
   selector: 'app-download',
-  imports: [RouterLink, FormsModule, CardModule, TableModule, ButtonModule, MessageModule],
+  imports: [
+    RouterLink,
+    FormsModule,
+    CardModule,
+    TableModule,
+    ButtonModule,
+    MessageModule,
+    PanelModule,
+    EchartComponent,
+  ],
   templateUrl: './page.download.html',
 })
 export class Download {
@@ -405,6 +599,165 @@ export class Download {
       ),
     ].filter((r): r is KVRow => r !== null);
   });
+
+  /** Per-saveframe assigned-chemical-shift bookkeeping (output_statistics.chem_shift),
+   * one Property/Value group per saveframe under the summary table. `unmapped` holds
+   * the assigned shifts not mapped to the coordinate model (collapsible table). */
+  chemShiftSaveframes = computed<
+    {
+      title: string;
+      rows: KVRow[];
+      unmapped: StatChemShiftUnmapped[];
+      unmappedCount: number;
+      showInsCode: boolean;
+      outlier: StatChemShiftOutlier[];
+      outlierCount: number;
+      showOutlierInsCode: boolean;
+      showOutlierDetails: boolean;
+      unparsed: StatChemShiftUnparsed[];
+      unparsedCount: number;
+      showUnparsedInsCode: boolean;
+      duplicated: StatChemShiftUnmapped[];
+      duplicatedCount: number;
+      showDuplicatedInsCode: boolean;
+      completeness: { phrase: string; view: CompletenessView }[];
+      histograms: { title: string; option: object }[];
+    }[]
+  >(() =>
+    (this.statistics()?.chem_shift ?? []).map((s) => {
+      const unmapped = s.chemical_shift_unmapped ?? [];
+      const outlier = s.chemical_shift_outlier ?? [];
+      const unparsed = s.chemical_shift_unparsed ?? [];
+      const duplicated = s.chemical_shift_duplicated ?? [];
+      const hasInsCode = (rows: { ins_code?: string | null }[]) =>
+        rows.some((r) => r.ins_code != null && r.ins_code !== '');
+      // Completeness pivot tables: well-defined regions and the full structure.
+      const completeness = (
+        [
+          {
+            phrase: 'well-defined regions of the structure',
+            region: s.completeness_in_well_defined_region,
+          },
+          { phrase: 'full structure', region: s.completeness_in_full_length_region },
+        ] as const
+      ).flatMap(({ phrase, region }) => {
+        const view = buildCompletenessView(region);
+        return view ? [{ phrase, view }] : [];
+      });
+      return {
+        title: `Bookkeeping — ${s.list_id}. ${s.sf_framecode} (${s.original_file_name})`.trim(),
+        rows: [
+          this.kv('Number of parsed shifts', s.number_of_parsed),
+          this.kv('Number of shifts mapped to model', s.number_of_mapped_to_model),
+          this.kv('Number of shifts unmapped to model', s.number_of_unmapped_to_model),
+          this.kv('Number of unparsed shifts with error', s.number_of_unparsed_with_error),
+          this.kv('Number of parsed shifts with warning', s.number_of_parsed_with_warning),
+          this.kv('Number of chemical shift outliers', s.number_of_outliers),
+        ].filter((r): r is KVRow => r !== null),
+        unmapped,
+        unmappedCount: s.number_of_unmapped_to_model ?? unmapped.length,
+        // Hide the Ins code column when no row carries an insertion code.
+        showInsCode: hasInsCode(unmapped),
+        outlier,
+        outlierCount: s.number_of_outliers ?? outlier.length,
+        showOutlierInsCode: hasInsCode(outlier),
+        // Hide the Details column when no outlier carries a structural factor.
+        showOutlierDetails: outlier.some((o) => o.details != null && o.details !== ''),
+        unparsed,
+        unparsedCount: s.number_of_unparsed_with_error ?? unparsed.length,
+        showUnparsedInsCode: hasInsCode(unparsed),
+        // No bookkeeping count for duplicates; use the row count itself.
+        duplicated,
+        duplicatedCount: duplicated.length,
+        showDuplicatedInsCode: hasInsCode(duplicated),
+        completeness,
+        // Normalized (Z-score) assigned-chemical-shift histogram(s).
+        histograms: (s.histogram ?? []).map((h) => ({
+          title: 'Normalized assigned chemical shifts (Z-score)',
+          option: this.histogramOption(h, 'Z-score', '# of chemical shifts', {
+            inverse: true,
+            rangeLabels: true,
+          }),
+        })),
+      };
+    }),
+  );
+
+  /** ECharts option for a normalized chemical-shift histogram (ported from the
+   * summary page). Bars are stacked per isotope; optional Z-score outlier markers
+   * are drawn as dashed markLines against a hidden value axis. */
+  private histogramOption(
+    h: HistogramChart,
+    xName: string,
+    yName: string,
+    opts: { inverse?: boolean; rangeLabels?: boolean; yAxisLine?: boolean } = {},
+  ): object {
+    const { inverse = false, rangeLabels = false, yAxisLine = false } = opts;
+    const step =
+      h.categories.length >= 2 ? parseFloat(h.categories[1]) - parseFloat(h.categories[0]) : 0;
+    const labelFormatter =
+      rangeLabels && step && inverse
+        ? (value: string) => `(${+(parseFloat(value) + step).toFixed(6)}, ${value}]`
+        : rangeLabels && step
+          ? (value: string) => `[${value}, ${+(parseFloat(value) + step).toFixed(6)})`
+          : undefined;
+    const ann = h.annotations ?? [];
+    const n = h.categories.length;
+    const markLine = ann.length
+      ? {
+          silent: true,
+          symbol: 'none',
+          data: ann.map((a) => ({
+            xAxis: a.x,
+            lineStyle: { color: a.anomalous ? '#dc2626' : '#475569', type: 'dashed', width: 1 },
+            label: {
+              show: true,
+              formatter: a.text,
+              position: 'end',
+              rotate: -90,
+              align: 'left',
+              verticalAlign: 'bottom',
+              fontSize: 9,
+              color: a.anomalous ? '#dc2626' : '#475569',
+            },
+          })),
+        }
+      : undefined;
+    const categoryAxis = {
+      type: 'category',
+      data: h.categories,
+      name: xName,
+      nameLocation: 'middle',
+      nameGap: 40,
+      axisLabel: { rotate: -75, fontSize: 9, formatter: labelFormatter },
+      inverse,
+    };
+    const markerAxis = {
+      type: 'value',
+      min: 0.0,
+      max: n + 1.0,
+      show: false,
+      axisPointer: { show: false },
+    };
+    return {
+      title: { text: h.label, left: 'center', textStyle: { fontSize: 12, fontWeight: 'normal' } },
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      legend: { bottom: 0, type: 'scroll', data: h.series.map((s) => s.name) },
+      grid: { left: 56, right: 16, top: 36, bottom: 64, containLabel: true },
+      xAxis: markLine ? [categoryAxis, markerAxis] : categoryAxis,
+      yAxis: {
+        type: 'value',
+        name: yName,
+        minInterval: 1,
+        axisTick: { show: true },
+        ...(yAxisLine ? { axisLine: { show: true } } : {}),
+      },
+      series: [
+        ...h.series.map((s) => ({ name: s.name, type: 'bar', stack: 'total', data: s.data })),
+        ...(markLine ? [{ type: 'line', xAxisIndex: 1, data: [], silent: true, markLine }] : []),
+      ],
+    };
+  }
 
   /** NMR restraint validation card (Property/Value): the scalar restraint counts.
    * average_* and *violation* items are excluded (per requirements; the backend
