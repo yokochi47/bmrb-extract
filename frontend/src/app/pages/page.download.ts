@@ -141,6 +141,8 @@ interface StatChemShiftOutlier {
   ambig_code?: number | null;
   z_score?: number;
   expected_range?: { min_value?: number; max_value?: number };
+  /** Structural factor behind the outlier (free text), or null when none. */
+  details?: string | null;
 }
 /** One completeness entry (one nucleus/atom_group within an assignment category). */
 interface StatCompletenessEntry {
@@ -272,8 +274,7 @@ function buildCompletenessView(region?: StatCompletenessRegion): CompletenessVie
   if (!rows.length) return null;
   const overall = byNucleus(region.completeness_of_overall_assignments).get('Total');
   const stereoByNuc = byNucleus(region.completeness_of_stereomethyl_assignments);
-  const stereo =
-    stereoByNuc.get('Total') ?? region.completeness_of_stereomethyl_assignments?.[0];
+  const stereo = stereoByNuc.get('Total') ?? region.completeness_of_stereomethyl_assignments?.[0];
   return {
     columns,
     rows,
@@ -612,6 +613,7 @@ export class Download {
       outlier: StatChemShiftOutlier[];
       outlierCount: number;
       showOutlierInsCode: boolean;
+      showOutlierDetails: boolean;
       unparsed: StatChemShiftUnparsed[];
       unparsedCount: number;
       showUnparsedInsCode: boolean;
@@ -659,6 +661,8 @@ export class Download {
         outlier,
         outlierCount: s.number_of_outliers ?? outlier.length,
         showOutlierInsCode: hasInsCode(outlier),
+        // Hide the Details column when no outlier carries a structural factor.
+        showOutlierDetails: outlier.some((o) => o.details != null && o.details !== ''),
         unparsed,
         unparsedCount: s.number_of_unparsed_with_error ?? unparsed.length,
         showUnparsedInsCode: hasInsCode(unparsed),

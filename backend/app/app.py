@@ -2693,7 +2693,7 @@ _CHEM_SHIFT_UNMAPPED_KEYS = (
 # {min_value, max_value} object.
 _CHEM_SHIFT_OUTLIER_KEYS = (
     'auth_chain_id', 'auth_seq_id', 'ins_code', 'comp_id', 'atom_id',
-    'value', 'ambig_code', 'z_score', 'expected_range',
+    'value', 'ambig_code', 'z_score', 'expected_range', 'details',
 )
 
 # Assignment-category arrays kept from each completeness-region object

@@ -615,6 +615,13 @@
                           >
                             Expected range
                           </th>
+                          @if (sf.showOutlierDetails) {
+                            <th
+                              class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                            >
+                              Details
+                            </th>
+                          }
                         </tr>
                       </thead>
                       <tbody>
@@ -637,6 +644,9 @@
                             <td class="px-2 py-1 tabular-nums whitespace-nowrap">
                               {{ o.expected_range?.min_value }} – {{ o.expected_range?.max_value }}
                             </td>
+                            @if (sf.showOutlierDetails) {
+                              <td class="px-2 py-1">{{ o.details }}</td>
+                            }
                           </tr>
                         }
                       </tbody>
@@ -646,7 +656,7 @@
               }
 
               @for (hist of sf.histograms; track $index) {
-                <p class="text-lg mt-6 mb-2">{{ hist.title }}</p>
+                <p class="text-base mt-6 mb-2">{{ hist.title }}</p>
                 <app-echart [option]="hist.option" [height]="380" />
               }
 
@@ -816,7 +826,8 @@
               @for (c of sf.completeness; track $index) {
                 <p class="text-base mb-4 mx-4">
                   The following table shows the completeness of the chemical shift assignments for
-                  the <strong>{{ c.phrase }}</strong>.
+                  the <strong>{{ c.phrase }}</strong
+                  >.
                   @if (c.view.overallPct !== null) {
                     The overall completeness is {{ c.view.overallPct }}%, i.e.
                     {{ c.view.overallAssigned }} atoms were assigned a chemical shift out of a
