@@ -2825,6 +2825,11 @@ async def get_output_statistics():
                 region = _prune_completeness(item.get(region_key))
                 if region:
                     row[region_key] = region
+            # Normalized (Z-score) assigned-chemical-shift histogram (same chart
+            # data as the summary page); inverse axis to match NMR-spectrum sense.
+            histogram = _histogram_chart([item], True)
+            if histogram:
+                row['histogram'] = histogram
             saveframes.append(row)
         pruned['chem_shift'] = saveframes
     return {'available': True, 'statistics': pruned}

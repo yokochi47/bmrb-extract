@@ -14,6 +14,7 @@ import { switchMap, takeWhile } from 'rxjs/operators';
 import { PageService } from './page.service';
 import { API_URL } from '../../site.config';
 import { fileTypeLabel } from './file-types';
+import { EchartComponent } from './echart.component';
 
 /** One conversion-result file bundled in the download zip. */
 interface OutputFileRow {
@@ -160,6 +161,16 @@ interface StatCompletenessRegion {
   completeness_of_base_assignments?: StatCompletenessEntry[];
   completeness_of_stereomethyl_assignments?: StatCompletenessEntry[];
 }
+/** One assigned-chemical-shift histogram (chem_shift[].histogram), pre-shaped by
+ * the backend into ECharts-ready categories/series (mirrors the summary page). */
+interface HistogramChart {
+  label: string;
+  categories: string[];
+  series: { name: string; data: number[] }[];
+  /** Outlier markers (chem-shift Z scores): dashed line + short description.
+   * `x` is the precise fractional category-axis index of the value. */
+  annotations?: { x: number; anomalous: boolean; text: string }[];
+}
 /** Per-saveframe assigned-chemical-shift bookkeeping (output_statistics.chem_shift);
  * the backend prunes each item to these counts (see _CHEM_SHIFT_STATS_KEYS). */
 interface StatChemShiftSaveframe {
@@ -179,6 +190,7 @@ interface StatChemShiftSaveframe {
   chemical_shift_duplicated?: StatChemShiftUnmapped[];
   completeness_in_well_defined_region?: StatCompletenessRegion;
   completeness_in_full_length_region?: StatCompletenessRegion;
+  histogram?: HistogramChart[];
 }
 
 /** Pivoted completeness table (rows = assignment categories, columns = nuclei)
@@ -362,6 +374,7 @@ const OUTPUT_TYPE_LABELS: Record<string, string> = {
     ButtonModule,
     MessageModule,
     PanelModule,
+    EchartComponent,
   ],
   templateUrl: './page.download.html',
 })
@@ -606,6 +619,7 @@ export class Download {
       duplicatedCount: number;
       showDuplicatedInsCode: boolean;
       completeness: { phrase: string; view: CompletenessView }[];
+      histograms: { title: string; option: object }[];
     }[]
   >(() =>
     (this.statistics()?.chem_shift ?? []).map((s) => {
@@ -653,9 +667,93 @@ export class Download {
         duplicatedCount: duplicated.length,
         showDuplicatedInsCode: hasInsCode(duplicated),
         completeness,
+        // Normalized (Z-score) assigned-chemical-shift histogram(s).
+        histograms: (s.histogram ?? []).map((h) => ({
+          title: 'Normalized assigned chemical shifts (Z-score)',
+          option: this.histogramOption(h, 'Z-score', '# of chemical shifts', {
+            inverse: true,
+            rangeLabels: true,
+          }),
+        })),
       };
     }),
   );
+
+  /** ECharts option for a normalized chemical-shift histogram (ported from the
+   * summary page). Bars are stacked per isotope; optional Z-score outlier markers
+   * are drawn as dashed markLines against a hidden value axis. */
+  private histogramOption(
+    h: HistogramChart,
+    xName: string,
+    yName: string,
+    opts: { inverse?: boolean; rangeLabels?: boolean; yAxisLine?: boolean } = {},
+  ): object {
+    const { inverse = false, rangeLabels = false, yAxisLine = false } = opts;
+    const step =
+      h.categories.length >= 2 ? parseFloat(h.categories[1]) - parseFloat(h.categories[0]) : 0;
+    const labelFormatter =
+      rangeLabels && step && inverse
+        ? (value: string) => `(${+(parseFloat(value) + step).toFixed(6)}, ${value}]`
+        : rangeLabels && step
+          ? (value: string) => `[${value}, ${+(parseFloat(value) + step).toFixed(6)})`
+          : undefined;
+    const ann = h.annotations ?? [];
+    const n = h.categories.length;
+    const markLine = ann.length
+      ? {
+          silent: true,
+          symbol: 'none',
+          data: ann.map((a) => ({
+            xAxis: a.x,
+            lineStyle: { color: a.anomalous ? '#dc2626' : '#475569', type: 'dashed', width: 1 },
+            label: {
+              show: true,
+              formatter: a.text,
+              position: 'end',
+              rotate: -90,
+              align: 'left',
+              verticalAlign: 'bottom',
+              fontSize: 9,
+              color: a.anomalous ? '#dc2626' : '#475569',
+            },
+          })),
+        }
+      : undefined;
+    const categoryAxis = {
+      type: 'category',
+      data: h.categories,
+      name: xName,
+      nameLocation: 'middle',
+      nameGap: 40,
+      axisLabel: { rotate: -75, fontSize: 9, formatter: labelFormatter },
+      inverse,
+    };
+    const markerAxis = {
+      type: 'value',
+      min: 0.0,
+      max: n + 1.0,
+      show: false,
+      axisPointer: { show: false },
+    };
+    return {
+      title: { text: h.label, left: 'center', textStyle: { fontSize: 12, fontWeight: 'normal' } },
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      legend: { bottom: 0, type: 'scroll', data: h.series.map((s) => s.name) },
+      grid: { left: 56, right: 16, top: 36, bottom: 64, containLabel: true },
+      xAxis: markLine ? [categoryAxis, markerAxis] : categoryAxis,
+      yAxis: {
+        type: 'value',
+        name: yName,
+        minInterval: 1,
+        axisTick: { show: true },
+        ...(yAxisLine ? { axisLine: { show: true } } : {}),
+      },
+      series: [
+        ...h.series.map((s) => ({ name: s.name, type: 'bar', stack: 'total', data: s.data })),
+        ...(markLine ? [{ type: 'line', xAxisIndex: 1, data: [], silent: true, markLine }] : []),
+      ],
+    };
+  }
 
   /** NMR restraint validation card (Property/Value): the scalar restraint counts.
    * average_* and *violation* items are excluded (per requirements; the backend

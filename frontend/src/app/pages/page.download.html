@@ -645,6 +645,11 @@
                 </p-panel>
               }
 
+              @for (hist of sf.histograms; track $index) {
+                <p class="text-lg mt-6 mb-2">{{ hist.title }}</p>
+                <app-echart [option]="hist.option" [height]="380" />
+              }
+
               @if (sf.unparsedCount > 0 && sf.unparsed.length) {
                 <p-panel [toggleable]="true" [collapsed]="true" styleClass="mt-2 mb-4">
                   <ng-template pTemplate="header">
@@ -811,7 +816,7 @@
               @for (c of sf.completeness; track $index) {
                 <p class="text-base mb-4 mx-4">
                   The following table shows the completeness of the chemical shift assignments for
-                  the {{ c.phrase }}.
+                  the <strong>{{ c.phrase }}</strong>.
                   @if (c.view.overallPct !== null) {
                     The overall completeness is {{ c.view.overallPct }}%, i.e.
                     {{ c.view.overallAssigned }} atoms were assigned a chemical shift out of a
