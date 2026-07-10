@@ -657,6 +657,15 @@
 
               @for (hist of sf.histograms; track $index) {
                 <p class="text-base mt-6 mb-2">{{ hist.title }}</p>
+                <p class="text-base mb-4 mx-4">
+                  The figure below presents a histogram of normalized chemical shifts based on the
+                  average chemical shifts of known standard residues archived in BMRB. Chemical
+                  shifts with Z-scores exceeding 5 or falling below -5 are indicated as outliers.
+                  Particularly notable outliers are highlighted with lines. Among these outliers,
+                  those for which no structural cause—such as ring-current shifts due to neighboring
+                  aromatic residues or the presence of paramagnetic ions—can be identified are
+                  highlighted in red.
+                </p>
                 <app-echart [option]="hist.option" [height]="380" />
               }
 
