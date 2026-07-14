@@ -210,6 +210,8 @@ interface StatEnsembleCluster {
   model_ids?: number[];
   centroid_model_id?: number;
   mean_rmsd?: number;
+  /** Per-model PC1/PC2 coordinates for the PCA scatter. */
+  principal_components?: { model_id?: number; pc1?: number; pc2?: number }[];
 }
 /** Coordinate ensemble composition (input_sources[file_type='pdbx']). */
 interface StatEnsembleComposition {
@@ -532,6 +534,48 @@ export class Download {
   singleModelCount = computed(
     () => this.ensembleClusters().find((c) => c.cluster_id === -1)?.model_ids?.length ?? 0,
   );
+
+  /** PCA scatter (PC1 vs PC2) — one series per cluster (cluster_id === -1 →
+   * 'Single-model'); each point carries its cluster and model in the tooltip.
+   * Null when no cluster reports principal components. */
+  ensemblePcaChart = computed<{ option: object; marginX: number; marginY: number } | null>(() => {
+    const series = this.ensembleClusters()
+      .map((c) => {
+        const pcs = c.principal_components ?? [];
+        if (!pcs.length) return null;
+        const name = c.cluster_id === -1 ? 'Single-model' : `Cluster ${c.cluster_id}`;
+        return {
+          name,
+          type: 'scatter',
+          symbolSize: 10,
+          data: pcs.map((p) => ({ value: [p.pc1, p.pc2, p.model_id] })),
+        };
+      })
+      .filter((s): s is NonNullable<typeof s> => s !== null);
+    if (!series.length) return null;
+    const names = series.map((s) => s.name);
+    const legendW = this.legendReserve(names);
+    return {
+      // Square plot area: marginX reserves the left axis + right-side legend,
+      // marginY the top padding + bottom x-axis title.
+      marginX: 48 + legendW,
+      marginY: 56,
+      option: {
+        tooltip: {
+          trigger: 'item',
+          formatter: (p: { seriesName?: string; value?: number[] }) => {
+            const v = p.value ?? [];
+            return `${p.seriesName} · Model ${v[2]}<br/>PC1: ${(+v[0]).toFixed(3)}, PC2: ${(+v[1]).toFixed(3)}`;
+          },
+        },
+        legend: { orient: 'vertical', right: 8, top: 'middle', type: 'plain', data: names },
+        grid: { left: 48, right: legendW, top: 16, bottom: 40, containLabel: true },
+        xAxis: { type: 'value', name: 'PC1', nameLocation: 'middle', nameGap: 26, scale: true },
+        yAxis: { type: 'value', name: 'PC2', nameLocation: 'middle', nameGap: 40, scale: true },
+        series,
+      },
+    };
+  });
 
   /** Entry information card (Property/Value): the output-file/entry fields. The
    * model file is a separate group (modelProps), rendered below a divider. */
@@ -1022,5 +1066,12 @@ export class Download {
     const units = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(1024));
     return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
+  }
+
+  /** Right-side legend width (px) sized to the longest series label, capped. */
+  private static readonly LEGEND_CAP = 160;
+  private legendReserve(names: string[]): number {
+    const maxLen = names.reduce((m, n) => Math.max(m, n.length), 0);
+    return Math.min(Download.LEGEND_CAP, Math.round(82 + 5.8 * maxLen));
   }
 }

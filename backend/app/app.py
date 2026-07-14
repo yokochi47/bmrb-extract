@@ -2748,10 +2748,20 @@ def _ensemble_composition(report):
             out['total_models'] = ec['total_models']
         clusters = ec.get('cluster_analysis')
         if isinstance(clusters, list) and clusters:
-            out['cluster_analysis'] = [
-                {k: c[k] for k in _ENSEMBLE_CLUSTER_KEYS if k in c}
-                for c in clusters if isinstance(c, dict)
-            ]
+            cluster_rows = []
+            for c in clusters:
+                if not isinstance(c, dict):
+                    continue
+                crow = {k: c[k] for k in _ENSEMBLE_CLUSTER_KEYS if k in c}
+                # Per-model PC coordinates for the PCA scatter (PC1/PC2).
+                pcs = c.get('principal_components')
+                if isinstance(pcs, list) and pcs:
+                    crow['principal_components'] = [
+                        {k: p[k] for k in ('model_id', 'pc1', 'pc2') if k in p}
+                        for p in pcs if isinstance(p, dict)
+                    ]
+                cluster_rows.append(crow)
+            out['cluster_analysis'] = cluster_rows
         return out
     return None
 

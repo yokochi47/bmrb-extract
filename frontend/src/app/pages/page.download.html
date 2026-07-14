@@ -331,6 +331,17 @@
                 </tbody>
               </table>
             </div>
+
+            @if (ensemblePcaChart(); as pca) {
+              <p class="text-base mt-6 mb-2">Clustering analysis of models in the ensemble</p>
+              <app-echart
+                [option]="pca.option"
+                [height]="380"
+                [aspect]="1"
+                [marginX]="pca.marginX"
+                [marginY]="pca.marginY"
+              />
+            }
           }
         </p-card>
       }
