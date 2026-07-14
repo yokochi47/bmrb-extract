@@ -204,10 +204,18 @@ interface StatEnsembleRegion {
   medoid_rmsd?: number;
   range_of_seq_id?: string;
 }
+/** One cluster of the coordinate ensemble (cluster_id === -1 → single-model). */
+interface StatEnsembleCluster {
+  cluster_id?: number;
+  model_ids?: number[];
+  centroid_model_id?: number;
+  mean_rmsd?: number;
+}
 /** Coordinate ensemble composition (input_sources[file_type='pdbx']). */
 interface StatEnsembleComposition {
   total_models?: number;
   well_defined_region?: StatEnsembleRegion[];
+  cluster_analysis?: StatEnsembleCluster[];
 }
 
 /** Pivoted completeness table (rows = assignment categories, columns = nuclei)
@@ -512,6 +520,18 @@ export class Download {
   ensembleTotalModels = computed(() => this.ensemble()?.total_models ?? null);
   /** Medoid model id of the representative (first) well-defined region (caption). */
   ensembleMedoidModel = computed(() => this.ensembleRegions()[0]?.medoid_model_id ?? null);
+
+  /** Cluster-analysis rows (cluster_id === -1 marks the single-model clusters). */
+  ensembleClusters = computed<StatEnsembleCluster[]>(() => this.ensemble()?.cluster_analysis ?? []);
+  hasClusters = computed(() => this.ensembleClusters().length > 0);
+  /** Number of genuine (multi-model) clusters, i.e. excluding cluster_id === -1. */
+  clusteredCount = computed(
+    () => this.ensembleClusters().filter((c) => c.cluster_id !== -1).length,
+  );
+  /** Count of single-model clusters = size of the cluster_id === -1 model list. */
+  singleModelCount = computed(
+    () => this.ensembleClusters().find((c) => c.cluster_id === -1)?.model_ids?.length ?? 0,
+  );
 
   /** Entry information card (Property/Value): the output-file/entry fields. The
    * model file is a separate group (modelProps), rendered below a divider. */

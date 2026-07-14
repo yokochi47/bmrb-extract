@@ -2719,6 +2719,12 @@ _ENSEMBLE_WDR_KEYS = (
     'domain_id', 'medoid_model_id', 'number_of_monomers',
     'percent_of_core', 'medoid_rmsd', 'range_of_seq_id',
 )
+# Per-cluster columns kept from ensemble_composition.cluster_analysis (the heavy
+# per-model principal_components are dropped). cluster_id == -1 flags the
+# single-model (non-cluster) models.
+_ENSEMBLE_CLUSTER_KEYS = (
+    'cluster_id', 'model_ids', 'centroid_model_id', 'mean_rmsd',
+)
 
 
 def _ensemble_composition(report):
@@ -2740,6 +2746,12 @@ def _ensemble_composition(report):
         out = {'well_defined_region': regions}
         if isinstance(ec.get('total_models'), int):
             out['total_models'] = ec['total_models']
+        clusters = ec.get('cluster_analysis')
+        if isinstance(clusters, list) and clusters:
+            out['cluster_analysis'] = [
+                {k: c[k] for k in _ENSEMBLE_CLUSTER_KEYS if k in c}
+                for c in clusters if isinstance(c, dict)
+            ]
         return out
     return None
 
