@@ -1063,6 +1063,31 @@ export class Upload implements OnDestroy {
   processing = signal(false);
   progressTasks = signal<ProgressTask[]>([]);
   progressDone = signal(false);
+  /** Dialog state: in-flight while running, then the finished run's outcome — the
+   * same dialog is reused to review a completed run, so title/caption must follow. */
+  progressOutcome = computed<'processing' | 'success' | 'failed'>(() =>
+    this.progressDone() ? this.computeOutcome(this.progressTasks()) : 'processing',
+  );
+  progressTitle = computed(() => {
+    switch (this.progressOutcome()) {
+      case 'success':
+        return 'Conversion complete';
+      case 'failed':
+        return 'Conversion failed';
+      default:
+        return 'Processing…';
+    }
+  });
+  progressCaption = computed(() => {
+    switch (this.progressOutcome()) {
+      case 'success':
+        return 'Your files have been converted. You can view the report on the Upload summary page.';
+      case 'failed':
+        return 'The conversion did not complete successfully. Review the task logs below and check the error message on the Upload summary page.';
+      default:
+        return 'Your files are being converted. This can take several minutes — you may keep this dialog open to follow the progress.';
+    }
+  });
   expandedTask = signal<string | null>(null);
   taskLog = signal<string>('');
   /** The expanded log's scroll container (only one is rendered at a time). */
