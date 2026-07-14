@@ -195,6 +195,21 @@ interface StatChemShiftSaveframe {
   histogram?: HistogramChart[];
 }
 
+/** One well-defined region of the coordinate ensemble (ensemble_composition). */
+interface StatEnsembleRegion {
+  domain_id?: number;
+  medoid_model_id?: number;
+  number_of_monomers?: number;
+  percent_of_core?: number;
+  medoid_rmsd?: number;
+  range_of_seq_id?: string;
+}
+/** Coordinate ensemble composition (input_sources[file_type='pdbx']). */
+interface StatEnsembleComposition {
+  total_models?: number;
+  well_defined_region?: StatEnsembleRegion[];
+}
+
 /** Pivoted completeness table (rows = assignment categories, columns = nuclei)
  * plus the caption's overall / stereomethyl figures. */
 interface CompletenessView {
@@ -444,12 +459,17 @@ export class Download {
   /** Fetch GET /api/output_statistics → the pruned output_statistics subtree. */
   private loadStatistics(token: string): void {
     this.http
-      .get<{ available: boolean; statistics?: OutputStatistics }>(API_URL + 'output_statistics', {
+      .get<{
+        available: boolean;
+        statistics?: OutputStatistics;
+        ensemble_composition?: StatEnsembleComposition;
+      }>(API_URL + 'output_statistics', {
         params: { token },
       })
       .subscribe({
         next: (res) => {
           this.statistics.set(res.statistics ?? null);
+          this.ensemble.set(res.ensemble_composition ?? null);
           this.statsAvailable.set(!!res.available);
         },
         error: (err) => {
@@ -478,6 +498,20 @@ export class Download {
   statistics = signal<OutputStatistics | null>(null);
   /** Tri-state: null = loading, false = not available, true = show the cards. */
   statsAvailable = signal<boolean | null>(null);
+
+  /** Coordinate ensemble composition (GET /api/output_statistics); null when the
+   * report has no pdbx input source with a well-defined-region analysis. */
+  ensemble = signal<StatEnsembleComposition | null>(null);
+  /** Well-defined region rows for the ensemble-composition table. */
+  ensembleRegions = computed<StatEnsembleRegion[]>(
+    () => this.ensemble()?.well_defined_region ?? [],
+  );
+  /** Show the Ensemble composition card only when there are well-defined regions. */
+  hasEnsemble = computed(() => this.ensembleRegions().length > 0);
+  /** Total model count in the ensemble (caption). */
+  ensembleTotalModels = computed(() => this.ensemble()?.total_models ?? null);
+  /** Medoid model id of the representative (first) well-defined region (caption). */
+  ensembleMedoidModel = computed(() => this.ensembleRegions()[0]?.medoid_model_id ?? null);
 
   /** Entry information card (Property/Value): the output-file/entry fields. The
    * model file is a separate group (modelProps), rendered below a divider. */

@@ -228,6 +228,64 @@
         </div>
       </p-card>
 
+      <!-- information/input_sources[file_type='pdbx']/ensemble_composition -->
+      @if (hasEnsemble()) {
+        <p-card header="Ensemble composition analysis" styleClass="mb-6">
+          <p class="text-base mb-4 mx-4">
+            This entry contains {{ ensembleTotalModels() }} models. Model
+            {{ ensembleMedoidModel() }} is the overall representative, medoid model (most similar to
+            other models). The following residues defined as well-defined regions are included in
+            the computation of the following validation analysis.
+          </p>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm border-collapse">
+              <thead>
+                <tr>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Well-defined core
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Residue range (total)
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Percent of core (%)
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Backbone RMSD (Å)
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Medoid model
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (d of ensembleRegions(); track $index) {
+                  <tr class="border-b border-surface-100 dark:border-surface-800">
+                    <td class="px-2 py-1">{{ d.domain_id }}</td>
+                    <td class="px-2 py-1 whitespace-nowrap">
+                      {{ d.range_of_seq_id }} ({{ d.number_of_monomers }})
+                    </td>
+                    <td class="px-2 py-1 tabular-nums">{{ d.percent_of_core }}</td>
+                    <td class="px-2 py-1 tabular-nums">{{ d.medoid_rmsd }}</td>
+                    <td class="px-2 py-1 tabular-nums">{{ d.medoid_model_id }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </p-card>
+      }
+
       <!-- /information/output_statistics/assembly/* -->
       <p-card header="Assembly information" styleClass="mb-6">
         <p class="text-base mb-4 mx-4">

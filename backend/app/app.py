@@ -2713,6 +2713,37 @@ _CHEM_SHIFT_COMPLETENESS_ENTRY_KEYS = (
 )
 
 
+# Per-region columns kept from the coordinate ensemble_composition well-defined
+# regions (information.input_sources[file_type='pdbx'].ensemble_composition).
+_ENSEMBLE_WDR_KEYS = (
+    'domain_id', 'medoid_model_id', 'number_of_monomers',
+    'percent_of_core', 'medoid_rmsd', 'range_of_seq_id',
+)
+
+
+def _ensemble_composition(report):
+    """Ensemble composition from the coordinate (pdbx) input source, pruned to the
+    total model count and the well-defined region table. Returns None when absent."""
+    for src in report.get('information', {}).get('input_sources') or []:
+        if not isinstance(src, dict) or src.get('file_type') != 'pdbx':
+            continue
+        ec = src.get('ensemble_composition')
+        if not isinstance(ec, dict):
+            return None
+        wdr = ec.get('well_defined_region')
+        regions = [
+            {k: d[k] for k in _ENSEMBLE_WDR_KEYS if k in d}
+            for d in wdr if isinstance(d, dict)
+        ] if isinstance(wdr, list) else []
+        if not regions:
+            return None
+        out = {'well_defined_region': regions}
+        if isinstance(ec.get('total_models'), int):
+            out['total_models'] = ec['total_models']
+        return out
+    return None
+
+
 def _prune_completeness(region):
     """Prune a completeness_in_*_region object to its known assignment-category
     arrays, each entry reduced to atom_group / assigned / target / completeness.
@@ -2832,7 +2863,11 @@ async def get_output_statistics():
                 row['histogram'] = histogram
             saveframes.append(row)
         pruned['chem_shift'] = saveframes
-    return {'available': True, 'statistics': pruned}
+    result = {'available': True, 'statistics': pruned}
+    ensemble = _ensemble_composition(report)
+    if ensemble:
+        result['ensemble_composition'] = ensemble
+    return result
 
 
 @app.route('/api/session', methods=['PATCH'])
