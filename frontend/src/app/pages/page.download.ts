@@ -359,6 +359,14 @@ interface OutputStatistics {
   restraint_summary?: Record<string, unknown>;
 }
 
+/** One violation-size bin (small/medium/large) of the average distance/dihedral
+ * violation tables (restraint_summary.average_number_of_*_violations_per_model). */
+interface ViolationBin {
+  bin_type?: string;
+  average_number_of_violations_per_model?: number | null;
+  max_violation_in_bin?: number | null;
+}
+
 /** Display order of the restraint_summary key-value rows. Keys not listed here
  * are appended in their original order. */
 const RESTRAINT_KEY_ORDER: string[] = [
@@ -1033,6 +1041,20 @@ export class Download {
           value: subclasses ? `${v} (${subclasses})` : String(v),
         };
       });
+  });
+
+  /** Per-model distance-violation bins (small/medium/large) for the
+   * 'Average number of distance violations per model' table. */
+  distViolationsPerModel = computed<ViolationBin[]>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const v = rs?.['average_number_of_dist_violations_per_model'];
+    return Array.isArray(v) ? (v as ViolationBin[]) : [];
+  });
+  /** Per-model dihedral-angle-violation bins for the corresponding table. */
+  dihedViolationsPerModel = computed<ViolationBin[]>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const v = rs?.['average_number_of_dihed_violations_per_model'];
+    return Array.isArray(v) ? (v as ViolationBin[]) : [];
   });
 
   /** Public conversion id (C_<id>) and the results zip file name. */
