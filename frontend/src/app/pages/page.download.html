@@ -777,6 +777,50 @@
                 </p-panel>
               }
 
+              @if (sf.atomNameMapping.length) {
+                <p class="text-lg mt-6 mb-2">Atom name mapping</p>
+                <p class="text-base mb-4 mx-4">
+                  The table below shows how the system interpreted author-defined atom names (e.g.
+                  pseudoatom names specific to NMR) during data conversion. All atom names have been
+                  standardized based on the Chemical Component Dictionary (CCD). Atom names subject
+                  to unusual mapping are highlighted in red color. Please verify that the atom name
+                  mappings are correct. If any mappings are unexpected, modify the uploaded file to
+                  use appropriate atom names that comply with the CCD.
+                </p>
+                <div class="overflow-x-auto">
+                  <table class="w-full text-sm border-collapse mb-2">
+                    <thead>
+                      <tr>
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                        >
+                          Comp_ID
+                        </th>
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                        >
+                          Mapping history (Author defined atom name → Atom_IDs in CCD)
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (m of sf.atomNameMapping; track $index) {
+                        <tr class="border-b border-surface-100 dark:border-surface-800">
+                          <td class="px-2 py-1 align-top">{{ m.comp_id }}</td>
+                          <td class="px-2 py-1 font-mono">
+                            @for (h of m.history; track $index) {
+                              <span [class.text-red-600]="h.unusual"
+                                >{{ h.name }} → {{ h.atoms }}</span
+                              >{{ $last ? '' : '; ' }}
+                            }
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              }
+
               @for (hist of sf.histograms; track $index) {
                 <p class="text-base mt-6 mb-2">{{ hist.title }}</p>
                 <p class="text-base mb-4 mx-4">
@@ -1026,8 +1070,9 @@
                     dotted line indicates the average RMSD value of the principal well-defined
                     region of the chain. If the RMSD is too low than the dotted line, the models may
                     be over-converged, or the number of models constituting the ensemble may be too
-                    small. The gray colored area indicates residues involed in well-defined cores as
-                    described in the Ensemble composition analysis section.
+                    small. The cyan region indicates residues involed in well-defined cores as
+                    described in the Ensemble composition analysis section. The gray region
+                    indicates residues are not modeled.
                   </p>
                 }
                 <app-echart [option]="panel.option" [height]="360" />

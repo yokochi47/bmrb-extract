@@ -2925,6 +2925,10 @@ async def get_output_statistics():
                     row[region_key] = region
             # Normalized (Z-score) assigned-chemical-shift histogram (same chart
             # data as the summary page); inverse axis to match NMR-spectrum sense.
+            # Author→CCD atom-name mapping history (same shape as the summary page).
+            anm = _atom_name_mapping(item)
+            if anm:
+                row['atom_name_mapping'] = anm
             histogram = _histogram_chart([item], True)
             if histogram:
                 row['histogram'] = histogram

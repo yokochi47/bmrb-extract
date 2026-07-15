@@ -173,6 +173,12 @@ interface HistogramChart {
    * `x` is the precise fractional category-axis index of the value. */
   annotations?: { x: number; anomalous: boolean; text: string }[];
 }
+/** Per-residue (Comp_ID) author→CCD atom-name mapping history; `unusual` flags an
+ * unexpected mapping (rendered red). Same shape as the summary page. */
+interface AtomNameMappingRow {
+  comp_id: string;
+  history: { name: string; atoms: string; unusual: boolean }[];
+}
 /** Per-residue line chart (RCI/S² or NMR RMSD) with structural bands, keyed by
  * the coordinate residue scheme (auth_chain_id/auth_seq_id) on the download page. */
 interface PerResidueLine {
@@ -205,6 +211,7 @@ interface StatChemShiftSaveframe {
   chemical_shift_duplicated?: StatChemShiftUnmapped[];
   completeness_in_well_defined_region?: StatCompletenessRegion;
   completeness_in_full_length_region?: StatCompletenessRegion;
+  atom_name_mapping?: AtomNameMappingRow[];
   histogram?: HistogramChart[];
   rci?: PerResidueLine[];
 }
@@ -739,6 +746,7 @@ export class Download {
       duplicatedCount: number;
       showDuplicatedInsCode: boolean;
       completeness: { phrase: string; view: CompletenessView }[];
+      atomNameMapping: AtomNameMappingRow[];
       histograms: { title: string; option: object }[];
       rciPanels: { title: string; option: object }[];
     }[]
@@ -790,6 +798,7 @@ export class Download {
         duplicatedCount: duplicated.length,
         showDuplicatedInsCode: hasInsCode(duplicated),
         completeness,
+        atomNameMapping: s.atom_name_mapping ?? [],
         // Normalized (Z-score) assigned-chemical-shift histogram(s).
         histograms: (s.histogram ?? []).map((h) => ({
           title: 'Normalized assigned chemical shifts (Z-score)',
