@@ -216,6 +216,8 @@ interface StatEnsembleCluster {
 /** Coordinate ensemble composition (input_sources[file_type='pdbx']). */
 interface StatEnsembleComposition {
   total_models?: number;
+  representative_model_id?: number;
+  selection_criteria?: string | null;
   well_defined_region?: StatEnsembleRegion[];
   cluster_analysis?: StatEnsembleCluster[];
 }
@@ -522,6 +524,10 @@ export class Download {
   ensembleTotalModels = computed(() => this.ensemble()?.total_models ?? null);
   /** Medoid model id of the representative (first) well-defined region (caption). */
   ensembleMedoidModel = computed(() => this.ensembleRegions()[0]?.medoid_model_id ?? null);
+  /** Author-provided representative model id and its selection criterion (caption,
+   * shown only when a selection criterion was provided). */
+  ensembleRepresentativeModel = computed(() => this.ensemble()?.representative_model_id ?? null);
+  ensembleSelectionCriteria = computed(() => this.ensemble()?.selection_criteria ?? null);
 
   /** Cluster-analysis rows (cluster_id === -1 marks the single-model clusters). */
   ensembleClusters = computed<StatEnsembleCluster[]>(() => this.ensemble()?.cluster_analysis ?? []);

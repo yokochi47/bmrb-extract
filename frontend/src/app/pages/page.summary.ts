@@ -373,6 +373,20 @@ interface NmrPreview {
   /** Spectral peak lists grouped by saveframe (sf_framecode). */
   spectral_peak_saveframes: SpectralPeakSaveframe[];
   alignments: AlignGroup[];
+  /** Coordinate ensemble composition (well-defined regions); null when absent. */
+  ensemble_composition: EnsembleComposition | null;
+}
+/** One well-defined region of the coordinate ensemble (ensemble_composition). */
+interface EnsembleRegion {
+  domain_id?: number;
+  medoid_model_id?: number;
+  number_of_monomers?: number;
+  percent_of_core?: number;
+  medoid_rmsd?: number;
+  range_of_seq_id?: string;
+}
+interface EnsembleComposition {
+  well_defined_region?: EnsembleRegion[];
 }
 /** A titled chemical-shift-prediction table. */
 interface PredictionTable {
@@ -482,6 +496,11 @@ export class Summary implements OnDestroy {
   /** Data-summary table + sequence alignments. */
   previewSources = computed(() => this.nmrPreview()?.sources ?? []);
   previewAlignments = computed(() => this.nmrPreview()?.alignments ?? []);
+
+  /** Coordinate ensemble well-defined regions (shown under the coordinate preview). */
+  ensembleRegions = computed<EnsembleRegion[]>(
+    () => this.nmrPreview()?.ensemble_composition?.well_defined_region ?? [],
+  );
 
   /** Per-file inventory of parsed NMR data (the single global summary). */
   previewInventory = computed(() => this.nmrPreview()?.inventory ?? []);

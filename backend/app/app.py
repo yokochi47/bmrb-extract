@@ -2617,6 +2617,9 @@ def _nmr_preview_data(report):
             spectral_peak, sa.get('nmr_poly_seq_vs_spectral_peak') or []),
         'assembly': _assembly_properties(report),
         'alignments': _seq_align(info),
+        # Coordinate ensemble well-defined regions (same source as the download
+        # page); null when there is no pdbx input source with the analysis.
+        'ensemble_composition': _ensemble_composition(report),
     }
 
 
@@ -2746,6 +2749,10 @@ def _ensemble_composition(report):
         out = {'well_defined_region': regions}
         if isinstance(ec.get('total_models'), int):
             out['total_models'] = ec['total_models']
+        if isinstance(ec.get('representative_model_id'), int):
+            out['representative_model_id'] = ec['representative_model_id']
+        if isinstance(ec.get('selection_criteria'), str) and ec['selection_criteria']:
+            out['selection_criteria'] = ec['selection_criteria']
         clusters = ec.get('cluster_analysis')
         if isinstance(clusters, list) and clusters:
             cluster_rows = []

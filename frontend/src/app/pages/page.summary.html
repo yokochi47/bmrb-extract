@@ -94,6 +94,56 @@
           #molstarHost
           class="relative w-full h-[32rem] rounded overflow-hidden border border-surface-200 dark:border-surface-700"
         ></div>
+
+        @if (ensembleRegions().length) {
+          <p class="text-lg mt-6 mb-2">Well-defined regions</p>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm border-collapse">
+              <thead>
+                <tr>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Well-defined core
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Residue range (total)
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Percent of core (%)
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Backbone RMSD (Å)
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Medoid model
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (d of ensembleRegions(); track $index) {
+                  <tr class="border-b border-surface-100 dark:border-surface-800">
+                    <td class="px-2 py-1">{{ d.domain_id }}</td>
+                    <td class="px-2 py-1 whitespace-nowrap">
+                      {{ d.range_of_seq_id }} ({{ d.number_of_monomers }})
+                    </td>
+                    <td class="px-2 py-1 tabular-nums">{{ d.percent_of_core }}</td>
+                    <td class="px-2 py-1 tabular-nums">{{ d.medoid_rmsd }}</td>
+                    <td class="px-2 py-1 tabular-nums">{{ d.medoid_model_id }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
       } @else {
         <p class="text-surface-500 py-4">
           A coordinate preview is not available for this conversion.

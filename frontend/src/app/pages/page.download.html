@@ -236,6 +236,10 @@
             {{ ensembleMedoidModel() }} is the overall representative, medoid model (most similar to
             other models). The following residues defined as well-defined regions are included in
             the computation of the following validation analysis.
+            @if (ensembleSelectionCriteria()) {
+              The authors have identified model {{ ensembleRepresentativeModel() }} as
+              representative, based on the following criterion: {{ ensembleSelectionCriteria() }}.
+            }
           </p>
           <div class="overflow-x-auto">
             <table class="w-full text-sm border-collapse">
