@@ -1807,19 +1807,24 @@ def _asym_contact_map_charts(stat_list):
     return charts
 
 
-def _rci_charts(chem_shift_list):
+def _rci_charts(chem_shift_list, auth=False):
     """RCI/S² (0–1) and NMR-RMSD (Å, with well-defined-region threshold) per-residue
-    line charts from `random_coil_index`."""
+    line charts from `random_coil_index`. auth=True keys residues by
+    auth_chain_id/auth_seq_id (the coordinate scheme, output_statistics/download
+    page); auth=False by chain_id/seq_id (the NMR-data scheme, summary page). The
+    remaining items share the same semantics."""
+    chain_key = 'auth_chain_id' if auth else 'chain_id'
+    seq_key = 'auth_seq_id' if auth else 'seq_id'
     charts = []
     for st in chem_shift_list or []:
         for rci in st.get('random_coil_index') or []:
-            seq = rci.get('seq_id') or []
+            seq = rci.get(seq_key) or []
             comp = rci.get('comp_id') or []
             if not seq:
                 continue
             cats = [f"{comp[i] if i < len(comp) else ''} {seq[i]}".strip() for i in range(len(seq))]
             bands = _struct_conf_bands(rci.get('struct_conf'))
-            chain = rci.get('chain_id')
+            chain = rci.get(chain_key)
             order = [
                 {'name': nm, 'data': rci[k]}
                 for k, nm in (('rci', 'RCI'), ('s2', 'S²'))
@@ -1833,10 +1838,14 @@ def _rci_charts(chem_shift_list):
             if isinstance(rmsd, list) and any(x is not None for x in rmsd):
                 # The RMSD plot marks the well-defined cores (domain_id) rather
                 # than the secondary-structure bands used by the RCI/S² plot.
+                thr = rci.get('rmsd_in_well_defined_region')
+                rmsd_vals = [x for x in rmsd if isinstance(x, (int, float))]
+                ymax = max(max(rmsd_vals), 3.0) if rmsd_vals else 3.0
                 charts.append({'chain': chain, 'label': 'NMR RMSD (Å)', 'sf': sf, 'categories': cats,
                                'series': [{'name': 'NMR RMSD', 'data': rmsd}],
                                'bands': _domain_bands(rci.get('domain_id')),
-                               'ymin': 0, 'ymax': None, 'threshold': round(rci.get('rmsd_in_well_defined_region'), 2)})
+                               'ymin': 0, 'ymax': ymax,
+                               'threshold': round(thr, 2) if isinstance(thr, (int, float)) else None})
     return charts
 
 
@@ -2914,6 +2923,10 @@ async def get_output_statistics():
             histogram = _histogram_chart([item], True)
             if histogram:
                 row['histogram'] = histogram
+            # RCI/S² and NMR-RMSD per-residue plots (coordinate residue scheme).
+            rci_charts = _rci_charts([item], auth=True)
+            if rci_charts:
+                row['rci'] = rci_charts
             saveframes.append(row)
         pruned['chem_shift'] = saveframes
     result = {'available': True, 'statistics': pruned}

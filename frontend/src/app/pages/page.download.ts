@@ -173,6 +173,19 @@ interface HistogramChart {
    * `x` is the precise fractional category-axis index of the value. */
   annotations?: { x: number; anomalous: boolean; text: string }[];
 }
+/** Per-residue line chart (RCI/S² or NMR RMSD) with structural bands, keyed by
+ * the coordinate residue scheme (auth_chain_id/auth_seq_id) on the download page. */
+interface PerResidueLine {
+  chain: string;
+  label: string;
+  sf?: string;
+  categories: string[];
+  series: { name: string; data: (number | null)[] }[];
+  bands: { start: number; end: number; type: string; label: string }[];
+  ymin: number | null;
+  ymax: number | null;
+  threshold: number | null;
+}
 /** Per-saveframe assigned-chemical-shift bookkeeping (output_statistics.chem_shift);
  * the backend prunes each item to these counts (see _CHEM_SHIFT_STATS_KEYS). */
 interface StatChemShiftSaveframe {
@@ -193,6 +206,7 @@ interface StatChemShiftSaveframe {
   completeness_in_well_defined_region?: StatCompletenessRegion;
   completeness_in_full_length_region?: StatCompletenessRegion;
   histogram?: HistogramChart[];
+  rci?: PerResidueLine[];
 }
 
 /** One well-defined region of the coordinate ensemble (ensemble_composition). */
@@ -726,6 +740,7 @@ export class Download {
       showDuplicatedInsCode: boolean;
       completeness: { phrase: string; view: CompletenessView }[];
       histograms: { title: string; option: object }[];
+      rciPanels: { title: string; option: object }[];
     }[]
   >(() =>
     (this.statistics()?.chem_shift ?? []).map((s) => {
@@ -782,6 +797,11 @@ export class Download {
             inverse: true,
             rangeLabels: true,
           }),
+        })),
+        // RCI/S² and NMR-RMSD per-residue plots (chain = Auth_asym_ID).
+        rciPanels: (s.rci ?? []).map((c) => ({
+          title: `${c.label} — Auth_asym_ID: ${c.chain}`,
+          option: this.lineOption(c),
         })),
       };
     }),
@@ -859,6 +879,115 @@ export class Download {
       series: [
         ...h.series.map((s) => ({ name: s.name, type: 'bar', stack: 'total', data: s.data })),
         ...(markLine ? [{ type: 'line', xAxisIndex: 1, data: [], silent: true, markLine }] : []),
+      ],
+    };
+  }
+
+  /** Structural-band fill color by type (secondary structure; 'domain' → default). */
+  private bandColor(type: string): string {
+    if (type === 'helix') return 'rgba(204,47,0,0.12)';
+    if (type === 'strand') return 'rgba(0,156,209,0.12)';
+    if (type === 'turn') return 'rgba(200,204,0,0.18)';
+    return 'rgba(120,120,120,0.08)';
+  }
+  /** More saturated band color used as a thin edge line on the band's sides. */
+  private bandEdgeColor(type: string): string {
+    if (type === 'helix') return 'rgba(204,47,0,0.55)';
+    if (type === 'strand') return 'rgba(0,156,209,0.55)';
+    if (type === 'turn') return 'rgba(200,204,0,0.65)';
+    return 'rgba(120,120,120,0.4)';
+  }
+
+  /** Structural bands as a markArea overlay anchored to a hidden value axis
+   * (xAxisIndex 1) whose value v maps to category fraction v/n, so [start, end+1]
+   * covers the full bins of the band's first/last residue. Ported from the
+   * summary page. */
+  private bandOverlay(
+    categories: string[],
+    bands: { start: number; end: number; type: string; label: string }[],
+  ): { markerAxis: object; holderSeries: object } {
+    const markArea = {
+      silent: true,
+      label: {
+        show: true,
+        position: 'insideTopLeft',
+        rotate: -90,
+        fontSize: 10,
+        color: '#64748b',
+        distance: 11,
+      },
+      data: bands.map((b) => [
+        {
+          xAxis: b.start,
+          itemStyle: {
+            color: this.bandColor(b.type),
+            borderColor: this.bandEdgeColor(b.type),
+            borderWidth: 1,
+          },
+          name: b.label,
+        },
+        { xAxis: b.end + 1 },
+      ]),
+    };
+    const markerAxis = {
+      type: 'value',
+      min: 0,
+      max: categories.length,
+      show: false,
+      axisPointer: { show: false },
+    };
+    return {
+      markerAxis,
+      holderSeries: { type: 'line', xAxisIndex: 1, data: [], silent: true, markArea },
+    };
+  }
+
+  /** ECharts option for a per-residue line chart (RCI/S² or NMR RMSD) with
+   * structural bands and an optional well-defined-region threshold line. Ported
+   * from the summary page. */
+  private lineOption(c: PerResidueLine): object {
+    const interval = Math.max(0, Math.ceil(c.categories.length / 24) - 1);
+    const { markerAxis, holderSeries } = this.bandOverlay(c.categories, c.bands);
+    const markLine =
+      c.threshold !== null
+        ? {
+            silent: true,
+            symbol: 'none',
+            label: {
+              position: 'insideStartTop',
+              fontSize: 10,
+              formatter: `RMSD in well-defined region of the coordinates: ${c.threshold}Å`,
+              distance: 0,
+            },
+            data: [{ yAxis: c.threshold }],
+            lineStyle: { color: '#64748b', type: 'dashed' },
+          }
+        : undefined;
+    return {
+      tooltip: { trigger: 'axis' },
+      legend: { bottom: 0, type: 'scroll', data: c.series.map((s) => s.name) },
+      grid: { left: 52, right: 16, top: 24, bottom: 64, containLabel: true },
+      xAxis: [
+        { type: 'category', data: c.categories, axisLabel: { interval, rotate: -75, fontSize: 8 } },
+        markerAxis,
+      ],
+      yAxis: {
+        type: 'value',
+        axisLine: { show: true },
+        ...(c.ymin !== null ? { min: c.ymin } : {}),
+        ...(c.ymax !== null ? { max: c.ymax } : {}),
+      },
+      series: [
+        ...c.series.map((s, idx) => ({
+          name: s.name,
+          type: 'line',
+          data: s.data,
+          connectNulls: false,
+          showSymbol: true,
+          symbolSize: 4,
+          ...(idx === 0 && markLine ? { markLine } : {}),
+        })),
+        holderSeries,
       ],
     };
   }

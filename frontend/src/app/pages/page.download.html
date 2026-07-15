@@ -1002,6 +1002,36 @@
                   </table>
                 </div>
               }
+
+              @for (panel of sf.rciPanels; track $index) {
+                <p class="text-base mt-6 mb-2">{{ panel.title }}</p>
+                @if (panel.title.startsWith('RCI')) {
+                  <p class="text-base mb-2 mx-4">
+                    The image below reports random coil index (RCI) values and predicted order
+                    parameters (S²) for the protein chains in the structure. The height of RCI point
+                    gives a probability of a given residue to be disordered, as predicted from the
+                    available backbone chemical shifts and the amino acid sequence. A RCI value
+                    above 0.2 is an indication of significant predicted disorder. An S² value of 1
+                    indicates completely restricted or rigid bonds, whereas 0 reflects completely
+                    isotropic, unrestricted motion on the picosecond to nanosecond timescale. It is
+                    known that experimentally determined order parameters for backbone N-H vector
+                    correlate well with the RCI values. The color of the region indicates whether
+                    the residue forms secondary structure (helix: light coral; sheet: sky blue).
+                  </p>
+                }
+                @if (panel.title.startsWith('NMR RMSD')) {
+                  <p class="text-base mb-2 mx-4">
+                    The image below reports predicted NMR RMSD values for the protein chains in the
+                    structure. These values are known to correlate with RCI values. The horizontal
+                    dotted line indicates the average RMSD value of the principal well-defined
+                    region of the chain. If the RMSD is too low than the dotted line, the models may
+                    be over-converged, or the number of models constituting the ensemble may be too
+                    small. The gray colored area indicates residues involed in well-defined cores as
+                    described in the Ensemble composition analysis section.
+                  </p>
+                }
+                <app-echart [option]="panel.option" [height]="360" />
+              }
             }
           }
         } @else {
