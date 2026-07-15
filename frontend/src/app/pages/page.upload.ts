@@ -1081,9 +1081,9 @@ export class Upload implements OnDestroy {
   progressCaption = computed(() => {
     switch (this.progressOutcome()) {
       case 'success':
-        return 'Your files have been converted. You can view the report on the Upload summary page.';
+        return 'Your files have been converted. You can view the detailed report on the Upload summary page.';
       case 'failed':
-        return 'The conversion did not complete successfully. Review the task logs below and check the error message on the Upload summary page.';
+        return 'The conversion did not complete successfully. Review the task logs below and check the error(s) reported on the Upload summary page.';
       default:
         return 'Your files are being converted. This can take several minutes — you may keep this dialog open to follow the progress.';
     }
