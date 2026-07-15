@@ -2874,11 +2874,21 @@ async def get_output_statistics():
     # card — drop the average/violation tables (all arrays) and any non-scalar.
     rs = pruned.get('restraint_summary')
     if isinstance(rs, dict):
-        pruned['restraint_summary'] = {
+        summary = {
             k: v for k, v in rs.items()
             if isinstance(v, (int, float, str))
             and 'average' not in k and 'violation' not in k
         }
+        # Keep the per-model distance-violation bins (small/medium/large) for the
+        # 'Average number of distance violations per model' table.
+        avg = rs.get('average_number_of_dist_violations_per_model')
+        if isinstance(avg, list) and avg:
+            summary['average_number_of_dist_violations_per_model'] = [
+                {k: e[k] for k in ('bin_type', 'average_number_of_violations_per_model',
+                                   'max_violation_in_bin') if k in e}
+                for e in avg if isinstance(e, dict)
+            ]
+        pruned['restraint_summary'] = summary
     # chem_shift: keep only the per-saveframe bookkeeping counts for the
     # 'Assigned chemical shift summary' — drop the heavy validation sub-tables.
     cs = pruned.get('chem_shift')

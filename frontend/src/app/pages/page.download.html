@@ -340,7 +340,7 @@
               <p class="text-base mt-6 mb-2">Clustering analysis of models in the ensemble</p>
               <app-echart
                 [option]="pca.option"
-                [height]="380"
+                [height]="240"
                 [aspect]="1"
                 [marginX]="pca.marginX"
                 [marginY]="pca.marginY"
@@ -1093,10 +1093,12 @@
           <p class="text-base mb-4 mx-4">
             The following table provides the summary of experimentally observed NMR restraints in
             different categories. Restraints are classified into different categories based on the
-            sequence separation of the atoms involved.
+            sequence separation of the atoms involved. Long range hydrogen bonds and disulfide bonds
+            are counted as long range restraints while calculating the number of long range
+            restraints per residue.
           </p>
           <div class="overflow-x-auto">
-            <table class="w-full text-sm border-collapse">
+            <table class="w-full text-sm border-collapse mb-6">
               <tbody>
                 @for (p of restraintProps(); track $index) {
                   <tr class="border-b border-surface-100 dark:border-surface-800">
@@ -1107,6 +1109,58 @@
               </tbody>
             </table>
           </div>
+
+          <p class="text-lg mb-2">Residual restraint violations</p>
+          <p class="text-base mb-4 mx-4">
+            This section provides the overview of the restraint violations analysis. The violations
+            are binned as small, medium and large violations based on its absolute value. Average
+            number of violations per model is calculated by dividing the total number of violations
+            in each bin by the size of the ensemble.
+          </p>
+
+          <!-- /information/output_statistics/restraint_summary/average_number_of_dist_violations_per_model -->
+          @if (distViolationsPerModel().length) {
+            <p class="text-base font-medium mb-2 mx-4">
+              Average number of distance violations per model
+            </p>
+            <p class="text-base mb-4 mx-6">
+              Distance violations less than 0.1 Å are not included in the calculation.
+            </p>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm border-collapse">
+                <thead>
+                  <tr>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                    >
+                      Bins (Å)
+                    </th>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Average number of violations per model
+                    </th>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                    >
+                      Max violation in a bin (Å)
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (b of distViolationsPerModel(); track $index) {
+                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                      <td class="px-2 py-1">{{ b.bin_type }}</td>
+                      <td class="px-2 py-1 tabular-nums">
+                        {{ b.average_number_of_violations_per_model }}
+                      </td>
+                      <td class="px-2 py-1 tabular-nums">{{ b.max_violation_in_bin }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
         } @else {
           <p class="text-surface-500 py-2">
             NMR restraint validation is not available for this conversion.
