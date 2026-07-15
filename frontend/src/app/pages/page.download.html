@@ -1161,6 +1161,50 @@
               </table>
             </div>
           }
+
+          <!-- /information/output_statistics/restraint_summary/average_number_of_dihed_violations_per_model -->
+          @if (dihedViolationsPerModel().length) {
+            <p class="text-base font-medium mt-4 mb-2 mx-4">
+              Average number of dihedral-angle violations per model
+            </p>
+            <p class="text-base mb-4 mx-6">
+              Dihedral-angle violations less than 1° are not included in the calculation.
+            </p>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm border-collapse">
+                <thead>
+                  <tr>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                    >
+                      Bins (°)
+                    </th>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Average number of violations per model
+                    </th>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                    >
+                      Max violation in a bin (°)
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (b of dihedViolationsPerModel(); track $index) {
+                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                      <td class="px-2 py-1">{{ b.bin_type }}</td>
+                      <td class="px-2 py-1 tabular-nums">
+                        {{ b.average_number_of_violations_per_model }}
+                      </td>
+                      <td class="px-2 py-1 tabular-nums">{{ b.max_violation_in_bin }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
         } @else {
           <p class="text-surface-500 py-2">
             NMR restraint validation is not available for this conversion.

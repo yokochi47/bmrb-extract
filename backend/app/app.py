@@ -2879,15 +2879,17 @@ async def get_output_statistics():
             if isinstance(v, (int, float, str))
             and 'average' not in k and 'violation' not in k
         }
-        # Keep the per-model distance-violation bins (small/medium/large) for the
-        # 'Average number of distance violations per model' table.
-        avg = rs.get('average_number_of_dist_violations_per_model')
-        if isinstance(avg, list) and avg:
-            summary['average_number_of_dist_violations_per_model'] = [
-                {k: e[k] for k in ('bin_type', 'average_number_of_violations_per_model',
-                                   'max_violation_in_bin') if k in e}
-                for e in avg if isinstance(e, dict)
-            ]
+        # Keep the per-model distance/dihedral-violation bins (small/medium/large)
+        # for the 'Average number of ... violations per model' tables.
+        for avg_key in ('average_number_of_dist_violations_per_model',
+                        'average_number_of_dihed_violations_per_model'):
+            avg = rs.get(avg_key)
+            if isinstance(avg, list) and avg:
+                summary[avg_key] = [
+                    {k: e[k] for k in ('bin_type', 'average_number_of_violations_per_model',
+                                       'max_violation_in_bin') if k in e}
+                    for e in avg if isinstance(e, dict)
+                ]
         pruned['restraint_summary'] = summary
     # chem_shift: keep only the per-saveframe bookkeeping counts for the
     # 'Assigned chemical shift summary' — drop the heavy validation sub-tables.
