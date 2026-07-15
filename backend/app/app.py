@@ -1579,6 +1579,27 @@ def _struct_conf_bands(struct_conf):
     return bands
 
 
+def _domain_bands(domain_id):
+    """Collapse runs of the same (non-null) domain_id into well-defined-core bands
+    [{start, end, type, label}] (indices into the residue list); null entries are
+    gaps. Each band is labelled 'well-defined core <domain_id>'."""
+    bands = []
+    dom = domain_id or []
+    i, n = 0, len(dom)
+    while i < n:
+        d = dom[i]
+        if d is None:
+            i += 1
+            continue
+        j = i
+        while j + 1 < n and dom[j + 1] == d:
+            j += 1
+        bands.append({'start': i, 'end': j, 'type': 'domain',
+                      'label': f'well-defined core {d}'})
+        i = j + 1
+    return bands
+
+
 def _per_residue_charts(stat_list):
     """Per-chain stacked per-residue constraint counts from `constraints_per_residue`,
     with secondary-structure bands. All-zero metrics are dropped."""
@@ -1810,8 +1831,11 @@ def _rci_charts(chem_shift_list):
                                'series': order, 'bands': bands, 'ymin': 0, 'ymax': 1, 'threshold': None})
             rmsd = rci.get('nmr_rmsd')
             if isinstance(rmsd, list) and any(x is not None for x in rmsd):
+                # The RMSD plot marks the well-defined cores (domain_id) rather
+                # than the secondary-structure bands used by the RCI/S² plot.
                 charts.append({'chain': chain, 'label': 'NMR RMSD (Å)', 'sf': sf, 'categories': cats,
-                               'series': [{'name': 'NMR RMSD', 'data': rmsd}], 'bands': bands,
+                               'series': [{'name': 'NMR RMSD', 'data': rmsd}],
+                               'bands': _domain_bands(rci.get('domain_id')),
                                'ymin': 0, 'ymax': None, 'threshold': round(rci.get('rmsd_in_well_defined_region'), 2)})
     return charts
 
