@@ -806,7 +806,7 @@
                 "type": "object",
                 "properties":  {
                   "cluster_id": {
-                    "description": "The cluster id where -1 indicate single-model clusters.",
+                    "description": "The cluster id where -1 indicates single-model cluster.",
                     "type": "integer"
                   },
                   "total_models": {
@@ -2740,7 +2740,7 @@
                 }
               },
               "domain_id": {
-                "description": "List of well-defined region of a chain specified by domain_id.",
+                "description": "List of well-defined region of a chain specified by domain_id, where -1 indicates the residue is not modeled.",
                 "type": "array",
                 "items": {
                   "type": [
@@ -5954,7 +5954,7 @@
                 }
               },
               "domain_id": {
-                "description": "List of well-defined region of a chain specified by domain_id.",
+                "description": "List of well-defined region of a chain specified by domain_id, where -1 indicates the residue is not modeled.",
                 "type": "array",
                 "items": {
                   "type": [
