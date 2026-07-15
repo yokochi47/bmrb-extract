@@ -1580,22 +1580,27 @@ def _struct_conf_bands(struct_conf):
 
 
 def _domain_bands(domain_id):
-    """Collapse runs of the same (non-null) domain_id into well-defined-core bands
-    [{start, end, type, label}] (indices into the residue list); null entries are
-    gaps. Each band is labelled 'well-defined core <domain_id>'."""
+    """Collapse runs of the same domain_id into bands [{start, end, type, label}]
+    (indices into the residue list). domain_id > 0 → a well-defined core
+    (type 'core'); domain_id == -1 → unmodeled residues (type 'unmodeled'); null
+    (or any other value) → a gap with no band."""
     bands = []
     dom = domain_id or []
     i, n = 0, len(dom)
     while i < n:
         d = dom[i]
-        if d is None:
+        if not isinstance(d, int) or (d != -1 and d <= 0):
             i += 1
             continue
         j = i
         while j + 1 < n and dom[j + 1] == d:
             j += 1
-        bands.append({'start': i, 'end': j, 'type': 'domain',
-                      'label': f'well-defined core {d}'})
+        if d == -1:
+            bands.append({'start': i, 'end': j, 'type': 'unmodeled',
+                          'label': 'unmodeled residues'})
+        else:
+            bands.append({'start': i, 'end': j, 'type': 'core',
+                          'label': f'well-defined core {d}'})
         i = j + 1
     return bands
 

@@ -1158,6 +1158,8 @@ export class Summary implements OnDestroy {
     if (type === 'helix') return 'rgba(204,47,0,0.12)';
     if (type === 'strand') return 'rgba(0,156,209,0.12)';
     if (type === 'turn') return 'rgba(200,204,0,0.18)';
+    if (type === 'core') return 'rgba(224,255,255,0.6)'; // well-defined core: lightcyan
+    if (type === 'unmodeled') return 'rgba(211,211,211,0.55)'; // unmodeled residues: lightgray
     return 'rgba(120,120,120,0.08)';
   }
 
@@ -1166,6 +1168,8 @@ export class Summary implements OnDestroy {
     if (type === 'helix') return 'rgba(204,47,0,0.55)';
     if (type === 'strand') return 'rgba(0,156,209,0.55)';
     if (type === 'turn') return 'rgba(200,204,0,0.65)';
+    if (type === 'core') return 'rgba(0,181,204,0.6)';
+    if (type === 'unmodeled') return 'rgba(150,150,150,0.6)';
     return 'rgba(120,120,120,0.4)';
   }
 
