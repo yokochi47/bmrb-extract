@@ -373,6 +373,20 @@ interface NmrPreview {
   /** Spectral peak lists grouped by saveframe (sf_framecode). */
   spectral_peak_saveframes: SpectralPeakSaveframe[];
   alignments: AlignGroup[];
+  /** Coordinate ensemble composition (well-defined regions); null when absent. */
+  ensemble_composition: EnsembleComposition | null;
+}
+/** One well-defined region of the coordinate ensemble (ensemble_composition). */
+interface EnsembleRegion {
+  domain_id?: number;
+  medoid_model_id?: number;
+  number_of_monomers?: number;
+  percent_of_core?: number;
+  medoid_rmsd?: number;
+  range_of_seq_id?: string;
+}
+interface EnsembleComposition {
+  well_defined_region?: EnsembleRegion[];
 }
 /** A titled chemical-shift-prediction table. */
 interface PredictionTable {
@@ -482,6 +496,11 @@ export class Summary implements OnDestroy {
   /** Data-summary table + sequence alignments. */
   previewSources = computed(() => this.nmrPreview()?.sources ?? []);
   previewAlignments = computed(() => this.nmrPreview()?.alignments ?? []);
+
+  /** Coordinate ensemble well-defined regions (shown under the coordinate preview). */
+  ensembleRegions = computed<EnsembleRegion[]>(
+    () => this.nmrPreview()?.ensemble_composition?.well_defined_region ?? [],
+  );
 
   /** Per-file inventory of parsed NMR data (the single global summary). */
   previewInventory = computed(() => this.nmrPreview()?.inventory ?? []);
@@ -1139,6 +1158,8 @@ export class Summary implements OnDestroy {
     if (type === 'helix') return 'rgba(204,47,0,0.12)';
     if (type === 'strand') return 'rgba(0,156,209,0.12)';
     if (type === 'turn') return 'rgba(200,204,0,0.18)';
+    if (type === 'core') return 'rgba(224,255,255,0.6)'; // well-defined core: lightcyan
+    if (type === 'unmodeled') return 'rgba(211,211,211,0.55)'; // unmodeled residues: lightgray
     return 'rgba(120,120,120,0.08)';
   }
 
@@ -1147,6 +1168,8 @@ export class Summary implements OnDestroy {
     if (type === 'helix') return 'rgba(204,47,0,0.55)';
     if (type === 'strand') return 'rgba(0,156,209,0.55)';
     if (type === 'turn') return 'rgba(200,204,0,0.65)';
+    if (type === 'core') return 'rgba(0,181,204,0.6)';
+    if (type === 'unmodeled') return 'rgba(150,150,150,0.6)';
     return 'rgba(120,120,120,0.4)';
   }
 

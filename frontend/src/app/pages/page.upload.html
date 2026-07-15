@@ -451,7 +451,7 @@
 
 <!-- Processing progress dialog (polls /api/progress while a run is in flight) -->
 <p-dialog
-  header="Processing…"
+  [header]="progressTitle()"
   [visible]="processing()"
   [modal]="true"
   [closable]="progressDone()"
@@ -460,10 +460,7 @@
   [style]="{ width: '88rem', height: '54rem' }"
   contentStyleClass="flex flex-col"
 >
-  <p class="text-base leading-relaxed mb-4 shrink-0">
-    Your files are being converted. This can take several minutes — you may keep this dialog open to
-    follow the progress, or close it and return later.
-  </p>
+  <p class="text-base leading-relaxed mb-4 shrink-0">{{ progressCaption() }}</p>
 
   <div class="flex flex-col gap-3 flex-1 min-h-0 overflow-auto">
     @for (t of progressTasks(); track t.task) {

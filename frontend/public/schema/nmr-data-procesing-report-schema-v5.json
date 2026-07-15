@@ -730,6 +730,135 @@
           "description": "The object provides statistics of experimental data.",
           "$ref": "#/definitions/stats_of_exptl_data"
         },
+        "ensemble_composition": {
+          "description": "The object provides information of ensemble composition.",
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "total_models": {
+              "description": "The total number of models in the ensemble.",
+              "type": "integer",
+              "minimum": 1
+            },
+            "eff_model_ids": {
+              "description": "The array of effective model ids of the ensemble.",
+              "type": "array",
+              "items": {
+                "items": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "representative_model_id": {
+              "description": "The author-provided representative model id of the ensemble.",
+              "type": "integer",
+              "minimum": 1
+            },
+            "selection_criteria": {
+              "description": "The criteria used to select the representative structure from the ensemble.",
+              "type": "string",
+            },
+            "well_defined_region": {
+              "description": "The summary of identified well-defined regions in the ensemble.",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties":  {
+                  "domain_id": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "medoid_model_id": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "number_of_monomers": {
+                    "type": "integer",
+                    "minimum": 4
+                  },
+                  "percent_of_core": {
+                    "type": "number",
+                    "exclusiveMinimum": 0.0,
+                    "maximum": 100.0
+                  },
+                  "mean_rmsd": {
+                    "type": "number",
+                    "minimum": 0.0
+                  },
+                  "medoid_rmsd": {
+                    "type": "number",
+                    "minimum": 0.0
+                  },
+                  "range_of_seq_id": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            },
+            "cluster_analysis": {
+              "description": "The summary of clustering analysis on detected well-defined regions of the ensemble.",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties":  {
+                  "cluster_id": {
+                    "description": "The cluster id where -1 indicate single-model clusters.",
+                    "type": "integer"
+                  },
+                  "total_models": {
+                    "description": "The total number of models in a cluster. In case of the single-model clusters, this value is set to 1.",
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "model_ids": {
+                    "description": "The list of models in a cluster.",
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "principal_components": {
+                    "description": "The list of principal components of each model in a cluster.",
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "model_id": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "pc1" : {
+                          "type": "number"
+                        },
+                        "pc2" : {
+                          "type": "number"
+                        }
+                      }
+                    }
+                  },
+                  "centroid_model_id": {
+                    "description": "The centroid model in a cluster.",
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "mean_rmsd": {
+                    "type": "number",
+                    "minimum": 0.0
+                  },
+                  "centroid_rmsd": {
+                    "type": "number",
+                    "minimum": 0.0
+                  }
+                }
+              }
+            }
+          }
+        },
         "ignore_error": {
           "description": "Whether the file can be ignored when error occurred.",
           "type": "boolean"
@@ -750,7 +879,7 @@
       ]
     },
     "rmsd": {
-      "description": "Template for RMSD of model in ensemble.",
+      "description": "Template for RMSD of model in the ensemble.",
       "type": "object",
       "properties": {
         "model_id": {
@@ -805,7 +934,7 @@
       ]
     },
     "well_defined_region": {
-      "description": "Template for well-defined regions in ensemble.",
+      "description": "Template for well-defined regions in the ensemble.",
       "type": "object",
       "properties": {
         "domain_id": {
@@ -969,7 +1098,7 @@
           }
         },
         "well_defined_region": {
-          "description": "Information about identified well-defined region in ensemble.",
+          "description": "Information about identified well-defined region in the ensemble.",
           "type": "array",
           "items": {
             "$ref": "#/definitions/well_defined_region"
@@ -2534,25 +2663,25 @@
                       "minLength": 1
                     },
                     "gauche-": {
-                      "description": "Population of gauche(-) rotermeric state in ensemble.",
+                      "description": "Population of gauche(-) rotermeric state in the ensemble.",
                       "type": "number",
                       "minimum": 0.0,
                       "maximum": 1.0
                     },
                     "trans": {
-                      "description": "Population of trans rotermeric state in ensemble.",
+                      "description": "Population of trans rotermeric state in the ensemble.",
                       "type": "number",
                       "minimum": 0.0,
                       "maximum": 1.0
                     },
                     "gauche+": {
-                      "description": "Population of gauche(+) rotermeric state in ensemble.",
+                      "description": "Population of gauche(+) rotermeric state in the ensemble.",
                       "type": "number",
                       "minimum": 0.0,
                       "maximum": 1.0
                     },
                     "unknown": {
-                      "description": "Population of unknown rotermeric state in ensemble.",
+                      "description": "Population of unknown rotermeric state in the ensemble.",
                       "type": "number",
                       "minimum": 0.0,
                       "maximum": 1.0
@@ -2606,6 +2735,16 @@
                 "items": {
                   "type": [
                     "string",
+                    "null"
+                  ]
+                }
+              },
+              "domain_id": {
+                "description": "List of well-defined region of a chain specified by domain_id.",
+                "type": "array",
+                "items": {
+                  "type": [
+                    "integer",
                     "null"
                   ]
                 }
@@ -5810,6 +5949,16 @@
                 "items": {
                   "type": [
                     "string",
+                    "null"
+                  ]
+                }
+              },
+              "domain_id": {
+                "description": "List of well-defined region of a chain specified by domain_id.",
+                "type": "array",
+                "items": {
+                  "type": [
+                    "integer",
                     "null"
                   ]
                 }

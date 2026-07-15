@@ -1579,6 +1579,32 @@ def _struct_conf_bands(struct_conf):
     return bands
 
 
+def _domain_bands(domain_id):
+    """Collapse runs of the same domain_id into bands [{start, end, type, label}]
+    (indices into the residue list). domain_id > 0 → a well-defined core
+    (type 'core'); domain_id == -1 → unmodeled residues (type 'unmodeled'); null
+    (or any other value) → a gap with no band."""
+    bands = []
+    dom = domain_id or []
+    i, n = 0, len(dom)
+    while i < n:
+        d = dom[i]
+        if not isinstance(d, int) or (d != -1 and d <= 0):
+            i += 1
+            continue
+        j = i
+        while j + 1 < n and dom[j + 1] == d:
+            j += 1
+        if d == -1:
+            bands.append({'start': i, 'end': j, 'type': 'unmodeled',
+                          'label': 'unmodeled residues'})
+        else:
+            bands.append({'start': i, 'end': j, 'type': 'core',
+                          'label': f'well-defined core {d}'})
+        i = j + 1
+    return bands
+
+
 def _per_residue_charts(stat_list):
     """Per-chain stacked per-residue constraint counts from `constraints_per_residue`,
     with secondary-structure bands. All-zero metrics are dropped."""
@@ -1786,19 +1812,24 @@ def _asym_contact_map_charts(stat_list):
     return charts
 
 
-def _rci_charts(chem_shift_list):
+def _rci_charts(chem_shift_list, auth=False):
     """RCI/S² (0–1) and NMR-RMSD (Å, with well-defined-region threshold) per-residue
-    line charts from `random_coil_index`."""
+    line charts from `random_coil_index`. auth=True keys residues by
+    auth_chain_id/auth_seq_id (the coordinate scheme, output_statistics/download
+    page); auth=False by chain_id/seq_id (the NMR-data scheme, summary page). The
+    remaining items share the same semantics."""
+    chain_key = 'auth_chain_id' if auth else 'chain_id'
+    seq_key = 'auth_seq_id' if auth else 'seq_id'
     charts = []
     for st in chem_shift_list or []:
         for rci in st.get('random_coil_index') or []:
-            seq = rci.get('seq_id') or []
+            seq = rci.get(seq_key) or []
             comp = rci.get('comp_id') or []
             if not seq:
                 continue
             cats = [f"{comp[i] if i < len(comp) else ''} {seq[i]}".strip() for i in range(len(seq))]
             bands = _struct_conf_bands(rci.get('struct_conf'))
-            chain = rci.get('chain_id')
+            chain = rci.get(chain_key)
             order = [
                 {'name': nm, 'data': rci[k]}
                 for k, nm in (('rci', 'RCI'), ('s2', 'S²'))
@@ -1810,9 +1841,16 @@ def _rci_charts(chem_shift_list):
                                'series': order, 'bands': bands, 'ymin': 0, 'ymax': 1, 'threshold': None})
             rmsd = rci.get('nmr_rmsd')
             if isinstance(rmsd, list) and any(x is not None for x in rmsd):
+                # The RMSD plot marks the well-defined cores (domain_id) rather
+                # than the secondary-structure bands used by the RCI/S² plot.
+                thr = rci.get('rmsd_in_well_defined_region')
+                rmsd_vals = [x for x in rmsd if isinstance(x, (int, float))]
+                ymax = max(max(rmsd_vals), 3.0) if rmsd_vals else 3.0
                 charts.append({'chain': chain, 'label': 'NMR RMSD (Å)', 'sf': sf, 'categories': cats,
-                               'series': [{'name': 'NMR RMSD', 'data': rmsd}], 'bands': bands,
-                               'ymin': 0, 'ymax': None, 'threshold': round(rci.get('rmsd_in_well_defined_region'), 2)})
+                               'series': [{'name': 'NMR RMSD', 'data': rmsd}],
+                               'bands': _domain_bands(rci.get('domain_id')),
+                               'ymin': 0, 'ymax': ymax,
+                               'threshold': round(thr, 2) if isinstance(thr, (int, float)) else None})
     return charts
 
 
@@ -2617,6 +2655,9 @@ def _nmr_preview_data(report):
             spectral_peak, sa.get('nmr_poly_seq_vs_spectral_peak') or []),
         'assembly': _assembly_properties(report),
         'alignments': _seq_align(info),
+        # Coordinate ensemble well-defined regions (same source as the download
+        # page); null when there is no pdbx input source with the analysis.
+        'ensemble_composition': _ensemble_composition(report),
     }
 
 
@@ -2711,6 +2752,63 @@ _CHEM_SHIFT_COMPLETENESS_KEYS = (
 _CHEM_SHIFT_COMPLETENESS_ENTRY_KEYS = (
     'atom_group', 'number_of_assigned_shifts', 'number_of_target_shifts', 'completeness',
 )
+
+
+# Per-region columns kept from the coordinate ensemble_composition well-defined
+# regions (information.input_sources[file_type='pdbx'].ensemble_composition).
+_ENSEMBLE_WDR_KEYS = (
+    'domain_id', 'medoid_model_id', 'number_of_monomers',
+    'percent_of_core', 'medoid_rmsd', 'range_of_seq_id',
+)
+# Per-cluster columns kept from ensemble_composition.cluster_analysis (the heavy
+# per-model principal_components are dropped). cluster_id == -1 flags the
+# single-model (non-cluster) models.
+_ENSEMBLE_CLUSTER_KEYS = (
+    'cluster_id', 'model_ids', 'centroid_model_id', 'mean_rmsd',
+)
+
+
+def _ensemble_composition(report):
+    """Ensemble composition from the coordinate (pdbx) input source, pruned to the
+    total model count and the well-defined region table. Returns None when absent."""
+    for src in report.get('information', {}).get('input_sources') or []:
+        if not isinstance(src, dict) or src.get('file_type') != 'pdbx':
+            continue
+        ec = src.get('ensemble_composition')
+        if not isinstance(ec, dict):
+            return None
+        wdr = ec.get('well_defined_region')
+        regions = [
+            {k: d[k] for k in _ENSEMBLE_WDR_KEYS if k in d}
+            for d in wdr if isinstance(d, dict)
+        ] if isinstance(wdr, list) else []
+        if not regions:
+            return None
+        out = {'well_defined_region': regions}
+        if isinstance(ec.get('total_models'), int):
+            out['total_models'] = ec['total_models']
+        if isinstance(ec.get('representative_model_id'), int):
+            out['representative_model_id'] = ec['representative_model_id']
+        if isinstance(ec.get('selection_criteria'), str) and ec['selection_criteria']:
+            out['selection_criteria'] = ec['selection_criteria']
+        clusters = ec.get('cluster_analysis')
+        if isinstance(clusters, list) and clusters:
+            cluster_rows = []
+            for c in clusters:
+                if not isinstance(c, dict):
+                    continue
+                crow = {k: c[k] for k in _ENSEMBLE_CLUSTER_KEYS if k in c}
+                # Per-model PC coordinates for the PCA scatter (PC1/PC2).
+                pcs = c.get('principal_components')
+                if isinstance(pcs, list) and pcs:
+                    crow['principal_components'] = [
+                        {k: p[k] for k in ('model_id', 'pc1', 'pc2') if k in p}
+                        for p in pcs if isinstance(p, dict)
+                    ]
+                cluster_rows.append(crow)
+            out['cluster_analysis'] = cluster_rows
+        return out
+    return None
 
 
 def _prune_completeness(region):
@@ -2827,12 +2925,24 @@ async def get_output_statistics():
                     row[region_key] = region
             # Normalized (Z-score) assigned-chemical-shift histogram (same chart
             # data as the summary page); inverse axis to match NMR-spectrum sense.
+            # Author→CCD atom-name mapping history (same shape as the summary page).
+            anm = _atom_name_mapping(item)
+            if anm:
+                row['atom_name_mapping'] = anm
             histogram = _histogram_chart([item], True)
             if histogram:
                 row['histogram'] = histogram
+            # RCI/S² and NMR-RMSD per-residue plots (coordinate residue scheme).
+            rci_charts = _rci_charts([item], auth=True)
+            if rci_charts:
+                row['rci'] = rci_charts
             saveframes.append(row)
         pruned['chem_shift'] = saveframes
-    return {'available': True, 'statistics': pruned}
+    result = {'available': True, 'statistics': pruned}
+    ensemble = _ensemble_composition(report)
+    if ensemble:
+        result['ensemble_composition'] = ensemble
+    return result
 
 
 @app.route('/api/session', methods=['PATCH'])

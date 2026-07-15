@@ -13,3 +13,13 @@
     color: var(--p-primary-500);
   }
 }
+
+/* Hide Mol*'s export controls (Export Models / Animation / Geometry) in the
+   coordinate-preview control panel — the Viewer `viewportShowScreenshotControls`
+   option doesn't remove them. Mol* renders outside Angular view encapsulation,
+   so these must be global rules. */
+#exportmodels,
+#exportanimation,
+#exportgeometry {
+  display: none !important;
+}

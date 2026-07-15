@@ -228,6 +228,128 @@
         </div>
       </p-card>
 
+      <!-- information/input_sources[file_type='pdbx']/ensemble_composition -->
+      @if (hasEnsemble()) {
+        <p-card header="Ensemble composition analysis" styleClass="mb-6">
+          <p class="text-base mb-4 mx-4">
+            This entry contains {{ ensembleTotalModels() }} models. Model
+            {{ ensembleMedoidModel() }} is the overall representative, medoid model (most similar to
+            other models). The following residues defined as well-defined regions are included in
+            the computation of the following validation analysis.
+            @if (ensembleSelectionCriteria()) {
+              The authors have identified model {{ ensembleRepresentativeModel() }} as
+              representative, based on the following criterion: {{ ensembleSelectionCriteria() }}.
+            }
+          </p>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm border-collapse">
+              <thead>
+                <tr>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Well-defined core
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Residue range (total)
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Percent of core (%)
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Backbone RMSD (Å)
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Medoid model
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (d of ensembleRegions(); track $index) {
+                  <tr class="border-b border-surface-100 dark:border-surface-800">
+                    <td class="px-2 py-1">{{ d.domain_id }}</td>
+                    <td class="px-2 py-1 whitespace-nowrap">
+                      {{ d.range_of_seq_id }} ({{ d.number_of_monomers }})
+                    </td>
+                    <td class="px-2 py-1 tabular-nums">{{ d.percent_of_core }}</td>
+                    <td class="px-2 py-1 tabular-nums">{{ d.medoid_rmsd }}</td>
+                    <td class="px-2 py-1 tabular-nums">{{ d.medoid_model_id }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          @if (hasClusters()) {
+            <p class="text-base mt-6 mb-4 mx-4">
+              The models can be grouped into {{ clusteredCount() }} clusters
+              @if (singleModelCount() > 0) {
+                , and {{ singleModelCount() }} single-model clusters were found
+              }
+              .
+            </p>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm border-collapse">
+                <thead>
+                  <tr>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                    >
+                      Cluster number
+                    </th>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Models (centroid model)
+                    </th>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                    >
+                      Mean RMSD in a cluster (Å)
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (c of ensembleClusters(); track $index) {
+                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                      @if (c.cluster_id !== -1) {
+                        <td class="px-2 py-1">{{ c.cluster_id }}</td>
+                        <td class="px-2 py-1 break-all">
+                          {{ c.model_ids?.join(', ') }} ({{ c.centroid_model_id }})
+                        </td>
+                        <td class="px-2 py-1 tabular-nums">{{ c.mean_rmsd }}</td>
+                      } @else {
+                        <td class="px-2 py-1 whitespace-nowrap">Single-model clusters</td>
+                        <td class="px-2 py-1 break-all">{{ c.model_ids?.join(', ') }}</td>
+                        <td class="px-2 py-1">–</td>
+                      }
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+
+            @if (ensemblePcaChart(); as pca) {
+              <p class="text-base mt-6 mb-2">Clustering analysis of models in the ensemble</p>
+              <app-echart
+                [option]="pca.option"
+                [height]="380"
+                [aspect]="1"
+                [marginX]="pca.marginX"
+                [marginY]="pca.marginY"
+              />
+            }
+          }
+        </p-card>
+      }
+
       <!-- /information/output_statistics/assembly/* -->
       <p-card header="Assembly information" styleClass="mb-6">
         <p class="text-base mb-4 mx-4">
@@ -655,6 +777,50 @@
                 </p-panel>
               }
 
+              @if (sf.atomNameMapping.length) {
+                <p class="text-lg mt-6 mb-2">Atom name mapping</p>
+                <p class="text-base mb-4 mx-4">
+                  The table below shows how the system interpreted author-defined atom names (e.g.
+                  pseudoatom names specific to NMR) during data conversion. All atom names have been
+                  standardized based on the Chemical Component Dictionary (CCD). Atom names subject
+                  to unusual mapping are highlighted in red color. Please verify that the atom name
+                  mappings are correct. If any mappings are unexpected, modify the uploaded file to
+                  use appropriate atom names that comply with the CCD.
+                </p>
+                <div class="overflow-x-auto">
+                  <table class="w-full text-sm border-collapse mb-2">
+                    <thead>
+                      <tr>
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                        >
+                          Comp_ID
+                        </th>
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                        >
+                          Mapping history (Author defined atom name → Atom_IDs in CCD)
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (m of sf.atomNameMapping; track $index) {
+                        <tr class="border-b border-surface-100 dark:border-surface-800">
+                          <td class="px-2 py-1 align-top">{{ m.comp_id }}</td>
+                          <td class="px-2 py-1 font-mono">
+                            @for (h of m.history; track $index) {
+                              <span [class.text-red-600]="h.unusual"
+                                >{{ h.name }} → {{ h.atoms }}</span
+                              >{{ $last ? '' : '; ' }}
+                            }
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              }
+
               @for (hist of sf.histograms; track $index) {
                 <p class="text-base mt-6 mb-2">{{ hist.title }}</p>
                 <p class="text-base mb-4 mx-4">
@@ -879,6 +1045,37 @@
                     </tbody>
                   </table>
                 </div>
+              }
+
+              @for (panel of sf.rciPanels; track $index) {
+                <p class="text-base mt-6 mb-2">{{ panel.title }}</p>
+                @if (panel.title.startsWith('RCI')) {
+                  <p class="text-base mb-2 mx-4">
+                    The image below reports random coil index (RCI) values and predicted order
+                    parameters (S²) for the protein chains in the structure. The height of RCI point
+                    gives a probability of a given residue to be disordered, as predicted from the
+                    available backbone chemical shifts and the amino acid sequence. A RCI value
+                    above 0.2 is an indication of significant predicted disorder. An S² value of 1
+                    indicates completely restricted or rigid bonds, whereas 0 reflects completely
+                    isotropic, unrestricted motion on the picosecond to nanosecond timescale. It is
+                    known that experimentally determined order parameters for backbone N-H vector
+                    correlate well with the RCI values. The color of the region indicates whether
+                    the residue forms secondary structure (helix: light coral; sheet: sky blue).
+                  </p>
+                }
+                @if (panel.title.startsWith('NMR RMSD')) {
+                  <p class="text-base mb-2 mx-4">
+                    The image below reports predicted NMR RMSD values for the protein chains in the
+                    structure. These values are known to correlate with RCI values. The horizontal
+                    dotted line indicates the average RMSD value of the principal well-defined
+                    region of the chain. If the RMSD is too low than the dotted line, the models may
+                    be over-converged, or the number of models constituting the ensemble may be too
+                    small. The cyan region indicates residues involed in well-defined cores as
+                    described in the Ensemble composition analysis section. The gray region
+                    indicates residues are not modeled.
+                  </p>
+                }
+                <app-echart [option]="panel.option" [height]="360" />
               }
             }
           }

@@ -173,6 +173,25 @@ interface HistogramChart {
    * `x` is the precise fractional category-axis index of the value. */
   annotations?: { x: number; anomalous: boolean; text: string }[];
 }
+/** Per-residue (Comp_ID) author→CCD atom-name mapping history; `unusual` flags an
+ * unexpected mapping (rendered red). Same shape as the summary page. */
+interface AtomNameMappingRow {
+  comp_id: string;
+  history: { name: string; atoms: string; unusual: boolean }[];
+}
+/** Per-residue line chart (RCI/S² or NMR RMSD) with structural bands, keyed by
+ * the coordinate residue scheme (auth_chain_id/auth_seq_id) on the download page. */
+interface PerResidueLine {
+  chain: string;
+  label: string;
+  sf?: string;
+  categories: string[];
+  series: { name: string; data: (number | null)[] }[];
+  bands: { start: number; end: number; type: string; label: string }[];
+  ymin: number | null;
+  ymax: number | null;
+  threshold: number | null;
+}
 /** Per-saveframe assigned-chemical-shift bookkeeping (output_statistics.chem_shift);
  * the backend prunes each item to these counts (see _CHEM_SHIFT_STATS_KEYS). */
 interface StatChemShiftSaveframe {
@@ -192,7 +211,36 @@ interface StatChemShiftSaveframe {
   chemical_shift_duplicated?: StatChemShiftUnmapped[];
   completeness_in_well_defined_region?: StatCompletenessRegion;
   completeness_in_full_length_region?: StatCompletenessRegion;
+  atom_name_mapping?: AtomNameMappingRow[];
   histogram?: HistogramChart[];
+  rci?: PerResidueLine[];
+}
+
+/** One well-defined region of the coordinate ensemble (ensemble_composition). */
+interface StatEnsembleRegion {
+  domain_id?: number;
+  medoid_model_id?: number;
+  number_of_monomers?: number;
+  percent_of_core?: number;
+  medoid_rmsd?: number;
+  range_of_seq_id?: string;
+}
+/** One cluster of the coordinate ensemble (cluster_id === -1 → single-model). */
+interface StatEnsembleCluster {
+  cluster_id?: number;
+  model_ids?: number[];
+  centroid_model_id?: number;
+  mean_rmsd?: number;
+  /** Per-model PC1/PC2 coordinates for the PCA scatter. */
+  principal_components?: { model_id?: number; pc1?: number; pc2?: number }[];
+}
+/** Coordinate ensemble composition (input_sources[file_type='pdbx']). */
+interface StatEnsembleComposition {
+  total_models?: number;
+  representative_model_id?: number;
+  selection_criteria?: string | null;
+  well_defined_region?: StatEnsembleRegion[];
+  cluster_analysis?: StatEnsembleCluster[];
 }
 
 /** Pivoted completeness table (rows = assignment categories, columns = nuclei)
@@ -444,12 +492,17 @@ export class Download {
   /** Fetch GET /api/output_statistics → the pruned output_statistics subtree. */
   private loadStatistics(token: string): void {
     this.http
-      .get<{ available: boolean; statistics?: OutputStatistics }>(API_URL + 'output_statistics', {
+      .get<{
+        available: boolean;
+        statistics?: OutputStatistics;
+        ensemble_composition?: StatEnsembleComposition;
+      }>(API_URL + 'output_statistics', {
         params: { token },
       })
       .subscribe({
         next: (res) => {
           this.statistics.set(res.statistics ?? null);
+          this.ensemble.set(res.ensemble_composition ?? null);
           this.statsAvailable.set(!!res.available);
         },
         error: (err) => {
@@ -478,6 +531,78 @@ export class Download {
   statistics = signal<OutputStatistics | null>(null);
   /** Tri-state: null = loading, false = not available, true = show the cards. */
   statsAvailable = signal<boolean | null>(null);
+
+  /** Coordinate ensemble composition (GET /api/output_statistics); null when the
+   * report has no pdbx input source with a well-defined-region analysis. */
+  ensemble = signal<StatEnsembleComposition | null>(null);
+  /** Well-defined region rows for the ensemble-composition table. */
+  ensembleRegions = computed<StatEnsembleRegion[]>(
+    () => this.ensemble()?.well_defined_region ?? [],
+  );
+  /** Show the Ensemble composition card only when there are well-defined regions. */
+  hasEnsemble = computed(() => this.ensembleRegions().length > 0);
+  /** Total model count in the ensemble (caption). */
+  ensembleTotalModels = computed(() => this.ensemble()?.total_models ?? null);
+  /** Medoid model id of the representative (first) well-defined region (caption). */
+  ensembleMedoidModel = computed(() => this.ensembleRegions()[0]?.medoid_model_id ?? null);
+  /** Author-provided representative model id and its selection criterion (caption,
+   * shown only when a selection criterion was provided). */
+  ensembleRepresentativeModel = computed(() => this.ensemble()?.representative_model_id ?? null);
+  ensembleSelectionCriteria = computed(() => this.ensemble()?.selection_criteria ?? null);
+
+  /** Cluster-analysis rows (cluster_id === -1 marks the single-model clusters). */
+  ensembleClusters = computed<StatEnsembleCluster[]>(() => this.ensemble()?.cluster_analysis ?? []);
+  hasClusters = computed(() => this.ensembleClusters().length > 0);
+  /** Number of genuine (multi-model) clusters, i.e. excluding cluster_id === -1. */
+  clusteredCount = computed(
+    () => this.ensembleClusters().filter((c) => c.cluster_id !== -1).length,
+  );
+  /** Count of single-model clusters = size of the cluster_id === -1 model list. */
+  singleModelCount = computed(
+    () => this.ensembleClusters().find((c) => c.cluster_id === -1)?.model_ids?.length ?? 0,
+  );
+
+  /** PCA scatter (PC1 vs PC2) — one series per cluster (cluster_id === -1 →
+   * 'Single-model'); each point carries its cluster and model in the tooltip.
+   * Null when no cluster reports principal components. */
+  ensemblePcaChart = computed<{ option: object; marginX: number; marginY: number } | null>(() => {
+    const series = this.ensembleClusters()
+      .map((c) => {
+        const pcs = c.principal_components ?? [];
+        if (!pcs.length) return null;
+        const name = c.cluster_id === -1 ? 'Single-model' : `Cluster ${c.cluster_id}`;
+        return {
+          name,
+          type: 'scatter',
+          symbolSize: 10,
+          data: pcs.map((p) => ({ value: [p.pc1, p.pc2, p.model_id] })),
+        };
+      })
+      .filter((s): s is NonNullable<typeof s> => s !== null);
+    if (!series.length) return null;
+    const names = series.map((s) => s.name);
+    const legendW = this.legendReserve(names);
+    return {
+      // Square plot area: marginX reserves the left axis + right-side legend,
+      // marginY the top padding + bottom x-axis title.
+      marginX: 48 + legendW,
+      marginY: 56,
+      option: {
+        tooltip: {
+          trigger: 'item',
+          formatter: (p: { seriesName?: string; value?: number[] }) => {
+            const v = p.value ?? [];
+            return `${p.seriesName} · Model ${v[2]}<br/>PC1: ${(+v[0]).toFixed(3)}, PC2: ${(+v[1]).toFixed(3)}`;
+          },
+        },
+        legend: { orient: 'vertical', right: 8, top: 'middle', type: 'plain', data: names },
+        grid: { left: 48, right: legendW, top: 16, bottom: 40, containLabel: true },
+        xAxis: { type: 'value', name: 'PC1', nameLocation: 'middle', nameGap: 26, scale: true },
+        yAxis: { type: 'value', name: 'PC2', nameLocation: 'middle', nameGap: 40, scale: true },
+        series,
+      },
+    };
+  });
 
   /** Entry information card (Property/Value): the output-file/entry fields. The
    * model file is a separate group (modelProps), rendered below a divider. */
@@ -621,7 +746,9 @@ export class Download {
       duplicatedCount: number;
       showDuplicatedInsCode: boolean;
       completeness: { phrase: string; view: CompletenessView }[];
+      atomNameMapping: AtomNameMappingRow[];
       histograms: { title: string; option: object }[];
+      rciPanels: { title: string; option: object }[];
     }[]
   >(() =>
     (this.statistics()?.chem_shift ?? []).map((s) => {
@@ -671,6 +798,7 @@ export class Download {
         duplicatedCount: duplicated.length,
         showDuplicatedInsCode: hasInsCode(duplicated),
         completeness,
+        atomNameMapping: s.atom_name_mapping ?? [],
         // Normalized (Z-score) assigned-chemical-shift histogram(s).
         histograms: (s.histogram ?? []).map((h) => ({
           title: 'Normalized assigned chemical shifts (Z-score)',
@@ -678,6 +806,11 @@ export class Download {
             inverse: true,
             rangeLabels: true,
           }),
+        })),
+        // RCI/S² and NMR-RMSD per-residue plots (chain = Auth_asym_ID).
+        rciPanels: (s.rci ?? []).map((c) => ({
+          title: `${c.label} — Auth_asym_ID: ${c.chain}`,
+          option: this.lineOption(c),
         })),
       };
     }),
@@ -755,6 +888,119 @@ export class Download {
       series: [
         ...h.series.map((s) => ({ name: s.name, type: 'bar', stack: 'total', data: s.data })),
         ...(markLine ? [{ type: 'line', xAxisIndex: 1, data: [], silent: true, markLine }] : []),
+      ],
+    };
+  }
+
+  /** Structural-band fill color by type (secondary structure + ensemble domain). */
+  private bandColor(type: string): string {
+    if (type === 'helix') return 'rgba(204,47,0,0.12)';
+    if (type === 'strand') return 'rgba(0,156,209,0.12)';
+    if (type === 'turn') return 'rgba(200,204,0,0.18)';
+    if (type === 'core') return 'rgba(224,255,255,0.6)'; // well-defined core: lightcyan
+    if (type === 'unmodeled') return 'rgba(211,211,211,0.55)'; // unmodeled residues: lightgray
+    return 'rgba(120,120,120,0.08)';
+  }
+  /** More saturated band color used as a thin edge line on the band's sides. */
+  private bandEdgeColor(type: string): string {
+    if (type === 'helix') return 'rgba(204,47,0,0.55)';
+    if (type === 'strand') return 'rgba(0,156,209,0.55)';
+    if (type === 'turn') return 'rgba(200,204,0,0.65)';
+    if (type === 'core') return 'rgba(0,181,204,0.6)';
+    if (type === 'unmodeled') return 'rgba(150,150,150,0.6)';
+    return 'rgba(120,120,120,0.4)';
+  }
+
+  /** Structural bands as a markArea overlay anchored to a hidden value axis
+   * (xAxisIndex 1) whose value v maps to category fraction v/n, so [start, end+1]
+   * covers the full bins of the band's first/last residue. Ported from the
+   * summary page. */
+  private bandOverlay(
+    categories: string[],
+    bands: { start: number; end: number; type: string; label: string }[],
+  ): { markerAxis: object; holderSeries: object } {
+    const markArea = {
+      silent: true,
+      label: {
+        show: true,
+        position: 'insideTopLeft',
+        rotate: -90,
+        fontSize: 10,
+        color: '#64748b',
+        distance: 11,
+      },
+      data: bands.map((b) => [
+        {
+          xAxis: b.start,
+          itemStyle: {
+            color: this.bandColor(b.type),
+            borderColor: this.bandEdgeColor(b.type),
+            borderWidth: 1,
+          },
+          name: b.label,
+        },
+        { xAxis: b.end + 1 },
+      ]),
+    };
+    const markerAxis = {
+      type: 'value',
+      min: 0,
+      max: categories.length,
+      show: false,
+      axisPointer: { show: false },
+    };
+    return {
+      markerAxis,
+      holderSeries: { type: 'line', xAxisIndex: 1, data: [], silent: true, markArea },
+    };
+  }
+
+  /** ECharts option for a per-residue line chart (RCI/S² or NMR RMSD) with
+   * structural bands and an optional well-defined-region threshold line. Ported
+   * from the summary page. */
+  private lineOption(c: PerResidueLine): object {
+    const interval = Math.max(0, Math.ceil(c.categories.length / 24) - 1);
+    const { markerAxis, holderSeries } = this.bandOverlay(c.categories, c.bands);
+    const markLine =
+      c.threshold !== null
+        ? {
+            silent: true,
+            symbol: 'none',
+            label: {
+              position: 'insideStartTop',
+              fontSize: 10,
+              formatter: `RMSD in well-defined region of the coordinates: ${c.threshold}Å`,
+              distance: 0,
+            },
+            data: [{ yAxis: c.threshold }],
+            lineStyle: { color: '#64748b', type: 'dashed' },
+          }
+        : undefined;
+    return {
+      tooltip: { trigger: 'axis' },
+      legend: { bottom: 0, type: 'scroll', data: c.series.map((s) => s.name) },
+      grid: { left: 52, right: 16, top: 24, bottom: 64, containLabel: true },
+      xAxis: [
+        { type: 'category', data: c.categories, axisLabel: { interval, rotate: -75, fontSize: 8 } },
+        markerAxis,
+      ],
+      yAxis: {
+        type: 'value',
+        axisLine: { show: true },
+        ...(c.ymin !== null ? { min: c.ymin } : {}),
+        ...(c.ymax !== null ? { max: c.ymax } : {}),
+      },
+      series: [
+        ...c.series.map((s, idx) => ({
+          name: s.name,
+          type: 'line',
+          data: s.data,
+          connectNulls: false,
+          showSymbol: true,
+          symbolSize: 4,
+          ...(idx === 0 && markLine ? { markLine } : {}),
+        })),
+        holderSeries,
       ],
     };
   }
@@ -968,5 +1214,12 @@ export class Download {
     const units = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(1024));
     return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
+  }
+
+  /** Right-side legend width (px) sized to the longest series label, capped. */
+  private static readonly LEGEND_CAP = 160;
+  private legendReserve(names: string[]): number {
+    const maxLen = names.reduce((m, n) => Math.max(m, n.length), 0);
+    return Math.min(Download.LEGEND_CAP, Math.round(82 + 5.8 * maxLen));
   }
 }
