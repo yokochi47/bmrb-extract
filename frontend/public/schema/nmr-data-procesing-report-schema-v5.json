@@ -2739,6 +2739,16 @@
                   ]
                 }
               },
+              "domain_id": {
+                "description": "List of well-defined region of a chain specified by domain_id.",
+                "type": "array",
+                "items": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              },
               "rci": {
                 "description": "Random Coil Index.",
                 "type": "array",
@@ -5939,6 +5949,16 @@
                 "items": {
                   "type": [
                     "string",
+                    "null"
+                  ]
+                }
+              },
+              "domain_id": {
+                "description": "List of well-defined region of a chain specified by domain_id.",
+                "type": "array",
+                "items": {
+                  "type": [
+                    "integer",
                     "null"
                   ]
                 }
