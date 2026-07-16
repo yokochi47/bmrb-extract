@@ -285,13 +285,15 @@
       @if (hasEnsemble()) {
         <p-card header="1. Ensemble composition analysis" styleClass="mb-6">
           <p class="text-base mb-4 mx-4">
-            This entry contains {{ ensembleTotalModels() }} models. Model
-            {{ ensembleMedoidModel() }} is the overall representative, medoid model (most similar to
-            other models). The following residues defined as well-defined regions are included in
-            the computation of the following validation analysis.
+            This entry contains <strong>{{ ensembleTotalModels() }}</strong> models. Model
+            <strong>{{ ensembleMedoidModel() }}</strong> is the overall representative, medoid model
+            (most similar to other models). The following residues defined as well-defined regions
+            are included in the computation of the following validation analysis.
             @if (ensembleSelectionCriteria()) {
-              The authors have identified model {{ ensembleRepresentativeModel() }} as
-              representative, based on the following criterion: {{ ensembleSelectionCriteria() }}.
+              The authors have identified model
+              <strong>{{ ensembleRepresentativeModel() }}</strong> as representative, based on the
+              following criterion: <strong>{{ ensembleSelectionCriteria() }}</strong
+              >.
             }
           </p>
           <div class="overflow-x-auto">
@@ -342,9 +344,9 @@
           </div>
           @if (hasClusters()) {
             <p class="text-base mt-6 mb-4 mx-4">
-              The models can be grouped into {{ clusteredCount() }} clusters
+              The models can be grouped into <<strong>{{ clusteredCount() }}</strong> clusters
               @if (singleModelCount() > 0) {
-                , and {{ singleModelCount() }} single-model clusters were found
+                , and <strong>{{ singleModelCount() }}</strong> single-model clusters were found
               }
               .
             </p>
@@ -658,8 +660,8 @@
               <p-panel [toggleable]="true" [collapsed]="true" styleClass="mt-2 mb-4">
                 <ng-template pTemplate="header">
                   <span class="font-medium">
-                    The following {{ sf.unparsedCount }} chemical shifts could not be parsed due to
-                    format or content errors.
+                    The following <strong>{{ sf.unparsedCount }}</strong> chemical shifts could not
+                    be parsed due to format or content errors.
                   </span>
                 </ng-template>
                 <div class="overflow-x-auto">
@@ -816,8 +818,8 @@
               <p-panel [toggleable]="true" [collapsed]="true" styleClass="mt-2 mb-4">
                 <ng-template pTemplate="header">
                   <span class="font-medium">
-                    The following {{ sf.unmappedCount }} assigned chemical shifts were not mapped to
-                    the molecules present in the coordinate file.
+                    The following <strong>{{ sf.unmappedCount }}</strong> assigned chemical shifts
+                    were not mapped to the molecules present in the coordinate file.
                   </span>
                 </ng-template>
                 <div class="overflow-x-auto">
@@ -949,13 +951,15 @@
                 <strong>{{ c.phrase }}</strong
                 >.
                 @if (c.view.overallPct !== null) {
-                  The overall completeness is {{ c.view.overallPct }}%, i.e.
-                  {{ c.view.overallAssigned }} atoms were assigned a chemical shift out of a
-                  possible {{ c.view.overallTarget }}.
+                  The overall completeness is <strong>{{ c.view.overallPct }}%</strong>, i.e.
+                  <strong>{{ c.view.overallAssigned }}</strong> atoms were assigned a chemical shift
+                  out of a possible <strong>{{ c.view.overallTarget }}</strong
+                  >.
                 }
                 @if (c.view.stereo) {
-                  {{ c.view.stereo.assigned }} out of {{ c.view.stereo.target }} assigned methyl
-                  groups (LEU and VAL) were assigned stereospecifically.
+                  <strong>{{ c.view.stereo.assigned }}</strong> out of
+                  <strong>{{ c.view.stereo.target }}</strong> assigned methyl groups (LEU and VAL)
+                  were assigned stereospecifically.
                 }
               </p>
               <div class="overflow-x-auto">
@@ -999,7 +1003,8 @@
               <p-panel [toggleable]="true" [collapsed]="true" styleClass="mt-2 mb-4">
                 <ng-template pTemplate="header">
                   <span class="font-medium">
-                    The following table lists the statistically unusual {{ sf.outlierCount }}
+                    The following table lists the statistically unusual
+                    <strong>{{ sf.outlierCount }}</strong>
                     chemical shifts. These are statistical measures, and large deviations from the
                     mean do not necessarily imply incorrect assignments. Molecules containing
                     paramagnetic centres or hemes are expected to give rise to anomalous chemical
@@ -1018,7 +1023,11 @@
                         <th
                           class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
                         >
-                          Auth seq ID
+                          @if (sf.showOutlierDetails) {
+                            Seq ID
+                          } @else {
+                            Auth seq ID
+                          }
                         </th>
                         @if (sf.showOutlierInsCode) {
                           <th
@@ -1030,12 +1039,20 @@
                         <th
                           class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                         >
-                          Comp ID
+                          @if (sf.showOutlierDetails) {
+                            Comp
+                          } @else {
+                            Comp ID
+                          }
                         </th>
                         <th
                           class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600"
                         >
-                          Atom ID
+                          @if (sf.showOutlierDetails) {
+                            Atom
+                          } @else {
+                            Atom ID
+                          }
                         </th>
                         <th
                           class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
@@ -1105,7 +1122,7 @@
                 5.{{ sf.listId }}.4 Random Coil Index (RCI) plots
               </p>
               @for (panel of sf.rciPanels; track $index) {
-                <p class="text-base mt-4 mb-2">{{ panel.title }}</p>
+                <p class="text-base mt-2 mb-2">{{ panel.title }}</p>
                 @if (panel.title.startsWith('RCI')) {
                   <p class="text-base mb-2 mx-4">
                     The image below reports random coil index (RCI) values and predicted order
@@ -1266,6 +1283,83 @@
           <p class="text-surface-500 py-2">
             NMR restraint validation is not available for this conversion.
           </p>
+        }
+
+        @for (g of restraintBookkeepingGroups(); track g.section) {
+          <p class="text-lg mt-6 mb-2">{{ g.section }} {{ g.heading }}</p>
+          @if (g.saveframes.length) {
+            @for (sf of g.saveframes; track $index) {
+              <div class="text-base font-medium mt-4 mb-2 break-all">
+                {{ g.section }}.{{ sf.listId }} Bookkeeping — {{ sf.title }}
+              </div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm border-collapse">
+                  <tbody>
+                    @for (p of sf.rows; track $index) {
+                      <tr class="border-b border-surface-100 dark:border-surface-800">
+                        <td class="px-2 py-1 font-medium align-top w-96">{{ p.label }}</td>
+                        <td class="px-2 py-1 break-all">{{ p.value }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+
+              @if (sf.mappedToModel !== 0) {
+                <p class="text-base font-medium mt-4 mb-2">
+                  {{ g.section }}.{{ sf.listId }}.1 Atom name mapping history
+                </p>
+                @if (sf.atomNameMapping.length) {
+                  <p class="text-base mb-4 mx-2">
+                    The table below shows how the system interpreted author-defined atom names (e.g.
+                    pseudoatom names specific to NMR) during data conversion. All atom names have
+                    been standardized based on the Chemical Component Dictionary (CCD). Atom names
+                    subject to unusual mapping are highlighted in red color. Please verify that the
+                    atom name mappings are correct. If any mappings are unexpected, modify the
+                    uploaded file to use appropriate atom names that comply with the CCD.
+                  </p>
+                  <div class="overflow-x-auto">
+                    <table class="w-full text-sm border-collapse mb-4">
+                      <thead>
+                        <tr>
+                          <th
+                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                          >
+                            Comp_ID
+                          </th>
+                          <th
+                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                          >
+                            Mapping history (Author-defined atom name → Atom_IDs in NMR data)
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (m of sf.atomNameMapping; track $index) {
+                          <tr class="border-b border-surface-100 dark:border-surface-800">
+                            <td class="px-2 py-1 align-top">{{ m.comp_id }}</td>
+                            <td class="px-2 py-1 font-mono">
+                              @for (h of m.history; track $index) {
+                                <span [class.text-red-600]="h.unusual"
+                                  >{{ h.name }} → {{ h.atoms }}</span
+                                >{{ $last ? '' : '; ' }}
+                              }
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                } @else {
+                  <p class="text-surface-500 py-2">
+                    The atom names defined by the author conformed to the CCD.
+                  </p>
+                }
+              }
+            }
+          } @else {
+            <p class="text-surface-500 py-2">{{ g.emptyText }}</p>
+          }
         }
       </p-card>
 

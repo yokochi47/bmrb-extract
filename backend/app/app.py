@@ -2728,6 +2728,31 @@ _CHEM_SHIFT_STATS_KEYS = (
     'number_of_outliers',
 )
 
+# Common bookkeeping columns shared by the restraint / spectral-peak subtypes
+# (output_stats_common_bookkeeping); number_of_outliers is chem-shift-specific and
+# omitted here.
+_BOOKKEEPING_KEYS = (
+    'original_file_name', 'list_id', 'sf_framecode',
+    'number_of_parsed', 'number_of_mapped_to_model', 'number_of_unmapped_to_model',
+    'number_of_unparsed_with_error', 'number_of_parsed_with_warning',
+)
+
+
+def _bookkeeping_saveframes(stats, key):
+    """Per-saveframe bookkeeping (+ atom-name mapping history) for a restraint /
+    spectral-peak subtype (output_statistics.<key>), sharing the common
+    output_stats_common_bookkeeping semantics."""
+    out = []
+    for item in stats.get(key) or []:
+        if not isinstance(item, dict):
+            continue
+        row = {k: item[k] for k in _BOOKKEEPING_KEYS if k in item}
+        anm = _atom_name_mapping(item)
+        if anm:
+            row['atom_name_mapping'] = anm
+        out.append(row)
+    return out
+
 # Per-shift columns kept for each unmapped assigned chemical shift
 # (output_statistics.chem_shift[].chemical_shift_unmapped) — shown in a collapsible
 # table when a saveframe has unmapped shifts.
@@ -2978,6 +3003,13 @@ async def get_output_statistics():
     ensemble = _ensemble_composition(report)
     if ensemble:
         result['ensemble_composition'] = ensemble
+    # Per-saveframe bookkeeping for the restraint / spectral-peak subtypes (the
+    # heavy validation sub-tables are excluded from `pruned`; here we keep only
+    # the common bookkeeping counts + atom-name mapping).
+    result['restraint_bookkeeping'] = {
+        key: _bookkeeping_saveframes(stats, key)
+        for key in ('dist_restraint', 'dihed_restraint', 'rdc_restraint', 'spectral_peak')
+    }
     return result
 
 

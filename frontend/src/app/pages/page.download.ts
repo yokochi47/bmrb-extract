@@ -179,6 +179,19 @@ interface AtomNameMappingRow {
   comp_id: string;
   history: { name: string; atoms: string; unusual: boolean }[];
 }
+/** One restraint / spectral-peak saveframe's common bookkeeping (+ atom-name
+ * mapping); shares output_stats_common_bookkeeping semantics with chem_shift. */
+interface RestraintBookkeepingSaveframe {
+  original_file_name?: string | null;
+  list_id?: number;
+  sf_framecode?: string;
+  number_of_parsed?: number;
+  number_of_mapped_to_model?: number;
+  number_of_unmapped_to_model?: number;
+  number_of_unparsed_with_error?: number;
+  number_of_parsed_with_warning?: number;
+  atom_name_mapping?: AtomNameMappingRow[];
+}
 /** Per-residue line chart (RCI/S² or NMR RMSD) with structural bands, keyed by
  * the coordinate residue scheme (auth_chain_id/auth_seq_id) on the download page. */
 interface PerResidueLine {
@@ -517,6 +530,7 @@ export class Download {
         statistics?: OutputStatistics;
         ensemble_composition?: StatEnsembleComposition;
         report_timestamp?: string;
+        restraint_bookkeeping?: Record<string, RestraintBookkeepingSaveframe[]>;
       }>(API_URL + 'output_statistics', {
         params: { token },
       })
@@ -525,6 +539,7 @@ export class Download {
           this.statistics.set(res.statistics ?? null);
           this.ensemble.set(res.ensemble_composition ?? null);
           this.reportTimestamp.set(res.report_timestamp ?? null);
+          this.restraintBookkeeping.set(res.restraint_bookkeeping ?? {});
           this.statsAvailable.set(!!res.available);
         },
         error: (err) => {
@@ -555,6 +570,63 @@ export class Download {
   statsAvailable = signal<boolean | null>(null);
   /** Report file modification time (UTC, "YYYY-MM-DD HH:MM:SS"); null until loaded. */
   reportTimestamp = signal<string | null>(null);
+  /** Restraint / spectral-peak bookkeeping saveframes, keyed by subtype. */
+  restraintBookkeeping = signal<Record<string, RestraintBookkeepingSaveframe[]>>({});
+
+  /** Restraint / spectral-peak bookkeeping sections (fixed 6.3–6.6 numbering),
+   * each with per-saveframe bookkeeping rows + atom-name-mapping history. */
+  restraintBookkeepingGroups = computed(() => {
+    const bk = this.restraintBookkeeping();
+    const defs = [
+      {
+        key: 'dist_restraint',
+        section: '6.3',
+        heading: 'Bookkeeping of distance restraints',
+        empty: 'There is no distance restraints.',
+        noun: 'distance restraints',
+      },
+      {
+        key: 'dihed_restraint',
+        section: '6.4',
+        heading: 'Bookkeeping of dihedral-angle restraints',
+        empty: 'There is no dihedral-angle restraints.',
+        noun: 'dihedral-angle restraints',
+      },
+      {
+        key: 'rdc_restraint',
+        section: '6.5',
+        heading: 'Bookkeeping of RDC restraints',
+        empty: 'There is no RDC restraints.',
+        noun: 'RDC restraints',
+      },
+      {
+        key: 'spectral_peak',
+        section: '6.6',
+        heading: 'Bookkeeping of spectral peak lists',
+        empty: 'There is no spectral peak lists.',
+        noun: 'spectral peaks',
+      },
+    ];
+    return defs.map((d) => ({
+      section: d.section,
+      heading: d.heading,
+      emptyText: d.empty,
+      saveframes: (bk[d.key] ?? []).map((s) => ({
+        listId: s.list_id ?? 0,
+        title: `${s.sf_framecode} (${s.original_file_name})`,
+        // Atom-name mapping is meaningless when nothing mapped to the model.
+        mappedToModel: s.number_of_mapped_to_model,
+        rows: [
+          this.kv(`Number of parsed ${d.noun}`, s.number_of_parsed),
+          this.kv(`Number of ${d.noun} mapped to model`, s.number_of_mapped_to_model),
+          this.kv(`Number of ${d.noun} unmapped to model`, s.number_of_unmapped_to_model),
+          this.kv(`Number of unparsed ${d.noun} with error`, s.number_of_unparsed_with_error),
+          this.kv(`Number of parsed ${d.noun} with warning`, s.number_of_parsed_with_warning),
+        ].filter((r): r is KVRow => r !== null),
+        atomNameMapping: s.atom_name_mapping ?? [],
+      })),
+    }));
+  });
 
   /** Coordinate ensemble composition (GET /api/output_statistics); null when the
    * report has no pdbx input source with a well-defined-region analysis. */
@@ -1095,7 +1167,13 @@ export class Download {
     if (!type) return '';
     const semi = type.indexOf(';');
     if (semi >= 0) {
-      return '  ' + type.slice(semi + 1).replace(/_/g, ' ').trimStart();
+      return (
+        '  ' +
+        type
+          .slice(semi + 1)
+          .replace(/_/g, ' ')
+          .trimStart()
+      );
     }
     const s = type.replace(/_/g, ' ');
     return s.charAt(0).toUpperCase() + s.slice(1);
