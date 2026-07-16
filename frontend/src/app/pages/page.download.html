@@ -134,19 +134,21 @@
 </div>
 
 @if (publicId()) {
-  <!-- Conversion statics report -->
+  <!-- Data conversion statisticl report -->
   <div class="card">
-    <div class="font-semibold text-2xl mb-6">Conversion statistics</div>
+    <div class="font-semibold text-2xl mb-6">Data conversion statistical report</div>
 
     @if (statsAvailable() === null) {
       <p class="text-surface-500 py-2"><i class="pi pi-spin pi-spinner mr-2"></i>Loading…</p>
     } @else if (!statsAvailable()) {
       <p class="text-surface-500 py-2">
-        Conversion statistics are not available for this conversion.
+        Statistical report are not available for this conversion.
       </p>
     } @else {
       <!-- /information/output_statistics/[entry_id, entry_title, entry_authors, submission_date, processed_date, processed_site, file_name, file_type, file_size, md5_checksum, model/* (if not null)] -->
       <p-card header="Provenance information" styleClass="mb-6">
+        <p class="text-lg mx-2 mb-2">Conversion ID: {{ publicId() }}</p>
+
         <div class="overflow-x-auto">
           <p class="text-lg mb-2">Input files</p>
           <table class="w-full text-sm border-collapse mb-6">
@@ -200,8 +202,11 @@
               }
             </tbody>
           </table>
+
           <p class="text-lg mb-2">Output files</p>
-          <table class="w-full text-sm border-collapse">
+
+          <p class="text-lg mx-2 mb-2">NMR data</p>
+          <table class="w-full text-sm border-collapse mx-2 mb-4">
             <tbody>
               @for (p of entryProps(); track $index) {
                 <tr class="border-b border-surface-100 dark:border-surface-800">
@@ -209,22 +214,22 @@
                   <td class="px-2 py-1 break-all">{{ p.value }}</td>
                 </tr>
               }
-              @if (modelProps().length) {
-                <tr>
-                  <td
-                    colspan="2"
-                    class="border-t-2 border-dashed border-surface-300 dark:border-surface-600"
-                  ></td>
-                </tr>
+            </tbody>
+          </table>
+
+          @if (modelProps().length) {
+            <p class="text-lg mx-2 mb-2">Coordinates</p>
+            <table class="w-full text-sm border-collapse mx-2">
+              <tbody>
                 @for (p of modelProps(); track $index) {
                   <tr class="border-b border-surface-100 dark:border-surface-800">
                     <td class="px-2 py-1 font-medium align-top w-64">{{ p.label }}</td>
                     <td class="px-2 py-1 break-all">{{ p.value }}</td>
                   </tr>
                 }
-              }
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          }
         </div>
       </p-card>
 
@@ -328,7 +333,7 @@
                       } @else {
                         <td class="px-2 py-1 whitespace-nowrap">Single-model clusters</td>
                         <td class="px-2 py-1 break-all">{{ c.model_ids?.join(', ') }}</td>
-                        <td class="px-2 py-1">–</td>
+                        <td class="px-2 py-1"></td>
                       }
                     </tr>
                   }
@@ -799,7 +804,7 @@
                         <th
                           class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                         >
-                          Mapping history (Author defined atom name → Atom_IDs in CCD)
+                          Mapping history (Author-defined atom name → Atom_IDs in NMR data)
                         </th>
                       </tr>
                     </thead>

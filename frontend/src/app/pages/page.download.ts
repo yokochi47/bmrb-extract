@@ -618,15 +618,15 @@ export class Download {
     const s = this.statistics();
     if (!s) return [];
     return [
-      this.kv('Output file name', s.file_name),
-      this.kv('Output file type', s.file_type && this.typeLabel(s.file_type)),
+      this.kv('File name', s.file_name),
+      this.kv('File type', s.file_type && this.typeLabel(s.file_type)),
       this.kv('Entry ID', s.entry_id),
       this.kv('Entry title', s.entry_title?.trim()),
       this.kv('Entry authors', s.entry_authors ?? undefined),
       this.kv('Submission date', s.submission_date ?? undefined),
       this.kv('Processed date', s.processed_date ?? undefined),
       this.kv('Processed site', s.processed_site),
-      this.kv('Output file size', s.file_size != null ? this.formatSize(s.file_size) : undefined),
+      this.kv('File size', s.file_size != null ? this.formatSize(s.file_size) : undefined),
       this.kv('MD5 checksum', s.md5_checksum),
     ].filter((r): r is KVRow => r !== null);
   });
@@ -636,12 +636,12 @@ export class Download {
     const m = this.statistics()?.model;
     if (!m) return [];
     return [
-      this.kv('Model file name', m.file_name),
-      this.kv('Model title', m.struct_title?.trim()),
-      this.kv('Model file type', m.file_type && this.typeLabel(m.file_type)),
-      this.kv('Model authors', m.audit_authors),
-      this.kv('Model file size', m.file_size != null ? this.formatSize(m.file_size) : undefined),
-      this.kv('Model MD5 checksum', m.md5_checksum),
+      this.kv('File name', m.file_name),
+      this.kv('Entry title', m.struct_title?.trim()),
+      this.kv('File type', m.file_type && this.typeLabel(m.file_type)),
+      this.kv('Entry authors', m.audit_authors),
+      this.kv('File size', m.file_size != null ? this.formatSize(m.file_size) : undefined),
+      this.kv('MD5 checksum', m.md5_checksum),
     ].filter((r): r is KVRow => r !== null);
   });
 
