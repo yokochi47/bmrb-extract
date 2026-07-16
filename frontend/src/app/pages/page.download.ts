@@ -1170,6 +1170,153 @@ export class Download {
     return Array.isArray(v) ? (v as ViolationSummaryRow[]) : [];
   });
 
+  /** Hatch decal (diagonal lines) for the "Violated" overlay bars. */
+  private static readonly VIOL_DECAL = {
+    color: 'rgba(0, 0, 0, 0.55)',
+    dashArrayX: [1, 0],
+    dashArrayY: [2, 4],
+    rotation: -Math.PI / 4,
+  };
+
+  /** Grouped bar chart of distance restraints (by sub-type) with the violated
+   * (hatched) and consistently-violated (solid black) counts overlaid on each
+   * restraint bar. Null when there are no distance restraints. */
+  distViolationChart = computed<object | null>(() => {
+    const rows = this.distViolationSummary();
+    if (!rows.length) return null;
+    const cats = [
+      { abbr: 'ir', label: 'Intra-residue' },
+      { abbr: 'sq', label: 'Sequential' },
+      { abbr: 'mr', label: 'Medium range' },
+      { abbr: 'lr', label: 'Long range' },
+      { abbr: 'ic', label: 'Inter-chain' },
+    ];
+    const subs = [
+      { key: 'backbone-backbone', label: 'Backbone-Backbone', color: '#5470c6' },
+      { key: 'backbone-sidechain', label: 'Backbone-Sidechain', color: '#91cc75' },
+      { key: 'sidechain-sidechain', label: 'Sidechain-Sidechain', color: '#fac858' },
+    ];
+    // restraint_type is "<abbr>; <sub-type>"; normalise whitespace to match.
+    const byType = new Map(
+      rows.map((r) => [(r.restraint_type ?? '').replace(/\s+/g, ''), r] as const),
+    );
+    const xLabels: string[] = [];
+    // Category label for every bar (the axis label is blanked except under the
+    // middle sub-type bar), used to show the category in the tooltip.
+    const fullLabels: string[] = [];
+    const restraint = subs.map(() => [] as (number | null)[]);
+    const violated: number[] = [];
+    const consistent: number[] = [];
+    for (const c of cats) {
+      subs.forEach((s, j) => {
+        const r = byType.get(`${c.abbr};${s.key}`);
+        // Label the category once, under its middle sub-type bar.
+        xLabels.push(j === 1 ? c.label : '');
+        fullLabels.push(c.label);
+        restraint.forEach((d, k) => d.push(k === j ? (r?.restraint_count ?? 0) : null));
+        violated.push(r?.viol_count ?? 0);
+        consistent.push(r?.consist_viol_count ?? 0);
+      });
+    }
+    return {
+      tooltip: {
+        trigger: 'item',
+        formatter: (p: { dataIndex: number; seriesName?: string; value?: number | null }) =>
+          `${fullLabels[p.dataIndex]} — ${p.seriesName}<br/>${p.value ?? 0}`,
+      },
+      legend: {
+        orient: 'vertical',
+        right: 8,
+        top: 'middle',
+        type: 'scroll',
+        data: [...subs.map((s) => s.label), 'Violated', 'Consistently violated'],
+      },
+      grid: { left: 56, right: 170, top: 24, bottom: 40, containLabel: true },
+      xAxis: { type: 'category', data: xLabels, axisLabel: { rotate: -30, fontSize: 10 } },
+      yAxis: { type: 'value', name: 'Number of restraints', nameLocation: 'middle', nameGap: 40 },
+      // barGap '-100%' overlaps every series into one full-width slot per x; the
+      // three restraint series occupy disjoint x positions, so they read as a
+      // grouped chart while the violation series overlay each bar.
+      series: [
+        ...subs.map((s, k) => ({
+          name: s.label,
+          type: 'bar',
+          data: restraint[k],
+          itemStyle: { color: s.color },
+          barGap: '-100%',
+          barCategoryGap: '35%',
+        })),
+        {
+          name: 'Violated',
+          type: 'bar',
+          data: violated,
+          barGap: '-100%',
+          itemStyle: { color: 'rgba(0,0,0,0.06)', decal: Download.VIOL_DECAL },
+        },
+        {
+          name: 'Consistently violated',
+          type: 'bar',
+          data: consistent,
+          barGap: '-100%',
+          itemStyle: { color: '#000' },
+        },
+      ],
+    };
+  });
+
+  /** Bar chart of dihedral-angle restraints per angle type with the violated
+   * (hatched) and consistently-violated (solid black) counts overlaid. */
+  dihedViolationChart = computed<object | null>(() => {
+    const rows = this.dihedViolationSummary();
+    if (!rows.length) return null;
+    const xLabels = rows.map((r) => {
+      const s = r.restraint_type ?? '';
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    });
+    return {
+      tooltip: {
+        trigger: 'item',
+        formatter: (p: { name?: string; seriesName?: string; value?: number | null }) =>
+          `${p.name} — ${p.seriesName}<br/>${p.value ?? 0}`,
+      },
+      legend: {
+        orient: 'vertical',
+        right: 8,
+        top: 'middle',
+        type: 'scroll',
+        data: ['Violated', 'Consistently violated'],
+      },
+      grid: { left: 56, right: 170, top: 24, bottom: 24, containLabel: true },
+      xAxis: { type: 'category', data: xLabels },
+      yAxis: { type: 'value', name: 'Number of restraints', nameLocation: 'middle', nameGap: 40 },
+      series: [
+        {
+          name: 'Restraints',
+          type: 'bar',
+          // Default palette color per angle type (matches the example).
+          colorBy: 'data',
+          data: rows.map((r) => r.restraint_count ?? 0),
+          barGap: '-100%',
+          barCategoryGap: '45%',
+        },
+        {
+          name: 'Violated',
+          type: 'bar',
+          data: rows.map((r) => r.viol_count ?? 0),
+          barGap: '-100%',
+          itemStyle: { color: 'rgba(0,0,0,0.06)', decal: Download.VIOL_DECAL },
+        },
+        {
+          name: 'Consistently violated',
+          type: 'bar',
+          data: rows.map((r) => r.consist_viol_count ?? 0),
+          barGap: '-100%',
+          itemStyle: { color: '#000' },
+        },
+      ],
+    };
+  });
+
   /** Display label for a violation-summary restraint_type: underscores become
    * spaces; a leading abbreviation prefix ("ir;", "lr;", "total;", …) becomes a
    * two-space (non-breaking) indent and stays lower-case; top-level types have

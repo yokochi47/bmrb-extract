@@ -216,7 +216,7 @@
           </div>
 
           <p class="text-lg mb-2">Output files</p>
-          <p class="text-base font-medium mx-2 mb-2 underline">NMR data</p>
+          <p class="text-base font-medium mx-2 mb-2 underline">NMR data file</p>
           <div class="overflow-x-auto mb-4">
             <table class="w-full text-sm border-collapse">
               <tbody>
@@ -231,7 +231,7 @@
           </div>
 
           @if (modelProps().length) {
-            <p class="text-base font-medium mx-2 mb-2 underline">Coordinates</p>
+            <p class="text-base font-medium mx-2 mb-2 underline">Coordinate file</p>
             <div class="overflow-x-auto mb-4">
               <table class="w-full text-sm border-collapse">
                 <tbody>
@@ -411,7 +411,6 @@
                 [option]="pca.option"
                 [height]="380"
                 [aspect]="1"
-                [maxHeight]="380"
                 [marginX]="pca.marginX"
                 [marginY]="pca.marginY"
               />
@@ -1394,7 +1393,7 @@
             indicate the total number of restranits violated in all models.
           </p>
           <div class="overflow-x-auto">
-            <table class="w-full text-sm border-collapse">
+            <table class="w-full text-sm border-collapse mb-2">
               <thead>
                 <tr>
                   <th
@@ -1498,6 +1497,16 @@
               </tbody>
             </table>
           </div>
+
+          <p class="text-base mt-2 mb-2">Distribution of distance restraints and violations</p>
+          <p class="text-base mb-2 mx-4">
+            Violated and consistently violated restraints are shown using different hatch patterns
+            in their respective categories. The hydrogen bonds and disulfied bonds are counted in
+            their appropriate category on the x-axis.
+          </p>
+          @if (distViolationChart(); as opt) {
+            <app-echart [option]="opt" [height]="420" [aspect]="1" [marginX]="226" [marginY]="64" />
+          }
         } @else {
           <p class="text-surface-500 py-2">There is no distance restraints.</p>
         }
@@ -1518,7 +1527,7 @@
             violated in all models.
           </p>
           <div class="overflow-x-auto">
-            <table class="w-full text-sm border-collapse">
+            <table class="w-full text-sm border-collapse mb-2">
               <thead>
                 <tr>
                   <th
@@ -1622,6 +1631,17 @@
               </tbody>
             </table>
           </div>
+
+          <p class="text-base mt-2 mb-2">
+            Distribution of dihedral-angle restraints and violations
+          </p>
+          <p class="text-base mb-2 mx-4">
+            Violated and consistently violated restraints are shown using different hatch patterns
+            in their respective categories.
+          </p>
+          @if (dihedViolationChart(); as opt) {
+            <app-echart [option]="opt" [height]="420" [aspect]="1" [marginX]="226" [marginY]="48" />
+          }
         } @else {
           <p class="text-surface-500 py-2">There is no dihedral-angle restraints.</p>
         }
