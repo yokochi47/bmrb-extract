@@ -2931,6 +2931,15 @@ async def get_output_statistics():
                     {k: e[k] for k in _DIST_VIOLATION_SUMMARY_KEYS if k in e}
                     for e in vs if isinstance(e, dict)
                 ]
+        # Keep the per-model violation statistics (dynamic scalar keys: per-type
+        # *_viol_count plus mean/min/max/std/median_violation).
+        for m_key in ('dist_violation_for_each_model', 'dihed_violation_for_each_model'):
+            mv = rs.get(m_key)
+            if isinstance(mv, list) and mv:
+                summary[m_key] = [
+                    {k: v for k, v in e.items() if isinstance(v, (int, float)) or v is None}
+                    for e in mv if isinstance(e, dict)
+                ]
         pruned['restraint_summary'] = summary
     # chem_shift: keep only the per-saveframe bookkeeping counts for the
     # 'Assigned chemical shift summary' — drop the heavy validation sub-tables.

@@ -1170,6 +1170,66 @@ export class Download {
     return Array.isArray(v) ? (v as ViolationSummaryRow[]) : [];
   });
 
+  /** Raw per-model violation rows (gate the 7.2 / 8.2 sections). */
+  distViolationForEachModel = computed<Record<string, number | null>[]>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const v = rs?.['dist_violation_for_each_model'];
+    return Array.isArray(v) ? (v as Record<string, number | null>[]) : [];
+  });
+  dihedViolationForEachModel = computed<Record<string, number | null>[]>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const v = rs?.['dihed_violation_for_each_model'];
+    return Array.isArray(v) ? (v as Record<string, number | null>[]) : [];
+  });
+
+  /** Per-model violation statistics table (fixed distance columns). */
+  distModelViolations = computed<{
+    columns: { key: string; label: string }[];
+    rows: Record<string, number | null>[];
+  } | null>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const rows = rs?.['dist_violation_for_each_model'];
+    if (!Array.isArray(rows) || !rows.length) return null;
+    const columns = [
+      { key: 'ir_viol_count', label: 'IR' },
+      { key: 'sq_viol_count', label: 'SQ' },
+      { key: 'mr_viol_count', label: 'MR' },
+      { key: 'lr_viol_count', label: 'LR' },
+      { key: 'ic_viol_count', label: 'IC' },
+      { key: 'total_viol_count', label: 'Total' },
+    ];
+    return { columns, rows: rows as Record<string, number | null>[] };
+  });
+
+  /** Per-model violation statistics table (dynamic dihedral-angle columns:
+   * Phi, Psi, then any other angle types, Total last). */
+  dihedModelViolations = computed<{
+    columns: { key: string; label: string }[];
+    rows: Record<string, number | null>[];
+  } | null>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const raw = rs?.['dihed_violation_for_each_model'];
+    if (!Array.isArray(raw) || !raw.length) return null;
+    const rows = raw as Record<string, number | null>[];
+    const seen = new Set<string>();
+    for (const r of rows) {
+      for (const k of Object.keys(r)) if (k.endsWith('_viol_count')) seen.add(k);
+    }
+    const fixed = ['phi_viol_count', 'psi_viol_count', 'total_viol_count'];
+    const others = [...seen].filter((k) => !fixed.includes(k)).sort();
+    const ordered = [
+      ...(seen.has('phi_viol_count') ? ['phi_viol_count'] : []),
+      ...(seen.has('psi_viol_count') ? ['psi_viol_count'] : []),
+      ...others,
+      ...(seen.has('total_viol_count') ? ['total_viol_count'] : []),
+    ];
+    const columns = ordered.map((k) => {
+      const t = k.slice(0, -'_viol_count'.length);
+      return { key: k, label: t.charAt(0).toUpperCase() + t.slice(1) };
+    });
+    return { columns, rows };
+  });
+
   /** Hatch decal (diagonal lines) for the "Violated" overlay bars. */
   private static readonly VIOL_DECAL = {
     color: 'rgba(0, 0, 0, 0.55)',
@@ -1267,7 +1327,11 @@ export class Download {
   /** Bar chart of dihedral-angle restraints per angle type with the violated
    * (hatched) and consistently-violated (solid black) counts overlaid. */
   dihedViolationChart = computed<object | null>(() => {
-    const rows = this.dihedViolationSummary();
+    // Plot each individual dihedral-angle type (phi/psi/chi/alpha/…); the
+    // aggregate "total" row is a summary, not a category, so it is excluded.
+    const rows = this.dihedViolationSummary().filter(
+      (r) => (r.restraint_type ?? '').toLowerCase() !== 'total',
+    );
     if (!rows.length) return null;
     const xLabels = rows.map((r) => {
       const s = r.restraint_type ?? '';
