@@ -11,7 +11,7 @@ import { PanelModule } from 'primeng/panel';
 import { timer } from 'rxjs';
 import { switchMap, takeWhile } from 'rxjs/operators';
 
-import { PageService } from './page.service';
+import { PageService, TargetDepsys } from './page.service';
 import { API_URL } from '../../site.config';
 import { fileTypeLabel } from './file-types';
 import { EchartComponent } from './echart.component';
@@ -178,6 +178,19 @@ interface HistogramChart {
 interface AtomNameMappingRow {
   comp_id: string;
   history: { name: string; atoms: string; unusual: boolean }[];
+}
+/** One restraint / spectral-peak saveframe's common bookkeeping (+ atom-name
+ * mapping); shares output_stats_common_bookkeeping semantics with chem_shift. */
+interface RestraintBookkeepingSaveframe {
+  original_file_name?: string | null;
+  list_id?: number;
+  sf_framecode?: string;
+  number_of_parsed?: number;
+  number_of_mapped_to_model?: number;
+  number_of_unmapped_to_model?: number;
+  number_of_unparsed_with_error?: number;
+  number_of_parsed_with_warning?: number;
+  atom_name_mapping?: AtomNameMappingRow[];
 }
 /** Per-residue line chart (RCI/S² or NMR RMSD) with structural bands, keyed by
  * the coordinate residue scheme (auth_chain_id/auth_seq_id) on the download page. */
@@ -366,6 +379,18 @@ interface ViolationBin {
   average_number_of_violations_per_model?: number | null;
   max_violation_in_bin?: number | null;
 }
+/** One category row of restraint_summary.{dist,dihed}_violation_summary. */
+interface ViolationSummaryRow {
+  restraint_type?: string;
+  restraint_count?: number;
+  restraint_percent?: number;
+  viol_count?: number;
+  viol_inline_percent?: number | null;
+  viol_absol_percent?: number;
+  consist_viol_count?: number;
+  consist_viol_inline_percent?: number | null;
+  consist_viol_absol_percent?: number;
+}
 
 /** Display order of the restraint_summary key-value rows. Keys not listed here
  * are appended in their original order. */
@@ -504,6 +529,8 @@ export class Download {
         available: boolean;
         statistics?: OutputStatistics;
         ensemble_composition?: StatEnsembleComposition;
+        report_timestamp?: string;
+        restraint_bookkeeping?: Record<string, RestraintBookkeepingSaveframe[]>;
       }>(API_URL + 'output_statistics', {
         params: { token },
       })
@@ -511,6 +538,8 @@ export class Download {
         next: (res) => {
           this.statistics.set(res.statistics ?? null);
           this.ensemble.set(res.ensemble_composition ?? null);
+          this.reportTimestamp.set(res.report_timestamp ?? null);
+          this.restraintBookkeeping.set(res.restraint_bookkeeping ?? {});
           this.statsAvailable.set(!!res.available);
         },
         error: (err) => {
@@ -539,6 +568,76 @@ export class Download {
   statistics = signal<OutputStatistics | null>(null);
   /** Tri-state: null = loading, false = not available, true = show the cards. */
   statsAvailable = signal<boolean | null>(null);
+  /** Report file modification time (UTC, "YYYY-MM-DD HH:MM:SS"); null until loaded. */
+  reportTimestamp = signal<string | null>(null);
+  /** Human-readable deposition target the converted output is intended for. */
+  outputUsedFor = computed(() => {
+    switch (this.pageService.pageState().targetDepsys) {
+      case TargetDepsys.repl_cs:
+        return 'OneDep (ongoing deposition - replacing assigned chemical shifts)';
+      case TargetDepsys.bmrbdep:
+        return 'BMRBdep (new deposition)';
+      default:
+        return 'OneDep (new deposition)';
+    }
+  });
+  /** Restraint / spectral-peak bookkeeping saveframes, keyed by subtype. */
+  restraintBookkeeping = signal<Record<string, RestraintBookkeepingSaveframe[]>>({});
+
+  /** Restraint / spectral-peak bookkeeping sections (fixed 6.3–6.6 numbering),
+   * each with per-saveframe bookkeeping rows + atom-name-mapping history. */
+  restraintBookkeepingGroups = computed(() => {
+    const bk = this.restraintBookkeeping();
+    const defs = [
+      {
+        key: 'dist_restraint',
+        section: '6.3',
+        heading: 'Bookkeeping of distance restraints',
+        empty: 'There is no distance restraints.',
+        noun: 'distance restraints',
+      },
+      {
+        key: 'dihed_restraint',
+        section: '6.4',
+        heading: 'Bookkeeping of dihedral-angle restraints',
+        empty: 'There is no dihedral-angle restraints.',
+        noun: 'dihedral-angle restraints',
+      },
+      {
+        key: 'rdc_restraint',
+        section: '6.5',
+        heading: 'Bookkeeping of RDC restraints',
+        empty: 'There is no RDC restraints.',
+        noun: 'RDC restraints',
+      },
+      {
+        key: 'spectral_peak',
+        section: '6.6',
+        heading: 'Bookkeeping of spectral peak lists',
+        empty: 'There is no spectral peak lists.',
+        noun: 'spectral peaks',
+      },
+    ];
+    return defs.map((d) => ({
+      section: d.section,
+      heading: d.heading,
+      emptyText: d.empty,
+      saveframes: (bk[d.key] ?? []).map((s) => ({
+        listId: s.list_id ?? 0,
+        title: `${s.sf_framecode} (${s.original_file_name})`,
+        // Atom-name mapping is meaningless when nothing mapped to the model.
+        mappedToModel: s.number_of_mapped_to_model,
+        rows: [
+          this.kv(`Number of parsed ${d.noun}`, s.number_of_parsed),
+          this.kv(`Number of ${d.noun} mapped to model`, s.number_of_mapped_to_model),
+          this.kv(`Number of ${d.noun} unmapped to model`, s.number_of_unmapped_to_model),
+          this.kv(`Number of unparsed ${d.noun} with error`, s.number_of_unparsed_with_error),
+          this.kv(`Number of parsed ${d.noun} with warning`, s.number_of_parsed_with_warning),
+        ].filter((r): r is KVRow => r !== null),
+        atomNameMapping: s.atom_name_mapping ?? [],
+      })),
+    }));
+  });
 
   /** Coordinate ensemble composition (GET /api/output_statistics); null when the
    * report has no pdbx input source with a well-defined-region analysis. */
@@ -618,15 +717,15 @@ export class Download {
     const s = this.statistics();
     if (!s) return [];
     return [
-      this.kv('Output file name', s.file_name),
-      this.kv('Output file type', s.file_type && this.typeLabel(s.file_type)),
+      this.kv('File name', s.file_name),
+      this.kv('File type', s.file_type && this.typeLabel(s.file_type)),
       this.kv('Entry ID', s.entry_id),
       this.kv('Entry title', s.entry_title?.trim()),
       this.kv('Entry authors', s.entry_authors ?? undefined),
       this.kv('Submission date', s.submission_date ?? undefined),
       this.kv('Processed date', s.processed_date ?? undefined),
       this.kv('Processed site', s.processed_site),
-      this.kv('Output file size', s.file_size != null ? this.formatSize(s.file_size) : undefined),
+      this.kv('File size', s.file_size != null ? this.formatSize(s.file_size) : undefined),
       this.kv('MD5 checksum', s.md5_checksum),
     ].filter((r): r is KVRow => r !== null);
   });
@@ -636,12 +735,12 @@ export class Download {
     const m = this.statistics()?.model;
     if (!m) return [];
     return [
-      this.kv('Model file name', m.file_name),
-      this.kv('Model title', m.struct_title?.trim()),
-      this.kv('Model file type', m.file_type && this.typeLabel(m.file_type)),
-      this.kv('Model authors', m.audit_authors),
-      this.kv('Model file size', m.file_size != null ? this.formatSize(m.file_size) : undefined),
-      this.kv('Model MD5 checksum', m.md5_checksum),
+      this.kv('File name', m.file_name),
+      this.kv('Entry title', m.struct_title?.trim()),
+      this.kv('File type', m.file_type && this.typeLabel(m.file_type)),
+      this.kv('Entry authors', m.audit_authors),
+      this.kv('File size', m.file_size != null ? this.formatSize(m.file_size) : undefined),
+      this.kv('MD5 checksum', m.md5_checksum),
     ].filter((r): r is KVRow => r !== null);
   });
 
@@ -739,6 +838,7 @@ export class Download {
   chemShiftSaveframes = computed<
     {
       title: string;
+      listId: string;
       rows: KVRow[];
       unmapped: StatChemShiftUnmapped[];
       unmappedCount: number;
@@ -780,7 +880,8 @@ export class Download {
         return view ? [{ phrase, view }] : [];
       });
       return {
-        title: `Bookkeeping — ${s.list_id}. ${s.sf_framecode} (${s.original_file_name})`.trim(),
+        title: `5.${s.list_id} Bookkeeping — ${s.sf_framecode} (${s.original_file_name})`.trim(),
+        listId: `${s.list_id}`,
         rows: [
           this.kv('Number of parsed shifts', s.number_of_parsed),
           this.kv('Number of shifts mapped to model', s.number_of_mapped_to_model),
@@ -1056,6 +1157,43 @@ export class Download {
     const v = rs?.['average_number_of_dihed_violations_per_model'];
     return Array.isArray(v) ? (v as ViolationBin[]) : [];
   });
+  /** Per-category distance-violation summary rows for the violation-analysis table. */
+  distViolationSummary = computed<ViolationSummaryRow[]>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const v = rs?.['dist_violation_summary'];
+    return Array.isArray(v) ? (v as ViolationSummaryRow[]) : [];
+  });
+  /** Per-category dihedral-angle-violation summary rows. */
+  dihedViolationSummary = computed<ViolationSummaryRow[]>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const v = rs?.['dihed_violation_summary'];
+    return Array.isArray(v) ? (v as ViolationSummaryRow[]) : [];
+  });
+
+  /** Display label for a violation-summary restraint_type: underscores become
+   * spaces; a leading abbreviation prefix ("ir;", "lr;", "total;", …) becomes a
+   * two-space (non-breaking) indent and stays lower-case; top-level types have
+   * their first character capitalized. */
+  restraintTypeLabel(type: string | undefined): string {
+    if (!type) return '';
+    const semi = type.indexOf(';');
+    if (semi >= 0) {
+      return (
+        '  ' +
+        type
+          .slice(semi + 1)
+          .replace(/_/g, ' ')
+          .trimStart()
+      );
+    }
+    const s = type.replace(/_/g, ' ');
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
+  /** Format a 0–100 percentage to one decimal place (empty string when null). */
+  percent1(v: number | null | undefined): string {
+    return v == null ? '' : v.toFixed(1);
+  }
 
   /** Public conversion id (C_<id>) and the results zip file name. */
   publicId = computed(() => {

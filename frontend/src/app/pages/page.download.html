@@ -134,111 +134,174 @@
 </div>
 
 @if (publicId()) {
-  <!-- Conversion statics report -->
+  <!-- Data conversion statisticl report -->
   <div class="card">
-    <div class="font-semibold text-2xl mb-6">Conversion statistics</div>
+    <div class="font-semibold text-2xl mb-6">Data conversion statistical report</div>
 
     @if (statsAvailable() === null) {
       <p class="text-surface-500 py-2"><i class="pi pi-spin pi-spinner mr-2"></i>Loading…</p>
     } @else if (!statsAvailable()) {
-      <p class="text-surface-500 py-2">
-        Conversion statistics are not available for this conversion.
-      </p>
+      <p class="text-surface-500 py-2">Statistical report are not available for this conversion.</p>
     } @else {
       <!-- /information/output_statistics/[entry_id, entry_title, entry_authors, submission_date, processed_date, processed_site, file_name, file_type, file_size, md5_checksum, model/* (if not null)] -->
       <p-card header="Provenance information" styleClass="mb-6">
         <div class="overflow-x-auto">
-          <p class="text-lg mb-2">Input files</p>
-          <table class="w-full text-sm border-collapse mb-6">
-            <thead>
-              <tr>
-                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
-                  Original file name
-                </th>
-                <th
-                  class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 w-28"
-                >
-                  Size
-                </th>
-                <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
-                  File type
-                </th>
-                <th
-                  class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 w-32 whitespace-nowrap"
-                >
-                  Upload date
-                </th>
-                @if (showInputSource()) {
+          <p class="text-base font-medium mx-2 mb-2">
+            Conversion ID: <span class="underline">{{ publicId() }}</span>
+          </p>
+          <p class="text-base font-medium mx-2 mb-2">
+            Output used for: <span class="underline">{{ outputUsedFor() }}</span>
+          </p>
+          <p class="text-base font-medium mx-2 mb-2">
+            Timestamp (UTC): <span class="underline">{{ reportTimestamp() }}</span>
+          </p>
+
+          <p class="text-lg mt-2 mb-2">Input files</p>
+          <div class="overflow-x-auto mb-4">
+            <table class="w-full text-sm border-collapse">
+              <thead>
+                <tr>
                   <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 w-24"
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                   >
-                    Source
+                    Original file name
                   </th>
-                }
-              </tr>
-            </thead>
-            <tbody>
-              @for (file of inputFiles(); track $index) {
-                <tr class="border-b border-surface-100 dark:border-surface-800">
-                  <td class="px-2 py-1 font-mono break-all">{{ file.original_name }}</td>
-                  <td class="px-2 py-1">{{ formatSize(file.file_size) }}</td>
-                  <td class="px-2 py-1">{{ inputTypeLabel(file.file_type) }}</td>
-                  <td class="px-2 py-1">{{ uploadDate(file.uploaded_at) }}</td>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 w-28"
+                  >
+                    Size
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    File type
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 w-32 whitespace-nowrap"
+                  >
+                    Upload date
+                  </th>
                   @if (showInputSource()) {
-                    <td class="px-2 py-1">{{ sourceLabel(file.source) }}</td>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 w-24"
+                    >
+                      Source
+                    </th>
                   }
                 </tr>
-              } @empty {
-                <tr>
-                  <td
-                    [attr.colspan]="showInputSource() ? 5 : 4"
-                    class="text-center text-surface-500 py-4"
-                  >
-                    No files found for this conversion.
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                @for (file of inputFiles(); track $index) {
+                  <tr class="border-b border-surface-100 dark:border-surface-800">
+                    <td class="px-2 py-1 font-mono break-all">{{ file.original_name }}</td>
+                    <td class="px-2 py-1">{{ formatSize(file.file_size) }}</td>
+                    <td class="px-2 py-1">{{ inputTypeLabel(file.file_type) }}</td>
+                    <td class="px-2 py-1">{{ uploadDate(file.uploaded_at) }}</td>
+                    @if (showInputSource()) {
+                      <td class="px-2 py-1">{{ sourceLabel(file.source) }}</td>
+                    }
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td
+                      [attr.colspan]="showInputSource() ? 5 : 4"
+                      class="text-center text-surface-500 py-4"
+                    >
+                      No files found for this conversion.
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
           <p class="text-lg mb-2">Output files</p>
-          <table class="w-full text-sm border-collapse">
-            <tbody>
-              @for (p of entryProps(); track $index) {
-                <tr class="border-b border-surface-100 dark:border-surface-800">
-                  <td class="px-2 py-1 font-medium align-top w-64">{{ p.label }}</td>
-                  <td class="px-2 py-1 break-all">{{ p.value }}</td>
-                </tr>
-              }
-              @if (modelProps().length) {
-                <tr>
-                  <td
-                    colspan="2"
-                    class="border-t-2 border-dashed border-surface-300 dark:border-surface-600"
-                  ></td>
-                </tr>
-                @for (p of modelProps(); track $index) {
+          <p class="text-base font-medium mx-2 mb-2 underline">NMR data</p>
+          <div class="overflow-x-auto mb-4">
+            <table class="w-full text-sm border-collapse">
+              <tbody>
+                @for (p of entryProps(); track $index) {
                   <tr class="border-b border-surface-100 dark:border-surface-800">
                     <td class="px-2 py-1 font-medium align-top w-64">{{ p.label }}</td>
                     <td class="px-2 py-1 break-all">{{ p.value }}</td>
                   </tr>
                 }
-              }
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          </div>
+
+          @if (modelProps().length) {
+            <p class="text-base font-medium mx-2 mb-2 underline">Coordinates</p>
+            <div class="overflow-x-auto mb-4">
+              <table class="w-full text-sm border-collapse">
+                <tbody>
+                  @for (p of modelProps(); track $index) {
+                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                      <td class="px-2 py-1 font-medium align-top w-64">{{ p.label }}</td>
+                      <td class="px-2 py-1 break-all">{{ p.value }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+
+          @if (softwareRows().length) {
+            <p class="text-lg mb-2">Software</p>
+            <p class="text-base mb-4 mx-4">
+              The following versions of software were used in the production of this report.
+            </p>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm border-collapse">
+                <thead>
+                  <tr>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Name
+                    </th>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Version
+                    </th>
+                    <th
+                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    >
+                      Classification
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (sw of softwareRows(); track $index) {
+                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                      <td class="px-2 py-1 break-all">{{ sw.name }}</td>
+                      <td class="px-2 py-1 whitespace-nowrap">{{ sw.version }}</td>
+                      <td class="px-2 py-1">{{ sw.classification }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          } @else {
+            <p class="text-surface-500 py-2">No software information available.</p>
+          }
         </div>
       </p-card>
 
       <!-- information/input_sources[file_type='pdbx']/ensemble_composition -->
       @if (hasEnsemble()) {
-        <p-card header="Ensemble composition analysis" styleClass="mb-6">
+        <p-card header="1. Ensemble composition analysis" styleClass="mb-6">
           <p class="text-base mb-4 mx-4">
-            This entry contains {{ ensembleTotalModels() }} models. Model
-            {{ ensembleMedoidModel() }} is the overall representative, medoid model (most similar to
-            other models). The following residues defined as well-defined regions are included in
-            the computation of the following validation analysis.
+            This entry contains <strong>{{ ensembleTotalModels() }}</strong> models. Model
+            <strong>{{ ensembleMedoidModel() }}</strong> is the overall representative, medoid model
+            (most similar to other models). The following residues defined as well-defined regions
+            are included in the computation of the following validation analysis.
             @if (ensembleSelectionCriteria()) {
-              The authors have identified model {{ ensembleRepresentativeModel() }} as
-              representative, based on the following criterion: {{ ensembleSelectionCriteria() }}.
+              The authors have identified model
+              <strong>{{ ensembleRepresentativeModel() }}</strong> as representative, based on the
+              following criterion: <strong>{{ ensembleSelectionCriteria() }}</strong
+              >.
             }
           </p>
           <div class="overflow-x-auto">
@@ -289,9 +352,9 @@
           </div>
           @if (hasClusters()) {
             <p class="text-base mt-6 mb-4 mx-4">
-              The models can be grouped into {{ clusteredCount() }} clusters
+              The models can be grouped into <<strong>{{ clusteredCount() }}</strong> clusters
               @if (singleModelCount() > 0) {
-                , and {{ singleModelCount() }} single-model clusters were found
+                , and <strong>{{ singleModelCount() }}</strong> single-model clusters were found
               }
               .
             </p>
@@ -328,7 +391,7 @@
                       } @else {
                         <td class="px-2 py-1 whitespace-nowrap">Single-model clusters</td>
                         <td class="px-2 py-1 break-all">{{ c.model_ids?.join(', ') }}</td>
-                        <td class="px-2 py-1">–</td>
+                        <td class="px-2 py-1"></td>
                       }
                     </tr>
                   }
@@ -338,10 +401,17 @@
 
             @if (ensemblePcaChart(); as pca) {
               <p class="text-base mt-6 mb-2">Clustering analysis of models in the ensemble</p>
+              <p class="text-base mb-4 mx-2">
+                The image below shows a Principal Component Analysis (PCA) plot used for clustering
+                the models in the ensemble. However, since the actual clustering was performed using
+                higher-dimensional features, the plot and the clustering results may not visually
+                align.
+              </p>
               <app-echart
                 [option]="pca.option"
-                [height]="240"
+                [height]="380"
                 [aspect]="1"
+                [maxHeight]="380"
                 [marginX]="pca.marginX"
                 [marginY]="pca.marginY"
               />
@@ -351,7 +421,7 @@
       }
 
       <!-- /information/output_statistics/assembly/* -->
-      <p-card header="Assembly information" styleClass="mb-6">
+      <p-card header="2. Assembly information" styleClass="mb-6">
         <p class="text-base mb-4 mx-4">
           The following tables show the properties of the molecular assembly and describe each
           component in the entry.
@@ -369,7 +439,7 @@
           </table>
         </div>
         @if (entityAssemblyRows().length) {
-          <div class="font-medium mt-4 mb-2">Components in the molecular assembly</div>
+          <div class="text-base font-medium mt-4 mb-2">Components in the molecular assembly</div>
           <div class="overflow-x-auto">
             <table class="w-full text-sm border-collapse">
               <thead>
@@ -442,7 +512,7 @@
       </p-card>
 
       <!-- /information/output_statistics/entity/* -->
-      <p-card header="Entity information" styleClass="mb-6">
+      <p-card header="3. Entity information" styleClass="mb-6">
         @if (entityRows().length) {
           <p class="text-base mb-4 mx-4">
             The following table and one-letter code sequences indicate the molecular entities in the
@@ -518,8 +588,8 @@
           </div>
           @for (s of entitySequences(); track $index) {
             <div class="mt-4">
-              <div class="text-base mb-1 mx-4">
-                One-letter code sequence of Entity_ID: {{ s.entity_id }}
+              <div class="text-base font-medium mt-4 mb-2">
+                One-letter code sequence of Entity ID: {{ s.entity_id }}
               </div>
               <pre
                 class="m-0 px-2 py-1 text-sm leading-tight overflow-x-auto whitespace-pre-wrap break-all bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
@@ -532,10 +602,9 @@
         }
       </p-card>
 
-      <!-- /information/output_statistics/chem_shift_summary + per-saveframe chem_shift -->
-      <p-card header="Chemical shift analysis" styleClass="mb-6">
+      <!-- /information/output_statistics/chem_shift_summary -->
+      <p-card header="4. Chemical shift summary" styleClass="mb-6">
         @if (chemShiftProps().length) {
-          <p class="text-lg mb-2">Assigned chemical shifts summary</p>
           <p class="text-base mb-4 mx-4">
             The following table shows overall chemical shift statistics as aggregates over all
             chemical shift saveframe(s) in the NMR data file. If there were any issues when parsing
@@ -568,487 +637,507 @@
               </tbody>
             </table>
           </div>
+        } @else {
+          <p class="text-surface-500 py-2">
+            Chemical shift summary is not available for this conversion.
+          </p>
+        }
+      </p-card>
 
-          @if (chemShiftSaveframes().length) {
-            <p class="text-lg mt-6 mb-2">Chemical shift validation</p>
+      <!-- /information/output_statistics/per-saveframe chem_shift -->
+      <p-card header="5. Chemical shift validation" styleClass="mb-6">
+        @if (chemShiftSaveframes().length) {
+          <p class="text-base mb-4 mx-4">
+            The following section presents statistical information regarding the analysis and
+            model-mapping for each chemical shift saveframe within the NMR data file.
+          </p>
+          @for (sf of chemShiftSaveframes(); track $index) {
+            <div class="text-lg mt-4 mb-2 break-all">{{ sf.title }}</div>
             <p class="text-base mb-4 mx-4">
-              The following tables show the parsing and model-mapping statistics for each individual
-              chemical shift saveframe in the NMR data file.
+              The following table shows the results of parsing the chemical shift list and reports
+              the number of nuclei with statistically unusual chemical shifts.
             </p>
-            @for (sf of chemShiftSaveframes(); track $index) {
-              <div class="font-medium mt-4 mb-2 break-all">{{ sf.title }}</div>
-              <p class="text-base mb-4 mx-4">
-                The following table shows the results of parsing the chemical shift list and reports
-                the number of nuclei with statistically unusual chemical shifts.
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm border-collapse">
+                <tbody>
+                  @for (p of sf.rows; track $index) {
+                    <tr class="border-b border-surface-100 dark:border-surface-800">
+                      <td class="px-2 py-1 font-medium align-top w-96">{{ p.label }}</td>
+                      <td class="px-2 py-1 break-all">{{ p.value }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+
+            @if (sf.unparsedCount > 0 && sf.unparsed.length) {
+              <p-panel [toggleable]="true" [collapsed]="true" styleClass="mt-2 mb-4">
+                <ng-template pTemplate="header">
+                  <span class="font-medium">
+                    The following <strong>{{ sf.unparsedCount }}</strong> chemical shifts could not
+                    be parsed due to format or content errors.
+                  </span>
+                </ng-template>
+                <div class="overflow-x-auto">
+                  <table class="w-full text-sm border-collapse">
+                    <thead>
+                      <tr>
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                        >
+                          Auth chain
+                        </th>
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                        >
+                          Auth seq ID
+                        </th>
+                        @if (sf.showUnparsedInsCode) {
+                          <th
+                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                          >
+                            Ins code
+                          </th>
+                        }
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                        >
+                          Comp ID
+                        </th>
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600"
+                        >
+                          Atom ID
+                        </th>
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                        >
+                          Value
+                        </th>
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                        >
+                          Uncertainty
+                        </th>
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                        >
+                          Ambig code
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (u of sf.unparsed; track $index) {
+                        <tr class="border-b border-surface-100 dark:border-surface-800">
+                          <td class="px-2 py-1">{{ u.auth_chain_id }}</td>
+                          <td class="px-2 py-1">{{ u.auth_seq_id }}</td>
+                          @if (sf.showUnparsedInsCode) {
+                            <td class="px-2 py-1">{{ u.ins_code }}</td>
+                          }
+                          <td class="px-2 py-1">{{ u.comp_id }}</td>
+                          <td class="px-2 py-1 border-r border-surface-300 dark:border-surface-600">
+                            {{ u.atom_id }}
+                          </td>
+                          <td class="px-2 py-1 tabular-nums">{{ u.value }}</td>
+                          <td class="px-2 py-1 tabular-nums">{{ u.error }}</td>
+                          <td class="px-2 py-1 tabular-nums">{{ u.ambig_code }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </p-panel>
+            }
+
+            @if (sf.duplicatedCount > 0 && sf.duplicated.length) {
+              <p-panel [toggleable]="true" [collapsed]="true" styleClass="mt-2 mb-4">
+                <ng-template pTemplate="header">
+                  <span class="font-medium">
+                    The following {{ sf.duplicatedCount }} chemical shifts were reported more than
+                    once in the chemical shift list.
+                  </span>
+                </ng-template>
+                <div class="overflow-x-auto">
+                  <table class="w-full text-sm border-collapse">
+                    <thead>
+                      <tr>
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                        >
+                          Auth chain
+                        </th>
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                        >
+                          Auth seq ID
+                        </th>
+                        @if (sf.showDuplicatedInsCode) {
+                          <th
+                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                          >
+                            Ins code
+                          </th>
+                        }
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                        >
+                          Comp ID
+                        </th>
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600"
+                        >
+                          Atom ID
+                        </th>
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                        >
+                          Value
+                        </th>
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                        >
+                          Uncertainty
+                        </th>
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                        >
+                          Ambig code
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (d of sf.duplicated; track $index) {
+                        <tr class="border-b border-surface-100 dark:border-surface-800">
+                          <td class="px-2 py-1">{{ d.auth_chain_id }}</td>
+                          <td class="px-2 py-1">{{ d.auth_seq_id }}</td>
+                          @if (sf.showDuplicatedInsCode) {
+                            <td class="px-2 py-1">{{ d.ins_code }}</td>
+                          }
+                          <td class="px-2 py-1">{{ d.comp_id }}</td>
+                          <td class="px-2 py-1 border-r border-surface-300 dark:border-surface-600">
+                            {{ d.atom_id }}
+                          </td>
+                          <td class="px-2 py-1 tabular-nums">{{ d.value }}</td>
+                          <td class="px-2 py-1 tabular-nums">{{ d.error }}</td>
+                          <td class="px-2 py-1 tabular-nums">{{ d.ambig_code }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </p-panel>
+            }
+
+            @if (sf.unmappedCount > 0 && sf.unmapped.length) {
+              <p-panel [toggleable]="true" [collapsed]="true" styleClass="mt-2 mb-4">
+                <ng-template pTemplate="header">
+                  <span class="font-medium">
+                    The following <strong>{{ sf.unmappedCount }}</strong> assigned chemical shifts
+                    were not mapped to the molecules present in the coordinate file.
+                  </span>
+                </ng-template>
+                <div class="overflow-x-auto">
+                  <table class="w-full text-sm border-collapse">
+                    <thead>
+                      <tr>
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                        >
+                          Auth chain
+                        </th>
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                        >
+                          Auth seq ID
+                        </th>
+                        @if (sf.showInsCode) {
+                          <th
+                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                          >
+                            Ins code
+                          </th>
+                        }
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                        >
+                          Comp ID
+                        </th>
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600"
+                        >
+                          Atom ID
+                        </th>
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                        >
+                          Value
+                        </th>
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                        >
+                          Uncertainty
+                        </th>
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                        >
+                          Ambig code
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (u of sf.unmapped; track $index) {
+                        <tr class="border-b border-surface-100 dark:border-surface-800">
+                          <td class="px-2 py-1">{{ u.auth_chain_id }}</td>
+                          <td class="px-2 py-1">{{ u.auth_seq_id }}</td>
+                          @if (sf.showInsCode) {
+                            <td class="px-2 py-1">{{ u.ins_code }}</td>
+                          }
+                          <td class="px-2 py-1">{{ u.comp_id }}</td>
+                          <td class="px-2 py-1 border-r border-surface-300 dark:border-surface-600">
+                            {{ u.atom_id }}
+                          </td>
+                          <td class="px-2 py-1 tabular-nums">{{ u.value }}</td>
+                          <td class="px-2 py-1 tabular-nums">{{ u.error }}</td>
+                          <td class="px-2 py-1 tabular-nums">{{ u.ambig_code }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </p-panel>
+            }
+
+            <p class="text-base font-medium mb-2">5.{{ sf.listId }}.1 Atom name mapping history</p>
+            @if (sf.atomNameMapping.length) {
+              <p class="text-base mb-4 mx-2">
+                The table below shows how the system interpreted author-defined atom names (e.g.
+                pseudoatom names specific to NMR) during data conversion. All atom names have been
+                standardized based on the Chemical Component Dictionary (CCD). Atom names subject to
+                unusual mapping are highlighted in red color. Please verify that the atom name
+                mappings are correct. If any mappings are unexpected, modify the uploaded file to
+                use appropriate atom names that comply with the CCD.
               </p>
               <div class="overflow-x-auto">
-                <table class="w-full text-sm border-collapse">
+                <table class="w-full text-sm border-collapse mb-4">
+                  <thead>
+                    <tr>
+                      <th
+                        class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                      >
+                        Comp ID
+                      </th>
+                      <th
+                        class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                      >
+                        Mapping history (Author-defined atom name → Atom names in NMR data)
+                      </th>
+                    </tr>
+                  </thead>
                   <tbody>
-                    @for (p of sf.rows; track $index) {
+                    @for (m of sf.atomNameMapping; track $index) {
                       <tr class="border-b border-surface-100 dark:border-surface-800">
-                        <td class="px-2 py-1 font-medium align-top w-96">{{ p.label }}</td>
-                        <td class="px-2 py-1 break-all">{{ p.value }}</td>
+                        <td class="px-2 py-1 align-top">{{ m.comp_id }}</td>
+                        <td class="px-2 py-1 font-mono">
+                          @for (h of m.history; track $index) {
+                            <span [class.text-red-600]="h.unusual"
+                              >{{ h.name }} → {{ h.atoms }}</span
+                            >{{ $last ? '' : '; ' }}
+                          }
+                        </td>
                       </tr>
                     }
                   </tbody>
                 </table>
               </div>
+            } @else {
+              <p class="text-surface-500 py-2">
+                The atom names defined by the author conformed to the CCD.
+              </p>
+            }
 
-              @if (sf.unmappedCount > 0 && sf.unmapped.length) {
-                <p-panel [toggleable]="true" [collapsed]="true" styleClass="mt-2 mb-4">
-                  <ng-template pTemplate="header">
-                    <span class="font-medium">
-                      The following {{ sf.unmappedCount }} assigned chemical shifts were not mapped
-                      to the molecules present in the coordinate file.
-                    </span>
-                  </ng-template>
-                  <div class="overflow-x-auto">
-                    <table class="w-full text-sm border-collapse">
-                      <thead>
-                        <tr>
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
-                          >
-                            Auth chain
-                          </th>
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
-                          >
-                            Auth seq ID
-                          </th>
-                          @if (sf.showInsCode) {
-                            <th
-                              class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
-                            >
-                              Ins code
-                            </th>
-                          }
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                          >
-                            Comp ID
-                          </th>
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600"
-                          >
-                            Atom ID
-                          </th>
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                          >
-                            Value
-                          </th>
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                          >
-                            Uncertainty
-                          </th>
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
-                          >
-                            Ambig code
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        @for (u of sf.unmapped; track $index) {
-                          <tr class="border-b border-surface-100 dark:border-surface-800">
-                            <td class="px-2 py-1">{{ u.auth_chain_id }}</td>
-                            <td class="px-2 py-1">{{ u.auth_seq_id }}</td>
-                            @if (sf.showInsCode) {
-                              <td class="px-2 py-1">{{ u.ins_code }}</td>
-                            }
-                            <td class="px-2 py-1">{{ u.comp_id }}</td>
-                            <td
-                              class="px-2 py-1 border-r border-surface-300 dark:border-surface-600"
-                            >
-                              {{ u.atom_id }}
-                            </td>
-                            <td class="px-2 py-1 tabular-nums">{{ u.value }}</td>
-                            <td class="px-2 py-1 tabular-nums">{{ u.error }}</td>
-                            <td class="px-2 py-1 tabular-nums">{{ u.ambig_code }}</td>
-                          </tr>
-                        }
-                      </tbody>
-                    </table>
-                  </div>
-                </p-panel>
-              }
-
-              @if (sf.outlierCount > 0 && sf.outlier.length) {
-                <p-panel [toggleable]="true" [collapsed]="true" styleClass="mt-2 mb-4">
-                  <ng-template pTemplate="header">
-                    <span class="font-medium">
-                      The following table lists the statistically unusual {{ sf.outlierCount }}
-                      chemical shifts. These are statistical measures, and large deviations from the
-                      mean do not necessarily imply incorrect assignments. Molecules containing
-                      paramagnetic centres or hemes are expected to give rise to anomalous chemical
-                      shifts.
-                    </span>
-                  </ng-template>
-                  <div class="overflow-x-auto">
-                    <table class="w-full text-sm border-collapse">
-                      <thead>
-                        <tr>
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
-                          >
-                            Auth chain
-                          </th>
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
-                          >
-                            Auth seq ID
-                          </th>
-                          @if (sf.showOutlierInsCode) {
-                            <th
-                              class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
-                            >
-                              Ins code
-                            </th>
-                          }
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                          >
-                            Comp ID
-                          </th>
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600"
-                          >
-                            Atom ID
-                          </th>
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                          >
-                            Value
-                          </th>
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
-                          >
-                            Ambig code
-                          </th>
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
-                          >
-                            Z score
-                          </th>
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
-                          >
-                            Expected range
-                          </th>
-                          @if (sf.showOutlierDetails) {
-                            <th
-                              class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                            >
-                              Details
-                            </th>
-                          }
-                        </tr>
-                      </thead>
-                      <tbody>
-                        @for (o of sf.outlier; track $index) {
-                          <tr class="border-b border-surface-100 dark:border-surface-800">
-                            <td class="px-2 py-1">{{ o.auth_chain_id }}</td>
-                            <td class="px-2 py-1">{{ o.auth_seq_id }}</td>
-                            @if (sf.showOutlierInsCode) {
-                              <td class="px-2 py-1">{{ o.ins_code }}</td>
-                            }
-                            <td class="px-2 py-1">{{ o.comp_id }}</td>
-                            <td
-                              class="px-2 py-1 border-r border-surface-300 dark:border-surface-600"
-                            >
-                              {{ o.atom_id }}
-                            </td>
-                            <td class="px-2 py-1 tabular-nums">{{ o.value }}</td>
-                            <td class="px-2 py-1 tabular-nums">{{ o.ambig_code }}</td>
-                            <td class="px-2 py-1 tabular-nums">{{ o.z_score }}</td>
-                            <td class="px-2 py-1 tabular-nums whitespace-nowrap">
-                              {{ o.expected_range?.min_value }} – {{ o.expected_range?.max_value }}
-                            </td>
-                            @if (sf.showOutlierDetails) {
-                              <td class="px-2 py-1">{{ o.details }}</td>
-                            }
-                          </tr>
-                        }
-                      </tbody>
-                    </table>
-                  </div>
-                </p-panel>
-              }
-
-              @if (sf.atomNameMapping.length) {
-                <p class="text-lg mt-6 mb-2">Atom name mapping</p>
-                <p class="text-base mb-4 mx-4">
-                  The table below shows how the system interpreted author-defined atom names (e.g.
-                  pseudoatom names specific to NMR) during data conversion. All atom names have been
-                  standardized based on the Chemical Component Dictionary (CCD). Atom names subject
-                  to unusual mapping are highlighted in red color. Please verify that the atom name
-                  mappings are correct. If any mappings are unexpected, modify the uploaded file to
-                  use appropriate atom names that comply with the CCD.
-                </p>
-                <div class="overflow-x-auto">
-                  <table class="w-full text-sm border-collapse mb-2">
-                    <thead>
-                      <tr>
-                        <th
-                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                        >
-                          Comp_ID
-                        </th>
-                        <th
-                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                        >
-                          Mapping history (Author defined atom name → Atom_IDs in CCD)
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      @for (m of sf.atomNameMapping; track $index) {
-                        <tr class="border-b border-surface-100 dark:border-surface-800">
-                          <td class="px-2 py-1 align-top">{{ m.comp_id }}</td>
-                          <td class="px-2 py-1 font-mono">
-                            @for (h of m.history; track $index) {
-                              <span [class.text-red-600]="h.unusual"
-                                >{{ h.name }} → {{ h.atoms }}</span
-                              >{{ $last ? '' : '; ' }}
-                            }
-                          </td>
-                        </tr>
-                      }
-                    </tbody>
-                  </table>
-                </div>
-              }
-
-              @for (hist of sf.histograms; track $index) {
-                <p class="text-base mt-6 mb-2">{{ hist.title }}</p>
-                <p class="text-base mb-4 mx-4">
-                  The figure below presents a histogram of normalized chemical shifts based on the
-                  average chemical shifts of known standard residues archived in BMRB. Chemical
-                  shifts with Z-scores exceeding 5 or falling below -5 are indicated as outliers.
-                  Particularly notable outliers are highlighted with lines. Among these outliers,
-                  those for which no structural cause—such as ring-current shifts due to neighboring
-                  aromatic residues or the presence of paramagnetic ions—can be identified are
-                  highlighted in red.
-                </p>
-                <app-echart [option]="hist.option" [height]="380" />
-              }
-
-              @if (sf.unparsedCount > 0 && sf.unparsed.length) {
-                <p-panel [toggleable]="true" [collapsed]="true" styleClass="mt-2 mb-4">
-                  <ng-template pTemplate="header">
-                    <span class="font-medium">
-                      The following {{ sf.unparsedCount }} chemical shifts could not be parsed due
-                      to format or content errors.
-                    </span>
-                  </ng-template>
-                  <div class="overflow-x-auto">
-                    <table class="w-full text-sm border-collapse">
-                      <thead>
-                        <tr>
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
-                          >
-                            Auth chain
-                          </th>
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
-                          >
-                            Auth seq ID
-                          </th>
-                          @if (sf.showUnparsedInsCode) {
-                            <th
-                              class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
-                            >
-                              Ins code
-                            </th>
-                          }
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                          >
-                            Comp ID
-                          </th>
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600"
-                          >
-                            Atom ID
-                          </th>
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                          >
-                            Value
-                          </th>
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                          >
-                            Uncertainty
-                          </th>
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
-                          >
-                            Ambig code
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        @for (u of sf.unparsed; track $index) {
-                          <tr class="border-b border-surface-100 dark:border-surface-800">
-                            <td class="px-2 py-1">{{ u.auth_chain_id }}</td>
-                            <td class="px-2 py-1">{{ u.auth_seq_id }}</td>
-                            @if (sf.showUnparsedInsCode) {
-                              <td class="px-2 py-1">{{ u.ins_code }}</td>
-                            }
-                            <td class="px-2 py-1">{{ u.comp_id }}</td>
-                            <td
-                              class="px-2 py-1 border-r border-surface-300 dark:border-surface-600"
-                            >
-                              {{ u.atom_id }}
-                            </td>
-                            <td class="px-2 py-1 tabular-nums">{{ u.value }}</td>
-                            <td class="px-2 py-1 tabular-nums">{{ u.error }}</td>
-                            <td class="px-2 py-1 tabular-nums">{{ u.ambig_code }}</td>
-                          </tr>
-                        }
-                      </tbody>
-                    </table>
-                  </div>
-                </p-panel>
-              }
-
-              @if (sf.duplicatedCount > 0 && sf.duplicated.length) {
-                <p-panel [toggleable]="true" [collapsed]="true" styleClass="mt-2 mb-4">
-                  <ng-template pTemplate="header">
-                    <span class="font-medium">
-                      The following {{ sf.duplicatedCount }} chemical shifts were reported more than
-                      once in the chemical shift list.
-                    </span>
-                  </ng-template>
-                  <div class="overflow-x-auto">
-                    <table class="w-full text-sm border-collapse">
-                      <thead>
-                        <tr>
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
-                          >
-                            Auth chain
-                          </th>
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
-                          >
-                            Auth seq ID
-                          </th>
-                          @if (sf.showDuplicatedInsCode) {
-                            <th
-                              class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
-                            >
-                              Ins code
-                            </th>
-                          }
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                          >
-                            Comp ID
-                          </th>
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600"
-                          >
-                            Atom ID
-                          </th>
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                          >
-                            Value
-                          </th>
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                          >
-                            Uncertainty
-                          </th>
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
-                          >
-                            Ambig code
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        @for (d of sf.duplicated; track $index) {
-                          <tr class="border-b border-surface-100 dark:border-surface-800">
-                            <td class="px-2 py-1">{{ d.auth_chain_id }}</td>
-                            <td class="px-2 py-1">{{ d.auth_seq_id }}</td>
-                            @if (sf.showDuplicatedInsCode) {
-                              <td class="px-2 py-1">{{ d.ins_code }}</td>
-                            }
-                            <td class="px-2 py-1">{{ d.comp_id }}</td>
-                            <td
-                              class="px-2 py-1 border-r border-surface-300 dark:border-surface-600"
-                            >
-                              {{ d.atom_id }}
-                            </td>
-                            <td class="px-2 py-1 tabular-nums">{{ d.value }}</td>
-                            <td class="px-2 py-1 tabular-nums">{{ d.error }}</td>
-                            <td class="px-2 py-1 tabular-nums">{{ d.ambig_code }}</td>
-                          </tr>
-                        }
-                      </tbody>
-                    </table>
-                  </div>
-                </p-panel>
-              }
-
-              <!-- Completeness of resonance assignment (well-defined regions / full structure) -->
-              @for (c of sf.completeness; track $index) {
-                <p class="text-base mb-4 mx-4">
-                  The following table shows the completeness of the chemical shift assignments for
-                  the <strong>{{ c.phrase }}</strong
+            <p class="text-base font-medium mb-2">
+              5.{{ sf.listId }}.2 Completeness of resonance assignments
+            </p>
+            <!-- Completeness of resonance assignment (well-defined regions / full structure) -->
+            @for (c of sf.completeness; track $index) {
+              <p class="text-base mb-4 mx-4">
+                The following table shows the completeness of the chemical shift assignments for the
+                <strong>{{ c.phrase }}</strong
+                >.
+                @if (c.view.overallPct !== null) {
+                  The overall completeness is <strong>{{ c.view.overallPct }}%</strong>, i.e.
+                  <strong>{{ c.view.overallAssigned }}</strong> atoms were assigned a chemical shift
+                  out of a possible <strong>{{ c.view.overallTarget }}</strong
                   >.
-                  @if (c.view.overallPct !== null) {
-                    The overall completeness is {{ c.view.overallPct }}%, i.e.
-                    {{ c.view.overallAssigned }} atoms were assigned a chemical shift out of a
-                    possible {{ c.view.overallTarget }}.
-                  }
-                  @if (c.view.stereo) {
-                    {{ c.view.stereo.assigned }} out of {{ c.view.stereo.target }} assigned methyl
-                    groups (LEU and VAL) were assigned stereospecifically.
-                  }
-                </p>
-                <div class="overflow-x-auto">
-                  <table class="w-full text-sm border-collapse mb-6">
-                    <thead>
-                      <tr>
+                }
+                @if (c.view.stereo) {
+                  <strong>{{ c.view.stereo.assigned }}</strong> out of
+                  <strong>{{ c.view.stereo.target }}</strong> assigned methyl groups (LEU and VAL)
+                  were assigned stereospecifically.
+                }
+              </p>
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm border-collapse mb-4">
+                  <thead>
+                    <tr>
+                      <th
+                        class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600"
+                      ></th>
+                      @for (col of c.view.columns; track $index) {
                         <th
-                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600"
-                        ></th>
-                        @for (col of c.view.columns; track $index) {
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
-                          >
-                            {{ col }}
-                          </th>
+                          class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                        >
+                          {{ col }}
+                        </th>
+                      }
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (row of c.view.rows; track $index) {
+                      <tr class="border-b border-surface-100 dark:border-surface-800">
+                        <td
+                          class="px-2 py-1 font-medium border-r border-surface-300 dark:border-surface-600"
+                        >
+                          {{ row.label }}
+                        </td>
+                        @for (cell of row.cells; track $index) {
+                          <td class="px-2 py-1 tabular-nums whitespace-nowrap text-center">
+                            {{ cell }}
+                          </td>
                         }
                       </tr>
-                    </thead>
-                    <tbody>
-                      @for (row of c.view.rows; track $index) {
-                        <tr class="border-b border-surface-100 dark:border-surface-800">
-                          <td
-                            class="px-2 py-1 font-medium border-r border-surface-300 dark:border-surface-600"
-                          >
-                            {{ row.label }}
-                          </td>
-                          @for (cell of row.cells; track $index) {
-                            <td class="px-2 py-1 tabular-nums whitespace-nowrap">{{ cell }}</td>
-                          }
-                        </tr>
-                      }
-                    </tbody>
-                  </table>
-                </div>
-              }
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
 
+            <p class="text-base font-medium mb-2">
+              5.{{ sf.listId }}.3 Statistically unusual chemical shifts
+            </p>
+            @if (sf.outlierCount > 0 && sf.outlier.length) {
+              <p class="text-base mb-4 mx-2">
+                The following table lists the statistically unusual
+                <strong>{{ sf.outlierCount }}</strong>
+                chemical shifts. These are statistical measures, and large deviations from the mean
+                do not necessarily imply incorrect assignments. Molecules containing paramagnetic
+                centres or hemes are expected to give rise to anomalous chemical shifts.
+              </p>
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm border-collapse mb-4">
+                  <thead>
+                    <tr>
+                      <th
+                        class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                      >
+                        Auth chain
+                      </th>
+                      <th
+                        class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                      >
+                        @if (sf.showOutlierDetails) {
+                          Seq ID
+                        } @else {
+                          Auth seq ID
+                        }
+                      </th>
+                      @if (sf.showOutlierInsCode) {
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                        >
+                          Ins code
+                        </th>
+                      }
+                      <th
+                        class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                      >
+                        @if (sf.showOutlierDetails) {
+                          Comp.
+                        } @else {
+                          Comp ID
+                        }
+                      </th>
+                      <th
+                        class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600"
+                      >
+                        @if (sf.showOutlierDetails) {
+                          Atom.
+                        } @else {
+                          Atom ID
+                        }
+                      </th>
+                      <th
+                        class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                      >
+                        Value
+                      </th>
+                      <th
+                        class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                      >
+                        @if (sf.showOutlierDetails) {
+                          Ambig.
+                        } @else {
+                          Ambig code
+                        }
+                      </th>
+                      <th
+                        class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                      >
+                        Z score
+                      </th>
+                      <th
+                        class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                      >
+                        Expected range
+                      </th>
+                      @if (sf.showOutlierDetails) {
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                        >
+                          Details
+                        </th>
+                      }
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (o of sf.outlier; track $index) {
+                      <tr class="border-b border-surface-100 dark:border-surface-800">
+                        <td class="px-2 py-1">{{ o.auth_chain_id }}</td>
+                        <td class="px-2 py-1">{{ o.auth_seq_id }}</td>
+                        @if (sf.showOutlierInsCode) {
+                          <td class="px-2 py-1">{{ o.ins_code }}</td>
+                        }
+                        <td class="px-2 py-1">{{ o.comp_id }}</td>
+                        <td class="px-2 py-1 border-r border-surface-300 dark:border-surface-600">
+                          {{ o.atom_id }}
+                        </td>
+                        <td class="px-2 py-1 tabular-nums">{{ o.value }}</td>
+                        <td class="px-2 py-1 tabular-nums">{{ o.ambig_code }}</td>
+                        <td class="px-2 py-1 tabular-nums">{{ o.z_score }}</td>
+                        <td class="px-2 py-1 tabular-nums whitespace-nowrap">
+                          {{ o.expected_range?.min_value }} – {{ o.expected_range?.max_value }}
+                        </td>
+                        @if (sf.showOutlierDetails) {
+                          <td class="px-2 py-1">{{ o.details }}</td>
+                        }
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            } @else {
+              <p class="text-surface-500 py-2">
+                There is no unusual chemical shifts meaning that all chemical shift values assigned
+                to standard residues are within their expected ranges.
+              </p>
+            }
+
+            @if (sf.rciPanels.length) {
+              <p class="text-base font-medium mb-2">
+                5.{{ sf.listId }}.4 Random Coil Index (RCI) plots
+              </p>
               @for (panel of sf.rciPanels; track $index) {
-                <p class="text-base mt-6 mb-2">{{ panel.title }}</p>
+                <p class="text-base mt-2 mb-2">{{ panel.title }}</p>
                 @if (panel.title.startsWith('RCI')) {
                   <p class="text-base mb-2 mx-4">
                     The image below reports random coil index (RCI) values and predicted order
@@ -1087,9 +1176,9 @@
       </p-card>
 
       <!-- /information/output_statistics/restraint_summary (average_*/*violation* and the per-restraint validation subsections excluded) -->
-      <p-card header="NMR restraint analysis" styleClass="mb-6">
+      <p-card header="6. NMR restraint analysis" styleClass="mb-6">
         @if (restraintProps().length) {
-          <p class="text-lg mb-2">Conformationally restricting restraints</p>
+          <p class="text-lg mb-2">6.1 Conformationally restricting restraints</p>
           <p class="text-base mb-4 mx-4">
             The following table provides the summary of experimentally observed NMR restraints in
             different categories. Restraints are classified into different categories based on the
@@ -1110,7 +1199,7 @@
             </table>
           </div>
 
-          <p class="text-lg mb-2">Residual restraint violations</p>
+          <p class="text-lg mb-2">6.2 Residual restraint violations</p>
           <p class="text-base mb-4 mx-4">
             This section provides the overview of the restraint violations analysis. The violations
             are binned as small, medium and large violations based on its absolute value. Average
@@ -1120,10 +1209,10 @@
 
           <!-- /information/output_statistics/restraint_summary/average_number_of_dist_violations_per_model -->
           @if (distViolationsPerModel().length) {
-            <p class="text-base font-medium mb-2 mx-4">
-              Average number of distance violations per model
+            <p class="text-base font-medium mb-2">
+              6.2.1 Average number of distance violations per model
             </p>
-            <p class="text-base mb-4 mx-6">
+            <p class="text-base mb-4 mx-2">
               Distance violations less than 0.1 Å are not included in the calculation.
             </p>
             <div class="overflow-x-auto">
@@ -1164,10 +1253,10 @@
 
           <!-- /information/output_statistics/restraint_summary/average_number_of_dihed_violations_per_model -->
           @if (dihedViolationsPerModel().length) {
-            <p class="text-base font-medium mt-4 mb-2 mx-4">
-              Average number of dihedral-angle violations per model
+            <p class="text-base font-medium mt-4 mb-2">
+              6.2.2 Average number of dihedral-angle violations per model
             </p>
-            <p class="text-base mb-4 mx-6">
+            <p class="text-base mb-4 mx-2">
               Dihedral-angle violations less than 1° are not included in the calculation.
             </p>
             <div class="overflow-x-auto">
@@ -1210,48 +1299,331 @@
             NMR restraint validation is not available for this conversion.
           </p>
         }
+
+        @for (g of restraintBookkeepingGroups(); track g.section) {
+          <p class="text-lg mt-6 mb-2">{{ g.section }} {{ g.heading }}</p>
+          @if (g.saveframes.length) {
+            @for (sf of g.saveframes; track $index) {
+              <div class="text-base font-medium mt-4 mb-2 break-all">
+                {{ g.section }}.{{ sf.listId }} Bookkeeping — {{ sf.title }}
+              </div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm border-collapse">
+                  <tbody>
+                    @for (p of sf.rows; track $index) {
+                      <tr class="border-b border-surface-100 dark:border-surface-800">
+                        <td class="px-2 py-1 font-medium align-top w-96">{{ p.label }}</td>
+                        <td class="px-2 py-1 break-all">{{ p.value }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+
+              @if (sf.mappedToModel !== 0) {
+                <p class="text-base font-medium mt-4 mb-2">
+                  {{ g.section }}.{{ sf.listId }}.1 Atom name mapping history
+                </p>
+                @if (sf.atomNameMapping.length) {
+                  <p class="text-base mb-4 mx-2">
+                    The table below shows how the system interpreted author-defined atom names (e.g.
+                    pseudoatom names specific to NMR) during data conversion. All atom names have
+                    been standardized based on the Chemical Component Dictionary (CCD). Atom names
+                    subject to unusual mapping are highlighted in red color. Please verify that the
+                    atom name mappings are correct. If any mappings are unexpected, modify the
+                    uploaded file to use appropriate atom names that comply with the CCD.
+                  </p>
+                  <div class="overflow-x-auto">
+                    <table class="w-full text-sm border-collapse mb-4">
+                      <thead>
+                        <tr>
+                          <th
+                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                          >
+                            Comp ID
+                          </th>
+                          <th
+                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                          >
+                            Mapping history (Author-defined atom name → Atom names in NMR data)
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (m of sf.atomNameMapping; track $index) {
+                          <tr class="border-b border-surface-100 dark:border-surface-800">
+                            <td class="px-2 py-1 align-top">{{ m.comp_id }}</td>
+                            <td class="px-2 py-1 font-mono">
+                              @for (h of m.history; track $index) {
+                                <span [class.text-red-600]="h.unusual"
+                                  >{{ h.name }} → {{ h.atoms }}</span
+                                >{{ $last ? '' : '; ' }}
+                              }
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                } @else {
+                  <p class="text-surface-500 py-2">
+                    The atom names defined by the author conformed to the CCD.
+                  </p>
+                }
+              }
+            }
+          } @else {
+            <p class="text-surface-500 py-2">{{ g.emptyText }}</p>
+          }
+        }
       </p-card>
 
-      <!-- /information/output_statistics/software/* -->
-      <p-card header="Software information" styleClass="mb-6">
-        @if (softwareRows().length) {
-          <p class="text-base mb-4 mx-4">
-            The following versions of software were used in the production of this report.
+      <!-- /information/output_statistics/restraint_summary/dist_violation_summary -->
+      <p-card header="7. Distance violation analysis" styleClass="mb-6">
+        @if (distViolationSummary().length) {
+          <p class="text-base font-medium mt-4 mb-2">7.1 Summary of distance violations</p>
+          <p class="text-base mb-4 mx-2">
+            The following table shows the summary of distance violations in different restraint
+            categories based on the sequence separation of the atoms involved. Each category is
+            further sub-divided into three sub-categories based on the atoms involved. Violations
+            less than 0.1 Å are not included in the statistics. Absolute percentage (marked as
+            'Absol.') were calculated with respect to the total number of distance restraints.
+            Inline percentage (marked as 'Inline') were calculated with respect to the number of
+            restraints in a particular restraint category. The violations indicate the total number
+            of restraints violated in at least one model. On the other hand, consistent violations
+            indicate the total number of restranits violated in all models.
           </p>
           <div class="overflow-x-auto">
             <table class="w-full text-sm border-collapse">
               <thead>
                 <tr>
                   <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    rowspan="2"
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600 align-bottom"
                   >
-                    Name
+                    Restraint type
                   </th>
                   <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    colspan="2"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600"
                   >
-                    Version
+                    Restraints
                   </th>
                   <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                    colspan="3"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600"
                   >
-                    Classification
+                    Violations
+                  </th>
+                  <th
+                    colspan="3"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    Consistent violations
+                  </th>
+                </tr>
+                <tr>
+                  <th
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Count
+                  </th>
+                  <th
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600 whitespace-nowrap"
+                  >
+                    Absol. (%)
+                  </th>
+                  <th
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Count
+                  </th>
+                  <th
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Inline (%)
+                  </th>
+                  <th
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600 whitespace-nowrap"
+                  >
+                    Absol. (%)
+                  </th>
+                  <th
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Count
+                  </th>
+                  <th
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Inline (%)
+                  </th>
+                  <th
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Absol. (%)
                   </th>
                 </tr>
               </thead>
               <tbody>
-                @for (sw of softwareRows(); track $index) {
+                @for (r of distViolationSummary(); track $index) {
                   <tr class="border-b border-surface-100 dark:border-surface-800">
-                    <td class="px-2 py-1 break-all">{{ sw.name }}</td>
-                    <td class="px-2 py-1 whitespace-nowrap">{{ sw.version }}</td>
-                    <td class="px-2 py-1">{{ sw.classification }}</td>
+                    <td class="px-2 py-1 border-r border-surface-300 dark:border-surface-600">
+                      {{ restraintTypeLabel(r.restraint_type) }}
+                    </td>
+                    <td class="px-2 py-1 tabular-nums text-center">{{ r.restraint_count }}</td>
+                    <td
+                      class="px-2 py-1 tabular-nums text-center border-r border-surface-300 dark:border-surface-600"
+                    >
+                      {{ percent1(r.restraint_percent) }}
+                    </td>
+                    <td class="px-2 py-1 tabular-nums text-center">{{ r.viol_count }}</td>
+                    <td class="px-2 py-1 tabular-nums text-center">
+                      {{ percent1(r.viol_inline_percent) }}
+                    </td>
+                    <td
+                      class="px-2 py-1 tabular-nums text-center border-r border-surface-300 dark:border-surface-600"
+                    >
+                      {{ percent1(r.viol_absol_percent) }}
+                    </td>
+                    <td class="px-2 py-1 tabular-nums text-center">{{ r.consist_viol_count }}</td>
+                    <td class="px-2 py-1 tabular-nums text-center">
+                      {{ percent1(r.consist_viol_inline_percent) }}
+                    </td>
+                    <td class="px-2 py-1 tabular-nums text-center">
+                      {{ percent1(r.consist_viol_absol_percent) }}
+                    </td>
                   </tr>
                 }
               </tbody>
             </table>
           </div>
         } @else {
-          <p class="text-surface-500 py-2">No software information available.</p>
+          <p class="text-surface-500 py-2">There is no distance restraints.</p>
+        }
+      </p-card>
+
+      <!-- /information/output_statistics/restraint_summary/dihed_violation_summary -->
+      <p-card header="8. Dihedral-angle violation analysis" styleClass="mb-6">
+        @if (dihedViolationSummary().length) {
+          <p class="text-base font-medium mt-4 mb-2">8.1 Summary of dihedral-angle violations</p>
+          <p class="text-base mb-4 mx-2">
+            The following table provides the summary of dihedral-angle violations in different
+            dihedral-angle types. Violations less than 1° are not included in the calculation.
+            Absolute percentage (marked as 'Absol.') were calculated with respect to the total
+            number of dihedral-angle restraints. Inline percentage (marked as 'Inline') were
+            calculated with respect to the number of restraints in a particular restraint category.
+            The violations indicate the total number of restraints violated in at least one model.
+            On the other hand, consistent violations indicate the total number of restranits
+            violated in all models.
+          </p>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm border-collapse">
+              <thead>
+                <tr>
+                  <th
+                    rowspan="2"
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600 align-bottom"
+                  >
+                    Restraint type
+                  </th>
+                  <th
+                    colspan="2"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600"
+                  >
+                    Restraints
+                  </th>
+                  <th
+                    colspan="3"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600"
+                  >
+                    Violations
+                  </th>
+                  <th
+                    colspan="3"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    Consistent violations
+                  </th>
+                </tr>
+                <tr>
+                  <th
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Count
+                  </th>
+                  <th
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600 whitespace-nowrap"
+                  >
+                    Absol. (%)
+                  </th>
+                  <th
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Count
+                  </th>
+                  <th
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Inline (%)
+                  </th>
+                  <th
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600 whitespace-nowrap"
+                  >
+                    Absol. (%)
+                  </th>
+                  <th
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Count
+                  </th>
+                  <th
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Inline (%)
+                  </th>
+                  <th
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Absol. (%)
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (r of dihedViolationSummary(); track $index) {
+                  <tr class="border-b border-surface-100 dark:border-surface-800">
+                    <td class="px-2 py-1 border-r border-surface-300 dark:border-surface-600">
+                      {{ restraintTypeLabel(r.restraint_type) }}
+                    </td>
+                    <td class="px-2 py-1 tabular-nums text-center">{{ r.restraint_count }}</td>
+                    <td
+                      class="px-2 py-1 tabular-nums text-center border-r border-surface-300 dark:border-surface-600"
+                    >
+                      {{ percent1(r.restraint_percent) }}
+                    </td>
+                    <td class="px-2 py-1 tabular-nums text-center">{{ r.viol_count }}</td>
+                    <td class="px-2 py-1 tabular-nums text-center">
+                      {{ percent1(r.viol_inline_percent) }}
+                    </td>
+                    <td
+                      class="px-2 py-1 tabular-nums text-center border-r border-surface-300 dark:border-surface-600"
+                    >
+                      {{ percent1(r.viol_absol_percent) }}
+                    </td>
+                    <td class="px-2 py-1 tabular-nums text-center">{{ r.consist_viol_count }}</td>
+                    <td class="px-2 py-1 tabular-nums text-center">
+                      {{ percent1(r.consist_viol_inline_percent) }}
+                    </td>
+                    <td class="px-2 py-1 tabular-nums text-center">
+                      {{ percent1(r.consist_viol_absol_percent) }}
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <p class="text-surface-500 py-2">There is no dihedral-angle restraints.</p>
         }
       </p-card>
     }

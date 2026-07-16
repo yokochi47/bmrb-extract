@@ -7,7 +7,7 @@ import re
 import smtplib
 import traceback
 import zipfile
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from pathlib import Path
 
@@ -2710,6 +2710,14 @@ _OUTPUT_STATS_EXCLUDE = {
     'dist_restraint', 'dihed_restraint', 'rdc_restraint', 'spectral_peak',
 }
 
+# Columns kept from restraint_summary.dist_violation_summary (per-category
+# distance-violation counts/percentages).
+_DIST_VIOLATION_SUMMARY_KEYS = (
+    'restraint_type', 'restraint_count', 'restraint_percent',
+    'viol_count', 'viol_inline_percent', 'viol_absol_percent',
+    'consist_viol_count', 'consist_viol_inline_percent', 'consist_viol_absol_percent',
+)
+
 # Per-saveframe chemical-shift bookkeeping fields kept for the download-page
 # 'Assigned chemical shift summary' — the large validation sub-tables (RCI charts,
 # atom-name mapping, per-shift completeness/outlier lists) are dropped.
@@ -2719,6 +2727,31 @@ _CHEM_SHIFT_STATS_KEYS = (
     'number_of_unparsed_with_error', 'number_of_parsed_with_warning',
     'number_of_outliers',
 )
+
+# Common bookkeeping columns shared by the restraint / spectral-peak subtypes
+# (output_stats_common_bookkeeping); number_of_outliers is chem-shift-specific and
+# omitted here.
+_BOOKKEEPING_KEYS = (
+    'original_file_name', 'list_id', 'sf_framecode',
+    'number_of_parsed', 'number_of_mapped_to_model', 'number_of_unmapped_to_model',
+    'number_of_unparsed_with_error', 'number_of_parsed_with_warning',
+)
+
+
+def _bookkeeping_saveframes(stats, key):
+    """Per-saveframe bookkeeping (+ atom-name mapping history) for a restraint /
+    spectral-peak subtype (output_statistics.<key>), sharing the common
+    output_stats_common_bookkeeping semantics."""
+    out = []
+    for item in stats.get(key) or []:
+        if not isinstance(item, dict):
+            continue
+        row = {k: item[k] for k in _BOOKKEEPING_KEYS if k in item}
+        anm = _atom_name_mapping(item)
+        if anm:
+            row['atom_name_mapping'] = anm
+        out.append(row)
+    return out
 
 # Per-shift columns kept for each unmapped assigned chemical shift
 # (output_statistics.chem_shift[].chemical_shift_unmapped) — shown in a collapsible
@@ -2890,6 +2923,14 @@ async def get_output_statistics():
                                        'max_violation_in_bin') if k in e}
                     for e in avg if isinstance(e, dict)
                 ]
+        # Keep the per-category distance/dihedral-violation summary tables.
+        for vs_key in ('dist_violation_summary', 'dihed_violation_summary'):
+            vs = rs.get(vs_key)
+            if isinstance(vs, list) and vs:
+                summary[vs_key] = [
+                    {k: e[k] for k in _DIST_VIOLATION_SUMMARY_KEYS if k in e}
+                    for e in vs if isinstance(e, dict)
+                ]
         pruned['restraint_summary'] = summary
     # chem_shift: keep only the per-saveframe bookkeeping counts for the
     # 'Assigned chemical shift summary' — drop the heavy validation sub-tables.
@@ -2951,9 +2992,24 @@ async def get_output_statistics():
             saveframes.append(row)
         pruned['chem_shift'] = saveframes
     result = {'available': True, 'statistics': pruned}
+    # Report file modification time (when the conversion produced it), UTC.
+    try:
+        mtime = Path(wf.log_path).stat().st_mtime
+        result['report_timestamp'] = (
+            datetime.fromtimestamp(mtime, tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        )
+    except OSError:
+        pass
     ensemble = _ensemble_composition(report)
     if ensemble:
         result['ensemble_composition'] = ensemble
+    # Per-saveframe bookkeeping for the restraint / spectral-peak subtypes (the
+    # heavy validation sub-tables are excluded from `pruned`; here we keep only
+    # the common bookkeeping counts + atom-name mapping).
+    result['restraint_bookkeeping'] = {
+        key: _bookkeeping_saveframes(stats, key)
+        for key in ('dist_restraint', 'dihed_restraint', 'rdc_restraint', 'spectral_peak')
+    }
     return result
 
 
