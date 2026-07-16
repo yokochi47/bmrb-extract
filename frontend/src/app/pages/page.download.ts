@@ -11,7 +11,7 @@ import { PanelModule } from 'primeng/panel';
 import { timer } from 'rxjs';
 import { switchMap, takeWhile } from 'rxjs/operators';
 
-import { PageService } from './page.service';
+import { PageService, TargetDepsys } from './page.service';
 import { API_URL } from '../../site.config';
 import { fileTypeLabel } from './file-types';
 import { EchartComponent } from './echart.component';
@@ -570,6 +570,17 @@ export class Download {
   statsAvailable = signal<boolean | null>(null);
   /** Report file modification time (UTC, "YYYY-MM-DD HH:MM:SS"); null until loaded. */
   reportTimestamp = signal<string | null>(null);
+  /** Human-readable deposition target the converted output is intended for. */
+  outputUsedFor = computed(() => {
+    switch (this.pageService.pageState().targetDepsys) {
+      case TargetDepsys.repl_cs:
+        return 'OneDep (ongoing deposition - replacing assigned chemical shifts)';
+      case TargetDepsys.bmrbdep:
+        return 'BMRBdep (new deposition)';
+      default:
+        return 'OneDep (new deposition)';
+    }
+  });
   /** Restraint / spectral-peak bookkeeping saveframes, keyed by subtype. */
   restraintBookkeeping = signal<Record<string, RestraintBookkeepingSaveframe[]>>({});
 

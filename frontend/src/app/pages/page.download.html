@@ -146,9 +146,17 @@
       <!-- /information/output_statistics/[entry_id, entry_title, entry_authors, submission_date, processed_date, processed_site, file_name, file_type, file_size, md5_checksum, model/* (if not null)] -->
       <p-card header="Provenance information" styleClass="mb-6">
         <div class="overflow-x-auto">
-          <p class="text-base mx-2 mb-2">Conversion ID: {{ publicId() }}</p>
-          <p class="text-base mx-2 mb-2">Timestamp (UTC): {{ reportTimestamp() }}</p>
-          <p class="text-lg mb-2">Input files</p>
+          <p class="text-base font-medium mx-2 mb-2">
+            Conversion ID: <span class="underline">{{ publicId() }}</span>
+          </p>
+          <p class="text-base font-medium mx-2 mb-2">
+            Output used for: <span class="underline">{{ outputUsedFor() }}</span>
+          </p>
+          <p class="text-base font-medium mx-2 mb-2">
+            Timestamp (UTC): <span class="underline">{{ reportTimestamp() }}</span>
+          </p>
+
+          <p class="text-lg mt-2 mb-2">Input files</p>
           <div class="overflow-x-auto mb-4">
             <table class="w-full text-sm border-collapse">
               <thead>
@@ -208,7 +216,7 @@
           </div>
 
           <p class="text-lg mb-2">Output files</p>
-          <p class="text-base font-medium mx-4 mb-2">NMR data</p>
+          <p class="text-base font-medium mx-2 mb-2 underline">NMR data</p>
           <div class="overflow-x-auto mb-4">
             <table class="w-full text-sm border-collapse">
               <tbody>
@@ -223,7 +231,7 @@
           </div>
 
           @if (modelProps().length) {
-            <p class="text-base font-medium mx-4 mb-2">Coordinates</p>
+            <p class="text-base font-medium mx-2 mb-2 underline">Coordinates</p>
             <div class="overflow-x-auto mb-4">
               <table class="w-full text-sm border-collapse">
                 <tbody>
@@ -393,6 +401,12 @@
 
             @if (ensemblePcaChart(); as pca) {
               <p class="text-base mt-6 mb-2">Clustering analysis of models in the ensemble</p>
+              <p class="text-base mb-4 mx-2">
+                The image below shows a Principal Component Analysis (PCA) plot used for clustering
+                the models in the ensemble. However, since the actual clustering was performed using
+                higher-dimensional features, the plot and the clustering results may not visually
+                align.
+              </p>
               <app-echart
                 [option]="pca.option"
                 [height]="380"
@@ -575,7 +589,7 @@
           @for (s of entitySequences(); track $index) {
             <div class="mt-4">
               <div class="text-base font-medium mt-4 mb-2">
-                One-letter code sequence of Entity_ID: {{ s.entity_id }}
+                One-letter code sequence of Entity ID: {{ s.entity_id }}
               </div>
               <pre
                 class="m-0 px-2 py-1 text-sm leading-tight overflow-x-auto whitespace-pre-wrap break-all bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 rounded"
@@ -910,12 +924,12 @@
                       <th
                         class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                       >
-                        Comp_ID
+                        Comp ID
                       </th>
                       <th
                         class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                       >
-                        Mapping history (Author-defined atom name → Atom_IDs in NMR data)
+                        Mapping history (Author-defined atom name → Atom names in NMR data)
                       </th>
                     </tr>
                   </thead>
@@ -963,7 +977,7 @@
                 }
               </p>
               <div class="overflow-x-auto">
-                <table class="w-full text-sm border-collapse mb-6">
+                <table class="w-full text-sm border-collapse mb-4">
                   <thead>
                     <tr>
                       <th
@@ -971,7 +985,7 @@
                       ></th>
                       @for (col of c.view.columns; track $index) {
                         <th
-                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                          class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
                         >
                           {{ col }}
                         </th>
@@ -987,7 +1001,9 @@
                           {{ row.label }}
                         </td>
                         @for (cell of row.cells; track $index) {
-                          <td class="px-2 py-1 tabular-nums whitespace-nowrap">{{ cell }}</td>
+                          <td class="px-2 py-1 tabular-nums whitespace-nowrap text-center">
+                            {{ cell }}
+                          </td>
                         }
                       </tr>
                     }
@@ -1000,116 +1016,115 @@
               5.{{ sf.listId }}.3 Statistically unusual chemical shifts
             </p>
             @if (sf.outlierCount > 0 && sf.outlier.length) {
-              <p-panel [toggleable]="true" [collapsed]="true" styleClass="mt-2 mb-4">
-                <ng-template pTemplate="header">
-                  <span class="font-medium">
-                    The following table lists the statistically unusual
-                    <strong>{{ sf.outlierCount }}</strong>
-                    chemical shifts. These are statistical measures, and large deviations from the
-                    mean do not necessarily imply incorrect assignments. Molecules containing
-                    paramagnetic centres or hemes are expected to give rise to anomalous chemical
-                    shifts.
-                  </span>
-                </ng-template>
-                <div class="overflow-x-auto">
-                  <table class="w-full text-sm border-collapse">
-                    <thead>
-                      <tr>
-                        <th
-                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
-                        >
-                          Auth chain
-                        </th>
-                        <th
-                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
-                        >
-                          @if (sf.showOutlierDetails) {
-                            Seq ID
-                          } @else {
-                            Auth seq ID
-                          }
-                        </th>
-                        @if (sf.showOutlierInsCode) {
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
-                          >
-                            Ins code
-                          </th>
-                        }
-                        <th
-                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                        >
-                          @if (sf.showOutlierDetails) {
-                            Comp
-                          } @else {
-                            Comp ID
-                          }
-                        </th>
-                        <th
-                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600"
-                        >
-                          @if (sf.showOutlierDetails) {
-                            Atom
-                          } @else {
-                            Atom ID
-                          }
-                        </th>
-                        <th
-                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                        >
-                          Value
-                        </th>
-                        <th
-                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
-                        >
-                          Ambig code
-                        </th>
-                        <th
-                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
-                        >
-                          Z score
-                        </th>
-                        <th
-                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
-                        >
-                          Expected range
-                        </th>
+              <p class="text-base mb-4 mx-2">
+                The following table lists the statistically unusual
+                <strong>{{ sf.outlierCount }}</strong>
+                chemical shifts. These are statistical measures, and large deviations from the mean
+                do not necessarily imply incorrect assignments. Molecules containing paramagnetic
+                centres or hemes are expected to give rise to anomalous chemical shifts.
+              </p>
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm border-collapse mb-4">
+                  <thead>
+                    <tr>
+                      <th
+                        class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                      >
+                        Auth chain
+                      </th>
+                      <th
+                        class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                      >
                         @if (sf.showOutlierDetails) {
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                          >
-                            Details
-                          </th>
+                          Seq ID
+                        } @else {
+                          Auth seq ID
+                        }
+                      </th>
+                      @if (sf.showOutlierInsCode) {
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                        >
+                          Ins code
+                        </th>
+                      }
+                      <th
+                        class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                      >
+                        @if (sf.showOutlierDetails) {
+                          Comp.
+                        } @else {
+                          Comp ID
+                        }
+                      </th>
+                      <th
+                        class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600"
+                      >
+                        @if (sf.showOutlierDetails) {
+                          Atom.
+                        } @else {
+                          Atom ID
+                        }
+                      </th>
+                      <th
+                        class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                      >
+                        Value
+                      </th>
+                      <th
+                        class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                      >
+                        @if (sf.showOutlierDetails) {
+                          Ambig.
+                        } @else {
+                          Ambig code
+                        }
+                      </th>
+                      <th
+                        class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                      >
+                        Z score
+                      </th>
+                      <th
+                        class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                      >
+                        Expected range
+                      </th>
+                      @if (sf.showOutlierDetails) {
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                        >
+                          Details
+                        </th>
+                      }
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (o of sf.outlier; track $index) {
+                      <tr class="border-b border-surface-100 dark:border-surface-800">
+                        <td class="px-2 py-1">{{ o.auth_chain_id }}</td>
+                        <td class="px-2 py-1">{{ o.auth_seq_id }}</td>
+                        @if (sf.showOutlierInsCode) {
+                          <td class="px-2 py-1">{{ o.ins_code }}</td>
+                        }
+                        <td class="px-2 py-1">{{ o.comp_id }}</td>
+                        <td class="px-2 py-1 border-r border-surface-300 dark:border-surface-600">
+                          {{ o.atom_id }}
+                        </td>
+                        <td class="px-2 py-1 tabular-nums">{{ o.value }}</td>
+                        <td class="px-2 py-1 tabular-nums">{{ o.ambig_code }}</td>
+                        <td class="px-2 py-1 tabular-nums">{{ o.z_score }}</td>
+                        <td class="px-2 py-1 tabular-nums whitespace-nowrap">
+                          {{ o.expected_range?.min_value }} – {{ o.expected_range?.max_value }}
+                        </td>
+                        @if (sf.showOutlierDetails) {
+                          <td class="px-2 py-1">{{ o.details }}</td>
                         }
                       </tr>
-                    </thead>
-                    <tbody>
-                      @for (o of sf.outlier; track $index) {
-                        <tr class="border-b border-surface-100 dark:border-surface-800">
-                          <td class="px-2 py-1">{{ o.auth_chain_id }}</td>
-                          <td class="px-2 py-1">{{ o.auth_seq_id }}</td>
-                          @if (sf.showOutlierInsCode) {
-                            <td class="px-2 py-1">{{ o.ins_code }}</td>
-                          }
-                          <td class="px-2 py-1">{{ o.comp_id }}</td>
-                          <td class="px-2 py-1 border-r border-surface-300 dark:border-surface-600">
-                            {{ o.atom_id }}
-                          </td>
-                          <td class="px-2 py-1 tabular-nums">{{ o.value }}</td>
-                          <td class="px-2 py-1 tabular-nums">{{ o.ambig_code }}</td>
-                          <td class="px-2 py-1 tabular-nums">{{ o.z_score }}</td>
-                          <td class="px-2 py-1 tabular-nums whitespace-nowrap">
-                            {{ o.expected_range?.min_value }} – {{ o.expected_range?.max_value }}
-                          </td>
-                          @if (sf.showOutlierDetails) {
-                            <td class="px-2 py-1">{{ o.details }}</td>
-                          }
-                        </tr>
-                      }
-                    </tbody>
-                  </table>
-                </div>
-              </p-panel>
+                    }
+                  </tbody>
+                </table>
+              </div>
             } @else {
               <p class="text-surface-500 py-2">
                 There is no unusual chemical shifts meaning that all chemical shift values assigned
@@ -1325,12 +1340,12 @@
                           <th
                             class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                           >
-                            Comp_ID
+                            Comp ID
                           </th>
                           <th
                             class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                           >
-                            Mapping history (Author-defined atom name → Atom_IDs in NMR data)
+                            Mapping history (Author-defined atom name → Atom names in NMR data)
                           </th>
                         </tr>
                       </thead>
@@ -1409,42 +1424,42 @@
                 </tr>
                 <tr>
                   <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
                   >
                     Count
                   </th>
                   <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600 whitespace-nowrap"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600 whitespace-nowrap"
                   >
                     Absol. (%)
                   </th>
                   <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
                   >
                     Count
                   </th>
                   <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
                   >
                     Inline (%)
                   </th>
                   <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600 whitespace-nowrap"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600 whitespace-nowrap"
                   >
                     Absol. (%)
                   </th>
                   <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
                   >
                     Count
                   </th>
                   <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
                   >
                     Inline (%)
                   </th>
                   <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
                   >
                     Absol. (%)
                   </th>
@@ -1456,24 +1471,26 @@
                     <td class="px-2 py-1 border-r border-surface-300 dark:border-surface-600">
                       {{ restraintTypeLabel(r.restraint_type) }}
                     </td>
-                    <td class="px-2 py-1 tabular-nums">{{ r.restraint_count }}</td>
+                    <td class="px-2 py-1 tabular-nums text-center">{{ r.restraint_count }}</td>
                     <td
-                      class="px-2 py-1 tabular-nums border-r border-surface-300 dark:border-surface-600"
+                      class="px-2 py-1 tabular-nums text-center border-r border-surface-300 dark:border-surface-600"
                     >
                       {{ percent1(r.restraint_percent) }}
                     </td>
-                    <td class="px-2 py-1 tabular-nums">{{ r.viol_count }}</td>
-                    <td class="px-2 py-1 tabular-nums">{{ percent1(r.viol_inline_percent) }}</td>
+                    <td class="px-2 py-1 tabular-nums text-center">{{ r.viol_count }}</td>
+                    <td class="px-2 py-1 tabular-nums text-center">
+                      {{ percent1(r.viol_inline_percent) }}
+                    </td>
                     <td
-                      class="px-2 py-1 tabular-nums border-r border-surface-300 dark:border-surface-600"
+                      class="px-2 py-1 tabular-nums text-center border-r border-surface-300 dark:border-surface-600"
                     >
                       {{ percent1(r.viol_absol_percent) }}
                     </td>
-                    <td class="px-2 py-1 tabular-nums">{{ r.consist_viol_count }}</td>
-                    <td class="px-2 py-1 tabular-nums">
+                    <td class="px-2 py-1 tabular-nums text-center">{{ r.consist_viol_count }}</td>
+                    <td class="px-2 py-1 tabular-nums text-center">
                       {{ percent1(r.consist_viol_inline_percent) }}
                     </td>
-                    <td class="px-2 py-1 tabular-nums">
+                    <td class="px-2 py-1 tabular-nums text-center">
                       {{ percent1(r.consist_viol_absol_percent) }}
                     </td>
                   </tr>
@@ -1492,7 +1509,7 @@
           <p class="text-base font-medium mt-4 mb-2">8.1 Summary of dihedral-angle violations</p>
           <p class="text-base mb-4 mx-2">
             The following table provides the summary of dihedral-angle violations in different
-            dihedral-angle types. Violations less than 1◦ are not included in the calculation.
+            dihedral-angle types. Violations less than 1° are not included in the calculation.
             Absolute percentage (marked as 'Absol.') were calculated with respect to the total
             number of dihedral-angle restraints. Inline percentage (marked as 'Inline') were
             calculated with respect to the number of restraints in a particular restraint category.
@@ -1531,42 +1548,42 @@
                 </tr>
                 <tr>
                   <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
                   >
                     Count
                   </th>
                   <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600 whitespace-nowrap"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600 whitespace-nowrap"
                   >
                     Absol. (%)
                   </th>
                   <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
                   >
                     Count
                   </th>
                   <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
                   >
                     Inline (%)
                   </th>
                   <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600 whitespace-nowrap"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600 whitespace-nowrap"
                   >
                     Absol. (%)
                   </th>
                   <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
                   >
                     Count
                   </th>
                   <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
                   >
                     Inline (%)
                   </th>
                   <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
                   >
                     Absol. (%)
                   </th>
@@ -1578,24 +1595,26 @@
                     <td class="px-2 py-1 border-r border-surface-300 dark:border-surface-600">
                       {{ restraintTypeLabel(r.restraint_type) }}
                     </td>
-                    <td class="px-2 py-1 tabular-nums">{{ r.restraint_count }}</td>
+                    <td class="px-2 py-1 tabular-nums text-center">{{ r.restraint_count }}</td>
                     <td
-                      class="px-2 py-1 tabular-nums border-r border-surface-300 dark:border-surface-600"
+                      class="px-2 py-1 tabular-nums text-center border-r border-surface-300 dark:border-surface-600"
                     >
                       {{ percent1(r.restraint_percent) }}
                     </td>
-                    <td class="px-2 py-1 tabular-nums">{{ r.viol_count }}</td>
-                    <td class="px-2 py-1 tabular-nums">{{ percent1(r.viol_inline_percent) }}</td>
+                    <td class="px-2 py-1 tabular-nums text-center">{{ r.viol_count }}</td>
+                    <td class="px-2 py-1 tabular-nums text-center">
+                      {{ percent1(r.viol_inline_percent) }}
+                    </td>
                     <td
-                      class="px-2 py-1 tabular-nums border-r border-surface-300 dark:border-surface-600"
+                      class="px-2 py-1 tabular-nums text-center border-r border-surface-300 dark:border-surface-600"
                     >
                       {{ percent1(r.viol_absol_percent) }}
                     </td>
-                    <td class="px-2 py-1 tabular-nums">{{ r.consist_viol_count }}</td>
-                    <td class="px-2 py-1 tabular-nums">
+                    <td class="px-2 py-1 tabular-nums text-center">{{ r.consist_viol_count }}</td>
+                    <td class="px-2 py-1 tabular-nums text-center">
                       {{ percent1(r.consist_viol_inline_percent) }}
                     </td>
-                    <td class="px-2 py-1 tabular-nums">
+                    <td class="px-2 py-1 tabular-nums text-center">
                       {{ percent1(r.consist_viol_absol_percent) }}
                     </td>
                   </tr>
