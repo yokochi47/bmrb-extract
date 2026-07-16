@@ -7,7 +7,7 @@ import re
 import smtplib
 import traceback
 import zipfile
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from pathlib import Path
 
@@ -2951,6 +2951,14 @@ async def get_output_statistics():
             saveframes.append(row)
         pruned['chem_shift'] = saveframes
     result = {'available': True, 'statistics': pruned}
+    # Report file modification time (when the conversion produced it), UTC.
+    try:
+        mtime = Path(wf.log_path).stat().st_mtime
+        result['report_timestamp'] = (
+            datetime.fromtimestamp(mtime, tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        )
+    except OSError:
+        pass
     ensemble = _ensemble_composition(report)
     if ensemble:
         result['ensemble_composition'] = ensemble

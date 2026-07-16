@@ -504,6 +504,7 @@ export class Download {
         available: boolean;
         statistics?: OutputStatistics;
         ensemble_composition?: StatEnsembleComposition;
+        report_timestamp?: string;
       }>(API_URL + 'output_statistics', {
         params: { token },
       })
@@ -511,6 +512,7 @@ export class Download {
         next: (res) => {
           this.statistics.set(res.statistics ?? null);
           this.ensemble.set(res.ensemble_composition ?? null);
+          this.reportTimestamp.set(res.report_timestamp ?? null);
           this.statsAvailable.set(!!res.available);
         },
         error: (err) => {
@@ -539,6 +541,8 @@ export class Download {
   statistics = signal<OutputStatistics | null>(null);
   /** Tri-state: null = loading, false = not available, true = show the cards. */
   statsAvailable = signal<boolean | null>(null);
+  /** Report file modification time (UTC, "YYYY-MM-DD HH:MM:SS"); null until loaded. */
+  reportTimestamp = signal<string | null>(null);
 
   /** Coordinate ensemble composition (GET /api/output_statistics); null when the
    * report has no pdbx input source with a well-defined-region analysis. */

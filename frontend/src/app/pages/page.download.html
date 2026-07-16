@@ -146,7 +146,8 @@
       <!-- /information/output_statistics/[entry_id, entry_title, entry_authors, submission_date, processed_date, processed_site, file_name, file_type, file_size, md5_checksum, model/* (if not null)] -->
       <p-card header="Provenance information" styleClass="mb-6">
         <div class="overflow-x-auto">
-          <p class="text-lg mx-2 mb-2">Conversion ID: {{ publicId() }}</p>
+          <p class="text-base mx-2 mb-2">Conversion ID: {{ publicId() }}</p>
+          <p class="text-base mx-2 mb-2">Timestamp (UTC): {{ reportTimestamp() }}</p>
           <p class="text-lg mb-2">Input files</p>
           <div class="overflow-x-auto mb-4">
             <table class="w-full text-sm border-collapse">
@@ -392,8 +393,9 @@
               <p class="text-base mt-6 mb-2">Clustering analysis of models in the ensemble</p>
               <app-echart
                 [option]="pca.option"
-                [height]="240"
+                [height]="380"
                 [aspect]="1"
+                [maxHeight]="380"
                 [marginX]="pca.marginX"
                 [marginY]="pca.marginY"
               />
