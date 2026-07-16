@@ -2710,6 +2710,14 @@ _OUTPUT_STATS_EXCLUDE = {
     'dist_restraint', 'dihed_restraint', 'rdc_restraint', 'spectral_peak',
 }
 
+# Columns kept from restraint_summary.dist_violation_summary (per-category
+# distance-violation counts/percentages).
+_DIST_VIOLATION_SUMMARY_KEYS = (
+    'restraint_type', 'restraint_count', 'restraint_percent',
+    'viol_count', 'viol_inline_percent', 'viol_absol_percent',
+    'consist_viol_count', 'consist_viol_inline_percent', 'consist_viol_absol_percent',
+)
+
 # Per-saveframe chemical-shift bookkeeping fields kept for the download-page
 # 'Assigned chemical shift summary' — the large validation sub-tables (RCI charts,
 # atom-name mapping, per-shift completeness/outlier lists) are dropped.
@@ -2889,6 +2897,14 @@ async def get_output_statistics():
                     {k: e[k] for k in ('bin_type', 'average_number_of_violations_per_model',
                                        'max_violation_in_bin') if k in e}
                     for e in avg if isinstance(e, dict)
+                ]
+        # Keep the per-category distance/dihedral-violation summary tables.
+        for vs_key in ('dist_violation_summary', 'dihed_violation_summary'):
+            vs = rs.get(vs_key)
+            if isinstance(vs, list) and vs:
+                summary[vs_key] = [
+                    {k: e[k] for k in _DIST_VIOLATION_SUMMARY_KEYS if k in e}
+                    for e in vs if isinstance(e, dict)
                 ]
         pruned['restraint_summary'] = summary
     # chem_shift: keep only the per-saveframe bookkeeping counts for the

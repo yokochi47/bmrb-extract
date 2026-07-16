@@ -1269,21 +1269,250 @@
         }
       </p-card>
 
-      <!-- /information/output_statistics/restraint_summary/dist_violation_summary >
+      <!-- /information/output_statistics/restraint_summary/dist_violation_summary -->
       <p-card header="7. Distance violation analysis" styleClass="mb-6">
         @if (distViolationSummary().length) {
+          <p class="text-base font-medium mt-4 mb-2">7.1 Summary of distance violations</p>
+          <p class="text-base mb-4 mx-2">
+            The following table shows the summary of distance violations in different restraint
+            categories based on the sequence separation of the atoms involved. Each category is
+            further sub-divided into three sub-categories based on the atoms involved. Violations
+            less than 0.1 Å are not included in the statistics. Absolute percentage (marked as
+            'Absol.') were calculated with respect to the total number of distance restraints.
+            Inline percentage (marked as 'Inline') were calculated with respect to the number of
+            restraints in a particular restraint category. The violations indicate the total number
+            of restraints violated in at least one model. On the other hand, consistent violations
+            indicate the total number of restranits violated in all models.
+          </p>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm border-collapse">
+              <thead>
+                <tr>
+                  <th
+                    rowspan="2"
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600 align-bottom"
+                  >
+                    Restraint type
+                  </th>
+                  <th
+                    colspan="2"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600"
+                  >
+                    Restraints
+                  </th>
+                  <th
+                    colspan="3"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600"
+                  >
+                    Violations
+                  </th>
+                  <th
+                    colspan="3"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    Consistent violations
+                  </th>
+                </tr>
+                <tr>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Count
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600 whitespace-nowrap"
+                  >
+                    Absol. (%)
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Count
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Inline (%)
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600 whitespace-nowrap"
+                  >
+                    Absol. (%)
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Count
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Inline (%)
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Absol. (%)
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (r of distViolationSummary(); track $index) {
+                  <tr class="border-b border-surface-100 dark:border-surface-800">
+                    <td class="px-2 py-1 border-r border-surface-300 dark:border-surface-600">
+                      {{ restraintTypeLabel(r.restraint_type) }}
+                    </td>
+                    <td class="px-2 py-1 tabular-nums">{{ r.restraint_count }}</td>
+                    <td
+                      class="px-2 py-1 tabular-nums border-r border-surface-300 dark:border-surface-600"
+                    >
+                      {{ percent1(r.restraint_percent) }}
+                    </td>
+                    <td class="px-2 py-1 tabular-nums">{{ r.viol_count }}</td>
+                    <td class="px-2 py-1 tabular-nums">{{ percent1(r.viol_inline_percent) }}</td>
+                    <td
+                      class="px-2 py-1 tabular-nums border-r border-surface-300 dark:border-surface-600"
+                    >
+                      {{ percent1(r.viol_absol_percent) }}
+                    </td>
+                    <td class="px-2 py-1 tabular-nums">{{ r.consist_viol_count }}</td>
+                    <td class="px-2 py-1 tabular-nums">
+                      {{ percent1(r.consist_viol_inline_percent) }}
+                    </td>
+                    <td class="px-2 py-1 tabular-nums">
+                      {{ percent1(r.consist_viol_absol_percent) }}
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
         } @else {
           <p class="text-surface-500 py-2">There is no distance restraints.</p>
         }
-      </p-card -->
+      </p-card>
 
-      <!-- /information/output_statistics/restraint_summary/dihed_violation_summary >
+      <!-- /information/output_statistics/restraint_summary/dihed_violation_summary -->
       <p-card header="8. Dihedral-angle violation analysis" styleClass="mb-6">
-        @if (distViolationSummary().length) {
+        @if (dihedViolationSummary().length) {
+          <p class="text-base font-medium mt-4 mb-2">8.1 Summary of dihedral-angle violations</p>
+          <p class="text-base mb-4 mx-2">
+            The following table provides the summary of dihedral-angle violations in different
+            dihedral-angle types. Violations less than 1◦ are not included in the calculation.
+            Absolute percentage (marked as 'Absol.') were calculated with respect to the total
+            number of dihedral-angle restraints. Inline percentage (marked as 'Inline') were
+            calculated with respect to the number of restraints in a particular restraint category.
+            The violations indicate the total number of restraints violated in at least one model.
+            On the other hand, consistent violations indicate the total number of restranits
+            violated in all models.
+          </p>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm border-collapse">
+              <thead>
+                <tr>
+                  <th
+                    rowspan="2"
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600 align-bottom"
+                  >
+                    Restraint type
+                  </th>
+                  <th
+                    colspan="2"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600"
+                  >
+                    Restraints
+                  </th>
+                  <th
+                    colspan="3"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600"
+                  >
+                    Violations
+                  </th>
+                  <th
+                    colspan="3"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                  >
+                    Consistent violations
+                  </th>
+                </tr>
+                <tr>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Count
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600 whitespace-nowrap"
+                  >
+                    Absol. (%)
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Count
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Inline (%)
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600 whitespace-nowrap"
+                  >
+                    Absol. (%)
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Count
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Inline (%)
+                  </th>
+                  <th
+                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                  >
+                    Absol. (%)
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (r of dihedViolationSummary(); track $index) {
+                  <tr class="border-b border-surface-100 dark:border-surface-800">
+                    <td class="px-2 py-1 border-r border-surface-300 dark:border-surface-600">
+                      {{ restraintTypeLabel(r.restraint_type) }}
+                    </td>
+                    <td class="px-2 py-1 tabular-nums">{{ r.restraint_count }}</td>
+                    <td
+                      class="px-2 py-1 tabular-nums border-r border-surface-300 dark:border-surface-600"
+                    >
+                      {{ percent1(r.restraint_percent) }}
+                    </td>
+                    <td class="px-2 py-1 tabular-nums">{{ r.viol_count }}</td>
+                    <td class="px-2 py-1 tabular-nums">{{ percent1(r.viol_inline_percent) }}</td>
+                    <td
+                      class="px-2 py-1 tabular-nums border-r border-surface-300 dark:border-surface-600"
+                    >
+                      {{ percent1(r.viol_absol_percent) }}
+                    </td>
+                    <td class="px-2 py-1 tabular-nums">{{ r.consist_viol_count }}</td>
+                    <td class="px-2 py-1 tabular-nums">
+                      {{ percent1(r.consist_viol_inline_percent) }}
+                    </td>
+                    <td class="px-2 py-1 tabular-nums">
+                      {{ percent1(r.consist_viol_absol_percent) }}
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
         } @else {
-          <p class="text-surface-500 py-2">There is no dihedral angle restraints.</p>
+          <p class="text-surface-500 py-2">There is no dihedral-angle restraints.</p>
         }
-      </p-card -->
+      </p-card>
     }
   </div>
 }

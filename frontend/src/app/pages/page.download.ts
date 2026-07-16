@@ -366,6 +366,18 @@ interface ViolationBin {
   average_number_of_violations_per_model?: number | null;
   max_violation_in_bin?: number | null;
 }
+/** One category row of restraint_summary.{dist,dihed}_violation_summary. */
+interface ViolationSummaryRow {
+  restraint_type?: string;
+  restraint_count?: number;
+  restraint_percent?: number;
+  viol_count?: number;
+  viol_inline_percent?: number | null;
+  viol_absol_percent?: number;
+  consist_viol_count?: number;
+  consist_viol_inline_percent?: number | null;
+  consist_viol_absol_percent?: number;
+}
 
 /** Display order of the restraint_summary key-value rows. Keys not listed here
  * are appended in their original order. */
@@ -1062,6 +1074,37 @@ export class Download {
     const v = rs?.['average_number_of_dihed_violations_per_model'];
     return Array.isArray(v) ? (v as ViolationBin[]) : [];
   });
+  /** Per-category distance-violation summary rows for the violation-analysis table. */
+  distViolationSummary = computed<ViolationSummaryRow[]>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const v = rs?.['dist_violation_summary'];
+    return Array.isArray(v) ? (v as ViolationSummaryRow[]) : [];
+  });
+  /** Per-category dihedral-angle-violation summary rows. */
+  dihedViolationSummary = computed<ViolationSummaryRow[]>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const v = rs?.['dihed_violation_summary'];
+    return Array.isArray(v) ? (v as ViolationSummaryRow[]) : [];
+  });
+
+  /** Display label for a violation-summary restraint_type: underscores become
+   * spaces; a leading abbreviation prefix ("ir;", "lr;", "total;", …) becomes a
+   * two-space (non-breaking) indent and stays lower-case; top-level types have
+   * their first character capitalized. */
+  restraintTypeLabel(type: string | undefined): string {
+    if (!type) return '';
+    const semi = type.indexOf(';');
+    if (semi >= 0) {
+      return '  ' + type.slice(semi + 1).replace(/_/g, ' ').trimStart();
+    }
+    const s = type.replace(/_/g, ' ');
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
+  /** Format a 0–100 percentage to one decimal place (empty string when null). */
+  percent1(v: number | null | undefined): string {
+    return v == null ? '' : v.toFixed(1);
+  }
 
   /** Public conversion id (C_<id>) and the results zip file name. */
   publicId = computed(() => {
