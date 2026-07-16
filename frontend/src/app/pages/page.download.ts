@@ -739,6 +739,7 @@ export class Download {
   chemShiftSaveframes = computed<
     {
       title: string;
+      listId: string;
       rows: KVRow[];
       unmapped: StatChemShiftUnmapped[];
       unmappedCount: number;
@@ -780,7 +781,8 @@ export class Download {
         return view ? [{ phrase, view }] : [];
       });
       return {
-        title: `Bookkeeping — ${s.list_id}. ${s.sf_framecode} (${s.original_file_name})`.trim(),
+        title: `5.${s.list_id} Bookkeeping — ${s.sf_framecode} (${s.original_file_name})`.trim(),
+        listId: `${s.list_id}`,
         rows: [
           this.kv('Number of parsed shifts', s.number_of_parsed),
           this.kv('Number of shifts mapped to model', s.number_of_mapped_to_model),
