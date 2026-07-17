@@ -1515,7 +1515,10 @@
             </p>
             <p class="text-base mb-4 mx-2">
               The following table provides the distance violation statistics for each model in the
-              ensemble. Violations less than 0.1 Å are not included in the statistics.
+              ensemble. Violations less than 0.1 Å are not included in the statistics. The acronyms
+              used in the table (IR, SQ, MR, LR, and IC) represent intra-residue restraints,
+              sequential restraints, medium-range restraints, long-range restraints, and inter-chain
+              restraints, respectively.
             </p>
             @if (distModelViolations(); as t) {
               <div class="overflow-x-auto">
@@ -1588,6 +1591,15 @@
                 </table>
               </div>
             }
+          }
+
+          @if (distModelViolationsChart(); as opt) {
+            <p class="text-base mt-2 mb-2">Distance violation statistics for each model</p>
+            <p class="text-base mb-2 mx-4">
+              The mean(dot), median(x) and the standard deviation are shown in blue with respect to
+              the y axis on the right.
+            </p>
+            <app-echart [option]="opt" [height]="440" />
           }
         } @else {
           <p class="text-surface-500 py-2">There is no distance restraints.</p>
@@ -1751,7 +1763,7 @@
                       >
                         Number of violations
                       </th>
-                      @for (h of ['Mean (°)', 'Max (°)', 'σ (°)', 'Median (°)']; track $index) {
+                      @for (h of ['Mean (°)', 'Max (°)', 'Std (°)', 'Median (°)']; track $index) {
                         <th
                           rowspan="2"
                           class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 align-bottom whitespace-nowrap"
@@ -1805,6 +1817,15 @@
                 </table>
               </div>
             }
+          }
+
+          @if (dihedModelViolationsChart(); as opt) {
+            <p class="text-base mt-2 mb-2">Dihderal-angle violation statistics for each model</p>
+            <p class="text-base mb-2 mx-4">
+              The mean(dot), median(x) and the standard deviation are shown in blue with respect to
+              the y axis on the right.
+            </p>
+            <app-echart [option]="opt" [height]="440" />
           }
         } @else {
           <p class="text-surface-500 py-2">There is no dihedral-angle restraints.</p>
