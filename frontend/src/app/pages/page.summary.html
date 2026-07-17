@@ -325,7 +325,7 @@
                   Status
                 </th>
                 <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
-                  {{ f.has_sets ? '# of rows (sets)' : '# of rows' }}
+                  {{ f.has_sets ? '# of parsed (sets)' : '# of rows' }}
                 </th>
                 <th class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700">
                   Experiment type
@@ -599,6 +599,24 @@
                 <li>{{ d }}</li>
               }
             </ul>
+          }
+
+          @if (bookkeepingBySf()[sf.sf_framecode]; as bkRows) {
+            @if (bkRows.length) {
+              <div class="mb-4 overflow-x-auto">
+                <div class="font-medium mb-2">Bookkeeping</div>
+                <table class="w-full text-sm border-collapse">
+                  <tbody>
+                    @for (p of bkRows; track $index) {
+                      <tr class="border-b border-surface-100 dark:border-surface-800">
+                        <td class="px-2 py-1 font-medium align-top w-96">{{ p.label }}</td>
+                        <td class="px-2 py-1 break-all">{{ p.value }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
           }
 
           <!-- Total number of assignments -->
@@ -954,6 +972,24 @@
             </ul>
           }
 
+          @if (bookkeepingBySf()[sf.sf_framecode]; as bkRows) {
+            @if (bkRows.length) {
+              <div class="mb-4 overflow-x-auto">
+                <div class="font-medium mb-2">Bookkeeping</div>
+                <table class="w-full text-sm border-collapse">
+                  <tbody>
+                    @for (p of bkRows; track $index) {
+                      <tr class="border-b border-surface-100 dark:border-surface-800">
+                        <td class="px-2 py-1 font-medium align-top w-96">{{ p.label }}</td>
+                        <td class="px-2 py-1 break-all">{{ p.value }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          }
+
           <!-- Number / weight / potential type of constraints — hierarchical
                lists (number_of_constraints carries the target range / experiment). -->
           @for (cl of sf.constraint_lists; track cl.key) {
@@ -962,18 +998,18 @@
                 {{ cl.title }}
                 @if (cl.key === 'number') {
                   @if (sf.range) {
-                    <span class="text-sm text-surface-600 dark:text-surface-300"
+                    <span class="text-base text-surface-600 dark:text-surface-300"
                       >— target range <strong>{{ sf.range }}</strong></span
                     >
                   }
                   @if (sf.exp_type) {
-                    <span class="text-sm text-surface-600 dark:text-surface-300"
+                    <span class="text-base text-surface-600 dark:text-surface-300"
                       >· <strong>{{ sf.exp_type }}</strong></span
                     >
                   }
                 }
               </div>
-              <div class="text-sm nmr-tree" [innerHTML]="cl.html"></div>
+              <div class="text-base nmr-tree" [innerHTML]="cl.html"></div>
             </div>
           }
 
@@ -1122,6 +1158,24 @@
             </ul>
           }
 
+          @if (bookkeepingBySf()[sf.sf_framecode]; as bkRows) {
+            @if (bkRows.length) {
+              <div class="mb-4 overflow-x-auto">
+                <div class="font-medium mb-2">Bookkeeping</div>
+                <table class="w-full text-sm border-collapse">
+                  <tbody>
+                    @for (p of bkRows; track $index) {
+                      <tr class="border-b border-surface-100 dark:border-surface-800">
+                        <td class="px-2 py-1 font-medium align-top w-96">{{ p.label }}</td>
+                        <td class="px-2 py-1 break-all">{{ p.value }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          }
+
           <!-- Number / combined / … / weight / potential type of constraints —
                hierarchical lists (number_of_constraints carries the experiment). -->
           @for (cl of sf.constraint_lists; track cl.key) {
@@ -1129,12 +1183,12 @@
               <div class="font-medium mb-2">
                 {{ cl.title }}
                 @if (cl.key === 'number' && sf.exp_type) {
-                  <span class="text-sm text-surface-600 dark:text-surface-300"
+                  <span class="text-base text-surface-600 dark:text-surface-300"
                     >— <strong>{{ sf.exp_type }}</strong></span
                   >
                 }
               </div>
-              <div class="text-sm nmr-tree" [innerHTML]="cl.html"></div>
+              <div class="text-base nmr-tree" [innerHTML]="cl.html"></div>
             </div>
           }
 
@@ -1266,6 +1320,24 @@
             </ul>
           }
 
+          @if (bookkeepingBySf()[sf.sf_framecode]; as bkRows) {
+            @if (bkRows.length) {
+              <div class="mb-4 overflow-x-auto">
+                <div class="font-medium mb-2">Bookkeeping</div>
+                <table class="w-full text-sm border-collapse">
+                  <tbody>
+                    @for (p of bkRows; track $index) {
+                      <tr class="border-b border-surface-100 dark:border-surface-800">
+                        <td class="px-2 py-1 font-medium align-top w-96">{{ p.label }}</td>
+                        <td class="px-2 py-1 break-all">{{ p.value }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          }
+
           <!-- Number / … / weight / potential type of constraints — hierarchical
                lists (number_of_constraints carries the value range / experiment). -->
           @for (cl of sf.constraint_lists; track cl.key) {
@@ -1274,18 +1346,18 @@
                 {{ cl.title }}
                 @if (cl.key === 'number') {
                   @if (sf.range) {
-                    <span class="text-sm text-surface-600 dark:text-surface-300"
+                    <span class="text-base text-surface-600 dark:text-surface-300"
                       >— observed range <strong>{{ sf.range }}</strong></span
                     >
                   }
                   @if (sf.exp_type) {
-                    <span class="text-sm text-surface-600 dark:text-surface-300"
+                    <span class="text-base text-surface-600 dark:text-surface-300"
                       >· <strong>{{ sf.exp_type }}</strong></span
                     >
                   }
                 }
               </div>
-              <div class="text-sm nmr-tree" [innerHTML]="cl.html"></div>
+              <div class="text-base nmr-tree" [innerHTML]="cl.html"></div>
             </div>
           }
 
@@ -1410,7 +1482,7 @@
           }
 
           <!-- Experiment / peak counts -->
-          <div class="text-sm text-surface-600 dark:text-surface-300 mb-3">
+          <div class="text-base text-surface-600 dark:text-surface-300 mb-3">
             @if (sf.exp_class) {
               <span>Experiment {{ sf.exp_class }} · </span>
             }

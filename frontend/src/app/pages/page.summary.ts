@@ -375,6 +375,8 @@ interface NmrPreview {
   alignments: AlignGroup[];
   /** Coordinate ensemble composition (well-defined regions); null when absent. */
   ensemble_composition: EnsembleComposition | null;
+  /** Per-saveframe bookkeeping Property/Value rows, keyed by sf_framecode. */
+  bookkeeping: Record<string, { label: string; value: number }[]>;
 }
 /** One well-defined region of the coordinate ensemble (ensemble_composition). */
 interface EnsembleRegion {
@@ -500,6 +502,11 @@ export class Summary implements OnDestroy {
   /** Coordinate ensemble well-defined regions (shown under the coordinate preview). */
   ensembleRegions = computed<EnsembleRegion[]>(
     () => this.nmrPreview()?.ensemble_composition?.well_defined_region ?? [],
+  );
+
+  /** Per-saveframe bookkeeping rows keyed by sf_framecode (transplanted table). */
+  bookkeepingBySf = computed<Record<string, { label: string; value: number }[]>>(
+    () => this.nmrPreview()?.bookkeeping ?? {},
   );
 
   /** Per-file inventory of parsed NMR data (the single global summary). */
