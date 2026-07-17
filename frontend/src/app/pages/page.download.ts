@@ -12,7 +12,7 @@ import { timer } from 'rxjs';
 import { switchMap, takeWhile } from 'rxjs/operators';
 
 import { PageService, TargetDepsys } from './page.service';
-import { API_URL } from '../../site.config';
+import { API_URL, HOST_SITE_URL } from '../../site.config';
 import { fileTypeLabel } from './file-types';
 import { EchartComponent } from './echart.component';
 
@@ -581,6 +581,9 @@ export class Download {
         return 'OneDep (new deposition)';
     }
   });
+  /** Site that processed the conversion — the report's processed_site, falling
+   * back to this deployment's host URL. */
+  processedSite = computed(() => this.statistics()?.processed_site ?? HOST_SITE_URL);
   /** Restraint / spectral-peak bookkeeping saveframes, keyed by subtype. */
   restraintBookkeeping = signal<Record<string, RestraintBookkeepingSaveframe[]>>({});
 
@@ -1420,8 +1423,7 @@ export class Download {
   ): object | null {
     if (!rows.length) return null;
     const x = rows.map((r) => String(r['model_id']));
-    const num = (v: number | null | undefined): number | null =>
-      typeof v === 'number' ? v : null;
+    const num = (v: number | null | undefined): number | null => (typeof v === 'number' ? v : null);
     const scatter = (key: string): (string | number)[][] =>
       rows
         .map((r) => [String(r['model_id']), num(r[key])] as (string | number | null)[])
