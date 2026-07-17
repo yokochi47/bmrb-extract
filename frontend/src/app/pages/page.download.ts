@@ -12,7 +12,7 @@ import { timer } from 'rxjs';
 import { switchMap, takeWhile } from 'rxjs/operators';
 
 import { PageService, TargetDepsys } from './page.service';
-import { API_URL } from '../../site.config';
+import { API_URL, HOST_SITE_URL } from '../../site.config';
 import { fileTypeLabel } from './file-types';
 import { EchartComponent } from './echart.component';
 
@@ -581,6 +581,9 @@ export class Download {
         return 'OneDep (new deposition)';
     }
   });
+  /** Site that processed the conversion — the report's processed_site, falling
+   * back to this deployment's host URL. */
+  processedSite = computed(() => this.statistics()?.processed_site ?? HOST_SITE_URL);
   /** Restraint / spectral-peak bookkeeping saveframes, keyed by subtype. */
   restraintBookkeeping = signal<Record<string, RestraintBookkeepingSaveframe[]>>({});
 
@@ -1169,6 +1172,386 @@ export class Download {
     const v = rs?.['dihed_violation_summary'];
     return Array.isArray(v) ? (v as ViolationSummaryRow[]) : [];
   });
+
+  /** Raw per-model violation rows (gate the 7.2 / 8.2 sections). */
+  distViolationForEachModel = computed<Record<string, number | null>[]>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const v = rs?.['dist_violation_for_each_model'];
+    return Array.isArray(v) ? (v as Record<string, number | null>[]) : [];
+  });
+  dihedViolationForEachModel = computed<Record<string, number | null>[]>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const v = rs?.['dihed_violation_for_each_model'];
+    return Array.isArray(v) ? (v as Record<string, number | null>[]) : [];
+  });
+
+  /** Per-model violation statistics table (fixed distance columns). */
+  distModelViolations = computed<{
+    columns: { key: string; label: string }[];
+    rows: Record<string, number | null>[];
+  } | null>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const rows = rs?.['dist_violation_for_each_model'];
+    if (!Array.isArray(rows) || !rows.length) return null;
+    const columns = [
+      { key: 'ir_viol_count', label: 'IR' },
+      { key: 'sq_viol_count', label: 'SQ' },
+      { key: 'mr_viol_count', label: 'MR' },
+      { key: 'lr_viol_count', label: 'LR' },
+      { key: 'ic_viol_count', label: 'IC' },
+      { key: 'total_viol_count', label: 'Total' },
+    ];
+    return { columns, rows: rows as Record<string, number | null>[] };
+  });
+
+  /** Per-model violation statistics table (dynamic dihedral-angle columns:
+   * Phi, Psi, then any other angle types, Total last). */
+  dihedModelViolations = computed<{
+    columns: { key: string; label: string }[];
+    rows: Record<string, number | null>[];
+  } | null>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const raw = rs?.['dihed_violation_for_each_model'];
+    if (!Array.isArray(raw) || !raw.length) return null;
+    const rows = raw as Record<string, number | null>[];
+    const seen = new Set<string>();
+    for (const r of rows) {
+      for (const k of Object.keys(r)) if (k.endsWith('_viol_count')) seen.add(k);
+    }
+    const fixed = ['phi_viol_count', 'psi_viol_count', 'total_viol_count'];
+    const others = [...seen].filter((k) => !fixed.includes(k)).sort();
+    const ordered = [
+      ...(seen.has('phi_viol_count') ? ['phi_viol_count'] : []),
+      ...(seen.has('psi_viol_count') ? ['psi_viol_count'] : []),
+      ...others,
+      ...(seen.has('total_viol_count') ? ['total_viol_count'] : []),
+    ];
+    const columns = ordered.map((k) => {
+      const t = k.slice(0, -'_viol_count'.length);
+      return { key: k, label: t.charAt(0).toUpperCase() + t.slice(1) };
+    });
+    return { columns, rows };
+  });
+
+  /** Hatch decal (diagonal lines) for the "Violated" overlay bars. */
+  private static readonly VIOL_DECAL = {
+    color: 'rgba(0, 0, 0, 0.55)',
+    dashArrayX: [1, 0],
+    dashArrayY: [2, 4],
+    rotation: -Math.PI / 4,
+  };
+
+  /** Grouped bar chart of distance restraints (by sub-type) with the violated
+   * (hatched) and consistently-violated (solid black) counts overlaid on each
+   * restraint bar. Null when there are no distance restraints. */
+  distViolationChart = computed<object | null>(() => {
+    const rows = this.distViolationSummary();
+    if (!rows.length) return null;
+    const cats = [
+      { abbr: 'ir', label: 'Intra-residue' },
+      { abbr: 'sq', label: 'Sequential' },
+      { abbr: 'mr', label: 'Medium range' },
+      { abbr: 'lr', label: 'Long range' },
+      { abbr: 'ic', label: 'Inter-chain' },
+    ];
+    const subs = [
+      { key: 'backbone-backbone', label: 'Backbone-Backbone', color: '#5470c6' },
+      { key: 'backbone-sidechain', label: 'Backbone-Sidechain', color: '#91cc75' },
+      { key: 'sidechain-sidechain', label: 'Sidechain-Sidechain', color: '#fac858' },
+    ];
+    // restraint_type is "<abbr>; <sub-type>"; normalise whitespace to match.
+    const byType = new Map(
+      rows.map((r) => [(r.restraint_type ?? '').replace(/\s+/g, ''), r] as const),
+    );
+    const xLabels: string[] = [];
+    // Category label for every bar (the axis label is blanked except under the
+    // middle sub-type bar), used to show the category in the tooltip.
+    const fullLabels: string[] = [];
+    const restraint = subs.map(() => [] as (number | null)[]);
+    const violated: number[] = [];
+    const consistent: number[] = [];
+    for (const c of cats) {
+      subs.forEach((s, j) => {
+        const r = byType.get(`${c.abbr};${s.key}`);
+        // Label the category once, under its middle sub-type bar.
+        xLabels.push(j === 1 ? c.label : '');
+        fullLabels.push(c.label);
+        restraint.forEach((d, k) => d.push(k === j ? (r?.restraint_count ?? 0) : null));
+        violated.push(r?.viol_count ?? 0);
+        consistent.push(r?.consist_viol_count ?? 0);
+      });
+    }
+    return {
+      tooltip: {
+        trigger: 'item',
+        formatter: (p: { dataIndex: number; seriesName?: string; value?: number | null }) =>
+          `${fullLabels[p.dataIndex]} — ${p.seriesName}<br/>${p.value ?? 0}`,
+      },
+      legend: {
+        orient: 'vertical',
+        right: 8,
+        top: 'middle',
+        type: 'scroll',
+        data: [...subs.map((s) => s.label), 'Violated', 'Consistently violated'],
+      },
+      grid: { left: 56, right: 170, top: 24, bottom: 40, containLabel: true },
+      xAxis: { type: 'category', data: xLabels, axisLabel: { rotate: -30, fontSize: 10 } },
+      yAxis: { type: 'value', name: 'Number of restraints', nameLocation: 'middle', nameGap: 40 },
+      // barGap '-100%' overlaps every series into one full-width slot per x; the
+      // three restraint series occupy disjoint x positions, so they read as a
+      // grouped chart while the violation series overlay each bar.
+      series: [
+        ...subs.map((s, k) => ({
+          name: s.label,
+          type: 'bar',
+          data: restraint[k],
+          itemStyle: { color: s.color },
+          barGap: '-100%',
+          barCategoryGap: '35%',
+        })),
+        {
+          name: 'Violated',
+          type: 'bar',
+          data: violated,
+          barGap: '-100%',
+          itemStyle: { color: 'rgba(0,0,0,0.06)', decal: Download.VIOL_DECAL },
+        },
+        {
+          name: 'Consistently violated',
+          type: 'bar',
+          data: consistent,
+          barGap: '-100%',
+          itemStyle: { color: '#000' },
+        },
+      ],
+    };
+  });
+
+  /** Bar chart of dihedral-angle restraints per angle type with the violated
+   * (hatched) and consistently-violated (solid black) counts overlaid. */
+  dihedViolationChart = computed<object | null>(() => {
+    // Plot each individual dihedral-angle type (phi/psi/chi/alpha/…); the
+    // aggregate "total" row is a summary, not a category, so it is excluded.
+    const rows = this.dihedViolationSummary().filter(
+      (r) => (r.restraint_type ?? '').toLowerCase() !== 'total',
+    );
+    if (!rows.length) return null;
+    const xLabels = rows.map((r) => {
+      const s = r.restraint_type ?? '';
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    });
+    return {
+      tooltip: {
+        trigger: 'item',
+        formatter: (p: { name?: string; seriesName?: string; value?: number | null }) =>
+          `${p.name} — ${p.seriesName}<br/>${p.value ?? 0}`,
+      },
+      legend: {
+        orient: 'vertical',
+        right: 8,
+        top: 'middle',
+        type: 'scroll',
+        data: ['Violated', 'Consistently violated'],
+      },
+      grid: { left: 56, right: 170, top: 24, bottom: 24, containLabel: true },
+      xAxis: { type: 'category', data: xLabels },
+      yAxis: { type: 'value', name: 'Number of restraints', nameLocation: 'middle', nameGap: 40 },
+      series: [
+        {
+          name: 'Restraints',
+          type: 'bar',
+          // Default palette color per angle type (matches the example).
+          colorBy: 'data',
+          data: rows.map((r) => r.restraint_count ?? 0),
+          barGap: '-100%',
+          barCategoryGap: '45%',
+        },
+        {
+          name: 'Violated',
+          type: 'bar',
+          data: rows.map((r) => r.viol_count ?? 0),
+          barGap: '-100%',
+          itemStyle: { color: 'rgba(0,0,0,0.06)', decal: Download.VIOL_DECAL },
+        },
+        {
+          name: 'Consistently violated',
+          type: 'bar',
+          data: rows.map((r) => r.consist_viol_count ?? 0),
+          barGap: '-100%',
+          itemStyle: { color: '#000' },
+        },
+      ],
+    };
+  });
+
+  /** Dark-blue accent used for the per-model mean/median markers and error bars. */
+  private static readonly MARK_COLOR = '#2b6cb0';
+  /** Plus glyph in a 10×10 box; drawn with symbolRotate:45 to render as an "×"
+   * (shared by the chart symbol and the tooltip marker so they match). */
+  private static readonly MEDIAN_PATH =
+    'M3,0 L7,0 L7,3 L10,3 L10,7 L7,7 L7,10 L3,10 L3,7 L0,7 L0,3 L3,3 Z';
+  private static readonly MEDIAN_SYMBOL = `path://${Download.MEDIAN_PATH}`;
+
+  /** renderItem for the mean±SD error bars (a custom series): a vertical I-beam
+   * on the right (violation-magnitude) axis. */
+  private errorBarRenderItem = (
+    _params: unknown,
+    api: { value(i: number): number; coord(p: number[]): number[] },
+  ): object => {
+    const low = api.coord([api.value(0), api.value(1)]);
+    const high = api.coord([api.value(0), api.value(2)]);
+    const x = low[0];
+    const w = 4;
+    const style = { stroke: Download.MARK_COLOR, lineWidth: 1 };
+    return {
+      type: 'group',
+      children: [
+        { type: 'line', shape: { x1: x, y1: low[1], x2: x, y2: high[1] }, style },
+        { type: 'line', shape: { x1: x - w, y1: low[1], x2: x + w, y2: low[1] }, style },
+        { type: 'line', shape: { x1: x - w, y1: high[1], x2: x + w, y2: high[1] }, style },
+      ],
+    };
+  };
+
+  /** Dual-axis per-model chart: stacked violation counts by category (left axis)
+   * with mean (circle) / median (×) markers and mean±SD error bars on the right
+   * (violation magnitude) axis. Null when there are no per-model rows. */
+  private modelViolationChartOption(
+    rows: Record<string, number | null>[],
+    unit: string,
+    cats: { key: string; label: string; color: string }[],
+  ): object | null {
+    if (!rows.length) return null;
+    const x = rows.map((r) => String(r['model_id']));
+    const num = (v: number | null | undefined): number | null => (typeof v === 'number' ? v : null);
+    const scatter = (key: string): (string | number)[][] =>
+      rows
+        .map((r) => [String(r['model_id']), num(r[key])] as (string | number | null)[])
+        .filter((d) => d[1] !== null) as (string | number)[][];
+    const errorData = rows
+      .map((r) => {
+        const m = num(r['mean_violation']);
+        const s = num(r['std_violation']);
+        return m !== null && s !== null
+          ? ([String(r['model_id']), m - s, m + s] as (string | number)[])
+          : null;
+      })
+      .filter((d): d is (string | number)[] => d !== null);
+    return {
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' },
+        formatter: (
+          params: {
+            axisValue?: string;
+            seriesName?: string;
+            marker?: string;
+            value?: number | (string | number)[];
+          }[],
+        ) => {
+          const header = `Model ${params[0]?.axisValue ?? ''}`;
+          const lines = params
+            .filter((p) => p.seriesName !== 'Mean ± SD')
+            .map((p) => {
+              const v = Array.isArray(p.value) ? p.value[1] : p.value;
+              // Median is plotted as an "×"; reuse the same glyph (rotated plus
+              // path) in the tooltip so the marker matches the chart symbol.
+              const marker =
+                p.seriesName === 'Median'
+                  ? `<svg width="10" height="10" style="display:inline-block;vertical-align:middle;margin-right:5px"><path d="${Download.MEDIAN_PATH}" fill="${Download.MARK_COLOR}" transform="rotate(45 5 5)"/></svg>`
+                  : (p.marker ?? '');
+              return `${marker}${p.seriesName}: ${v ?? ''}`;
+            });
+          return [header, ...lines].join('<br/>');
+        },
+      },
+      legend: {
+        orient: 'vertical',
+        right: 8,
+        top: 'middle',
+        type: 'scroll',
+        data: cats.map((c) => c.label),
+      },
+      grid: { left: 60, right: 200, top: 30, bottom: 56, containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: x,
+        name: 'Model ID',
+        nameLocation: 'middle',
+        nameGap: 32,
+        axisLabel: { fontSize: 9 },
+      },
+      yAxis: [
+        { type: 'value', name: 'Number of violations', nameLocation: 'middle', nameGap: 44 },
+        {
+          type: 'value',
+          name: `Mean, median violations (${unit})`,
+          nameLocation: 'middle',
+          nameGap: 44,
+          position: 'right',
+          axisLine: { show: true, lineStyle: { color: Download.MARK_COLOR } },
+          axisLabel: { color: Download.MARK_COLOR },
+        },
+      ],
+      series: [
+        ...cats.map((c) => ({
+          name: c.label,
+          type: 'bar',
+          stack: 'v',
+          yAxisIndex: 0,
+          itemStyle: { color: c.color },
+          data: rows.map((r) => num(r[c.key]) ?? 0),
+        })),
+        {
+          name: 'Mean',
+          type: 'scatter',
+          yAxisIndex: 1,
+          symbol: 'circle',
+          symbolSize: 8,
+          itemStyle: { color: Download.MARK_COLOR },
+          data: scatter('mean_violation'),
+        },
+        {
+          name: 'Median',
+          type: 'scatter',
+          yAxisIndex: 1,
+          symbol: Download.MEDIAN_SYMBOL,
+          symbolRotate: 45,
+          symbolSize: 9,
+          itemStyle: { color: Download.MARK_COLOR },
+          data: scatter('median_violation'),
+        },
+        {
+          name: 'Mean ± SD',
+          type: 'custom',
+          yAxisIndex: 1,
+          silent: true,
+          z: 5,
+          renderItem: this.errorBarRenderItem,
+          data: errorData,
+        },
+      ],
+    };
+  }
+
+  /** Per-model distance-violation chart (fixed sub-type categories). */
+  distModelViolationsChart = computed<object | null>(() =>
+    this.modelViolationChartOption(this.distViolationForEachModel(), 'Å', [
+      { key: 'ir_viol_count', label: 'Intra-residue', color: '#5470c6' },
+      { key: 'sq_viol_count', label: 'Sequential', color: '#a3c4f3' },
+      { key: 'mr_viol_count', label: 'Medium range', color: '#3ba272' },
+      { key: 'lr_viol_count', label: 'Long range', color: '#c0ca33' },
+      { key: 'ic_viol_count', label: 'Inter-chain', color: '#808000' },
+    ]),
+  );
+
+  /** Per-model dihedral-angle-violation chart (PSI/PHI hard-coded). */
+  dihedModelViolationsChart = computed<object | null>(() =>
+    this.modelViolationChartOption(this.dihedViolationForEachModel(), '°', [
+      { key: 'psi_viol_count', label: 'Psi', color: '#4a7ebb' },
+      { key: 'phi_viol_count', label: 'Phi', color: '#9dc3e6' },
+    ]),
+  );
 
   /** Display label for a violation-summary restraint_type: underscores become
    * spaces; a leading abbreviation prefix ("ir;", "lr;", "total;", …) becomes a

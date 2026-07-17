@@ -153,6 +153,9 @@
             Output used for: <span class="underline">{{ outputUsedFor() }}</span>
           </p>
           <p class="text-base font-medium mx-2 mb-2">
+            Processed site: <span class="underline">{{ processedSite() }}</span>
+          </p>
+          <p class="text-base font-medium mx-2 mb-2">
             Timestamp (UTC): <span class="underline">{{ reportTimestamp() }}</span>
           </p>
 
@@ -216,7 +219,7 @@
           </div>
 
           <p class="text-lg mb-2">Output files</p>
-          <p class="text-base font-medium mx-2 mb-2 underline">NMR data</p>
+          <p class="text-base font-medium mx-2 mb-2 underline">NMR data file</p>
           <div class="overflow-x-auto mb-4">
             <table class="w-full text-sm border-collapse">
               <tbody>
@@ -231,7 +234,7 @@
           </div>
 
           @if (modelProps().length) {
-            <p class="text-base font-medium mx-2 mb-2 underline">Coordinates</p>
+            <p class="text-base font-medium mx-2 mb-2 underline">Coordinate file</p>
             <div class="overflow-x-auto mb-4">
               <table class="w-full text-sm border-collapse">
                 <tbody>
@@ -411,7 +414,6 @@
                 [option]="pca.option"
                 [height]="380"
                 [aspect]="1"
-                [maxHeight]="380"
                 [marginX]="pca.marginX"
                 [marginY]="pca.marginY"
               />
@@ -1378,8 +1380,8 @@
         }
       </p-card>
 
-      <!-- /information/output_statistics/restraint_summary/dist_violation_summary -->
       <p-card header="7. Distance violation analysis" styleClass="mb-6">
+        <!-- /information/output_statistics/restraint_summary/dist_violation_summary -->
         @if (distViolationSummary().length) {
           <p class="text-base font-medium mt-4 mb-2">7.1 Summary of distance violations</p>
           <p class="text-base mb-4 mx-2">
@@ -1394,7 +1396,7 @@
             indicate the total number of restranits violated in all models.
           </p>
           <div class="overflow-x-auto">
-            <table class="w-full text-sm border-collapse">
+            <table class="w-full text-sm border-collapse mb-2">
               <thead>
                 <tr>
                   <th
@@ -1498,13 +1500,117 @@
               </tbody>
             </table>
           </div>
+
+          @if (distViolationChart(); as opt) {
+            <p class="text-base mt-2 mb-2">Distribution of distance restraints and violations</p>
+            <p class="text-base mb-2 mx-4">
+              Violated and consistently violated restraints are shown using different hatch patterns
+              in their respective categories. The hydrogen bonds and disulfied bonds are counted in
+              their appropriate category on the x-axis.
+            </p>
+            <app-echart [option]="opt" [height]="420" [aspect]="1" [marginX]="226" [marginY]="64" />
+          }
+
+          <!-- /information/output_statistics/restraint_summary/dist_violation_for_each_model -->
+          @if (distViolationForEachModel().length) {
+            <p class="text-base font-medium mt-4 mb-2">
+              7.2 Distance violation statistics for each model
+            </p>
+            <p class="text-base mb-4 mx-2">
+              The following table provides the distance violation statistics for each model in the
+              ensemble. Violations less than 0.1 Å are not included in the statistics. The acronyms
+              used in the table (IR, SQ, MR, LR, and IC) represent intra-residue restraints,
+              sequential restraints, medium-range restraints, long-range restraints, and inter-chain
+              restraints, respectively.
+            </p>
+            @if (distModelViolations(); as t) {
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm border-collapse">
+                  <thead>
+                    <tr>
+                      <th
+                        rowspan="2"
+                        class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600 align-bottom whitespace-nowrap"
+                      >
+                        Model ID
+                      </th>
+                      <th
+                        [attr.colspan]="t.columns.length"
+                        class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600"
+                      >
+                        Number of violations
+                      </th>
+                      @for (h of ['Mean (Å)', 'Max (Å)', 'σ (Å)', 'Median (Å)']; track $index) {
+                        <th
+                          rowspan="2"
+                          class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 align-bottom whitespace-nowrap"
+                        >
+                          {{ h }}
+                        </th>
+                      }
+                    </tr>
+                    <tr>
+                      @for (c of t.columns; track c.key) {
+                        <th
+                          class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                          [class.border-r]="$last"
+                          [class.border-surface-300]="$last"
+                          [class.dark:border-surface-600]="$last"
+                        >
+                          {{ c.label }}
+                        </th>
+                      }
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (r of t.rows; track $index) {
+                      <tr class="border-b border-surface-100 dark:border-surface-800">
+                        <td
+                          class="px-2 py-1 tabular-nums border-r border-surface-300 dark:border-surface-600"
+                        >
+                          {{ r['model_id'] }}
+                        </td>
+                        @for (c of t.columns; track c.key) {
+                          <td
+                            class="px-2 py-1 tabular-nums text-center"
+                            [class.border-r]="$last"
+                            [class.border-surface-300]="$last"
+                            [class.dark:border-surface-600]="$last"
+                          >
+                            {{ r[c.key] }}
+                          </td>
+                        }
+                        <td class="px-2 py-1 tabular-nums text-center">
+                          {{ r['mean_violation'] }}
+                        </td>
+                        <td class="px-2 py-1 tabular-nums text-center">{{ r['max_violation'] }}</td>
+                        <td class="px-2 py-1 tabular-nums text-center">{{ r['std_violation'] }}</td>
+                        <td class="px-2 py-1 tabular-nums text-center">
+                          {{ r['median_violation'] }}
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          }
+
+          @if (distModelViolationsChart(); as opt) {
+            <p class="text-base mt-2 mb-2">Distance violation statistics for each model</p>
+            <p class="text-base mb-2 mx-4">
+              The mean(dot), median(x) and the standard deviation are shown in blue with respect to
+              the y axis on the right.
+            </p>
+            <app-echart [option]="opt" [height]="440" />
+          }
         } @else {
           <p class="text-surface-500 py-2">There is no distance restraints.</p>
         }
       </p-card>
 
-      <!-- /information/output_statistics/restraint_summary/dihed_violation_summary -->
       <p-card header="8. Dihedral-angle violation analysis" styleClass="mb-6">
+        <!-- /information/output_statistics/restraint_summary/dihed_violation_summary -->
         @if (dihedViolationSummary().length) {
           <p class="text-base font-medium mt-4 mb-2">8.1 Summary of dihedral-angle violations</p>
           <p class="text-base mb-4 mx-2">
@@ -1518,7 +1624,7 @@
             violated in all models.
           </p>
           <div class="overflow-x-auto">
-            <table class="w-full text-sm border-collapse">
+            <table class="w-full text-sm border-collapse mb-2">
               <thead>
                 <tr>
                   <th
@@ -1622,6 +1728,108 @@
               </tbody>
             </table>
           </div>
+
+          @if (dihedViolationChart(); as opt) {
+            <p class="text-base mt-2 mb-2">
+              Distribution of dihedral-angle restraints and violations
+            </p>
+            <p class="text-base mb-2 mx-4">
+              Violated and consistently violated restraints are shown using different hatch patterns
+              in their respective categories.
+            </p>
+            <app-echart [option]="opt" [height]="420" [aspect]="1" [marginX]="226" [marginY]="48" />
+          }
+
+          <!-- /information/output_statistics/restraint_summary/dihed_violation_for_each_model -->
+          @if (dihedViolationForEachModel().length) {
+            <p class="text-base font-medium mt-4 mb-2">
+              8.2 Dihedral-angle violation statistics for each model
+            </p>
+            <p class="text-base mb-4 mx-2">
+              The following table provides the dihedral-angle violation statistics for each model in
+              the ensemble. Violations less than 1° are not included in the statistics.
+            </p>
+            @if (dihedModelViolations(); as t) {
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm border-collapse">
+                  <thead>
+                    <tr>
+                      <th
+                        rowspan="2"
+                        class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600 align-bottom whitespace-nowrap"
+                      >
+                        Model ID
+                      </th>
+                      <th
+                        [attr.colspan]="t.columns.length"
+                        class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600"
+                      >
+                        Number of violations
+                      </th>
+                      @for (h of ['Mean (°)', 'Max (°)', 'Std (°)', 'Median (°)']; track $index) {
+                        <th
+                          rowspan="2"
+                          class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 align-bottom whitespace-nowrap"
+                        >
+                          {{ h }}
+                        </th>
+                      }
+                    </tr>
+                    <tr>
+                      @for (c of t.columns; track c.key) {
+                        <th
+                          class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                          [class.border-r]="$last"
+                          [class.border-surface-300]="$last"
+                          [class.dark:border-surface-600]="$last"
+                        >
+                          {{ c.label }}
+                        </th>
+                      }
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (r of t.rows; track $index) {
+                      <tr class="border-b border-surface-100 dark:border-surface-800">
+                        <td
+                          class="px-2 py-1 tabular-nums border-r border-surface-300 dark:border-surface-600"
+                        >
+                          {{ r['model_id'] }}
+                        </td>
+                        @for (c of t.columns; track c.key) {
+                          <td
+                            class="px-2 py-1 tabular-nums text-center"
+                            [class.border-r]="$last"
+                            [class.border-surface-300]="$last"
+                            [class.dark:border-surface-600]="$last"
+                          >
+                            {{ r[c.key] }}
+                          </td>
+                        }
+                        <td class="px-2 py-1 tabular-nums text-center">
+                          {{ r['mean_violation'] }}
+                        </td>
+                        <td class="px-2 py-1 tabular-nums text-center">{{ r['max_violation'] }}</td>
+                        <td class="px-2 py-1 tabular-nums text-center">{{ r['std_violation'] }}</td>
+                        <td class="px-2 py-1 tabular-nums text-center">
+                          {{ r['median_violation'] }}
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          }
+
+          @if (dihedModelViolationsChart(); as opt) {
+            <p class="text-base mt-2 mb-2">Dihderal-angle violation statistics for each model</p>
+            <p class="text-base mb-2 mx-4">
+              The mean(dot), median(x) and the standard deviation are shown in blue with respect to
+              the y axis on the right.
+            </p>
+            <app-echart [option]="opt" [height]="440" />
+          }
         } @else {
           <p class="text-surface-500 py-2">There is no dihedral-angle restraints.</p>
         }

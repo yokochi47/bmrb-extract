@@ -2344,13 +2344,13 @@ def _dist_constraint_tree(item, mode, top, expand):
 # (key, report_key, mode, top-line param, section title). The number_of_* fields
 # are counts; weight / potential type carry [[value, count], …] frequency lists.
 _DIST_CONSTRAINT_FIELDS = (
-    ('number', 'number_of_constraints', 'count', None, 'Number of constraints'),
-    ('combined', 'number_of_combined_constraints', 'count', 'combined', 'Number of combined constraints'),
-    ('redundant', 'number_of_redundant_constraints', 'count', 'redundant', 'Number of redundant constraints'),
+    ('number', 'number_of_constraints', 'count', None, 'Number of unique restraints'),
+    ('combined', 'number_of_combined_constraints', 'count', 'combined', 'Number of combined restraints'),
+    ('redundant', 'number_of_redundant_constraints', 'count', 'redundant', 'Number of redundant restraints'),
     ('inconsistent', 'number_of_inconsistent_constraints', 'count', 'inconsistent',
-     'Number of inconsistent constraints'),
-    ('weight', 'weight_of_constraints', 'mc', 'Weight', 'Weight of constraints'),
-    ('potential', 'potential_type_of_constraints', 'mc', 'Potential type', 'Potential type of constraints'),
+     'Number of inconsistent restraints'),
+    ('weight', 'weight_of_constraints', 'mc', 'Weight', 'Weight of restraints'),
+    ('potential', 'potential_type_of_constraints', 'mc', 'Potential type', 'Potential type of restraints'),
 )
 
 
@@ -2366,7 +2366,7 @@ def _dist_constraint_lists(st):
         if not isinstance(item, dict) or not item:
             continue
         if mode == 'count':
-            top = ('Total number of ' + (param + ' ' if param else '') + 'restraints: '
+            top = ('Total number of unique ' + (param + ' ' if param else '') + 'restraints: '
                    + _dist_agg(item, list(item.keys()), mode))
             expand = True
         else:
@@ -2395,14 +2395,14 @@ def _flat_constraint_tree(item, mode, top, expand):
 # by dihedral-angle and RDC restraints. number_of_* and constraints_per_polymer_type
 # are flat count dicts; weight / potential type carry [[value, count], …] lists.
 _FLAT_CONSTRAINT_FIELDS = (
-    ('number', 'number_of_constraints', 'count', None, 'Number of constraints'),
-    ('combined', 'number_of_combined_constraints', 'count', 'combined', 'Number of combined constraints'),
-    ('redundant', 'number_of_redundant_constraints', 'count', 'redundant', 'Number of redundant constraints'),
+    ('number', 'number_of_constraints', 'count', None, 'Number of unique restraints'),
+    ('combined', 'number_of_combined_constraints', 'count', 'combined', 'Number of combined restraints'),
+    ('redundant', 'number_of_redundant_constraints', 'count', 'redundant', 'Number of redundant restraints'),
     ('inconsistent', 'number_of_inconsistent_constraints', 'count', 'inconsistent',
-     'Number of inconsistent constraints'),
+     'Number of inconsistent restraints'),
     ('polymer_type', 'constraints_per_polymer_type', 'count', None, 'Constraints per polymer type'),
-    ('weight', 'weight_of_constraints', 'mc', 'Weight', 'Weight of constraints'),
-    ('potential', 'potential_type_of_constraints', 'mc', 'Potential type', 'Potential type of constraints'),
+    ('weight', 'weight_of_constraints', 'mc', 'Weight', 'Weight of restraints'),
+    ('potential', 'potential_type_of_constraints', 'mc', 'Potential type', 'Potential type of restraints'),
 )
 
 
@@ -2418,7 +2418,7 @@ def _flat_constraint_lists(st):
         if not isinstance(item, dict) or not item:
             continue
         if mode == 'count':
-            top = ('Total number of ' + (param + ' ' if param else '') + 'restraints: '
+            top = ('Total number of unique ' + (param + ' ' if param else '') + 'restraints: '
                    + _dist_agg(item, list(item.keys()), mode))
             expand = True
         else:
@@ -2658,6 +2658,9 @@ def _nmr_preview_data(report):
         # Coordinate ensemble well-defined regions (same source as the download
         # page); null when there is no pdbx input source with the analysis.
         'ensemble_composition': _ensemble_composition(report),
+        # Per-saveframe bookkeeping rows (from output_statistics), keyed by
+        # sf_framecode, for the download-page bookkeeping table transplanted here.
+        'bookkeeping': _bookkeeping_by_sf(report),
     }
 
 
@@ -2751,6 +2754,43 @@ def _bookkeeping_saveframes(stats, key):
         if anm:
             row['atom_name_mapping'] = anm
         out.append(row)
+    return out
+
+
+def _bookkeeping_by_sf(report):
+    """Per-saveframe bookkeeping Property/Value rows keyed by sf_framecode, built
+    from output_statistics (chem_shift + restraint / spectral-peak subtypes). Lets
+    the summary page show the same bookkeeping table the download page renders,
+    matched to its nmr_preview saveframes by sf_framecode."""
+    stats = report.get('information', {}).get('output_statistics') or {}
+    if not isinstance(stats, dict):
+        return {}
+
+    def rows_for(item, noun, outliers=False):
+        pairs = [
+            (f'Number of parsed {noun}', item.get('number_of_parsed')),
+            (f'Number of {noun} mapped to model', item.get('number_of_mapped_to_model')),
+            (f'Number of {noun} unmapped to model', item.get('number_of_unmapped_to_model')),
+            (f'Number of unparsed {noun} with error', item.get('number_of_unparsed_with_error')),
+            (f'Number of parsed {noun} with warning', item.get('number_of_parsed_with_warning')),
+        ]
+        if outliers:
+            pairs.append(('Number of chemical shift outliers', item.get('number_of_outliers')))
+        return [{'label': lbl, 'value': v} for lbl, v in pairs if v is not None]
+
+    out = {}
+    for item in stats.get('chem_shift') or []:
+        if isinstance(item, dict) and item.get('sf_framecode'):
+            out[item['sf_framecode']] = rows_for(item, 'shifts', outliers=True)
+    for key, noun in (
+        ('dist_restraint', 'distance restraints'),
+        ('dihed_restraint', 'dihedral-angle restraints'),
+        ('rdc_restraint', 'RDC restraints'),
+        ('spectral_peak', 'spectral peaks'),
+    ):
+        for item in stats.get(key) or []:
+            if isinstance(item, dict) and item.get('sf_framecode'):
+                out[item['sf_framecode']] = rows_for(item, noun)
     return out
 
 # Per-shift columns kept for each unmapped assigned chemical shift
@@ -2930,6 +2970,15 @@ async def get_output_statistics():
                 summary[vs_key] = [
                     {k: e[k] for k in _DIST_VIOLATION_SUMMARY_KEYS if k in e}
                     for e in vs if isinstance(e, dict)
+                ]
+        # Keep the per-model violation statistics (dynamic scalar keys: per-type
+        # *_viol_count plus mean/min/max/std/median_violation).
+        for m_key in ('dist_violation_for_each_model', 'dihed_violation_for_each_model'):
+            mv = rs.get(m_key)
+            if isinstance(mv, list) and mv:
+                summary[m_key] = [
+                    {k: v for k, v in e.items() if isinstance(v, (int, float)) or v is None}
+                    for e in mv if isinstance(e, dict)
                 ]
         pruned['restraint_summary'] = summary
     # chem_shift: keep only the per-saveframe bookkeeping counts for the
