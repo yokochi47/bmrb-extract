@@ -1626,7 +1626,7 @@
             </p>
             @if (distEnsembleViolations(); as t) {
               <div class="overflow-x-auto">
-                <table class="w-full text-sm border-collapse">
+                <table class="w-full text-sm border-collapse mb-2">
                   <thead>
                     <tr>
                       <th
@@ -1690,6 +1690,11 @@
                 </table>
               </div>
             }
+          }
+
+          @if (distViolationsForEnsembleChart(); as opt) {
+            <p class="text-base mt-2 mb-2">Distance violation statistics for the ensemble</p>
+            <app-echart [option]="opt" [height]="440" />
           }
         } @else {
           <p class="text-surface-500 py-2">There is no distance restraints.</p>
@@ -1940,7 +1945,7 @@
             </p>
             @if (dihedEnsembleViolations(); as t) {
               <div class="overflow-x-auto">
-                <table class="w-full text-sm border-collapse">
+                <table class="w-full text-sm border-collapse mb-2">
                   <thead>
                     <tr>
                       <th
@@ -2004,6 +2009,11 @@
                 </table>
               </div>
             }
+          }
+
+          @if (dihedViolationsForEnsembleChart(); as opt) {
+            <p class="text-base mt-2 mb-2">Dihedral-angle violation statistics for the ensemble</p>
+            <app-echart [option]="opt" [height]="440" />
           }
         } @else {
           <p class="text-surface-500 py-2">There is no dihedral-angle restraints.</p>

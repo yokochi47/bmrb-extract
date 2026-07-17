@@ -1322,6 +1322,95 @@ export class Download {
     return { columns, rows };
   });
 
+  /** Stacked bar chart of violated restraints vs ensemble fraction (%), stacked
+   * by category. cats without an explicit color use the default palette. */
+  private violationEnsembleStackChart(
+    rows: Record<string, number | null>[],
+    cats: { key: string; label: string; color?: string }[],
+  ): object | null {
+    if (!rows.length || !cats.length) return null;
+    const num = (v: number | null | undefined): number => (typeof v === 'number' ? v : 0);
+    const xLabels = rows.map((r) => String(num(r['fraction_percent'])));
+    return {
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' },
+        formatter: (
+          params: { axisValue?: string; seriesName?: string; marker?: string; value?: number }[],
+        ) => {
+          const header = `${params[0]?.axisValue ?? ''}% of the ensemble`;
+          const lines = params
+            .filter((p) => p.value)
+            .map((p) => `${p.marker ?? ''}${p.seriesName}: ${p.value}`);
+          return [header, ...lines].join('<br/>');
+        },
+      },
+      legend: {
+        orient: 'vertical',
+        right: 8,
+        top: 'middle',
+        type: 'scroll',
+        data: cats.map((c) => c.label),
+      },
+      grid: { left: 60, right: 170, top: 24, bottom: 56, containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: xLabels,
+        name: 'Fraction of the ensemble (%)',
+        nameLocation: 'middle',
+        nameGap: 32,
+        axisLabel: { fontSize: 9 },
+      },
+      yAxis: {
+        type: 'value',
+        name: 'Number of violated restraints',
+        nameLocation: 'middle',
+        nameGap: 44,
+      },
+      series: cats.map((c) => ({
+        name: c.label,
+        type: 'bar',
+        stack: 'v',
+        data: rows.map((r) => num(r[c.key])),
+        ...(c.color ? { itemStyle: { color: c.color } } : {}),
+      })),
+    };
+  }
+
+  /** Per-ensemble distance-violation stacked bar chart (fixed sub-type categories). */
+  distViolationsForEnsembleChart = computed<object | null>(() =>
+    this.violationEnsembleStackChart(this.distViolationForEnsemble(), [
+      { key: 'ir_viol_count', label: 'Intra-residue', color: '#5470c6' },
+      { key: 'sq_viol_count', label: 'Sequential', color: '#a3c4f3' },
+      { key: 'mr_viol_count', label: 'Medium range', color: '#3ba272' },
+      { key: 'lr_viol_count', label: 'Long range', color: '#c0ca33' },
+      { key: 'ic_viol_count', label: 'Inter-chain', color: '#808000' },
+    ]),
+  );
+
+  /** Per-ensemble dihedral-violation stacked bar chart (dynamic angle types;
+   * the aggregate 'total' column is excluded). */
+  dihedViolationsForEnsembleChart = computed<object | null>(() => {
+    const rows = this.dihedViolationForEnsemble();
+    if (!rows.length) return null;
+    const seen = new Set<string>();
+    for (const r of rows) {
+      for (const k of Object.keys(r)) if (k.endsWith('_viol_count')) seen.add(k);
+    }
+    const fixed = ['phi_viol_count', 'psi_viol_count', 'total_viol_count'];
+    const others = [...seen].filter((k) => !fixed.includes(k)).sort();
+    const ordered = [
+      ...(seen.has('phi_viol_count') ? ['phi_viol_count'] : []),
+      ...(seen.has('psi_viol_count') ? ['psi_viol_count'] : []),
+      ...others,
+    ];
+    const cats = ordered.map((k) => {
+      const t = k.slice(0, -'_viol_count'.length);
+      return { key: k, label: t.charAt(0).toUpperCase() + t.slice(1) };
+    });
+    return this.violationEnsembleStackChart(rows, cats);
+  });
+
   /** Hatch decal (diagonal lines) for the "Violated" overlay bars. */
   private static readonly VIOL_DECAL = {
     color: 'rgba(0, 0, 0, 0.55)',
