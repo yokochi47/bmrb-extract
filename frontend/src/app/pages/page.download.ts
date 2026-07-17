@@ -1233,6 +1233,95 @@ export class Download {
     return { columns, rows };
   });
 
+  /** Raw per-ensemble violation-fraction rows (gate the 7.3 / 8.3 sections). */
+  distViolationForEnsemble = computed<Record<string, number | null>[]>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const v = rs?.['dist_violation_for_ensemble'];
+    return Array.isArray(v) ? (v as Record<string, number | null>[]) : [];
+  });
+  dihedViolationForEnsemble = computed<Record<string, number | null>[]>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const v = rs?.['dihed_violation_for_ensemble'];
+    return Array.isArray(v) ? (v as Record<string, number | null>[]) : [];
+  });
+
+  /** Number of non-violated distance restraints (restraint − violated) overall and
+   * per category, from the dist_violation_summary category rows (7.3 caption). */
+  distNonViolated = computed(() => {
+    const rows = this.distViolationSummary();
+    const nv = (r?: ViolationSummaryRow) =>
+      r ? (r.restraint_count ?? 0) - (r.viol_count ?? 0) : 0;
+    const pre = (p: string) =>
+      nv(rows.find((r) => (r.restraint_type ?? '').toLowerCase().startsWith(p)));
+    return {
+      total: nv(rows.find((r) => (r.restraint_type ?? '').toLowerCase() === 'total')),
+      ir: pre('intra-residue'),
+      sq: pre('sequential'),
+      mr: pre('medium'),
+      lr: pre('long'),
+      ic: pre('inter-chain'),
+    };
+  });
+
+  /** Non-violated dihedral-angle restraints (restraint − violated): the overall
+   * total plus a per-angle-type breakdown string (angle names are dynamic). */
+  dihedNonViolated = computed(() => {
+    const rows = this.dihedViolationSummary();
+    const nv = (r: ViolationSummaryRow) => (r.restraint_count ?? 0) - (r.viol_count ?? 0);
+    const totalRow = rows.find((r) => (r.restraint_type ?? '').toLowerCase() === 'total');
+    const perType = rows
+      .filter((r) => (r.restraint_type ?? '').toLowerCase() !== 'total')
+      .map((r) => {
+        const t = r.restraint_type ?? '';
+        return { label: t.charAt(0).toUpperCase() + t.slice(1), count: nv(r) };
+      });
+    return { total: totalRow ? nv(totalRow) : 0, perType };
+  });
+
+  /** Per-ensemble distance-violation table (fixed sub-type columns). */
+  distEnsembleViolations = computed<{
+    columns: { key: string; label: string }[];
+    rows: Record<string, number | null>[];
+  } | null>(() => {
+    const rows = this.distViolationForEnsemble();
+    if (!rows.length) return null;
+    const columns = [
+      { key: 'ir_viol_count', label: 'IR' },
+      { key: 'sq_viol_count', label: 'SQ' },
+      { key: 'mr_viol_count', label: 'MR' },
+      { key: 'lr_viol_count', label: 'LR' },
+      { key: 'ic_viol_count', label: 'IC' },
+      { key: 'total_viol_count', label: 'Total' },
+    ];
+    return { columns, rows };
+  });
+
+  /** Per-ensemble dihedral-violation table (dynamic angle-type columns). */
+  dihedEnsembleViolations = computed<{
+    columns: { key: string; label: string }[];
+    rows: Record<string, number | null>[];
+  } | null>(() => {
+    const rows = this.dihedViolationForEnsemble();
+    if (!rows.length) return null;
+    const seen = new Set<string>();
+    for (const r of rows) {
+      for (const k of Object.keys(r)) if (k.endsWith('_viol_count')) seen.add(k);
+    }
+    const fixed = ['phi_viol_count', 'psi_viol_count', 'total_viol_count'];
+    const others = [...seen].filter((k) => !fixed.includes(k)).sort();
+    const ordered = [
+      ...(seen.has('phi_viol_count') ? ['phi_viol_count'] : []),
+      ...(seen.has('psi_viol_count') ? ['psi_viol_count'] : []),
+      ...others,
+      ...(seen.has('total_viol_count') ? ['total_viol_count'] : []),
+    ];
+    const columns = ordered.map((k) => {
+      const t = k.slice(0, -'_viol_count'.length);
+      return { key: k, label: t.charAt(0).toUpperCase() + t.slice(1) };
+    });
+    return { columns, rows };
+  });
+
   /** Hatch decal (diagonal lines) for the "Violated" overlay bars. */
   private static readonly VIOL_DECAL = {
     color: 'rgba(0, 0, 0, 0.55)',

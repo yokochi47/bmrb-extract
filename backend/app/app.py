@@ -2972,8 +2972,10 @@ async def get_output_statistics():
                     for e in vs if isinstance(e, dict)
                 ]
         # Keep the per-model violation statistics (dynamic scalar keys: per-type
-        # *_viol_count plus mean/min/max/std/median_violation).
-        for m_key in ('dist_violation_for_each_model', 'dihed_violation_for_each_model'):
+        # *_viol_count plus mean/min/max/std/median_violation) and the per-ensemble
+        # fraction breakdown (fraction_count / fraction_percent + *_viol_count).
+        for m_key in ('dist_violation_for_each_model', 'dihed_violation_for_each_model',
+                      'dist_violation_for_ensemble', 'dihed_violation_for_ensemble'):
             mv = rs.get(m_key)
             if isinstance(mv, list) and mv:
                 summary[m_key] = [
