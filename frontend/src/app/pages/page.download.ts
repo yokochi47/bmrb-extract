@@ -1437,6 +1437,116 @@ export class Download {
     return Array.isArray(v) ? (v as MostViolatedRow[]) : [];
   });
 
+  /** A "nice" bin width for a 0..max range targeting ~30 bins (1/2/5 × 10ⁿ). */
+  private niceStep(max: number): number {
+    const target = max > 0 ? max / 30 : 1;
+    const pow = Math.pow(10, Math.floor(Math.log10(target)));
+    const norm = target / pow;
+    const nice = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+    return nice * pow;
+  }
+
+  /** Stacked histogram of per-restraint mean violations, binned on the x-axis
+   * (from 0) and stacked by restraint category. Null when there are no data. */
+  private meanViolationHistogram(
+    rows: MostViolatedRow[],
+    catKey: 'distance_type' | 'dihedral_angle_name',
+    unit: string,
+    order: string[],
+  ): object | null {
+    const pts = rows
+      .map((r) => ({
+        mean: typeof r.mean_violation === 'number' ? r.mean_violation : null,
+        cat: String(r[catKey] ?? ''),
+      }))
+      .filter((p): p is { mean: number; cat: string } => p.mean !== null && p.cat !== '');
+    if (!pts.length) return null;
+    const maxV = Math.max(...pts.map((p) => p.mean));
+    const step = this.niceStep(maxV);
+    const nBins = Math.max(1, Math.ceil((maxV + 1e-9) / step));
+    const decimals = step < 1 ? 2 : 0;
+    const binLabels = Array.from({ length: nBins }, (_, i) => (i * step).toFixed(decimals));
+    const orderIndex = (c: string) => {
+      const i = order.indexOf(c.toLowerCase());
+      return i === -1 ? order.length : i;
+    };
+    const cats = [...new Set(pts.map((p) => p.cat))].sort(
+      (a, b) => orderIndex(a) - orderIndex(b) || a.localeCompare(b),
+    );
+    const series = cats.map((cat) => {
+      const data = new Array(nBins).fill(0);
+      for (const p of pts) {
+        if (p.cat === cat) data[Math.min(nBins - 1, Math.floor(p.mean / step))]++;
+      }
+      return { name: this.restraintTypeLabel(cat), type: 'bar', stack: 'v', data };
+    });
+    return {
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' },
+        formatter: (
+          params: { axisValue?: string; seriesName?: string; marker?: string; value?: number }[],
+        ) => {
+          const lo = Number(params[0]?.axisValue ?? 0);
+          const header = `[${lo.toFixed(decimals)}, ${(lo + step).toFixed(decimals)}) ${unit}`;
+          const lines = params
+            .filter((p) => p.value)
+            .map((p) => `${p.marker ?? ''}${p.seriesName}: ${p.value}`);
+          return [header, ...lines].join('<br/>');
+        },
+      },
+      legend: {
+        orient: 'vertical',
+        right: 8,
+        top: 'middle',
+        type: 'scroll',
+        data: cats.map((c) => this.restraintTypeLabel(c)),
+      },
+      grid: { left: 60, right: 170, top: 24, bottom: 56, containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: binLabels,
+        name: `Mean violation (${unit})`,
+        nameLocation: 'middle',
+        nameGap: 32,
+        axisLabel: { fontSize: 9 },
+      },
+      yAxis: { type: 'value', name: 'Count', nameLocation: 'middle', nameGap: 40, minInterval: 1 },
+      series,
+    };
+  }
+
+  /** Preferred category order for the distance mean-violation histogram. */
+  private static readonly DIST_CAT_ORDER = [
+    'intra-residue',
+    'sequential',
+    'medium_range',
+    'long_range',
+    'inter-chain',
+    'hydrogen_bond',
+    'disulfide_bond',
+    'diselenide_bond',
+    'metal_coordiantion',
+  ];
+
+  /** Distance mean-violation stacked histogram. */
+  distMeanViolationHist = computed<object | null>(() =>
+    this.meanViolationHistogram(
+      this.mostViolaratedDist(),
+      'distance_type',
+      'Å',
+      Download.DIST_CAT_ORDER,
+    ),
+  );
+
+  /** Dihedral-angle mean-violation stacked histogram (dynamic angle types). */
+  dihedMeanViolationHist = computed<object | null>(() =>
+    this.meanViolationHistogram(this.mostViolaratedDihed(), 'dihedral_angle_name', '°', [
+      'phi',
+      'psi',
+    ]),
+  );
+
   /** Hatch decal (diagonal lines) for the "Violated" overlay bars. */
   private static readonly VIOL_DECAL = {
     color: 'rgba(0, 0, 0, 0.55)',
@@ -1588,8 +1698,8 @@ export class Download {
     };
   });
 
-  /** Dark-blue accent used for the per-model mean/median markers and error bars. */
-  private static readonly MARK_COLOR = '#2b6cb0';
+  /** Color for the per-model mean/median markers and mean±SD error bars. */
+  private static readonly MARK_COLOR = '#000000';
   /** Plus glyph in a 10×10 box; drawn with symbolRotate:45 to render as an "×"
    * (shared by the chart symbol and the tooltip marker so they match). */
   private static readonly MEDIAN_PATH =
@@ -1623,7 +1733,7 @@ export class Download {
   private modelViolationChartOption(
     rows: Record<string, number | null>[],
     unit: string,
-    cats: { key: string; label: string; color: string }[],
+    cats: { key: string; label: string; color?: string }[],
   ): object | null {
     if (!rows.length) return null;
     const x = rows.map((r) => String(r['model_id']));
@@ -1697,7 +1807,13 @@ export class Download {
         axisLabel: { fontSize: 9 },
       },
       yAxis: [
-        { type: 'value', name: 'Number of violations', nameLocation: 'middle', nameGap: 44 },
+        {
+          type: 'value',
+          name: 'Number of violations',
+          nameLocation: 'middle',
+          nameGap: 44,
+          splitNumber: 4,
+        },
         {
           type: 'value',
           name: `Mean, median violations (${unit})`,
@@ -1706,8 +1822,9 @@ export class Download {
           position: 'right',
           min: 0,
           ...(rightAxisMax !== null ? { max: rightAxisMax } : {}),
-          axisLine: { show: true, lineStyle: { color: Download.MARK_COLOR } },
-          axisLabel: { color: Download.MARK_COLOR },
+          splitNumber: 4,
+          // Default axis color; hide its grid lines so only the left axis draws them.
+          splitLine: { show: false },
         },
       ],
       series: [
@@ -1716,7 +1833,7 @@ export class Download {
           type: 'bar',
           stack: 'v',
           yAxisIndex: 0,
-          itemStyle: { color: c.color },
+          ...(c.color ? { itemStyle: { color: c.color } } : {}),
           data: rows.map((r) => num(r[c.key]) ?? 0),
         })),
         {
@@ -1764,9 +1881,11 @@ export class Download {
 
   /** Per-model dihedral-angle-violation chart (PSI/PHI hard-coded). */
   dihedModelViolationsChart = computed<object | null>(() =>
+    // No explicit colors: use the default palette in the same order (Phi, Psi)
+    // as the other dihedral-angle charts so the categories match across them.
     this.modelViolationChartOption(this.dihedViolationForEachModel(), '°', [
-      { key: 'psi_viol_count', label: 'Psi', color: '#4a7ebb' },
-      { key: 'phi_viol_count', label: 'Phi', color: '#9dc3e6' },
+      { key: 'phi_viol_count', label: 'Phi' },
+      { key: 'psi_viol_count', label: 'Psi' },
     ]),
   );
 

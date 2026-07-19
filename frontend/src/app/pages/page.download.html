@@ -146,18 +146,26 @@
       <!-- /information/output_statistics/[entry_id, entry_title, entry_authors, submission_date, processed_date, processed_site, file_name, file_type, file_size, md5_checksum, model/* (if not null)] -->
       <p-card header="Provenance information" styleClass="mb-6">
         <div class="overflow-x-auto">
-          <p class="text-base font-medium mx-2 mb-2">
-            Conversion ID: <span class="underline">{{ publicId() }}</span>
-          </p>
-          <p class="text-base font-medium mx-2 mb-2">
-            Output used for: <span class="underline">{{ outputUsedFor() }}</span>
-          </p>
-          <p class="text-base font-medium mx-2 mb-2">
-            Processed site: <span class="underline">{{ processedSite() }}</span>
-          </p>
-          <p class="text-base font-medium mx-2 mb-2">
-            Timestamp (UTC): <span class="underline">{{ reportTimestamp() }}</span>
-          </p>
+          <table class="text-base font-medium mx-2 mb-2 border-collapse">
+            <tbody>
+              <tr>
+                <td class="pr-3 py-0.5 align-top">Conversion ID:</td>
+                <td class="py-0.5 font-bold">{{ publicId() }}</td>
+              </tr>
+              <tr>
+                <td class="pr-3 py-0.5 align-top">Output used for:</td>
+                <td class="py-0.5 font-bold">{{ outputUsedFor() }}</td>
+              </tr>
+              <tr>
+                <td class="pr-3 py-0.5 align-top">Processed site:</td>
+                <td class="py-0.5 font-bold">{{ processedSite() }}</td>
+              </tr>
+              <tr>
+                <td class="pr-3 py-0.5 align-top">Timestamp (UTC):</td>
+                <td class="py-0.5 font-bold">{{ reportTimestamp() }}</td>
+              </tr>
+            </tbody>
+          </table>
 
           <p class="text-lg mt-4 mb-2">Input files</p>
           <div class="overflow-x-auto mb-4">
@@ -219,7 +227,7 @@
           </div>
 
           <p class="text-lg mb-2">Output files</p>
-          <p class="text-base font-medium mx-2 mb-2 underline">NMR data file</p>
+          <p class="text-base font-bold mx-2 mb-2">NMR data file</p>
           <div class="overflow-x-auto mb-4">
             <table class="w-full text-sm border-collapse">
               <tbody>
@@ -234,7 +242,7 @@
           </div>
 
           @if (modelProps().length) {
-            <p class="text-base font-medium mx-2 mb-2 underline">Coordinate file</p>
+            <p class="text-base font-bold mx-2 mb-2">Coordinate file</p>
             <div class="overflow-x-auto mb-4">
               <table class="w-full text-sm border-collapse">
                 <tbody>
@@ -1599,7 +1607,7 @@
           @if (distModelViolationsChart(); as opt) {
             <p class="text-base mt-2 mb-2">Distance violation statistics for each model</p>
             <p class="text-base mb-2 mx-4">
-              The mean(dot), median(x) and the standard deviation are shown in blue with respect to
+              The mean(dot), median(x) and the standard deviation are shown in black with respect to
               the y-axis on the right.
             </p>
             <app-echart [option]="opt" [height]="440" />
@@ -1702,10 +1710,11 @@
             <p class="text-base font-medium mt-4 mb-2">7.4 Most violated distance restraints</p>
             <p class="text-base mb-4 mx-2">
               The following table provides the mean and the standard deviation of the violation for
-              each restraint sorted by number of violated models and the mean value. The Key
-              (restraint list ID, restraint ID) is the unique identifier for a given restraint. Rows
-              with same key represent combinatorial or ambiguous restraints and are counted as a
-              single restraint.
+              each restraint sorted by number of violated models and the mean value. Violations less
+              than 0.1 Å and cases of single-model violation are not included in the statistics. The
+              Key (restraint list ID, restraint ID) is the unique identifier for a given restraint.
+              Rows with same key represent combinatorial or ambiguous restraints and are counted as
+              a single restraint.
             </p>
             <p-panel [toggleable]="true" [collapsed]="true" styleClass="mb-4">
               <ng-template pTemplate="header">
@@ -1757,6 +1766,16 @@
                 </table>
               </div>
             </p-panel>
+
+            <p class="text-base mt-2 mb-2">Distribution of mean distance violations</p>
+            <p class="text-base mb-2 mx-4">
+              The following histogram shows the distribution of the average value of the violation.
+              The average is calculated for each restraint that is violated in more than one model
+              over all the violated models in the ensemble.
+            </p>
+            @if (distMeanViolationHist(); as opt) {
+              <app-echart [option]="opt" [height]="420" />
+            }
           }
         } @else {
           <p class="text-surface-500 py-2">There is no distance restraints.</p>
@@ -1979,7 +1998,7 @@
           @if (dihedModelViolationsChart(); as opt) {
             <p class="text-base mt-2 mb-2">Dihderal-angle violation statistics for each model</p>
             <p class="text-base mb-2 mx-4">
-              The mean(dot), median(x) and the standard deviation are shown in blue with respect to
+              The mean(dot), median(x) and the standard deviation are shown in black with respect to
               the y-axis on the right.
             </p>
             <app-echart [option]="opt" [height]="440" />
@@ -2085,8 +2104,9 @@
             </p>
             <p class="text-base mb-4 mx-2">
               The following table provides the mean and the standard deviation of the violation for
-              each restraint sorted by number of violated models and the mean value. The Key
-              (restraint list ID, restraint ID) is the unique identifier for a given restraint.
+              each restraint sorted by number of violated models and the mean value. Violations less
+              than 1° and cases of single-model violation are not included in the statistics. The
+              Key (restraint list ID, restraint ID) is the unique identifier for a given restraint.
             </p>
             <p-panel [toggleable]="true" [collapsed]="true" styleClass="mb-4">
               <ng-template pTemplate="header">
@@ -2142,6 +2162,16 @@
                 </table>
               </div>
             </p-panel>
+
+            <p class="text-base mt-2 mb-2">Distribution of mean dihedral-angle violations</p>
+            <p class="text-base mb-2 mx-4">
+              The following histogram shows the distribution of the average value of the violation.
+              The average is calculated for each restraint that is violated in more than one model
+              over all the violated models in the ensemble.
+            </p>
+            @if (dihedMeanViolationHist(); as opt) {
+              <app-echart [option]="opt" [height]="420" />
+            }
           }
         } @else {
           <p class="text-surface-500 py-2">There is no dihedral-angle restraints.</p>
