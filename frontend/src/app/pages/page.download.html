@@ -1777,6 +1777,66 @@
               <app-echart [option]="opt" [height]="420" />
             }
           }
+
+          <!-- /information/output_statistics/restraint_summary/all_dist_violations -->
+          @if (allViolaratedDist().length) {
+            <p class="text-base font-medium mt-4 mb-2">7.5 All violated distance restraints</p>
+            <p class="text-base mb-4 mx-2">
+              The following table lists the absolute value of the violation for each restraint in
+              the ensemble sorted by its value. The Key (restraint list ID, restraint ID) is the
+              unique identifier for a given restraint. Rows with same key represent combinatorial or
+              ambiguous restraints and are counted as a single restraint.
+            </p>
+            <p-panel [toggleable]="true" [collapsed]="true" styleClass="mb-4">
+              <ng-template pTemplate="header">
+                <span class="font-medium">
+                  {{ allViolaratedDist().length }} distance violations
+                </span>
+              </ng-template>
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm border-collapse">
+                  <thead>
+                    <tr>
+                      @for (
+                        h of ['Key', 'Type', 'Atom-1', 'Atom-2', 'Model ID', 'Violation (Å)'];
+                        track $index
+                      ) {
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                        >
+                          {{ h }}
+                        </th>
+                      }
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (r of allViolaratedDist(); track $index) {
+                      <tr class="border-b border-surface-100 dark:border-surface-800">
+                        <td class="px-2 py-1 whitespace-nowrap">{{ r.restraint_key }}</td>
+                        <td class="px-2 py-1 whitespace-nowrap">
+                          {{ restraintTypeLabel(r.distance_type) }}
+                        </td>
+                        <td class="px-2 py-1 font-mono break-all">{{ r.atom_key_1 }}</td>
+                        <td class="px-2 py-1 font-mono break-all">{{ r.atom_key_2 }}</td>
+                        <td class="px-2 py-1 tabular-nums">{{ r.model_id }}</td>
+                        <td class="px-2 py-1 tabular-nums">{{ r.violation }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </p-panel>
+
+            <p class="text-base mt-2 mb-2">Distribution of distance violations</p>
+            <p class="text-base mb-2 mx-4">
+              The following histogram shows the distribution of the absolute value of the violation
+              for all violated restraints in the ensemble.
+            </p>
+            <!-- TODO stacked histogram chart -->
+            @if (distViolationHist(); as opt) {
+              <app-echart [option]="opt" [height]="420" />
+            }
+          }
         } @else {
           <p class="text-surface-500 py-2">There is no distance restraints.</p>
         }
@@ -2170,6 +2230,78 @@
               over all the violated models in the ensemble.
             </p>
             @if (dihedMeanViolationHist(); as opt) {
+              <app-echart [option]="opt" [height]="420" />
+            }
+          }
+
+          <!-- /information/output_statistics/restraint_summary/all_dihed_restraints -->
+          @if (allViolaratedDihed().length) {
+            <p class="text-base font-medium mt-4 mb-2">
+              8.5 All violated dihedral-angle violations
+            </p>
+            <p class="text-base mb-4 mx-2">
+              The following table lists the absolute value of the violation for each restraint in
+              the ensemble sorted by its value. The Key (restraint list ID, restraint ID) is the
+              unique identifier for a given restraint.
+            </p>
+            <p-panel [toggleable]="true" [collapsed]="true" styleClass="mb-4">
+              <ng-template pTemplate="header">
+                <span class="font-medium">
+                  {{ allViolaratedDihed().length }} dihedral-angle violations
+                </span>
+              </ng-template>
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm border-collapse">
+                  <thead>
+                    <tr>
+                      @for (
+                        h of [
+                          'Key',
+                          'Type',
+                          'Atom-1',
+                          'Atom-2',
+                          'Atom-3',
+                          'Atom-4',
+                          'Model ID',
+                          'Violation (°)',
+                        ];
+                        track $index
+                      ) {
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                        >
+                          {{ h }}
+                        </th>
+                      }
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (r of allViolaratedDihed(); track $index) {
+                      <tr class="border-b border-surface-100 dark:border-surface-800">
+                        <td class="px-2 py-1 whitespace-nowrap">{{ r.restraint_key }}</td>
+                        <td class="px-2 py-1 whitespace-nowrap">
+                          {{ restraintTypeLabel(r.dihedral_angle_name) }}
+                        </td>
+                        <td class="px-2 py-1 font-mono break-all">{{ r.atom_key_1 }}</td>
+                        <td class="px-2 py-1 font-mono break-all">{{ r.atom_key_2 }}</td>
+                        <td class="px-2 py-1 font-mono break-all">{{ r.atom_key_3 }}</td>
+                        <td class="px-2 py-1 font-mono break-all">{{ r.atom_key_4 }}</td>
+                        <td class="px-2 py-1 tabular-nums">{{ r.model_id }}</td>
+                        <td class="px-2 py-1 tabular-nums">{{ r.violation }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </p-panel>
+
+            <p class="text-base mt-2 mb-2">Distribution of dihedral-angle violations</p>
+            <p class="text-base mb-2 mx-4">
+              The following histogram shows the distribution of the absolute value of the violation
+              for all violated restraints in the ensemble.
+            </p>
+            <!-- TODO stacked histogram chart -->
+            @if (dihedViolationHist(); as opt) {
               <app-echart [option]="opt" [height]="420" />
             }
           }

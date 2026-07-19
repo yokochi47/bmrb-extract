@@ -405,6 +405,18 @@ interface MostViolatedRow {
   std_violation?: number | null;
   median_violation?: number | null;
 }
+/** One per-model violation entry (restraint_summary.all_{dist,dihed}_violations). */
+interface AllViolationRow {
+  restraint_key?: string;
+  distance_type?: string;
+  dihedral_angle_name?: string;
+  atom_key_1?: string;
+  atom_key_2?: string;
+  atom_key_3?: string;
+  atom_key_4?: string;
+  model_id?: number;
+  violation?: number;
+}
 
 /** Display order of the restraint_summary key-value rows. Keys not listed here
  * are appended in their original order. */
@@ -1446,22 +1458,16 @@ export class Download {
     return nice * pow;
   }
 
-  /** Stacked histogram of per-restraint mean violations, binned on the x-axis
-   * (from 0) and stacked by restraint category. Null when there are no data. */
-  private meanViolationHistogram(
-    rows: MostViolatedRow[],
-    catKey: 'distance_type' | 'dihedral_angle_name',
+  /** Stacked histogram of {value} counts, binned on the x-axis (from 0) and
+   * stacked by category. Null when there are no data. */
+  private stackedValueHistogram(
+    pts: { value: number; cat: string }[],
     unit: string,
     order: string[],
+    xName: string,
   ): object | null {
-    const pts = rows
-      .map((r) => ({
-        mean: typeof r.mean_violation === 'number' ? r.mean_violation : null,
-        cat: String(r[catKey] ?? ''),
-      }))
-      .filter((p): p is { mean: number; cat: string } => p.mean !== null && p.cat !== '');
     if (!pts.length) return null;
-    const maxV = Math.max(...pts.map((p) => p.mean));
+    const maxV = Math.max(...pts.map((p) => p.value));
     const step = this.niceStep(maxV);
     const nBins = Math.max(1, Math.ceil((maxV + 1e-9) / step));
     const decimals = step < 1 ? 2 : 0;
@@ -1476,7 +1482,7 @@ export class Download {
     const series = cats.map((cat) => {
       const data = new Array(nBins).fill(0);
       for (const p of pts) {
-        if (p.cat === cat) data[Math.min(nBins - 1, Math.floor(p.mean / step))]++;
+        if (p.cat === cat) data[Math.min(nBins - 1, Math.floor(p.value / step))]++;
       }
       return { name: this.restraintTypeLabel(cat), type: 'bar', stack: 'v', data };
     });
@@ -1506,7 +1512,7 @@ export class Download {
       xAxis: {
         type: 'category',
         data: binLabels,
-        name: `Mean violation (${unit})`,
+        name: `${xName} (${unit})`,
         nameLocation: 'middle',
         nameGap: 32,
         axisLabel: { fontSize: 9 },
@@ -1514,6 +1520,22 @@ export class Download {
       yAxis: { type: 'value', name: 'Count', nameLocation: 'middle', nameGap: 40, minInterval: 1 },
       series,
     };
+  }
+
+  /** Stacked histogram of per-restraint mean violations, by restraint category. */
+  private meanViolationHistogram(
+    rows: MostViolatedRow[],
+    catKey: 'distance_type' | 'dihedral_angle_name',
+    unit: string,
+    order: string[],
+  ): object | null {
+    const pts = rows
+      .map((r) => ({
+        value: typeof r.mean_violation === 'number' ? r.mean_violation : null,
+        cat: String(r[catKey] ?? ''),
+      }))
+      .filter((p): p is { value: number; cat: string } => p.value !== null && p.cat !== '');
+    return this.stackedValueHistogram(pts, unit, order, 'Mean violation');
   }
 
   /** Preferred category order for the distance mean-violation histogram. */
@@ -1546,6 +1568,39 @@ export class Download {
       'psi',
     ]),
   );
+
+  /** All per-model violation entries (restraint_summary.all_*_violations). */
+  allViolaratedDist = computed<AllViolationRow[]>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const v = rs?.['all_dist_violations'];
+    return Array.isArray(v) ? (v as AllViolationRow[]) : [];
+  });
+  allViolaratedDihed = computed<AllViolationRow[]>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const v = rs?.['all_dihed_violations'];
+    return Array.isArray(v) ? (v as AllViolationRow[]) : [];
+  });
+
+  /** Stacked histogram of every distance violation value, by restraint category. */
+  distViolationHist = computed<object | null>(() => {
+    const pts = this.allViolaratedDist()
+      .map((r) => ({
+        value: typeof r.violation === 'number' ? r.violation : null,
+        cat: String(r.distance_type ?? ''),
+      }))
+      .filter((p): p is { value: number; cat: string } => p.value !== null && p.cat !== '');
+    return this.stackedValueHistogram(pts, 'Å', Download.DIST_CAT_ORDER, 'Violation');
+  });
+  /** Stacked histogram of every dihedral-angle violation value (dynamic types). */
+  dihedViolationHist = computed<object | null>(() => {
+    const pts = this.allViolaratedDihed()
+      .map((r) => ({
+        value: typeof r.violation === 'number' ? r.violation : null,
+        cat: String(r.dihedral_angle_name ?? ''),
+      }))
+      .filter((p): p is { value: number; cat: string } => p.value !== null && p.cat !== '');
+    return this.stackedValueHistogram(pts, '°', ['phi', 'psi'], 'Violation');
+  });
 
   /** Hatch decal (diagonal lines) for the "Violated" overlay bars. */
   private static readonly VIOL_DECAL = {
