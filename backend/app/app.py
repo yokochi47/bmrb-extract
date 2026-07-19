@@ -2730,6 +2730,14 @@ _MOST_VIOLATED_KEYS = (
     'total_violated_models', 'mean_violation', 'std_violation', 'median_violation',
 )
 
+# Columns kept for each per-model violation entry (restraint_summary.
+# all_{dist,dihed}_violations).
+_ALL_VIOLATION_KEYS = (
+    'restraint_key', 'distance_type', 'dihedral_angle_name',
+    'atom_key_1', 'atom_key_2', 'atom_key_3', 'atom_key_4',
+    'model_id', 'violation',
+)
+
 # Per-saveframe chemical-shift bookkeeping fields kept for the download-page
 # 'Assigned chemical shift summary' — the large validation sub-tables (RCI charts,
 # atom-name mapping, per-shift completeness/outlier lists) are dropped.
@@ -2998,6 +3006,14 @@ async def get_output_statistics():
                 summary[mv_key] = [
                     {k: e[k] for k in _MOST_VIOLATED_KEYS if k in e}
                     for e in mv if isinstance(e, dict)
+                ]
+        # All per-model violation entries (potentially large; kept to columns).
+        for av_key in ('all_dist_violations', 'all_dihed_violations'):
+            av = rs.get(av_key)
+            if isinstance(av, list) and av:
+                summary[av_key] = [
+                    {k: e[k] for k in _ALL_VIOLATION_KEYS if k in e}
+                    for e in av if isinstance(e, dict)
                 ]
         pruned['restraint_summary'] = summary
     # chem_shift: keep only the per-saveframe bookkeeping counts for the
