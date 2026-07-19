@@ -391,6 +391,20 @@ interface ViolationSummaryRow {
   consist_viol_inline_percent?: number | null;
   consist_viol_absol_percent?: number;
 }
+/** One most-violated restraint (restraint_summary.most_violated_*_restraints). */
+interface MostViolatedRow {
+  restraint_key?: string;
+  distance_type?: string;
+  dihedral_angle_name?: string;
+  atom_key_1?: string;
+  atom_key_2?: string;
+  atom_key_3?: string;
+  atom_key_4?: string;
+  total_violated_models?: number;
+  mean_violation?: number | null;
+  std_violation?: number | null;
+  median_violation?: number | null;
+}
 
 /** Display order of the restraint_summary key-value rows. Keys not listed here
  * are appended in their original order. */
@@ -1411,6 +1425,18 @@ export class Download {
     return this.violationEnsembleStackChart(rows, cats);
   });
 
+  /** Most-violated restraint rows (restraint_summary.most_violated_*_restraints). */
+  mostViolaratedDist = computed<MostViolatedRow[]>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const v = rs?.['most_violated_dist_restraints'];
+    return Array.isArray(v) ? (v as MostViolatedRow[]) : [];
+  });
+  mostViolaratedDihed = computed<MostViolatedRow[]>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const v = rs?.['most_violated_dihed_restraints'];
+    return Array.isArray(v) ? (v as MostViolatedRow[]) : [];
+  });
+
   /** Hatch decal (diagonal lines) for the "Violated" overlay bars. */
   private static readonly VIOL_DECAL = {
     color: 'rgba(0, 0, 0, 0.55)',
@@ -1615,6 +1641,17 @@ export class Download {
           : null;
       })
       .filter((d): d is (string | number)[] => d !== null);
+    // Extend the right axis so it covers the mean±SD error bars and median+SD
+    // (a custom series doesn't drive axis auto-scaling on its own).
+    let rightMax = 0;
+    for (const r of rows) {
+      const mean = num(r['mean_violation']);
+      const median = num(r['median_violation']);
+      const std = num(r['std_violation']);
+      if (mean !== null && std !== null) rightMax = Math.max(rightMax, mean + std);
+      if (median !== null && std !== null) rightMax = Math.max(rightMax, median + std);
+    }
+    const rightAxisMax = rightMax > 0 ? +(rightMax * 1.05).toFixed(2) : null;
     return {
       tooltip: {
         trigger: 'axis',
@@ -1667,6 +1704,8 @@ export class Download {
           nameLocation: 'middle',
           nameGap: 44,
           position: 'right',
+          min: 0,
+          ...(rightAxisMax !== null ? { max: rightAxisMax } : {}),
           axisLine: { show: true, lineStyle: { color: Download.MARK_COLOR } },
           axisLabel: { color: Download.MARK_COLOR },
         },
@@ -1747,7 +1786,7 @@ export class Download {
           .trimStart()
       );
     }
-    const s = type.replace(/_/g, ' ');
+    const s = type.replace(/_/g, ' ').toLowerCase();
     return s.charAt(0).toUpperCase() + s.slice(1);
   }
 

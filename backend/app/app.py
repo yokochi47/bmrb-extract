@@ -2721,6 +2721,15 @@ _DIST_VIOLATION_SUMMARY_KEYS = (
     'consist_viol_count', 'consist_viol_inline_percent', 'consist_viol_absol_percent',
 )
 
+# Columns kept for each most-violated restraint (restraint_summary.
+# most_violated_{dist,dihed}_restraints); the per-model violated_model_id list
+# and min/max are dropped.
+_MOST_VIOLATED_KEYS = (
+    'restraint_key', 'distance_type', 'dihedral_angle_name',
+    'atom_key_1', 'atom_key_2', 'atom_key_3', 'atom_key_4',
+    'total_violated_models', 'mean_violation', 'std_violation', 'median_violation',
+)
+
 # Per-saveframe chemical-shift bookkeeping fields kept for the download-page
 # 'Assigned chemical shift summary' — the large validation sub-tables (RCI charts,
 # atom-name mapping, per-shift completeness/outlier lists) are dropped.
@@ -2980,6 +2989,14 @@ async def get_output_statistics():
             if isinstance(mv, list) and mv:
                 summary[m_key] = [
                     {k: v for k, v in e.items() if isinstance(v, (int, float)) or v is None}
+                    for e in mv if isinstance(e, dict)
+                ]
+        # Most-violated restraint tables (kept to their display columns).
+        for mv_key in ('most_violated_dist_restraints', 'most_violated_dihed_restraints'):
+            mv = rs.get(mv_key)
+            if isinstance(mv, list) and mv:
+                summary[mv_key] = [
+                    {k: e[k] for k in _MOST_VIOLATED_KEYS if k in e}
                     for e in mv if isinstance(e, dict)
                 ]
         pruned['restraint_summary'] = summary
