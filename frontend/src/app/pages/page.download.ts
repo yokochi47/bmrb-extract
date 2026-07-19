@@ -391,6 +391,20 @@ interface ViolationSummaryRow {
   consist_viol_inline_percent?: number | null;
   consist_viol_absol_percent?: number;
 }
+/** One most-violated restraint (restraint_summary.most_violated_*_restraints). */
+interface MostViolatedRow {
+  restraint_key?: string;
+  distance_type?: string;
+  dihedral_angle_name?: string;
+  atom_key_1?: string;
+  atom_key_2?: string;
+  atom_key_3?: string;
+  atom_key_4?: string;
+  total_violated_models?: number;
+  mean_violation?: number | null;
+  std_violation?: number | null;
+  median_violation?: number | null;
+}
 
 /** Display order of the restraint_summary key-value rows. Keys not listed here
  * are appended in their original order. */
@@ -1233,6 +1247,306 @@ export class Download {
     return { columns, rows };
   });
 
+  /** Raw per-ensemble violation-fraction rows (gate the 7.3 / 8.3 sections). */
+  distViolationForEnsemble = computed<Record<string, number | null>[]>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const v = rs?.['dist_violation_for_ensemble'];
+    return Array.isArray(v) ? (v as Record<string, number | null>[]) : [];
+  });
+  dihedViolationForEnsemble = computed<Record<string, number | null>[]>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const v = rs?.['dihed_violation_for_ensemble'];
+    return Array.isArray(v) ? (v as Record<string, number | null>[]) : [];
+  });
+
+  /** Number of non-violated distance restraints (restraint − violated) overall and
+   * per category, from the dist_violation_summary category rows (7.3 caption). */
+  distNonViolated = computed(() => {
+    const rows = this.distViolationSummary();
+    const nv = (r?: ViolationSummaryRow) =>
+      r ? (r.restraint_count ?? 0) - (r.viol_count ?? 0) : 0;
+    const pre = (p: string) =>
+      nv(rows.find((r) => (r.restraint_type ?? '').toLowerCase().startsWith(p)));
+    return {
+      total: nv(rows.find((r) => (r.restraint_type ?? '').toLowerCase() === 'total')),
+      ir: pre('intra-residue'),
+      sq: pre('sequential'),
+      mr: pre('medium'),
+      lr: pre('long'),
+      ic: pre('inter-chain'),
+    };
+  });
+
+  /** Non-violated dihedral-angle restraints (restraint − violated): the overall
+   * total plus a per-angle-type breakdown string (angle names are dynamic). */
+  dihedNonViolated = computed(() => {
+    const rows = this.dihedViolationSummary();
+    const nv = (r: ViolationSummaryRow) => (r.restraint_count ?? 0) - (r.viol_count ?? 0);
+    const totalRow = rows.find((r) => (r.restraint_type ?? '').toLowerCase() === 'total');
+    const perType = rows
+      .filter((r) => (r.restraint_type ?? '').toLowerCase() !== 'total')
+      .map((r) => {
+        const t = r.restraint_type ?? '';
+        return { label: t.charAt(0).toUpperCase() + t.slice(1), count: nv(r) };
+      });
+    return { total: totalRow ? nv(totalRow) : 0, perType };
+  });
+
+  /** Per-ensemble distance-violation table (fixed sub-type columns). */
+  distEnsembleViolations = computed<{
+    columns: { key: string; label: string }[];
+    rows: Record<string, number | null>[];
+  } | null>(() => {
+    const rows = this.distViolationForEnsemble();
+    if (!rows.length) return null;
+    const columns = [
+      { key: 'ir_viol_count', label: 'IR' },
+      { key: 'sq_viol_count', label: 'SQ' },
+      { key: 'mr_viol_count', label: 'MR' },
+      { key: 'lr_viol_count', label: 'LR' },
+      { key: 'ic_viol_count', label: 'IC' },
+      { key: 'total_viol_count', label: 'Total' },
+    ];
+    return { columns, rows };
+  });
+
+  /** Per-ensemble dihedral-violation table (dynamic angle-type columns). */
+  dihedEnsembleViolations = computed<{
+    columns: { key: string; label: string }[];
+    rows: Record<string, number | null>[];
+  } | null>(() => {
+    const rows = this.dihedViolationForEnsemble();
+    if (!rows.length) return null;
+    const seen = new Set<string>();
+    for (const r of rows) {
+      for (const k of Object.keys(r)) if (k.endsWith('_viol_count')) seen.add(k);
+    }
+    const fixed = ['phi_viol_count', 'psi_viol_count', 'total_viol_count'];
+    const others = [...seen].filter((k) => !fixed.includes(k)).sort();
+    const ordered = [
+      ...(seen.has('phi_viol_count') ? ['phi_viol_count'] : []),
+      ...(seen.has('psi_viol_count') ? ['psi_viol_count'] : []),
+      ...others,
+      ...(seen.has('total_viol_count') ? ['total_viol_count'] : []),
+    ];
+    const columns = ordered.map((k) => {
+      const t = k.slice(0, -'_viol_count'.length);
+      return { key: k, label: t.charAt(0).toUpperCase() + t.slice(1) };
+    });
+    return { columns, rows };
+  });
+
+  /** Stacked bar chart of violated restraints vs ensemble fraction (%), stacked
+   * by category. cats without an explicit color use the default palette. */
+  private violationEnsembleStackChart(
+    rows: Record<string, number | null>[],
+    cats: { key: string; label: string; color?: string }[],
+  ): object | null {
+    if (!rows.length || !cats.length) return null;
+    const num = (v: number | null | undefined): number => (typeof v === 'number' ? v : 0);
+    const xLabels = rows.map((r) => String(num(r['fraction_percent'])));
+    return {
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' },
+        formatter: (
+          params: { axisValue?: string; seriesName?: string; marker?: string; value?: number }[],
+        ) => {
+          const header = `${params[0]?.axisValue ?? ''}% of the ensemble`;
+          const lines = params
+            .filter((p) => p.value)
+            .map((p) => `${p.marker ?? ''}${p.seriesName}: ${p.value}`);
+          return [header, ...lines].join('<br/>');
+        },
+      },
+      legend: {
+        orient: 'vertical',
+        right: 8,
+        top: 'middle',
+        type: 'scroll',
+        data: cats.map((c) => c.label),
+      },
+      grid: { left: 60, right: 170, top: 24, bottom: 56, containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: xLabels,
+        name: 'Fraction of the ensemble (%)',
+        nameLocation: 'middle',
+        nameGap: 32,
+        axisLabel: { fontSize: 9 },
+      },
+      yAxis: {
+        type: 'value',
+        name: 'Number of violated restraints',
+        nameLocation: 'middle',
+        nameGap: 44,
+      },
+      series: cats.map((c) => ({
+        name: c.label,
+        type: 'bar',
+        stack: 'v',
+        data: rows.map((r) => num(r[c.key])),
+        ...(c.color ? { itemStyle: { color: c.color } } : {}),
+      })),
+    };
+  }
+
+  /** Per-ensemble distance-violation stacked bar chart (fixed sub-type categories). */
+  distViolationsForEnsembleChart = computed<object | null>(() =>
+    this.violationEnsembleStackChart(this.distViolationForEnsemble(), [
+      { key: 'ir_viol_count', label: 'Intra-residue', color: '#5470c6' },
+      { key: 'sq_viol_count', label: 'Sequential', color: '#a3c4f3' },
+      { key: 'mr_viol_count', label: 'Medium range', color: '#3ba272' },
+      { key: 'lr_viol_count', label: 'Long range', color: '#c0ca33' },
+      { key: 'ic_viol_count', label: 'Inter-chain', color: '#808000' },
+    ]),
+  );
+
+  /** Per-ensemble dihedral-violation stacked bar chart (dynamic angle types;
+   * the aggregate 'total' column is excluded). */
+  dihedViolationsForEnsembleChart = computed<object | null>(() => {
+    const rows = this.dihedViolationForEnsemble();
+    if (!rows.length) return null;
+    const seen = new Set<string>();
+    for (const r of rows) {
+      for (const k of Object.keys(r)) if (k.endsWith('_viol_count')) seen.add(k);
+    }
+    const fixed = ['phi_viol_count', 'psi_viol_count', 'total_viol_count'];
+    const others = [...seen].filter((k) => !fixed.includes(k)).sort();
+    const ordered = [
+      ...(seen.has('phi_viol_count') ? ['phi_viol_count'] : []),
+      ...(seen.has('psi_viol_count') ? ['psi_viol_count'] : []),
+      ...others,
+    ];
+    const cats = ordered.map((k) => {
+      const t = k.slice(0, -'_viol_count'.length);
+      return { key: k, label: t.charAt(0).toUpperCase() + t.slice(1) };
+    });
+    return this.violationEnsembleStackChart(rows, cats);
+  });
+
+  /** Most-violated restraint rows (restraint_summary.most_violated_*_restraints). */
+  mostViolaratedDist = computed<MostViolatedRow[]>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const v = rs?.['most_violated_dist_restraints'];
+    return Array.isArray(v) ? (v as MostViolatedRow[]) : [];
+  });
+  mostViolaratedDihed = computed<MostViolatedRow[]>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const v = rs?.['most_violated_dihed_restraints'];
+    return Array.isArray(v) ? (v as MostViolatedRow[]) : [];
+  });
+
+  /** A "nice" bin width for a 0..max range targeting ~30 bins (1/2/5 × 10ⁿ). */
+  private niceStep(max: number): number {
+    const target = max > 0 ? max / 30 : 1;
+    const pow = Math.pow(10, Math.floor(Math.log10(target)));
+    const norm = target / pow;
+    const nice = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+    return nice * pow;
+  }
+
+  /** Stacked histogram of per-restraint mean violations, binned on the x-axis
+   * (from 0) and stacked by restraint category. Null when there are no data. */
+  private meanViolationHistogram(
+    rows: MostViolatedRow[],
+    catKey: 'distance_type' | 'dihedral_angle_name',
+    unit: string,
+    order: string[],
+  ): object | null {
+    const pts = rows
+      .map((r) => ({
+        mean: typeof r.mean_violation === 'number' ? r.mean_violation : null,
+        cat: String(r[catKey] ?? ''),
+      }))
+      .filter((p): p is { mean: number; cat: string } => p.mean !== null && p.cat !== '');
+    if (!pts.length) return null;
+    const maxV = Math.max(...pts.map((p) => p.mean));
+    const step = this.niceStep(maxV);
+    const nBins = Math.max(1, Math.ceil((maxV + 1e-9) / step));
+    const decimals = step < 1 ? 2 : 0;
+    const binLabels = Array.from({ length: nBins }, (_, i) => (i * step).toFixed(decimals));
+    const orderIndex = (c: string) => {
+      const i = order.indexOf(c.toLowerCase());
+      return i === -1 ? order.length : i;
+    };
+    const cats = [...new Set(pts.map((p) => p.cat))].sort(
+      (a, b) => orderIndex(a) - orderIndex(b) || a.localeCompare(b),
+    );
+    const series = cats.map((cat) => {
+      const data = new Array(nBins).fill(0);
+      for (const p of pts) {
+        if (p.cat === cat) data[Math.min(nBins - 1, Math.floor(p.mean / step))]++;
+      }
+      return { name: this.restraintTypeLabel(cat), type: 'bar', stack: 'v', data };
+    });
+    return {
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' },
+        formatter: (
+          params: { axisValue?: string; seriesName?: string; marker?: string; value?: number }[],
+        ) => {
+          const lo = Number(params[0]?.axisValue ?? 0);
+          const header = `[${lo.toFixed(decimals)}, ${(lo + step).toFixed(decimals)}) ${unit}`;
+          const lines = params
+            .filter((p) => p.value)
+            .map((p) => `${p.marker ?? ''}${p.seriesName}: ${p.value}`);
+          return [header, ...lines].join('<br/>');
+        },
+      },
+      legend: {
+        orient: 'vertical',
+        right: 8,
+        top: 'middle',
+        type: 'scroll',
+        data: cats.map((c) => this.restraintTypeLabel(c)),
+      },
+      grid: { left: 60, right: 170, top: 24, bottom: 56, containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: binLabels,
+        name: `Mean violation (${unit})`,
+        nameLocation: 'middle',
+        nameGap: 32,
+        axisLabel: { fontSize: 9 },
+      },
+      yAxis: { type: 'value', name: 'Count', nameLocation: 'middle', nameGap: 40, minInterval: 1 },
+      series,
+    };
+  }
+
+  /** Preferred category order for the distance mean-violation histogram. */
+  private static readonly DIST_CAT_ORDER = [
+    'intra-residue',
+    'sequential',
+    'medium_range',
+    'long_range',
+    'inter-chain',
+    'hydrogen_bond',
+    'disulfide_bond',
+    'diselenide_bond',
+    'metal_coordiantion',
+  ];
+
+  /** Distance mean-violation stacked histogram. */
+  distMeanViolationHist = computed<object | null>(() =>
+    this.meanViolationHistogram(
+      this.mostViolaratedDist(),
+      'distance_type',
+      'Å',
+      Download.DIST_CAT_ORDER,
+    ),
+  );
+
+  /** Dihedral-angle mean-violation stacked histogram (dynamic angle types). */
+  dihedMeanViolationHist = computed<object | null>(() =>
+    this.meanViolationHistogram(this.mostViolaratedDihed(), 'dihedral_angle_name', '°', [
+      'phi',
+      'psi',
+    ]),
+  );
+
   /** Hatch decal (diagonal lines) for the "Violated" overlay bars. */
   private static readonly VIOL_DECAL = {
     color: 'rgba(0, 0, 0, 0.55)',
@@ -1384,8 +1698,8 @@ export class Download {
     };
   });
 
-  /** Dark-blue accent used for the per-model mean/median markers and error bars. */
-  private static readonly MARK_COLOR = '#2b6cb0';
+  /** Color for the per-model mean/median markers and mean±SD error bars. */
+  private static readonly MARK_COLOR = '#000000';
   /** Plus glyph in a 10×10 box; drawn with symbolRotate:45 to render as an "×"
    * (shared by the chart symbol and the tooltip marker so they match). */
   private static readonly MEDIAN_PATH =
@@ -1419,7 +1733,7 @@ export class Download {
   private modelViolationChartOption(
     rows: Record<string, number | null>[],
     unit: string,
-    cats: { key: string; label: string; color: string }[],
+    cats: { key: string; label: string; color?: string }[],
   ): object | null {
     if (!rows.length) return null;
     const x = rows.map((r) => String(r['model_id']));
@@ -1437,6 +1751,17 @@ export class Download {
           : null;
       })
       .filter((d): d is (string | number)[] => d !== null);
+    // Extend the right axis so it covers the mean±SD error bars and median+SD
+    // (a custom series doesn't drive axis auto-scaling on its own).
+    let rightMax = 0;
+    for (const r of rows) {
+      const mean = num(r['mean_violation']);
+      const median = num(r['median_violation']);
+      const std = num(r['std_violation']);
+      if (mean !== null && std !== null) rightMax = Math.max(rightMax, mean + std);
+      if (median !== null && std !== null) rightMax = Math.max(rightMax, median + std);
+    }
+    const rightAxisMax = rightMax > 0 ? +(rightMax * 1.05).toFixed(2) : null;
     return {
       tooltip: {
         trigger: 'axis',
@@ -1482,15 +1807,24 @@ export class Download {
         axisLabel: { fontSize: 9 },
       },
       yAxis: [
-        { type: 'value', name: 'Number of violations', nameLocation: 'middle', nameGap: 44 },
+        {
+          type: 'value',
+          name: 'Number of violations',
+          nameLocation: 'middle',
+          nameGap: 44,
+          splitNumber: 4,
+        },
         {
           type: 'value',
           name: `Mean, median violations (${unit})`,
           nameLocation: 'middle',
           nameGap: 44,
           position: 'right',
-          axisLine: { show: true, lineStyle: { color: Download.MARK_COLOR } },
-          axisLabel: { color: Download.MARK_COLOR },
+          min: 0,
+          ...(rightAxisMax !== null ? { max: rightAxisMax } : {}),
+          splitNumber: 4,
+          // Default axis color; hide its grid lines so only the left axis draws them.
+          splitLine: { show: false },
         },
       ],
       series: [
@@ -1499,7 +1833,7 @@ export class Download {
           type: 'bar',
           stack: 'v',
           yAxisIndex: 0,
-          itemStyle: { color: c.color },
+          ...(c.color ? { itemStyle: { color: c.color } } : {}),
           data: rows.map((r) => num(r[c.key]) ?? 0),
         })),
         {
@@ -1547,9 +1881,11 @@ export class Download {
 
   /** Per-model dihedral-angle-violation chart (PSI/PHI hard-coded). */
   dihedModelViolationsChart = computed<object | null>(() =>
+    // No explicit colors: use the default palette in the same order (Phi, Psi)
+    // as the other dihedral-angle charts so the categories match across them.
     this.modelViolationChartOption(this.dihedViolationForEachModel(), '°', [
-      { key: 'psi_viol_count', label: 'Psi', color: '#4a7ebb' },
-      { key: 'phi_viol_count', label: 'Phi', color: '#9dc3e6' },
+      { key: 'phi_viol_count', label: 'Phi' },
+      { key: 'psi_viol_count', label: 'Psi' },
     ]),
   );
 
@@ -1569,7 +1905,7 @@ export class Download {
           .trimStart()
       );
     }
-    const s = type.replace(/_/g, ' ');
+    const s = type.replace(/_/g, ' ').toLowerCase();
     return s.charAt(0).toUpperCase() + s.slice(1);
   }
 

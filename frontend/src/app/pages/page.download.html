@@ -134,9 +134,9 @@
 </div>
 
 @if (publicId()) {
-  <!-- Data conversion statisticl report -->
+  <!-- bmrb_extract data conversion statisticl report -->
   <div class="card">
-    <div class="font-semibold text-2xl mb-6">Data conversion statistical report</div>
+    <div class="font-semibold text-2xl mb-6">bmrb_extract data conversion statistical report</div>
 
     @if (statsAvailable() === null) {
       <p class="text-surface-500 py-2"><i class="pi pi-spin pi-spinner mr-2"></i>Loading…</p>
@@ -146,20 +146,28 @@
       <!-- /information/output_statistics/[entry_id, entry_title, entry_authors, submission_date, processed_date, processed_site, file_name, file_type, file_size, md5_checksum, model/* (if not null)] -->
       <p-card header="Provenance information" styleClass="mb-6">
         <div class="overflow-x-auto">
-          <p class="text-base font-medium mx-2 mb-2">
-            Conversion ID: <span class="underline">{{ publicId() }}</span>
-          </p>
-          <p class="text-base font-medium mx-2 mb-2">
-            Output used for: <span class="underline">{{ outputUsedFor() }}</span>
-          </p>
-          <p class="text-base font-medium mx-2 mb-2">
-            Processed site: <span class="underline">{{ processedSite() }}</span>
-          </p>
-          <p class="text-base font-medium mx-2 mb-2">
-            Timestamp (UTC): <span class="underline">{{ reportTimestamp() }}</span>
-          </p>
+          <table class="text-base font-medium mx-2 mb-2 border-collapse">
+            <tbody>
+              <tr>
+                <td class="pr-3 py-0.5 align-top">Conversion ID:</td>
+                <td class="py-0.5 font-bold">{{ publicId() }}</td>
+              </tr>
+              <tr>
+                <td class="pr-3 py-0.5 align-top">Output used for:</td>
+                <td class="py-0.5 font-bold">{{ outputUsedFor() }}</td>
+              </tr>
+              <tr>
+                <td class="pr-3 py-0.5 align-top">Processed site:</td>
+                <td class="py-0.5 font-bold">{{ processedSite() }}</td>
+              </tr>
+              <tr>
+                <td class="pr-3 py-0.5 align-top">Timestamp (UTC):</td>
+                <td class="py-0.5 font-bold">{{ reportTimestamp() }}</td>
+              </tr>
+            </tbody>
+          </table>
 
-          <p class="text-lg mt-2 mb-2">Input files</p>
+          <p class="text-lg mt-4 mb-2">Input files</p>
           <div class="overflow-x-auto mb-4">
             <table class="w-full text-sm border-collapse">
               <thead>
@@ -219,7 +227,7 @@
           </div>
 
           <p class="text-lg mb-2">Output files</p>
-          <p class="text-base font-medium mx-2 mb-2 underline">NMR data file</p>
+          <p class="text-base font-bold mx-2 mb-2">NMR data file</p>
           <div class="overflow-x-auto mb-4">
             <table class="w-full text-sm border-collapse">
               <tbody>
@@ -234,7 +242,7 @@
           </div>
 
           @if (modelProps().length) {
-            <p class="text-base font-medium mx-2 mb-2 underline">Coordinate file</p>
+            <p class="text-base font-bold mx-2 mb-2">Coordinate file</p>
             <div class="overflow-x-auto mb-4">
               <table class="w-full text-sm border-collapse">
                 <tbody>
@@ -1505,8 +1513,8 @@
             <p class="text-base mt-2 mb-2">Distribution of distance restraints and violations</p>
             <p class="text-base mb-2 mx-4">
               Violated and consistently violated restraints are shown using different hatch patterns
-              in their respective categories. The hydrogen bonds and disulfied bonds are counted in
-              their appropriate category on the x-axis.
+              in their respective categories. The hydrogen bonds and other covalent bonds are
+              counted in their appropriate categories on the x-axis.
             </p>
             <app-echart [option]="opt" [height]="420" [aspect]="1" [marginX]="226" [marginY]="64" />
           }
@@ -1540,7 +1548,7 @@
                       >
                         Number of violations
                       </th>
-                      @for (h of ['Mean (Å)', 'Max (Å)', 'σ (Å)', 'Median (Å)']; track $index) {
+                      @for (h of ['Mean (Å)', 'Max (Å)', 'Std (Å)', 'Median (Å)']; track $index) {
                         <th
                           rowspan="2"
                           class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 align-bottom whitespace-nowrap"
@@ -1599,10 +1607,175 @@
           @if (distModelViolationsChart(); as opt) {
             <p class="text-base mt-2 mb-2">Distance violation statistics for each model</p>
             <p class="text-base mb-2 mx-4">
-              The mean(dot), median(x) and the standard deviation are shown in blue with respect to
-              the y axis on the right.
+              The mean(dot), median(x) and the standard deviation are shown in black with respect to
+              the y-axis on the right.
             </p>
             <app-echart [option]="opt" [height]="440" />
+          }
+
+          <!-- /information/output_statistics/restraint_summary/dist_violation_for_ensemble -->
+          @if (distViolationForEnsemble().length) {
+            <p class="text-base font-medium mt-4 mb-2">
+              7.3 Distance violation statistics for the ensemble
+            </p>
+            <p class="text-base mb-4 mx-2">
+              Violation analysis may find that some restraints are violated in few models and some
+              are violated in most of models. The following table provides this information as
+              number of violated restraints for a given fraction of the ensemble. In total,
+              <strong>{{ distNonViolated().total }}</strong> (IR:
+              <strong>{{ distNonViolated().ir }}</strong
+              >, SQ: <strong>{{ distNonViolated().sq }}</strong
+              >, MR: <strong>{{ distNonViolated().mr }}</strong
+              >, LR: <strong>{{ distNonViolated().lr }}</strong
+              >, IC: <strong>{{ distNonViolated().ic }})</strong> restraints are not violated in the
+              ensemble. The acronyms used in the table (IR, SQ, MR, LR, and IC) represent
+              intra-residue restraints, sequential restraints, medium-range restraints, long-range
+              restraints, and inter-chain restraints, respectively.
+            </p>
+            @if (distEnsembleViolations(); as t) {
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm border-collapse mb-2">
+                  <thead>
+                    <tr>
+                      <th
+                        [attr.colspan]="t.columns.length"
+                        class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600"
+                      >
+                        Number of violated restraints
+                      </th>
+                      <th
+                        colspan="2"
+                        class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                      >
+                        Fraction of the ensemble
+                      </th>
+                    </tr>
+                    <tr>
+                      @for (c of t.columns; track c.key) {
+                        <th
+                          class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                          [class.border-r]="$last"
+                          [class.border-surface-300]="$last"
+                          [class.dark:border-surface-600]="$last"
+                        >
+                          {{ c.label }}
+                        </th>
+                      }
+                      <th
+                        class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                      >
+                        Count
+                      </th>
+                      <th
+                        class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                      >
+                        %
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (r of t.rows; track $index) {
+                      <tr class="border-b border-surface-100 dark:border-surface-800">
+                        @for (c of t.columns; track c.key) {
+                          <td
+                            class="px-2 py-1 tabular-nums text-center"
+                            [class.border-r]="$last"
+                            [class.border-surface-300]="$last"
+                            [class.dark:border-surface-600]="$last"
+                          >
+                            {{ r[c.key] }}
+                          </td>
+                        }
+                        <td class="px-2 py-1 tabular-nums text-center">
+                          {{ r['fraction_count'] }}
+                        </td>
+                        <td class="px-2 py-1 tabular-nums text-center">
+                          {{ r['fraction_percent'] }}
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          }
+
+          @if (distViolationsForEnsembleChart(); as opt) {
+            <p class="text-base mt-2 mb-2">Distance violation statistics for the ensemble</p>
+            <app-echart [option]="opt" [height]="440" />
+          }
+
+          <!-- /information/output_statistics/restraint_summary/most_violated_dist_restraints -->
+          @if (mostViolaratedDist().length) {
+            <p class="text-base font-medium mt-4 mb-2">7.4 Most violated distance restraints</p>
+            <p class="text-base mb-4 mx-2">
+              The following table provides the mean and the standard deviation of the violation for
+              each restraint sorted by number of violated models and the mean value. Violations less
+              than 0.1 Å and cases of single-model violation are not included in the statistics. The
+              Key (restraint list ID, restraint ID) is the unique identifier for a given restraint.
+              Rows with same key represent combinatorial or ambiguous restraints and are counted as
+              a single restraint.
+            </p>
+            <p-panel [toggleable]="true" [collapsed]="true" styleClass="mb-4">
+              <ng-template pTemplate="header">
+                <span class="font-medium">
+                  {{ mostViolaratedDist().length }} most violated distance restraints
+                </span>
+              </ng-template>
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm border-collapse">
+                  <thead>
+                    <tr>
+                      @for (
+                        h of [
+                          'Key',
+                          'Type',
+                          'Atom-1',
+                          'Atom-2',
+                          'Models',
+                          'Mean (Å)',
+                          'Std (Å)',
+                          'Median (Å)',
+                        ];
+                        track $index
+                      ) {
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                        >
+                          {{ h }}
+                        </th>
+                      }
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (r of mostViolaratedDist(); track $index) {
+                      <tr class="border-b border-surface-100 dark:border-surface-800">
+                        <td class="px-2 py-1 whitespace-nowrap">{{ r.restraint_key }}</td>
+                        <td class="px-2 py-1 whitespace-nowrap">
+                          {{ restraintTypeLabel(r.distance_type) }}
+                        </td>
+                        <td class="px-2 py-1 font-mono break-all">{{ r.atom_key_1 }}</td>
+                        <td class="px-2 py-1 font-mono break-all">{{ r.atom_key_2 }}</td>
+                        <td class="px-2 py-1 tabular-nums">{{ r.total_violated_models }}</td>
+                        <td class="px-2 py-1 tabular-nums">{{ r.mean_violation }}</td>
+                        <td class="px-2 py-1 tabular-nums">{{ r.std_violation }}</td>
+                        <td class="px-2 py-1 tabular-nums">{{ r.median_violation }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </p-panel>
+
+            <p class="text-base mt-2 mb-2">Distribution of mean distance violations</p>
+            <p class="text-base mb-2 mx-4">
+              The following histogram shows the distribution of the average value of the violation.
+              The average is calculated for each restraint that is violated in more than one model
+              over all the violated models in the ensemble.
+            </p>
+            @if (distMeanViolationHist(); as opt) {
+              <app-echart [option]="opt" [height]="420" />
+            }
           }
         } @else {
           <p class="text-surface-500 py-2">There is no distance restraints.</p>
@@ -1825,10 +1998,180 @@
           @if (dihedModelViolationsChart(); as opt) {
             <p class="text-base mt-2 mb-2">Dihderal-angle violation statistics for each model</p>
             <p class="text-base mb-2 mx-4">
-              The mean(dot), median(x) and the standard deviation are shown in blue with respect to
-              the y axis on the right.
+              The mean(dot), median(x) and the standard deviation are shown in black with respect to
+              the y-axis on the right.
             </p>
             <app-echart [option]="opt" [height]="440" />
+          }
+
+          <!-- /information/output_statistics/restraint_summary/dihed_violation_for_ensemble -->
+          @if (dihedViolationForEnsemble().length) {
+            <p class="text-base font-medium mt-4 mb-2">
+              8.3 Dihedral-angle violation statistics for the ensemble
+            </p>
+            <p class="text-base mb-4 mx-2">
+              Violation analysis may find that some restraints are violated in very few models and
+              some are violated in most of models. The following table provides this information as
+              number of violated restraints for a given fraction of ensemble. In total,
+              <strong>{{ dihedNonViolated().total }}</strong>
+              @if (dihedNonViolated().perType.length) {
+                (
+                @for (p of dihedNonViolated().perType; track $index) {
+                  {{ p.label }}: <strong>{{ p.count }}</strong
+                  >{{ $last ? '' : ', ' }}
+                }
+                )
+              }
+              restraints are not violated in the ensemble.
+            </p>
+            @if (dihedEnsembleViolations(); as t) {
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm border-collapse mb-2">
+                  <thead>
+                    <tr>
+                      <th
+                        [attr.colspan]="t.columns.length"
+                        class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 border-r border-surface-300 dark:border-surface-600"
+                      >
+                        Number of violated restraints
+                      </th>
+                      <th
+                        colspan="2"
+                        class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                      >
+                        Fraction of the ensemble
+                      </th>
+                    </tr>
+                    <tr>
+                      @for (c of t.columns; track c.key) {
+                        <th
+                          class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                          [class.border-r]="$last"
+                          [class.border-surface-300]="$last"
+                          [class.dark:border-surface-600]="$last"
+                        >
+                          {{ c.label }}
+                        </th>
+                      }
+                      <th
+                        class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                      >
+                        Count
+                      </th>
+                      <th
+                        class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                      >
+                        %
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (r of t.rows; track $index) {
+                      <tr class="border-b border-surface-100 dark:border-surface-800">
+                        @for (c of t.columns; track c.key) {
+                          <td
+                            class="px-2 py-1 tabular-nums text-center"
+                            [class.border-r]="$last"
+                            [class.border-surface-300]="$last"
+                            [class.dark:border-surface-600]="$last"
+                          >
+                            {{ r[c.key] }}
+                          </td>
+                        }
+                        <td class="px-2 py-1 tabular-nums text-center">
+                          {{ r['fraction_count'] }}
+                        </td>
+                        <td class="px-2 py-1 tabular-nums text-center">
+                          {{ r['fraction_percent'] }}
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          }
+
+          @if (dihedViolationsForEnsembleChart(); as opt) {
+            <p class="text-base mt-2 mb-2">Dihedral-angle violation statistics for the ensemble</p>
+            <app-echart [option]="opt" [height]="440" />
+          }
+
+          <!-- /information/output_statistics/restraint_summary/most_violated_dihed_restraints -->
+          @if (mostViolaratedDihed().length) {
+            <p class="text-base font-medium mt-4 mb-2">
+              8.4 Most violated dihedral-angle restraints
+            </p>
+            <p class="text-base mb-4 mx-2">
+              The following table provides the mean and the standard deviation of the violation for
+              each restraint sorted by number of violated models and the mean value. Violations less
+              than 1° and cases of single-model violation are not included in the statistics. The
+              Key (restraint list ID, restraint ID) is the unique identifier for a given restraint.
+            </p>
+            <p-panel [toggleable]="true" [collapsed]="true" styleClass="mb-4">
+              <ng-template pTemplate="header">
+                <span class="font-medium">
+                  {{ mostViolaratedDihed().length }} most violated dihedral-angle restraints
+                </span>
+              </ng-template>
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm border-collapse">
+                  <thead>
+                    <tr>
+                      @for (
+                        h of [
+                          'Key',
+                          'Type',
+                          'Atom-1',
+                          'Atom-2',
+                          'Atom-3',
+                          'Atom-4',
+                          'Models',
+                          'Mean (°)',
+                          'Std (°)',
+                          'Median (°)',
+                        ];
+                        track $index
+                      ) {
+                        <th
+                          class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                        >
+                          {{ h }}
+                        </th>
+                      }
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (r of mostViolaratedDihed(); track $index) {
+                      <tr class="border-b border-surface-100 dark:border-surface-800">
+                        <td class="px-2 py-1 whitespace-nowrap">{{ r.restraint_key }}</td>
+                        <td class="px-2 py-1 whitespace-nowrap">
+                          {{ restraintTypeLabel(r.dihedral_angle_name) }}
+                        </td>
+                        <td class="px-2 py-1 font-mono break-all">{{ r.atom_key_1 }}</td>
+                        <td class="px-2 py-1 font-mono break-all">{{ r.atom_key_2 }}</td>
+                        <td class="px-2 py-1 font-mono break-all">{{ r.atom_key_3 }}</td>
+                        <td class="px-2 py-1 font-mono break-all">{{ r.atom_key_4 }}</td>
+                        <td class="px-2 py-1 tabular-nums">{{ r.total_violated_models }}</td>
+                        <td class="px-2 py-1 tabular-nums">{{ r.mean_violation }}</td>
+                        <td class="px-2 py-1 tabular-nums">{{ r.std_violation }}</td>
+                        <td class="px-2 py-1 tabular-nums">{{ r.median_violation }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </p-panel>
+
+            <p class="text-base mt-2 mb-2">Distribution of mean dihedral-angle violations</p>
+            <p class="text-base mb-2 mx-4">
+              The following histogram shows the distribution of the average value of the violation.
+              The average is calculated for each restraint that is violated in more than one model
+              over all the violated models in the ensemble.
+            </p>
+            @if (dihedMeanViolationHist(); as opt) {
+              <app-echart [option]="opt" [height]="420" />
+            }
           }
         } @else {
           <p class="text-surface-500 py-2">There is no dihedral-angle restraints.</p>
