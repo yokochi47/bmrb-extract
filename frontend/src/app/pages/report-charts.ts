@@ -335,8 +335,8 @@ export function histogramOption(
 
 /** ECharts option for a per-residue line chart (RCI/S² or NMR RMSD) with
  * structural bands and an optional well-defined-region threshold line.
- * `opts.staticMode` (used by the static PDF) drops the per-point symbols and the
- * (non-interactive) legend. */
+ * `opts.staticMode` (used by the static PDF) drops the per-point symbols; the
+ * legend is kept so the series colors stay identifiable in the static image. */
 export function lineOption(c: PerResidueLine, opts: { staticMode?: boolean } = {}): object {
   const staticMode = opts.staticMode ?? false;
   const interval = Math.max(0, Math.ceil(c.categories.length / 24) - 1);
@@ -361,10 +361,8 @@ export function lineOption(c: PerResidueLine, opts: { staticMode?: boolean } = {
       : undefined;
   return {
     tooltip: { trigger: 'axis' },
-    ...(staticMode
-      ? {}
-      : { legend: { bottom: 0, type: 'scroll', data: c.series.map((s) => s.name) } }),
-    grid: { left: 52, right: 16, top: 24, bottom: staticMode ? 48 : 64, containLabel: true },
+    legend: { bottom: 0, type: 'scroll', data: c.series.map((s) => s.name) },
+    grid: { left: 52, right: 16, top: 24, bottom: 64, containLabel: true },
     xAxis: [
       { type: 'category', data: c.categories, axisLabel: { interval, rotate: -75, fontSize: 8 } },
       markerAxis,
