@@ -738,7 +738,7 @@ def _send_email(to_address: str, subject: str, content: str) -> str:
 
 # Register the passwordless-login + annotator/admin auth blueprint. Injecting the
 # session factory and mailer avoids a circular import with features.auth.
-from features.auth import init_auth  # noqa: E402
+from features.auth import current_auth, init_auth  # noqa: E402
 init_auth(app, async_session_factory, _send_email)
 
 
@@ -3210,9 +3210,13 @@ async def approve_session():
 @app.route('/api/new_consent', methods=['POST'])
 async def new_consent():
     async with async_session_factory() as db:
+        # Associate the session with the logged-in user (if any) so it appears in
+        # their "my sessions" list; anonymous sessions keep user_id NULL.
+        _, user = await current_auth(db)
         new_session = Session(
             token_expiry=datetime.now() + timedelta(days=FAILURE_VALIDITY_PERIOD_IN_DAYS),
             consented=True,
+            user_id=user.id if user is not None else None,
             client_ip=request.remote_addr,
             user_agent=request.headers.get('User-Agent', ''),
         )
