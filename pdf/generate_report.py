@@ -466,6 +466,30 @@ def build_context(stats: dict, ensemble: dict, provenance: dict,
         'clustered_count': sum(1 for c in clusters if c.get('cluster_id') != -1),
         'single_model_count': len(single_cluster.get('model_ids') or []) if single_cluster else 0,
     }
+    # Chemical-shift summary (section 4): well-defined + full-length groups
+    # (mirrors chemShiftProps / chemShiftFullProps: assignedOf / outliers / pct).
+    cs = stats.get('chem_shift_summary') or {}
+
+    def _assigned_of(a, t):
+        return None if a is None else (str(a) if t is None else f'{a} of {t}')
+
+    def _outliers(a, f):
+        return None if (a is None or f is None) else a - f
+
+    def _pct(v):
+        return None if v is None else f'{v * 100:.1f}%'
+
+    def _cs_props(suffix, label_suffix):
+        a = cs.get(f'number_of_assigned_shifts_in_{suffix}')
+        return [
+            (f'Total number of shifts ({label_suffix})',
+             _assigned_of(a, cs.get(f'number_of_target_shifts_in_{suffix}'))),
+            (f'Number of shift outliers ({label_suffix})',
+             _outliers(a, cs.get(f'number_of_favorable_assigned_shifts_in_{suffix}'))),
+            (f'Completeness of assignment ({label_suffix})',
+             _pct(cs.get(f'completeness_in_{suffix}'))),
+        ]
+
     conv_id = provenance.get('conversion_id')
     public_id = f'C_{conv_id}' if conv_id is not None else ''
     depsys = provenance.get('target_depsys')
@@ -483,6 +507,8 @@ def build_context(stats: dict, ensemble: dict, provenance: dict,
         'stats': stats,
         'ensemble': ensemble,
         'ensemble_caption': ensemble_caption,
+        'chem_shift_props': _cs_props('well_defined_region', 'well-defined region'),
+        'chem_shift_full_props': _cs_props('full_length_region', 'full-length'),
         'software': stats.get('software', []) or [],
         'model': stats.get('model'),
         'restraint_summary': rs,
@@ -545,6 +571,7 @@ def main() -> int:
     env.filters['safe_svg'] = lambda s: Markup(s) if s else ''
     env.filters['restraint_type_label'] = restraint_type_label
     env.filters['pct1'] = lambda v: '' if v is None else f'{v:.1f}'
+    env.filters['yesno'] = lambda v: None if v is None else ('Yes' if v else 'No')
     html = env.get_template('report.html').render(**ctx)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)

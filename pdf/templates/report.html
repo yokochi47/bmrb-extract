@@ -1,7 +1,7 @@
 {#- Static conversion report. Paged-media layout comes from report.css. -#}
 {%- macro kv_table(rows) -%}
   <table class="kv">
-    {%- for label, value in rows if value not in (none, '', []) %}
+    {%- for label, value in rows if value is defined and value is not none and value not in ('', []) %}
     <tr><td class="k">{{ label }}</td><td>{{ value }}</td></tr>
     {%- endfor %}
   </table>
@@ -302,11 +302,14 @@
 {#- ===================================================== 2. Assembly -#}
 <section class="report-section">
   <h2>2. Assembly information</h2>
+  <p class="caption">The following tables show the properties of the molecular assembly and describe
+  each component in the entry.</p>
   {%- set a = stats.assembly %}
   {%- if a %}
   {{ kv_table([
     ('Name', a.name), ('Number of components', a.number_of_components),
     ('Organic ligands', a.organic_ligands), ('Metal ions', a.metal_ions),
+    ('Non-standard bonds', a.non_standard_bonds | yesno), ('Paramagnetic', a.paramagnetic | yesno),
     ('Thiol state', a.thiol_state), ('Molecular mass (Da)', a.molecular_mass),
   ]) }}
   {%- if a.entity_assembly %}
@@ -336,23 +339,27 @@
 <section class="report-section">
   <h2>3. Entity information</h2>
   {%- if stats.entity %}
+  <p class="caption">The following table and one-letter code sequences indicate the molecular entities
+  in the entry.</p>
   <table>
     <thead><tr>
       <th class="num">ID</th><th>Name</th><th>Type</th><th>Polymer</th>
-      <th>Auth chains</th><th class="num">Monomers</th>
+      <th>Auth chains</th><th class="num">Monomers</th><th>Non-std monomer</th>
+      <th>Paramagnetic</th><th>Thiol state</th>
     </tr></thead>
     <tbody>
       {%- for e in stats.entity %}
       <tr>
         <td class="num">{{ e.entity_id }}</td><td>{{ e.name }}</td><td>{{ e.type }}</td>
-        <td>{{ e.polymer_type }}</td><td>{{ e.auth_asym_ids }}</td>
-        <td class="num">{{ e.number_of_monomers }}</td>
+        <td>{{ e.polymer_common_type }}</td><td>{{ (e.auth_chain_id or []) | join(', ') }}</td>
+        <td class="num">{{ e.number_of_monomers }}</td><td>{{ e.nstd_monomer | yesno }}</td>
+        <td>{{ e.paramagnetic | yesno }}</td><td>{{ e.thiol_state }}</td>
       </tr>
       {%- endfor %}
     </tbody>
   </table>
   {%- for e in stats.entity if e.polymer_seq_one_letter_code %}
-  <h4>Entity {{ e.entity_id }} sequence</h4>
+  <h4>One-letter code sequence of Entity ID: {{ e.entity_id }}</h4>
   <pre class="mono" style="white-space:pre-wrap;font-size:7.5pt">{{ e.polymer_seq_one_letter_code }}</pre>
   {%- endfor %}
   {%- endif %}
@@ -361,24 +368,26 @@
 {#- ===================================================== 4. Chem shift summary -#}
 <section class="report-section">
   <h2>4. Chemical shift summary</h2>
-  {%- set c = stats.chem_shift_summary %}
-  {%- if c %}
-  {{ kv_table([
-    ('Assigned shifts (well-defined region)', c.number_of_assigned_shifts_in_well_defined_region),
-    ('Target shifts (well-defined region)', c.number_of_target_shifts_in_well_defined_region),
-    ('Completeness (well-defined region)', c.completeness_in_well_defined_region),
-    ('Assigned shifts (full-length region)', c.number_of_assigned_shifts_in_full_length_region),
-    ('Target shifts (full-length region)', c.number_of_target_shifts_in_full_length_region),
-    ('Completeness (full-length region)', c.completeness_in_full_length_region),
-  ]) }}
+  {%- if stats.chem_shift_summary %}
+  <p class="caption">The following table shows overall chemical shift statistics as aggregates over
+  all chemical shift saveframe(s) in the NMR data file, flags any issues found when parsing (e.g.
+  format compliance) or mapping (matching the structure) the chemical shift data, and reports the
+  completeness of assignment.</p>
+  {{ kv_table(chem_shift_props + chem_shift_full_props) }}
   {%- endif %}
 </section>
 
 {#- ===================================================== 5. Chem shift validation -#}
 <section class="report-section">
   <h2>5. Chemical shift validation</h2>
+  {%- if chem_shift_sections %}
+  <p class="caption">The following section presents statistical information regarding the analysis and
+  model-mapping for each chemical shift saveframe within the NMR data file.</p>
+  {%- endif %}
   {%- for sf in chem_shift_sections %}
   <h3>5.{{ sf.list_id }} Bookkeeping — {{ sf.sf_framecode }}{% if sf.original_file_name %} ({{ sf.original_file_name }}){% endif %}</h3>
+  <p class="caption">The following table shows the results of parsing the chemical shift list and
+  reports the number of nuclei with statistically unusual chemical shifts.</p>
   {{ kv_table(sf.bookkeeping) }}
 
   {#- Unmapped / unparsed / duplicated shift tables -#}
