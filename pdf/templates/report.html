@@ -72,7 +72,7 @@
 {%- macro viol_summary_table(rows) -%}
   <table>
     <thead>
-      <tr><th rowspan="2">Restraint type</th><th colspan="2">Restraints</th><th colspan="3">Violations</th><th colspan="3">Consistent violations</th></tr>
+      <tr><th rowspan="2" style="width:22%">Restraint type</th><th colspan="2">Restraints</th><th colspan="3">Violations</th><th colspan="3">Consistent violations</th></tr>
       <tr>
         <th class="num">Count</th><th class="num">Absol.&nbsp;(%)</th>
         <th class="num">Count</th><th class="num">Inline&nbsp;(%)</th><th class="num">Absol.&nbsp;(%)</th>
@@ -82,7 +82,7 @@
     <tbody>
       {%- for r in rows %}
       <tr>
-        <td>{{ r.restraint_type | restraint_type_label }}</td>
+        <td style="white-space:nowrap">{{ r.restraint_type | restraint_type_label }}</td>
         <td class="num">{{ r.restraint_count }}</td><td class="num">{{ r.restraint_percent | pct1 }}</td>
         <td class="num">{{ r.viol_count }}</td><td class="num">{{ r.viol_inline_percent | pct1 }}</td><td class="num">{{ r.viol_absol_percent | pct1 }}</td>
         <td class="num">{{ r.consist_viol_count }}</td><td class="num">{{ r.consist_viol_inline_percent | pct1 }}</td><td class="num">{{ r.consist_viol_absol_percent | pct1 }}</td>
@@ -393,15 +393,18 @@
 
   {#- Unmapped / unparsed / duplicated shift tables -#}
   {%- if sf.unmapped %}
-  <h4>Chemical shifts not mapped to the model ({{ sf.unmapped_count }})</h4>
+  <p class="caption">The following <strong>{{ sf.unmapped_count }}</strong> assigned chemical shifts
+  were not mapped to the molecules present in the coordinate file.</p>
   {{ shift_table(sf.unmapped, sf.show_unmapped_ins) }}
   {%- endif %}
   {%- if sf.unparsed %}
-  <h4>Unparsed chemical shifts</h4>
+  <p class="caption">The following <strong>{{ sf.unparsed_count }}</strong> chemical shifts could not
+  be parsed due to format or content errors.</p>
   {{ shift_table(sf.unparsed, sf.show_unparsed_ins) }}
   {%- endif %}
   {%- if sf.duplicated %}
-  <h4>Duplicated chemical shifts</h4>
+  <p class="caption">The following <strong>{{ sf.duplicated_count }}</strong> chemical shifts were
+  reported more than once in the chemical shift list.</p>
   {{ shift_table(sf.duplicated, sf.show_duplicated_ins) }}
   {%- endif %}
 

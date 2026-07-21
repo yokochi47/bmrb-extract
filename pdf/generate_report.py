@@ -474,8 +474,10 @@ def build_chem_shift_sections(stats: dict, sf_charts: dict) -> list:
             'unmapped_count': st.get('number_of_unmapped_to_model') if st.get('number_of_unmapped_to_model') is not None else len(unmapped),
             'show_unmapped_ins': has_ins(unmapped),
             'unparsed': unparsed,
+            'unparsed_count': st.get('number_of_unparsed_with_error') if st.get('number_of_unparsed_with_error') is not None else len(unparsed),
             'show_unparsed_ins': has_ins(unparsed),
             'duplicated': duplicated,
+            'duplicated_count': len(duplicated),
             'show_duplicated_ins': has_ins(duplicated),
             'charts': sf_charts.get(lid, []),
         })
