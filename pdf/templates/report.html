@@ -1,0 +1,733 @@
+{#- Static conversion report. Paged-media layout comes from report.css. -#}
+{%- macro kv_table(rows) -%}
+  <table class="kv">
+    {%- for label, value in rows if value is defined and value is not none and value not in ('', []) %}
+    <tr><td class="k">{{ label }}</td><td>{{ value }}</td></tr>
+    {%- endfor %}
+  </table>
+{%- endmacro -%}
+
+{%- macro chart(cid, caption) -%}
+  {%- if charts.get(cid) %}
+  <figure class="chart">
+    {{ charts.get(cid) | safe_svg }}
+    {%- if caption %}<figcaption>{{ caption }}</figcaption>{% endif %}
+  </figure>
+  {%- endif %}
+{%- endmacro -%}
+
+{#- Chemical-shift row table (unmapped / unparsed / duplicated): shared columns. -#}
+{%- macro shift_table(rows, show_ins) -%}
+  <table>
+    <thead><tr>
+      <th class="num" style="width:9%">Auth chain</th>
+      <th class="num" style="width:11%">Auth seq ID</th>
+      {%- if show_ins %}<th class="num" style="width:8%">Ins code</th>{% endif %}
+      <th style="width:12%">Comp ID</th><th>Atom ID</th>
+      <th class="num" style="width:12%">Value</th>
+      <th class="num" style="width:13%">Uncertainty</th>
+      <th class="num" style="width:11%">Ambig code</th>
+    </tr></thead>
+    <tbody>
+      {%- for r in rows %}
+      <tr>
+        <td class="num">{{ r.auth_chain_id }}</td>
+        <td class="num">{{ r.auth_seq_id }}</td>
+        {%- if show_ins %}<td class="num">{{ r.ins_code }}</td>{% endif %}
+        <td>{{ r.comp_id }}</td><td class="mono">{{ r.atom_id }}</td>
+        <td class="num">{{ r.value }}</td><td class="num">{{ r.error }}</td>
+        <td class="num">{{ r.ambig_code }}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+{%- endmacro -%}
+
+{%- macro atom_mapping_table(mapping) -%}
+  <table>
+    <thead><tr><th style="width:16%">Comp ID</th><th>Mapping history (author-defined → NMR-data atom names)</th></tr></thead>
+    <tbody>
+      {%- for m in mapping %}
+      <tr><td>{{ m.comp_id }}</td><td class="mono">
+        {%- for h in m.history -%}<span{% if h.unusual %} style="color:#dc2626"{% endif %}>{{ h.name }} → {{ h.atoms }}</span>{% if not loop.last %}; {% endif %}{%- endfor -%}
+      </td></tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+{%- endmacro -%}
+
+{#- 6.2.x average number of violations per model -#}
+{%- macro bins_table(bins, unit) -%}
+  <table>
+    <thead><tr><th style="width:22%">Bins ({{ unit }})</th><th>Average number of violations per model</th><th class="num" style="width:26%">Max violation in a bin ({{ unit }})</th></tr></thead>
+    <tbody>
+      {%- for b in bins %}
+      <tr><td>{{ b.bin_type }}</td><td class="num">{{ b.average_number_of_violations_per_model }}</td><td class="num">{{ b.max_violation_in_bin }}</td></tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+{%- endmacro -%}
+
+{#- 7.1 / 8.1 multi-header violation summary -#}
+{%- macro viol_summary_table(rows) -%}
+  <table>
+    <thead>
+      <tr><th rowspan="2" style="width:22%">Restraint type</th><th colspan="2">Restraints</th><th colspan="3">Violations</th><th colspan="3">Consistent violations</th></tr>
+      <tr>
+        <th class="num">Count</th><th class="num">Absol.&nbsp;(%)</th>
+        <th class="num">Count</th><th class="num">Inline&nbsp;(%)</th><th class="num">Absol.&nbsp;(%)</th>
+        <th class="num">Count</th><th class="num">Inline&nbsp;(%)</th><th class="num">Absol.&nbsp;(%)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {%- for r in rows %}
+      <tr>
+        <td style="white-space:nowrap">{{ r.restraint_type | restraint_type_label }}</td>
+        <td class="num">{{ r.restraint_count }}</td><td class="num">{{ r.restraint_percent | pct1 }}</td>
+        <td class="num">{{ r.viol_count }}</td><td class="num">{{ r.viol_inline_percent | pct1 }}</td><td class="num">{{ r.viol_absol_percent | pct1 }}</td>
+        <td class="num">{{ r.consist_viol_count }}</td><td class="num">{{ r.consist_viol_inline_percent | pct1 }}</td><td class="num">{{ r.consist_viol_absol_percent | pct1 }}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+{%- endmacro -%}
+
+{#- 7.2 / 8.2 per-model violation statistics -#}
+{%- macro model_viol_table(cols, rows, unit) -%}
+  <table>
+    <thead>
+      <tr><th rowspan="2">Model ID</th><th colspan="{{ cols|length }}">Number of violations</th>
+        <th rowspan="2" class="num">Mean ({{ unit }})</th><th rowspan="2" class="num">Max ({{ unit }})</th>
+        <th rowspan="2" class="num">Std ({{ unit }})</th><th rowspan="2" class="num">Median ({{ unit }})</th></tr>
+      <tr>{%- for c in cols %}<th class="num">{{ c.label }}</th>{% endfor %}</tr>
+    </thead>
+    <tbody>
+      {%- for r in rows %}
+      <tr><td class="num">{{ r.model_id }}</td>
+        {%- for c in cols %}<td class="num">{{ r[c.key] }}</td>{% endfor %}
+        <td class="num">{{ r.mean_violation }}</td><td class="num">{{ r.max_violation }}</td>
+        <td class="num">{{ r.std_violation }}</td><td class="num">{{ r.median_violation }}</td></tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+{%- endmacro -%}
+
+{#- 7.3 / 8.3 per-ensemble violation statistics -#}
+{%- macro ensemble_viol_table(cols, rows) -%}
+  <table>
+    <thead>
+      <tr><th colspan="{{ cols|length }}">Number of violated restraints</th><th colspan="2">Fraction of the ensemble</th></tr>
+      <tr>{%- for c in cols %}<th class="num">{{ c.label }}</th>{% endfor %}<th class="num">Count</th><th class="num">%</th></tr>
+    </thead>
+    <tbody>
+      {%- for r in rows %}
+      <tr>{%- for c in cols %}<td class="num">{{ r[c.key] }}</td>{% endfor %}
+        <td class="num">{{ r.fraction_count }}</td><td class="num">{{ r.fraction_percent }}</td></tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+{%- endmacro -%}
+
+{#- 7.4 / 8.4 most-violated (mean/std/median) and 7.5 / 8.5 all-violation tables.
+   `four` adds atom-3/atom-4 columns for dihedral angles; `type_key` selects the
+   category field. -#}
+{%- macro most_violated_table(rows, four, unit, type_key) -%}
+  <table class="mv">
+    <thead><tr><th>Key</th><th>Type</th><th>Atom-1</th><th>Atom-2</th>
+      {%- if four %}<th>Atom-3</th><th>Atom-4</th>{% endif %}
+      <th class="num">Models</th><th class="num">Mean ({{ unit }})</th><th class="num">Std ({{ unit }})</th><th class="num">Median ({{ unit }})</th></tr></thead>
+    <tbody>
+      {%- for r in rows %}
+      <tr><td>{{ r.restraint_key }}</td><td>{{ r[type_key] | restraint_type_label }}</td>
+        <td class="mono">{{ r.atom_key_1 }}</td><td class="mono">{{ r.atom_key_2 }}</td>
+        {%- if four %}<td class="mono">{{ r.atom_key_3 }}</td><td class="mono">{{ r.atom_key_4 }}</td>{% endif %}
+        <td class="num">{{ r.total_violated_models }}</td><td class="num">{{ r.mean_violation }}</td>
+        <td class="num">{{ r.std_violation }}</td><td class="num">{{ r.median_violation }}</td></tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+{%- endmacro -%}
+
+{%- macro all_viol_table(rows, four, unit, type_key) -%}
+  <table>
+    <thead><tr><th>Key</th><th>Type</th><th>Atom-1</th><th>Atom-2</th>
+      {%- if four %}<th>Atom-3</th><th>Atom-4</th>{% endif %}
+      <th class="num">Model ID</th><th class="num">Violation ({{ unit }})</th></tr></thead>
+    <tbody>
+      {%- for r in rows %}
+      <tr><td>{{ r.restraint_key }}</td><td>{{ r[type_key] | restraint_type_label }}</td>
+        <td class="mono">{{ r.atom_key_1 }}</td><td class="mono">{{ r.atom_key_2 }}</td>
+        {%- if four %}<td class="mono">{{ r.atom_key_3 }}</td><td class="mono">{{ r.atom_key_4 }}</td>{% endif %}
+        <td class="num">{{ r.model_id }}</td><td class="num">{{ r.violation }}</td></tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+{%- endmacro -%}
+
+<div class="page-footer">{% if service_icon %}<img src="{{ service_icon }}" alt="bmrb_extract">{% endif %}</div>
+
+{#- ===================================================== title / provenance -#}
+<div class="title-page">
+  {% if service_icon %}<div class="service-icon"><img src="{{ service_icon }}" alt="bmrb_extract"></div>
+  {% else %}<div class="doc-title">bmrb_extract</div>
+  {% endif %}
+  <div class="doc-title">Data conversion statistical report</div>
+
+  <div class="provenance">
+    <h2>Provenance information</h2>
+    <table class="kv">
+      <tr><td class="k">Conversion ID</td><td class="conv-id">{{ public_id }}</td></tr>
+      {%- if output_used_for %}<tr><td class="k">Output used for</td><td>{{ output_used_for }}</td></tr>{% endif %}
+      {%- if processed_site %}<tr><td class="k">Processed site</td><td>{{ processed_site }}</td></tr>{% endif %}
+      <tr><td class="k">Timestamp (UTC)</td><td>{{ timestamp }}</td></tr>
+    </table>
+
+    {%- if input_files %}
+    <h3>Input files</h3>
+    <table>
+      <thead><tr>
+        <th>Original file name</th>
+        <th style="width:16%">Size</th><th style="width:22%">File type</th>
+        <th style="width:18%">Upload date</th>
+        {%- if show_input_source %}<th style="width:12%">Source</th>{% endif %}
+      </tr></thead>
+      <tbody>
+        {%- for f in input_files %}
+        <tr>
+          <td class="mono">{{ f.original_name }}</td>
+          <td>{{ f.file_size | formatsize }}</td>
+          <td>{{ f.file_type | input_type_label }}</td>
+          <td>{{ f.upload_date }}</td>
+          {%- if show_input_source %}<td>{{ 'BMRB' if f.source == 'bmrb' else 'User' }}</td>{% endif %}
+        </tr>
+        {%- endfor %}
+      </tbody>
+    </table>
+    {%- endif %}
+
+    <h3>Output files</h3>
+    <h4>NMR data file</h4>
+    {{ kv_table([
+      ('File name', stats.file_name), ('File type', stats.file_type | output_type_label),
+      ('Entry ID', stats.entry_id), ('Entry title', stats.entry_title),
+      ('Entry authors', stats.entry_authors), ('Submission date', stats.submission_date),
+      ('Processed date', stats.processed_date), ('Processed site', stats.processed_site),
+      ('File size', stats.file_size | formatsize), ('MD5 checksum', stats.md5_checksum),
+    ]) }}
+    {%- if model %}
+    <h4>Coordinate file</h4>
+    {{ kv_table([
+      ('File name', model.file_name), ('Entry title', model.struct_title),
+      ('File type', model.file_type | output_type_label), ('Entry authors', model.audit_authors),
+      ('File size', model.file_size | formatsize), ('MD5 checksum', model.md5_checksum),
+    ]) }}
+    {%- endif %}
+
+    {%- if software %}
+    <h3>Software</h3>
+    <p class="caption">The following versions of software were used in the production of this report.</p>
+    <table>
+      <thead><tr><th>Name</th><th style="width:22%">Version</th><th style="width:34%">Classification</th></tr></thead>
+      <tbody>
+        {%- for s in software %}
+        <tr><td>{{ s.name }}</td><td>{{ s.version }}</td><td>{{ s.classification }}</td></tr>
+        {%- endfor %}
+      </tbody>
+    </table>
+    {%- endif %}
+  </div>
+</div>
+
+{#- ===================================================== 1. Ensemble comp. -#}
+<section class="report-section">
+  <h2>1. Ensemble composition analysis</h2>
+  {%- set ec = ensemble_caption %}
+  <p class="caption">This entry contains <strong>{{ ec.total }}</strong> models. Model
+  <strong>{{ ec.medoid }}</strong> is the overall representative, medoid model (most similar to
+  other models). The following residues, identified as clearly defined regions, will be considered
+  in the subsequent validation analysis of this report.
+  {% if ec.criteria %} The authors have identified
+  model <strong>{{ ec.representative }}</strong> as representative, based on the following criterion:
+  <strong>{{ ec.criteria }}</strong>.{% endif %}</p>
+  {%- if ensemble.well_defined_region %}
+  <table>
+    <thead><tr>
+      <th>Well-defined core</th><th class="num">Residue range (total)</th>
+      <th class="num">Percent of core (%)</th><th class="num">Backbone RMSD (Å)</th>
+      <th class="num">Medoid model</th>
+    </tr></thead>
+    <tbody>
+      {%- for r in ensemble.well_defined_region %}
+      <tr>
+        <td class="num">{{ r.domain_id }}</td>
+        <td class="num">{{ r.range_of_seq_id }} ({{ r.number_of_monomers }})</td>
+        <td class="num">{{ r.percent_of_core }}</td>
+        <td class="num">{{ r.medoid_rmsd }}</td>
+        <td class="num">{{ r.medoid_model_id }}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  {%- endif %}
+  {%- if ensemble.cluster_analysis %}
+  <h3>Clustering analysis of models in the ensemble</h3>
+  <p class="caption">The models can be grouped into <strong>{{ ec.clustered_count }}</strong> clusters{% if ec.single_model_count > 0 %}, and <strong>{{ ec.single_model_count }}</strong> single-model clusters were found{% endif %}.</p>
+  <table>
+    <thead><tr><th style="width:14%">Cluster number</th><th>Models (centroid model)</th><th class="num" style="width:24%">Mean RMSD in a cluster (Å)</th></tr></thead>
+    <tbody>
+      {%- for c in ensemble.cluster_analysis %}
+      <tr>
+        {%- if c.cluster_id != -1 %}
+        <td class="num">{{ c.cluster_id }}</td>
+        <td>{{ c.model_ids | join(', ') }} ({{ c.centroid_model_id }})</td>
+        <td class="num">{{ c.mean_rmsd }}</td>
+        {%- else %}
+        <td>Single-model clusters</td>
+        <td>{{ c.model_ids | join(', ') }}</td>
+        <td></td>
+        {%- endif %}
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  {%- endif %}
+  {%- if charts.get('ens_pca') %}
+  <p class="caption">The plot below shows a Principal Component Analysis (PCA) used for clustering the
+  models in the ensemble. Since the actual clustering was performed using higher-dimensional
+  features, the plot and the clustering results may not visually align.</p>
+  {{ chart('ens_pca', 'Clustering analysis of models in the ensemble') }}
+  {%- endif %}
+</section>
+
+{#- ===================================================== 2. Assembly -#}
+<section class="report-section">
+  <h2>2. Assembly information</h2>
+  <p class="caption">The following tables show the properties of the molecular assembly and describe
+  each component in the entry.</p>
+  {%- set a = stats.assembly %}
+  {%- if a %}
+  {{ kv_table([
+    ('Name', a.name), ('Number of components', a.number_of_components),
+    ('Organic ligands', a.organic_ligands), ('Metal ions', a.metal_ions),
+    ('Non-standard bonds', a.non_standard_bonds | yesno), ('Paramagnetic', a.paramagnetic | yesno),
+    ('Thiol state', a.thiol_state), ('Molecular mass (Da)', a.molecular_mass),
+  ]) }}
+  {%- if a.entity_assembly %}
+  <h3>Components in the molecular assembly</h3>
+  <table>
+    <thead><tr>
+      <th class="num">ID</th><th>Name</th><th class="num">Entity ID</th><th>Entity label</th>
+      <th>Chain</th><th>Auth chain</th><th>Exp. data</th><th>Physical state</th><th>Role</th>
+    </tr></thead>
+    <tbody>
+      {%- for e in a.entity_assembly %}
+      <tr>
+        <td class="num">{{ e.entity_assembly_id }}</td><td>{{ e.entity_assembly_name }}</td>
+        <td class="num">{{ e.entity_id }}</td><td>{{ e.entity_label }}</td>
+        <td>{{ e.chain_id }}</td><td>{{ e.auth_chain_id }}</td>
+        <td>{% if e.experimental_data_reported is not none %}{{ 'Yes' if e.experimental_data_reported else 'No' }}{% endif %}</td>
+        <td>{{ e.physical_state }}</td><td>{{ e.role }}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  {%- endif %}
+  {%- endif %}
+</section>
+
+{#- ===================================================== 3. Entity -#}
+<section class="report-section">
+  <h2>3. Entity information</h2>
+  {%- if stats.entity %}
+  <p class="caption">The following table and one-letter code sequences indicate the molecular entities
+  in the entry.</p>
+  <table>
+    <thead><tr>
+      <th class="num">ID</th><th>Name</th><th>Type</th><th>Polymer</th>
+      <th>Auth chains</th><th class="num">Monomers</th><th>Non-std monomer</th>
+      <th>Paramagnetic</th><th>Thiol state</th>
+    </tr></thead>
+    <tbody>
+      {%- for e in stats.entity %}
+      <tr>
+        <td class="num">{{ e.entity_id }}</td><td>{{ e.name }}</td><td>{{ e.type }}</td>
+        <td>{{ e.polymer_common_type }}</td><td>{{ (e.auth_chain_id or []) | join(', ') }}</td>
+        <td class="num">{{ e.number_of_monomers }}</td><td>{{ e.nstd_monomer | yesno }}</td>
+        <td>{{ e.paramagnetic | yesno }}</td><td>{{ e.thiol_state }}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  {%- for e in stats.entity if e.polymer_seq_one_letter_code %}
+  <h4>One-letter code sequence of Entity ID: {{ e.entity_id }}</h4>
+  <pre class="mono" style="white-space:pre-wrap;font-size:7.5pt">{{ e.polymer_seq_one_letter_code }}</pre>
+  {%- endfor %}
+  {%- endif %}
+</section>
+
+{#- ===================================================== 4. Chem shift summary -#}
+<section class="report-section">
+  <h2>4. Chemical shift summary</h2>
+  {%- if stats.chem_shift_summary %}
+  <p class="caption">The following table shows overall chemical shift statistics as aggregates over
+  all chemical shift saveframe(s) in the NMR data file, flags any issues found when parsing (e.g.
+  format compliance) or mapping (matching the structure) the chemical shift data, and reports the
+  completeness of assignment.</p>
+  {{ kv_table(chem_shift_props + chem_shift_full_props) }}
+  {%- endif %}
+</section>
+
+{#- ===================================================== 5. Chem shift validation -#}
+<section class="report-section">
+  <h2>5. Chemical shift validation</h2>
+  {%- if chem_shift_sections %}
+  <p class="caption">The following section presents statistical information regarding the analysis and
+  model-mapping for each chemical shift saveframe within the NMR data file.</p>
+  {%- endif %}
+  {%- for sf in chem_shift_sections %}
+  <h3>5.{{ sf.list_id }} Bookkeeping — {{ sf.sf_framecode }}{% if sf.original_file_name %} ({{ sf.original_file_name }}){% endif %}</h3>
+  <p class="caption">The following table shows the results of parsing the chemical shift list and
+  reports the number of nuclei with statistically unusual chemical shifts.</p>
+  {{ kv_table(sf.bookkeeping) }}
+
+  {#- Unmapped / unparsed / duplicated shift tables -#}
+  {%- if sf.unmapped %}
+  <p class="caption">The following <strong>{{ sf.unmapped_count }}</strong> assigned chemical shifts
+  were not mapped to the molecules present in the coordinate file.</p>
+  {{ shift_table(sf.unmapped, sf.show_unmapped_ins) }}
+  {%- endif %}
+  {%- if sf.unparsed %}
+  <p class="caption">The following <strong>{{ sf.unparsed_count }}</strong> chemical shifts could not
+  be parsed due to format or content errors.</p>
+  {{ shift_table(sf.unparsed, sf.show_unparsed_ins) }}
+  {%- endif %}
+  {%- if sf.duplicated %}
+  <p class="caption">The following <strong>{{ sf.duplicated_count }}</strong> chemical shifts were
+  reported more than once in the chemical shift list.</p>
+  {{ shift_table(sf.duplicated, sf.show_duplicated_ins) }}
+  {%- endif %}
+
+  {#- 5.x.1 Atom name mapping history -#}
+  <h4>5.{{ sf.list_id }}.1 Atom name mapping history</h4>
+  {%- if sf.atom_mapping %}
+  <p class="caption">The table below shows how the system interpreted author-defined atom names (e.g.
+  pseudoatom names specific to NMR) during data conversion. All atom names have been standardized
+  based on the Chemical Component Dictionary (CCD). Atom names subject to unusual mapping are
+  highlighted in red color. Please verify that the atom name mappings are correct. If any mappings
+  are unexpected, modify the uploaded file to use appropriate atom names that comply with the CCD.</p>
+  <table>
+    <thead><tr><th style="width:16%">Comp ID</th><th>Mapping history (author-defined → NMR-data atom names)</th></tr></thead>
+    <tbody>
+      {%- for m in sf.atom_mapping %}
+      <tr>
+        <td>{{ m.comp_id }}</td>
+        <td class="mono">
+          {%- for h in m.history -%}
+          <span{% if h.unusual %} style="color:#dc2626"{% endif %}>{{ h.name }} → {{ h.atoms }}</span>{% if not loop.last %}; {% endif %}
+          {%- endfor -%}
+        </td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  {%- else %}
+  <p class="caption muted">The atom names defined by the author conformed to the CCD.</p>
+  {%- endif %}
+
+  {#- 5.x.2 Completeness of resonance assignments -#}
+  <h4>5.{{ sf.list_id }}.2 Completeness of resonance assignments</h4>
+  {%- for c in sf.completeness %}
+  <p class="caption">The following table shows the completeness of the chemical shift assignments for
+    the <strong>{{ c.phrase }}</strong>.
+    {%- if c.view.overall_pct is not none %} The overall completeness is
+    <strong>{{ c.view.overall_pct }}%</strong>, i.e. <strong>{{ c.view.overall_assigned }}</strong>
+    atoms were assigned a chemical shift out of a possible
+    <strong>{{ c.view.overall_target }}</strong>.{% endif %}
+    {%- if c.view.stereo %} <strong>{{ c.view.stereo.assigned }}</strong> out of
+    <strong>{{ c.view.stereo.target }}</strong> assigned methyl groups (LEU and VAL) were assigned
+    stereospecifically.{% endif %}</p>
+  <table>
+    <thead><tr><th></th>
+      {%- for col in c.view.columns %}<th class="num">{{ col }}</th>{% endfor %}
+    </tr></thead>
+    <tbody>
+      {%- for row in c.view.rows %}
+      <tr><td class="k">{{ row.label }}</td>
+        {%- for cell in row.cells %}<td class="num">{{ cell }}</td>{% endfor %}
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  {%- endfor %}
+
+  {#- 5.x.3 Statistically unusual chemical shifts -#}
+  <h4>5.{{ sf.list_id }}.3 Statistically unusual chemical shifts</h4>
+  {%- if sf.outliers %}
+  <p class="caption">The following table lists the statistically unusual
+  <strong>{{ sf.outlier_count }}</strong> chemical shifts. These are statistical measures, and large
+  deviations from the mean do not necessarily imply incorrect assignments. Molecules containing
+  paramagnetic centres or hemes are expected to give rise to anomalous chemical shifts.</p>
+  <table>
+    <thead><tr>
+      <th class="num" style="width:7%">Chain&nbsp;code</th>
+      <th class="num" style="width:7%">Seq&nbsp;ID</th>
+      {%- if sf.show_outlier_ins %}<th class="num" style="width:6%">Ins</th>{% endif %}
+      <th style="width:8%">Comp&nbsp;ID</th><th style="width:8%">Atom</th>
+      <th class="num" style="width:8%">Value</th>
+      <th class="num" style="width:6%">Ambig</th>
+      <th class="num" style="width:8%">Z score</th>
+      <th class="num" style="width:12%">Expected range</th>
+      {%- if sf.show_outlier_details %}<th>Details</th>{% endif %}
+    </tr></thead>
+    <tbody>
+      {%- for o in sf.outliers %}
+      <tr>
+        <td class="num">{{ o.auth_chain_id }}</td>
+        <td class="num">{{ o.auth_seq_id }}</td>
+        {%- if sf.show_outlier_ins %}<td class="num">{{ o.ins_code }}</td>{% endif %}
+        <td>{{ o.comp_id }}</td><td class="mono">{{ o.atom_id }}</td>
+        <td class="num">{{ o.value }}</td><td class="num">{{ o.ambig_code }}</td>
+        <td class="num">{{ o.z_score }}</td>
+        <td class="num">{% if o.expected_range %}{{ o.expected_range.min_value }} – {{ o.expected_range.max_value }}{% endif %}</td>
+        {%- if sf.show_outlier_details %}<td>{{ o.details }}</td>{% endif %}
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  {%- else %}
+  <p class="caption muted">No statistically unusual chemical shifts were found.</p>
+  {%- endif %}
+  {#- Z-score histogram(s) belong under the statistically-unusual section. -#}
+  {%- for c in sf.charts if c.kind == 'hist' %}
+  {{ chart(c.id, c.title) }}
+  {%- endfor %}
+
+  {#- 5.x.4 RCI/S² and NMR-RMSD per-residue plots -#}
+  {%- set rci_panels = sf.charts | rejectattr('kind', 'equalto', 'hist') | list %}
+  {%- if rci_panels %}
+  <h4>5.{{ sf.list_id }}.4 Random Coil Index (RCI) plots</h4>
+  {%- for c in rci_panels %}
+  {%- if c.kind == 'rci' %}
+  <p class="caption">The image below reports random coil index (RCI) values and predicted order
+  parameters (S²) for the protein chains in the structure. The height of RCI point gives a
+  probability of a given residue to be disordered, as predicted from the available backbone chemical
+  shifts and the amino acid sequence. A RCI value above 0.2 is an indication of significant predicted
+  disorder. An S² value of 1 indicates completely restricted or rigid bonds, whereas 0 reflects
+  completely isotropic, unrestricted motion on the picosecond to nanosecond timescale. It is known
+  that experimentally determined order parameters for backbone N-H vector correlate well with the RCI
+  values. The color of the region indicates whether the residue forms secondary structure (helix:
+  light coral; sheet: sky blue).</p>
+  {%- else %}
+  <p class="caption">The image below reports predicted NMR RMSD values for the protein chains in the
+  structure. These values are known to correlate with RCI values. The horizontal dotted line
+  indicates the average RMSD value of the principal well-defined region of the chain. If the RMSD is
+  too low than the dotted line, the models may be over-converged, or the number of models
+  constituting the ensemble may be too small. The cyan region indicates residues involed in
+  well-defined cores as described in the Ensemble composition analysis section. The gray region
+  indicates residues are not modeled.</p>
+  {%- endif %}
+  {{ chart(c.id, c.title) }}
+  {%- endfor %}
+  {%- endif %}
+  {%- endfor %}
+</section>
+
+{#- ===================================================== 6. Restraint analysis -#}
+<section class="report-section">
+  <h2>6. NMR restraint analysis</h2>
+  <h3>6.1 Conformationally restricting restraints</h3>
+  <p class="caption">The following table provides the summary of experimentally observed NMR restraints
+  in different categories. Restraints are classified into different categories based on the sequence
+  separation of the atoms involved. Long range hydrogen bonds and disulfide bonds are counted as long
+  range restraints while calculating the number of long range restraints per residue.</p>
+  <table class="kv">
+    {%- for p in r.restraint_props %}
+    <tr><td class="k">{{ p.label | safe }}</td><td>{{ p.value }}</td></tr>
+    {%- endfor %}
+  </table>
+
+  {%- if r.dist_per_model_bins or r.dihed_per_model_bins %}
+  <h3>6.2 Residual restraint violations</h3>
+  <p class="caption">This section provides the overview of the restraint violations analysis. The
+  violations are binned as small, medium and large violations based on its absolute value. Average
+  number of violations per model is calculated by dividing the total number of violations in each
+  bin by the size of the ensemble.</p>
+  {%- if r.dist_per_model_bins %}
+  <h4>6.2.1 Average number of distance violations per model</h4>
+  <p class="caption">Distance violations less than 0.1 Å are not included in the calculation.</p>
+  {{ bins_table(r.dist_per_model_bins, 'Å') }}
+  {%- endif %}
+  {%- if r.dihed_per_model_bins %}
+  <h4>6.2.2 Average number of dihedral-angle violations per model</h4>
+  <p class="caption">Dihedral-angle violations less than 1° are not included in the calculation.</p>
+  {{ bins_table(r.dihed_per_model_bins, '°') }}
+  {%- endif %}
+  {%- endif %}
+
+  {%- for g in r.bookkeeping_groups %}
+  <h3>{{ g.section }} {{ g.heading }}</h3>
+  {%- if g.saveframes %}
+  {%- for sf in g.saveframes %}
+  <h4>{{ g.section }}.{{ sf.list_id }} Bookkeeping — {{ sf.title }}</h4>
+  {{ kv_table(sf.rows) }}
+  {%- if sf.mapped_to_model != 0 %}
+  <h4>{{ g.section }}.{{ sf.list_id }}.1 Atom name mapping history</h4>
+  {%- if sf.atom_mapping %}
+  <p class="caption">Author-defined atom names standardized against the CCD. Unusual mappings are
+  shown in red — verify they are correct.</p>
+  {{ atom_mapping_table(sf.atom_mapping) }}
+  {%- else %}
+  <p class="caption muted">The atom names defined by the author conformed to the CCD.</p>
+  {%- endif %}
+  {%- endif %}
+  {%- endfor %}
+  {%- else %}
+  <p class="caption muted">{{ g.empty_text }}</p>
+  {%- endif %}
+  {%- endfor %}
+</section>
+
+{#- ===================================================== 7. Distance violations -#}
+<section class="report-section">
+  <h2>7. Distance violation analysis</h2>
+
+  {%- if r.dist_summary %}
+  <h3>7.1 Summary of distance violations</h3>
+  <p class="caption">Summary of distance violations in different restraint categories based on the
+  sequence separation of the atoms involved. Each category is further sub-divided into three
+  sub-categories based on the atoms involved. Violations less than 0.1 Å are not included. Absolute
+  percentage ('Absol.') is with respect to the total number of distance restraints; inline
+  percentage ('Inline') is with respect to the number of restraints in a category. Violations are
+  restraints violated in at least one model; consistent violations are violated in all models.</p>
+  {{ viol_summary_table(r.dist_summary) }}
+  {%- if charts.get('dist_violation') %}
+  <p class="caption">Violated and consistently violated restraints are shown using different hatch
+  patterns in their respective categories. Hydrogen bonds and other covalent bonds are counted in
+  their appropriate categories on the x-axis.</p>
+  {{ chart('dist_violation', 'Distribution of distance restraints and violations') }}
+  {%- endif %}
+  {%- endif %}
+
+  {%- if r.dist_model_rows %}
+  <h3>7.2 Distance violation statistics for each model</h3>
+  <p class="caption">Distance violation statistics for each model in the ensemble. Violations less
+  than 0.1 Å are not included. The acronyms (IR, SQ, MR, LR, IC) represent intra-residue,
+  sequential, medium-range, long-range and inter-chain restraints, respectively.</p>
+  {{ model_viol_table(r.dist_model_cols, r.dist_model_rows, 'Å') }}
+  {%- if charts.get('dist_model') %}
+  <p class="caption">The mean (dot), median (×) and standard deviation are shown in black with
+  respect to the y-axis on the right.</p>
+  {{ chart('dist_model', 'Distance violation statistics for each model') }}
+  {%- endif %}
+  {%- endif %}
+
+  {%- if r.dist_ensemble_rows %}
+  <h3>7.3 Distance violation statistics for the ensemble</h3>
+  <p class="caption">Number of violated restraints for a given fraction of the ensemble. In total,
+  <strong>{{ r.dist_nonviol.total }}</strong> (IR: {{ r.dist_nonviol.ir }}, SQ: {{ r.dist_nonviol.sq }},
+  MR: {{ r.dist_nonviol.mr }}, LR: {{ r.dist_nonviol.lr }}, IC: {{ r.dist_nonviol.ic }}) restraints
+  are not violated in the ensemble. The acronyms (IR, SQ, MR, LR, IC) represent intra-residue,
+  sequential, medium-range, long-range and inter-chain restraints, respectively.</p>
+  {{ ensemble_viol_table(r.dist_ensemble_cols, r.dist_ensemble_rows) }}
+  {{ chart('dist_ensemble', 'Distance violation statistics for the ensemble') }}
+  {%- endif %}
+
+  {%- if r.most_violated_dist %}
+  <h3>7.4 Most violated distance restraints</h3>
+  <p class="caption">Mean and standard deviation of the violation for each restraint, sorted by number
+  of violated models and the mean value. Violations less than 0.1 Å and single-model violations are
+  not included. The Key (restraint list ID, restraint ID) is the unique identifier; rows with the
+  same key are combinatorial/ambiguous restraints counted as a single restraint.</p>
+  {{ most_violated_table(r.most_violated_dist, false, 'Å', 'distance_type') }}
+  {%- if r.most_violated_dist_total > r.row_cap %}<p class="caption muted">Showing the {{ r.row_cap }} most severe of {{ r.most_violated_dist_total }} restraints; see the interactive report or the JSON report for the full list.</p>{% endif %}
+  {%- if charts.get('dist_mean_hist') %}
+  <p class="caption">Distribution of the average violation value, computed for each restraint
+  violated in more than one model over all violated models in the ensemble.</p>
+  {{ chart('dist_mean_hist', 'Distribution of mean distance violations') }}
+  {%- endif %}
+  {%- endif %}
+
+  {%- if r.all_dist %}
+  <h3>7.5 All violated distance restraints</h3>
+  <p class="caption">Absolute value of the violation for each restraint in the ensemble, sorted by
+  its value. The Key (restraint list ID, restraint ID) is the unique identifier; rows with the same
+  key are combinatorial/ambiguous restraints counted as a single restraint.</p>
+  {{ all_viol_table(r.all_dist, false, 'Å', 'distance_type') }}
+  {%- if r.all_dist_total > r.row_cap %}<p class="caption muted">Showing the {{ r.row_cap }} largest of {{ r.all_dist_total }} violations; see the interactive report or the JSON report for the full list.</p>{% endif %}
+  {%- if charts.get('dist_all_hist') %}
+  <p class="caption">Distribution of the absolute violation value for all violated restraints in the
+  ensemble.</p>
+  {{ chart('dist_all_hist', 'Distribution of distance violations') }}
+  {%- endif %}
+  {%- endif %}
+</section>
+
+{#- ===================================================== 8. Dihedral violations -#}
+<section class="report-section">
+  <h2>8. Dihedral-angle violation analysis</h2>
+
+  {%- if r.dihed_summary %}
+  <h3>8.1 Summary of dihedral-angle violations</h3>
+  <p class="caption">Summary of dihedral-angle violations by angle type. Violations less than 1° are
+  not included. Absolute percentage ('Absol.') is with respect to the total number of dihedral-angle
+  restraints; inline percentage ('Inline') is with respect to the number of restraints of that angle
+  type. Violations are restraints violated in at least one model; consistent violations are violated
+  in all models.</p>
+  {{ viol_summary_table(r.dihed_summary) }}
+  {%- if charts.get('dihed_violation') %}
+  <p class="caption">Violated and consistently violated restraints are shown using different hatch
+  patterns for each angle type.</p>
+  {{ chart('dihed_violation', 'Distribution of dihedral-angle restraints and violations') }}
+  {%- endif %}
+  {%- endif %}
+
+  {%- if r.dihed_model_rows %}
+  <h3>8.2 Dihedral-angle violation statistics for each model</h3>
+  <p class="caption">Dihedral-angle violation statistics for each model in the ensemble. Violations
+  less than 1° are not included.</p>
+  {{ model_viol_table(r.dihed_model_cols, r.dihed_model_rows, '°') }}
+  {%- if charts.get('dihed_model') %}
+  <p class="caption">The mean (dot), median (×) and standard deviation are shown in black with
+  respect to the y-axis on the right.</p>
+  {{ chart('dihed_model', 'Dihedral-angle violation statistics for each model') }}
+  {%- endif %}
+  {%- endif %}
+
+  {%- if r.dihed_ensemble_rows %}
+  <h3>8.3 Dihedral-angle violation statistics for the ensemble</h3>
+  <p class="caption">Number of violated restraints for a given fraction of the ensemble. In total,
+  <strong>{{ r.dihed_nonviol.total }}</strong> ({% for p in r.dihed_nonviol.per_type %}{{ p.label }}: {{ p.count }}{% if not loop.last %}, {% endif %}{% endfor %})
+  restraints are not violated in the ensemble.</p>
+  {{ ensemble_viol_table(r.dihed_ensemble_cols, r.dihed_ensemble_rows) }}
+  {{ chart('dihed_ensemble', 'Dihedral-angle violation statistics for the ensemble') }}
+  {%- endif %}
+
+  {%- if r.most_violated_dihed %}
+  <h3>8.4 Most violated dihedral-angle restraints</h3>
+  <p class="caption">Mean and standard deviation of the violation for each restraint, sorted by number
+  of violated models and the mean value. Violations less than 1° and single-model violations are not
+  included. The Key (restraint list ID, restraint ID) is the unique identifier; rows with the same
+  key are combinatorial/ambiguous restraints counted as a single restraint.</p>
+  {{ most_violated_table(r.most_violated_dihed, true, '°', 'dihedral_angle_name') }}
+  {%- if r.most_violated_dihed_total > r.row_cap %}<p class="caption muted">Showing the {{ r.row_cap }} most severe of {{ r.most_violated_dihed_total }} restraints; see the interactive report or the JSON report for the full list.</p>{% endif %}
+  {%- if charts.get('dihed_mean_hist') %}
+  <p class="caption">Distribution of the average violation value, computed for each restraint
+  violated in more than one model over all violated models in the ensemble.</p>
+  {{ chart('dihed_mean_hist', 'Distribution of mean dihedral-angle violations') }}
+  {%- endif %}
+  {%- endif %}
+
+  {%- if r.all_dihed %}
+  <h3>8.5 All violated dihedral-angle restraints</h3>
+  <p class="caption">Absolute value of the violation for each restraint in the ensemble, sorted by
+  its value. The Key (restraint list ID, restraint ID) is the unique identifier; rows with the same
+  key are combinatorial/ambiguous restraints counted as a single restraint.</p>
+  {{ all_viol_table(r.all_dihed, true, '°', 'dihedral_angle_name') }}
+  {%- if r.all_dihed_total > r.row_cap %}<p class="caption muted">Showing the {{ r.row_cap }} largest of {{ r.all_dihed_total }} violations; see the interactive report or the JSON report for the full list.</p>{% endif %}
+  {%- if charts.get('dihed_all_hist') %}
+  <p class="caption">Distribution of the absolute violation value for all violated restraints in the
+  ensemble.</p>
+  {{ chart('dihed_all_hist', 'Distribution of dihedral-angle violations') }}
+  {%- endif %}
+  {%- endif %}
+</section>

@@ -1,0 +1,178 @@
+/* Paged-media stylesheet for the static conversion report (A4). WeasyPrint
+   renders this; it supports @page margin boxes, running(), string-set,
+   repeated table headers and break-* — the features the layout relies on. */
+
+/* ------------------------------------------------------------ page setup --- */
+
+@page {
+  size: A4;
+  /* Extra top margin leaves a gap between the header divider and the content. */
+  margin: 24mm 16mm 18mm 16mm;
+
+  /* Running header: "Page N   <title>   C_<id>" via three margin boxes so the
+     title stays centered regardless of the side strings' widths. */
+  /* A bottom border on all three boxes forms a continuous divider under the
+     header (the boxes abut, filling the top margin width). */
+  @top-left {
+    content: 'Page ' counter(page);
+    font-size: 8pt;
+    color: #555;
+    vertical-align: bottom;
+    padding-bottom: 1mm;
+    margin-bottom: 4mm;
+    border-bottom: 0.5pt solid #cbd5e1;
+    width: 33%;
+    text-align: left;
+  }
+  @top-center {
+    content: 'bmrb_extract data conversion statistical report';
+    font-size: 8pt;
+    color: #555;
+    vertical-align: bottom;
+    padding-bottom: 1mm;
+    margin-bottom: 4mm;
+    border-bottom: 0.5pt solid #cbd5e1;
+    width: 34%;
+    text-align: center;
+  }
+  @top-right {
+    content: string(conv-id);
+    font-size: 8pt;
+    color: #555;
+    vertical-align: bottom;
+    padding-bottom: 1mm;
+    margin-bottom: 4mm;
+    border-bottom: 0.5pt solid #cbd5e1;
+    width: 33%;
+    text-align: right;
+  }
+
+  /* Footer: small service icon, centered. */
+  @bottom-center {
+    content: element(page-footer);
+  }
+}
+
+/* The title (first) page carries no running header/footer. */
+@page :first {
+  @top-left { content: none; }
+  @top-center { content: none; }
+  @top-right { content: none; }
+  @bottom-center { content: none; }
+}
+
+/* The footer icon is declared once in the body and promoted to a running
+   element so it repeats in every page's bottom-center box. */
+.page-footer {
+  position: running(page-footer);
+  text-align: center;
+}
+.page-footer img { height: 6mm; width: auto; }
+
+/* ------------------------------------------------------------- base type --- */
+
+html {
+  font-family: 'Lato', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 9pt;
+  line-height: 1.4;
+  color: #1a1a1a;
+}
+
+h1 { font-size: 20pt; font-weight: 700; margin: 0 0 4mm; }
+h2 { font-size: 13pt; font-weight: 700; margin: 0 0 3mm; color: #0b3d59; }
+h3 { font-size: 11pt; font-weight: 700; margin: 4mm 0 2mm; color: #164e63; }
+h4 { font-size: 10pt; font-weight: 700; margin: 3mm 0 1.5mm; color: #334155; }
+p { margin: 0 0 2mm; }
+.caption { font-size: 8.5pt; color: #475569; margin: 0 0 3mm; }
+.muted { color: #64748b; }
+
+/* Publish the conversion id into the running header (string-set) and title. */
+.conv-id { string-set: conv-id content(); }
+
+/* ------------------------------------------------------------ title page --- */
+
+.title-page { text-align: center; }
+.title-page .service-icon { margin: 0 auto 2mm; }
+.title-page .service-icon img { height: 14mm; width: auto; }
+.title-page .doc-title { font-size: 19pt; font-weight: 700; margin-bottom: 1mm; }
+.title-page .doc-subtitle { font-size: 11pt; color: #475569; margin-bottom: 4mm; }
+.provenance { text-align: left; margin-top: 3mm; }
+
+/* Compact the whole title page so the provenance block fits on one page. */
+.title-page h2 { font-size: 12pt; margin: 3mm 0 1.5mm; }
+.title-page h3 { font-size: 10pt; margin: 2.5mm 0 1mm; }
+.title-page h4 { font-size: 9pt; margin: 1.5mm 0 0.8mm; }
+.title-page table { font-size: 7.5pt; margin-bottom: 1.5mm; }
+.title-page th, .title-page td { padding: 0.5mm 1.4mm; }
+
+/* ------------------------------------------------------- section breaks --- */
+
+/* Each top-level section starts on a fresh page. */
+section.report-section { break-before: page; }
+
+/* ---------------------------------------------------------------- tables --- */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 8pt;
+  margin: 0 0 4mm;
+}
+th, td {
+  border: 0.4pt solid #cbd5e1;
+  padding: 1.1mm 1.6mm;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+thead th {
+  background: #eef2f6;
+  font-weight: 700;
+  color: #0b3d59;
+}
+/* Repeat the header row when a table spans multiple pages, and avoid orphaned
+   rows / split cells across the page break. */
+thead { display: table-header-group; }
+tfoot { display: table-footer-group; }
+tr { break-inside: avoid; }
+
+td.num, th.num { text-align: center; }
+td.mono { font-family: 'Lato', monospace; word-break: break-all; }
+
+/* Most-violated tables (7.4 / 8.4): auto layout + smaller no-wrap cells so the
+   long atom-key values (e.g. A:62:VAL:HG11) each stay on a single line. */
+table.mv { table-layout: auto; font-size: 7pt; }
+table.mv th, table.mv td { white-space: nowrap; word-break: normal; }
+
+/* Key/value property tables: narrow label column, no header shading. */
+table.kv { table-layout: fixed; }
+table.kv td.k { width: 42%; font-weight: 600; color: #334155; background: #f8fafc; }
+
+/* "Continued…" split notices. These live in the table's thead/tfoot as extra
+   rows; CSS shows them only on continuation pages using WeasyPrint's support
+   for -weasy running table rows is limited, so the notice rows are always
+   present but styled subtly. See generate_report.py for how they are injected. */
+.continued {
+  font-size: 7.5pt;
+  font-style: italic;
+  color: #64748b;
+  text-align: right;
+  border: none;
+  padding: 0.6mm 0;
+}
+
+/* ---------------------------------------------------------------- charts --- */
+
+figure.chart {
+  margin: 2mm 0 5mm;
+  break-inside: avoid;
+  text-align: center;
+}
+figure.chart svg { max-width: 100%; height: auto; }
+figure.chart figcaption {
+  font-size: 8.5pt;
+  color: #334155;
+  margin-top: 1mm;
+}

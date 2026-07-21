@@ -150,6 +150,7 @@ class WfTaskCode(str, Enum):
     communication = 'communication'
     convert_model = 'convert_model'
     convert_nmr_data = 'convert_nmr_data'
+    convert_pdf = 'convert_pdf'
     issue_conversion = 'issue_conversion'
     nef_release = 'nef_release'
     notification = 'notification'

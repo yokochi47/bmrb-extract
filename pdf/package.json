@@ -1,0 +1,16 @@
+{
+  "name": "bmrb-extract-pdf-charts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Server-side ECharts SVG renderer for the static PDF conversion report.",
+  "scripts": {
+    "bundle-charts": "esbuild src/report-charts.ts --bundle --format=esm --platform=node --target=node20 --outfile=vendor/report-charts.mjs"
+  },
+  "dependencies": {
+    "echarts": "^6.1.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.3"
+  }
+}

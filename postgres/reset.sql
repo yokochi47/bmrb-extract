@@ -1,3 +1,17 @@
+--
+-- Development-only schema reset.
+-- Drops every service table and enum type so the CREATE statements in
+-- init-service.sql.template (appended after this file by config.sh) can
+-- recreate a clean schema. Applied via reset_db.sh against the running
+-- postgres container; never runs in production.
+--
+
+\c internal;
+
+DROP TABLE IF EXISTS workflow, communication, notification, output_file, upload_file, session CASCADE;
+DROP TYPE IF EXISTS wf_status_code, wf_task_code, delivery_status_code,
+  output_file_type, upload_file_type, target_depsys_code,
+  session_status_code, processing_site_code CASCADE;
 
 DROP TYPE IF EXISTS processing_site_code;
 CREATE TYPE processing_site_code AS ENUM ('bmrb.io', 'pdbj.org');
@@ -11,7 +25,7 @@ CREATE TYPE target_depsys_code AS ENUM ('onedep', 'repl_cs', 'bmrbdep');
 --
 
 CREATE TABLE IF NOT EXISTS session (
-    processing_site     processing_site_code DEFAULT '${SERVICE_DOMAIN}',  -- the original processing site, which created the session.
+    processing_site     processing_site_code DEFAULT 'pdbj.org',  -- the original processing site, which created the session.
     token               UUID PRIMARY KEY DEFAULT uuidv7(),  -- token used by user and web frontend, uuidv7() func requires PostgreSQL 18+.
     token_admin         UUID DEFAULT gen_random_uuid(),     -- token used by administrators to respond to inquiries on 'Communication' page.
     token_expiry        TIMESTAMP NOT NULL,                 -- time of expiry of the session.

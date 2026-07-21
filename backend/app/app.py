@@ -498,6 +498,16 @@ def _download_output_rows(rows):
     return kept
 
 
+def _download_name(row, conversion_id):
+    """User-facing name for a bundled output file. The JSON report is stored under
+    an internal, task-specific name (…-str_deposit.json); present and archive it as
+    C_<cid>_report.json (parallel to the PDF report) since the internal name is
+    meaningless to the user. Other files keep their on-disk name."""
+    if row.file_type == OutputFileType.json_report.value:
+        return f'C_{conversion_id}_report.json'
+    return Path(row.stored_path).name
+
+
 @app.route('/api/download', methods=['GET'])
 async def download_results():
     """Stream the session's latest-run conversion results as C_<cid>.zip and mark
@@ -543,6 +553,30 @@ async def download_results():
             .all()
         )
 
+        # Block the download while either deferred step (NEF release, PDF report)
+        # is still generating, so the Zip always carries them (the download page
+        # also disables the button; this guards a direct fetch). A failed/absent
+        # step (no longer pending/processing) does not block — both are best-effort.
+        _busy = (WfStatusCode.pending.value, WfStatusCode.processing.value)
+        deferred_status = {
+            task: (
+                await db.execute(
+                    select(Workflow.status).where(
+                        Workflow.conversion_id == conversion_id,
+                        Workflow.run_number == run_number,
+                        Workflow.task == task,
+                    )
+                )
+            ).scalar_one_or_none()
+            for task in (WfTaskCode.nef_release.value, WfTaskCode.convert_pdf.value)
+        }
+        has_pdf = any(r.file_type == OutputFileType.pdf_report.value for r in output_rows)
+        has_nef = any(r.file_type == OutputFileType.nef.value for r in output_rows)
+        if deferred_status[WfTaskCode.convert_pdf.value] in _busy and not has_pdf:
+            return {'error': 'conversion report (PDF) is still being generated'}, 409
+        if deferred_status[WfTaskCode.nef_release.value] in _busy and not has_nef:
+            return {'error': 'NMR Exchange Format (NEF) file is still being generated'}, 409
+
         # Build the zip from the files present on disk (best-effort: skip a
         # missing row so a partial harvest still yields a usable archive).
         buf = io.BytesIO()
@@ -551,7 +585,7 @@ async def download_results():
             for row in _download_output_rows(output_rows):
                 fpath = Path(row.stored_path)
                 if fpath.is_file():
-                    zf.write(str(fpath), arcname=fpath.name)
+                    zf.write(str(fpath), arcname=_download_name(row, conversion_id))
                     added += 1
         if added == 0:
             return {'error': 'no conversion results available'}, 404
@@ -619,33 +653,42 @@ async def get_output_files():
             .all()
         )
 
-        # The NEF release runs deferred (after the session completes). It is "still
-        # generating" while its workflow row is pending/processing and no NEF output
-        # has been harvested yet — the download page polls on this.
-        nef_status = (
-            await db.execute(
-                select(Workflow.status).where(
-                    Workflow.conversion_id == conversion_id,
-                    Workflow.run_number == run_number,
-                    Workflow.task == WfTaskCode.nef_release.value,
+        # The NEF release and the PDF report both run deferred (after the session
+        # completes). Each is "still generating" while its workflow row is
+        # pending/processing and its output has not been harvested yet — the
+        # download page polls on these and blocks the Zip until both are ready.
+        wf_status = {
+            task: (
+                await db.execute(
+                    select(Workflow.status).where(
+                        Workflow.conversion_id == conversion_id,
+                        Workflow.run_number == run_number,
+                        Workflow.task == task,
+                    )
                 )
-            )
-        ).scalar_one_or_none()
+            ).scalar_one_or_none()
+            for task in (WfTaskCode.nef_release.value, WfTaskCode.convert_pdf.value)
+        }
 
+    _generating = (WfStatusCode.pending.value, WfStatusCode.processing.value)
     has_nef = any(row.file_type == OutputFileType.nef.value for row in rows)
-    nef_generating = (
-        nef_status in (WfStatusCode.pending.value, WfStatusCode.processing.value) and not has_nef
-    )
+    nef_generating = wf_status[WfTaskCode.nef_release.value] in _generating and not has_nef
+    has_pdf = any(row.file_type == OutputFileType.pdf_report.value for row in rows)
+    pdf_generating = wf_status[WfTaskCode.convert_pdf.value] in _generating and not has_pdf
     files = [
         {
-            'name': Path(row.stored_path).name,
+            'name': _download_name(row, conversion_id),
             'file_type': row.file_type,
             'file_size': row.file_size,
         }
         for row in _download_output_rows(rows)
         if Path(row.stored_path).is_file()
     ]
-    return {'files': files, 'nef_generating': nef_generating}, 200
+    return {
+        'files': files,
+        'nef_generating': nef_generating,
+        'pdf_generating': pdf_generating,
+    }, 200
 
 
 @app.route('/api/verify_email', methods=['POST'])
