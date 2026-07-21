@@ -24,9 +24,11 @@ fi
 mkdir -p src
 cp "$src" src/report-charts.ts
 
-# Stage the service icon (used on the title page and page footer).
+# Stage the service icon (used on the title page and page footer). This is a
+# WeasyPrint-friendly variant (no filters / transformed gradients) of the web
+# logo, so it rasterizes cleanly into the PDF.
 mkdir -p assets
-cp ../frontend/public/bmrb_extract_logo.svg assets/bmrb_extract_logo.svg
+cp report_logo.svg assets/report_logo.svg
 
 echo "Building $image ..."
 docker build -t "$image" .

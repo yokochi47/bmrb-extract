@@ -216,9 +216,12 @@
     ('Number of parsed with warning', sf.number_of_parsed_with_warning),
     ('Number of chemical shift outliers', sf.number_of_outliers),
   ]) }}
+  {%- for c in chem_shift_charts.get(sf.list_id, []) %}
+  {{ chart(c.id, c.title) }}
   {%- endfor %}
-  <p class="caption muted">Detailed per-saveframe outlier / completeness tables and RCI/NMR-RMSD plots
-  are rendered in the interactive report; a future revision will add them here.</p>
+  {%- endfor %}
+  <p class="caption muted">Detailed per-saveframe outlier, unmapped/unparsed and completeness
+  tables appear in the interactive report; a future revision will add them here.</p>
 </section>
 
 {#- ===================================================== 6. Restraint analysis -#}

@@ -177,6 +177,35 @@ def build_chart_inputs(stats: dict, ensemble: dict) -> list:
     return specs
 
 
+def build_chem_shift_charts(stats: dict) -> tuple[list, dict]:
+    """Section 5 charts: per chemical-shift saveframe, the Z-score histogram(s)
+    and the RCI/S² + NMR-RMSD per-residue line plots. Returns (chart specs,
+    {list_id: [{id, title}]}) — the latter tells the template which charts belong
+    under each saveframe. Uses report_data (ported from the backend) to shape the
+    inputs, then the shared histogramOption / lineOption builders render them."""
+    import report_data as rd
+
+    specs: list = []
+    by_sf: dict = {}
+    for st in stats.get('chem_shift', []) or []:
+        lid = st.get('list_id')
+        entries = []
+        for i, h in enumerate(rd.histogram_chart([st], inverse=True)):
+            cid = f'cs{lid}_hist{i}'
+            specs.append({'id': cid, 'builder': 'histogramOption',
+                          'args': [h, 'Z-score', '# of chemical shifts',
+                                   {'inverse': True, 'rangeLabels': True}],
+                          'width': 680, 'height': 420})
+            entries.append({'id': cid, 'title': 'Normalized assigned chemical shifts (Z-score)'})
+        for i, c in enumerate(rd.rci_charts([st], auth=True)):
+            cid = f'cs{lid}_rci{i}'
+            specs.append({'id': cid, 'builder': 'lineOption', 'args': [c],
+                          'width': 720, 'height': 360})
+            entries.append({'id': cid, 'title': f"{c.get('label')} — Auth_asym_ID: {c.get('chain')}"})
+        by_sf[lid] = entries
+    return specs, by_sf
+
+
 def render_charts(specs: list, work_dir: Path) -> dict:
     """Run the Node SSR renderer; return {id: svg_markup} for charts that
     produced an SVG (null entries — no data — are dropped)."""
@@ -260,11 +289,14 @@ def main() -> int:
     ensemble = ensemble_composition(report)
 
     specs = build_chart_inputs(stats, ensemble)
+    cs_specs, cs_by_sf = build_chem_shift_charts(stats)
+    specs += cs_specs
     charts = render_charts(specs, work_dir)
 
     ctx = build_context(stats, ensemble, provenance, charts,
                         report_timestamp_utc(report_path))
-    icon_path = ASSETS_DIR / 'bmrb_extract_logo.svg'
+    ctx['chem_shift_charts'] = cs_by_sf
+    icon_path = ASSETS_DIR / 'report_logo.svg'
     ctx['service_icon_svg'] = _inline_svg(icon_path.read_text(encoding='utf-8')) if icon_path.is_file() else ''
 
     env = Environment(

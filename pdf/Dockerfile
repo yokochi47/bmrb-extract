@@ -27,7 +27,7 @@ COPY src/report-charts.ts ./src/report-charts.ts
 RUN npm run bundle-charts
 
 # Generator sources and baked-in assets (service icon, fonts handled by fontconfig).
-COPY render_charts.mjs generate_report.py ./
+COPY render_charts.mjs generate_report.py report_data.py ./
 COPY templates/ ./templates/
 COPY assets/ ./assets/
 
