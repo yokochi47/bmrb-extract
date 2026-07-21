@@ -6,7 +6,8 @@
 
 @page {
   size: A4;
-  margin: 20mm 16mm 18mm 16mm;
+  /* Extra top margin leaves a gap between the header divider and the content. */
+  margin: 24mm 16mm 18mm 16mm;
 
   /* Running header: "Page N   <title>   C_<id>" via three margin boxes so the
      title stays centered regardless of the side strings' widths. */
@@ -18,6 +19,7 @@
     color: #555;
     vertical-align: bottom;
     padding-bottom: 1mm;
+    margin-bottom: 4mm;
     border-bottom: 0.5pt solid #cbd5e1;
     width: 33%;
     text-align: left;
@@ -28,6 +30,7 @@
     color: #555;
     vertical-align: bottom;
     padding-bottom: 1mm;
+    margin-bottom: 4mm;
     border-bottom: 0.5pt solid #cbd5e1;
     width: 34%;
     text-align: center;
@@ -38,6 +41,7 @@
     color: #555;
     vertical-align: bottom;
     padding-bottom: 1mm;
+    margin-bottom: 4mm;
     border-bottom: 0.5pt solid #cbd5e1;
     width: 33%;
     text-align: right;

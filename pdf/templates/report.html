@@ -197,7 +197,7 @@
           <td>{{ loop.index }}</td>
           <td class="mono">{{ f.original_name }}</td>
           <td>{{ (f.file_size | filesizeformat(binary=True)) if f.file_size else '' }}</td>
-          <td>{{ f.file_type }}</td>
+          <td>{{ f.file_type | input_type_label }}</td>
           <td>{{ f.upload_date }}</td>
           {%- if show_input_source %}<td>{{ 'BMRB' if f.source == 'bmrb' else 'User' }}</td>{% endif %}
         </tr>
@@ -209,7 +209,7 @@
     <h3>Output files</h3>
     <h4>NMR data file</h4>
     {{ kv_table([
-      ('File name', stats.file_name), ('File type', stats.file_type),
+      ('File name', stats.file_name), ('File type', stats.file_type | output_type_label),
       ('Entry ID', stats.entry_id), ('Entry title', stats.entry_title),
       ('Entry authors', stats.entry_authors), ('Submission date', stats.submission_date),
       ('Processed date', stats.processed_date), ('Processed site', stats.processed_site),
@@ -219,7 +219,7 @@
     <h4>Coordinate file</h4>
     {{ kv_table([
       ('File name', model.file_name), ('Entry title', model.struct_title),
-      ('File type', model.file_type), ('Entry authors', model.audit_authors),
+      ('File type', model.file_type | output_type_label), ('Entry authors', model.audit_authors),
       ('File size', model.file_size), ('MD5 checksum', model.md5_checksum),
     ]) }}
     {%- endif %}
@@ -245,8 +245,9 @@
   {%- set ec = ensemble_caption %}
   <p class="caption">This entry contains <strong>{{ ec.total }}</strong> models. Model
   <strong>{{ ec.medoid }}</strong> is the overall representative, medoid model (most similar to
-  other models). The following residues defined as well-defined regions are included in the
-  computation of the validation analysis below.{% if ec.criteria %} The authors have identified
+  other models). The following residues, identified as clearly defined regions, will be considered
+  in the subsequent validation analysis of this report.
+  {% if ec.criteria %} The authors have identified
   model <strong>{{ ec.representative }}</strong> as representative, based on the following criterion:
   <strong>{{ ec.criteria }}</strong>.{% endif %}</p>
   {%- if ensemble.well_defined_region %}

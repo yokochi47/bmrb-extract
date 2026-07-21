@@ -11,6 +11,7 @@ app.py if that shaping changes — both must agree so the PDF matches the web
 report. Only the chem-shift subset is ported here (no discrepancy / dihedral /
 per-residue-constraint charts, which the PDF does not render).
 """
+import math
 import re
 
 _SUPERSCRIPT = str.maketrans('0123456789', '⁰¹²³⁴⁵⁶⁷⁸⁹')
@@ -194,6 +195,12 @@ def _nucleus_column(atom_group):
     return 'Total'
 
 
+def _round_half_up(x):
+    """Round half away from zero, matching JavaScript's Math.round (the frontend);
+    Python's built-in round() uses banker's rounding, which differs at x.5."""
+    return math.floor(x + 0.5)
+
+
 def _fmt_completeness_cell(e):
     if not e:
         return '– / –'
@@ -201,9 +208,9 @@ def _fmt_completeness_cell(e):
     t = e.get('number_of_target_shifts') or 0
     comp = e.get('completeness')
     if comp is not None:
-        pct = round(comp * 100)
+        pct = _round_half_up(comp * 100)
     elif t:
-        pct = round(a / t * 100)
+        pct = _round_half_up(a / t * 100)
     else:
         pct = None
     return f'{a}/{t}' if pct is None else f'{a}/{t} ({pct}%)'
@@ -246,7 +253,7 @@ def completeness_view(region):
     return {
         'columns': columns,
         'rows': rows,
-        'overall_pct': (round(overall['completeness'] * 100)
+        'overall_pct': (_round_half_up(overall['completeness'] * 100)
                         if overall and overall.get('completeness') is not None else None),
         'overall_assigned': overall.get('number_of_assigned_shifts') if overall else None,
         'overall_target': overall.get('number_of_target_shifts') if overall else None,
@@ -336,3 +343,92 @@ def rci_charts(chem_shift_list, auth=False):
                                'ymin': 0, 'ymax': ymax,
                                'threshold': round(thr, 2) if isinstance(thr, (int, float)) else None})
     return charts
+
+
+# --- File-type labels ------------------------------------------------------- #
+# Human-readable labels for upload (input) and output file types. Kept in sync
+# with frontend/src/app/pages/file-types.ts (FILE_TYPE_OPTIONS) and the
+# OUTPUT_TYPE_LABELS map in page.download.ts.
+
+INPUT_FILE_TYPE_LABELS = {
+    'co-cif': 'Coordinates (PDBx/mmCIF format)',
+    'co-pdb': 'Coordinates (PDB format)',
+    'nm-shi': 'Assigned chemical shifts (NMR-STAR V3 format)',
+    'nm-shi-ari': 'Assigned chemical shifts (ARIA format)',
+    'nm-shi-gar': 'Assigned chemical shifts (GARRET format)',
+    'nm-shi-npi': 'Assigned chemical shifts (NMRPIPE format)',
+    'nm-shi-oli': 'Assigned chemical shifts (OLIVIA format)',
+    'nm-shi-pip': 'Assigned chemical shifts (PIPP format)',
+    'nm-shi-ppm': 'Assigned chemical shifts (NMRVIEW/CAMRA format)',
+    'nm-shi-st2': 'Assigned chemical shifts (NMR-STAR V2 format, seq+cs loop)',
+    'nm-shi-xea': 'Assigned chemical shifts (XEASY format, aka. prot)',
+    'nm-shi-bar': "Assigned chemical shifts (WSV/TSV/CSV; Residue per line, Atom per line, or SPARKY's list)",
+    'nm-csp-ari': 'Perturbed chemical shifts (ARIA format)',
+    'nm-csp-gar': 'Perturbed chemical shifts (GARRET format)',
+    'nm-csp-npi': 'Perturbed chemical shifts (NMRPIPE format)',
+    'nm-csp-oli': 'Perturbed chemical shifts (OLIVIA format)',
+    'nm-csp-pip': 'Perturbed chemical shifts (PIPP format)',
+    'nm-csp-ppm': 'Perturbed chemical shifts (NMRVIEW/CAMRA format)',
+    'nm-csp-st2': 'Perturbed chemical shifts (NMR-STAR V2 format, seq+cs loop)',
+    'nm-csp-xea': 'Perturbed chemical shifts (XEASY format, aka. prot)',
+    'nm-csp-bar': "Perturbed chemical shifts (WSV/TSV/CSV; Residue per line, Atom per line, or SPARKY's list)",
+    'nm-res-amb': 'NMR restraints (AMBER format)',
+    'nm-res-ari': 'NMR restraints (ARIA format)',
+    'nm-res-arx': 'NMR restraints (ARIA XML format)',
+    'nm-res-bar': "NMR restraints (WSV/TSV/CSV with a header; MARDIGAS, AQUA's noe, or User-defined)",
+    'nm-res-bio': 'NMR restraints (BIOSYM format, incl. INSIGHT-II)',
+    'nm-res-cha': 'NMR restraints (CHARMM format)',
+    'nm-res-cns': 'NMR restraints (CNS format)',
+    'nm-res-cya': 'NMR restraints (CYANA format)',
+    'nm-res-noa': 'NMR restraints (CYANA NOA format, aka. noe assignment)',
+    'nm-res-dyn': 'NMR restraints (DYNAMO/PALES/TALOS format)',
+    'nm-res-gro': 'NMR restraints (GROMACS format)',
+    'nm-res-isd': 'NMR restraints (ISD format)',
+    'nm-res-ros': 'NMR restraints (ROSETTA format)',
+    'nm-res-sax': 'NMR restraints (SAXS profile containing columns for q, I(q), σ(I))',
+    'nm-res-sch': 'NMR restraints (Schröginder/ASL format)',
+    'nm-res-syb': 'NMR restraints (SYBYL format)',
+    'nm-res-xpl': 'NMR restraints (XPLOR-NIH format)',
+    'nm-res-oth': 'NMR restraints (other plane text format)',
+    'nm-aux-amb': 'Topology (AMBER format)',
+    'nm-aux-cha': 'Topology (CHARMM format)',
+    'nm-aux-gro': 'Topology (GROMACS format)',
+    'nm-aux-pdb': 'Topology (PDB format)',
+    'nm-aux-xea': 'Topology (XEASY format, aka. prot)',
+    'nm-pea-ari': 'Spectral peak list (ARIA format)',
+    'nm-pea-ccp': 'Spectral peak list (CCPN format)',
+    'nm-pea-oli': 'Spectral peak list (OLIVIA format)',
+    'nm-pea-pip': 'Spectral peak list (NMRPIPE/PIPP format)',
+    'nm-pea-pon': 'Spectral peak list (PONDEROSA format)',
+    'nm-pea-spa': 'Spectral peak list (SPARKY format)',
+    'nm-pea-sps': "Spectral peak list (SPARKY's save format, aka. ornament)",
+    'nm-pea-top': 'Spectral peak list (TOPSPIN format)',
+    'nm-pea-vie': 'Spectral peak list (NMRVIEW format)',
+    'nm-pea-vnm': 'Spectral peak list (VNMR format)',
+    'nm-pea-xea': 'Spectral peak list (XEASY format)',
+    'nm-pea-xwi': 'Spectral peak list (XWINNMR format)',
+    'nm-pea-bar': 'Spectral peak list (WSV/TSV with a header)',
+    'nm-pea-any': 'Spectral peak list (any plane text format, auto format detection)',
+    'nm-uni-nef': 'NMR unified data (NEF: NMR Exchange Format)',
+    'nm-uni-str': 'NMR unified data (NMR-STAR V3 format)',
+}
+
+OUTPUT_FILE_TYPE_LABELS = {
+    'pdbx': 'Coordinates (PDBx/mmCIF)',
+    'nmr-star': 'NMR data (NMR-STAR)',
+    'nef': 'NMR data (NEF)',
+    'text_report': 'Conversion report (text)',
+    'json_report': 'Conversion report (JSON)',
+    'pdf_report': 'Conversion report (PDF)',
+    'compressed': 'Archive',
+}
+
+
+def input_file_type_label(value):
+    """Human-readable label for an upload file-type code (falls back to the code)."""
+    return INPUT_FILE_TYPE_LABELS.get(value, value) if value else value
+
+
+def output_file_type_label(value):
+    """Human-readable label for an output file-type code (falls back to the code)."""
+    return OUTPUT_FILE_TYPE_LABELS.get(value, value) if value else value

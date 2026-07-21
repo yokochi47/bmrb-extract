@@ -575,6 +575,9 @@ def main() -> int:
     env.filters['restraint_type_label'] = restraint_type_label
     env.filters['pct1'] = lambda v: '' if v is None else f'{v:.1f}'
     env.filters['yesno'] = lambda v: None if v is None else ('Yes' if v else 'No')
+    import report_data as _rd
+    env.filters['input_type_label'] = _rd.input_file_type_label
+    env.filters['output_type_label'] = _rd.output_file_type_label
     html = env.get_template('report.html').render(**ctx)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
