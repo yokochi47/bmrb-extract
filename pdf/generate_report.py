@@ -193,7 +193,8 @@ def build_chem_shift_charts(stats: dict) -> tuple[list, dict]:
                             'title': 'Normalized assigned chemical shifts (Z-score)'})
         for i, c in enumerate(rd.rci_charts([st], auth=True)):
             cid = f'cs{lid}_rci{i}'
-            specs.append({'id': cid, 'builder': 'lineOption', 'args': [c],
+            # staticMode: drop per-point symbols + the non-interactive legend in the PDF.
+            specs.append({'id': cid, 'builder': 'lineOption', 'args': [c, {'staticMode': True}],
                           'width': 720, 'height': 360})
             kind = 'rci' if str(c.get('label', '')).startswith('RCI') else 'nmr'
             entries.append({'id': cid, 'kind': kind,
