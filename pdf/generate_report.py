@@ -206,6 +206,61 @@ def build_chem_shift_charts(stats: dict) -> tuple[list, dict]:
     return specs, by_sf
 
 
+def build_chem_shift_sections(stats: dict, sf_charts: dict) -> list:
+    """Full Section 5 content, one entry per chemical-shift saveframe: bookkeeping
+    counts, atom-name-mapping history, completeness pivots, the statistically
+    unusual (outlier) shifts, and the unmapped/unparsed/duplicated shift tables,
+    plus the saveframe's chart ids. Mirrors the download page's chemShiftSaveframes."""
+    import report_data as rd
+
+    def has_ins(rows):
+        return any((r or {}).get('ins_code') not in (None, '') for r in rows)
+
+    sections = []
+    for st in stats.get('chem_shift', []) or []:
+        lid = st.get('list_id')
+        outlier = st.get('chemical_shift_outlier') or []
+        unmapped = st.get('chemical_shift_unmapped') or []
+        unparsed = st.get('chemical_shift_unparsed') or []
+        duplicated = st.get('chemical_shift_duplicated') or []
+        completeness = []
+        for phrase, region in (
+            ('well-defined regions of the structure', st.get('completeness_in_well_defined_region')),
+            ('full structure', st.get('completeness_in_full_length_region')),
+        ):
+            view = rd.completeness_view(region)
+            if view:
+                completeness.append({'phrase': phrase, 'view': view})
+        sections.append({
+            'list_id': lid,
+            'sf_framecode': st.get('sf_framecode'),
+            'original_file_name': st.get('original_file_name'),
+            'bookkeeping': [
+                ('Number of parsed shifts', st.get('number_of_parsed')),
+                ('Number of shifts mapped to model', st.get('number_of_mapped_to_model')),
+                ('Number of shifts unmapped to model', st.get('number_of_unmapped_to_model')),
+                ('Number of unparsed shifts with error', st.get('number_of_unparsed_with_error')),
+                ('Number of parsed shifts with warning', st.get('number_of_parsed_with_warning')),
+                ('Number of chemical shift outliers', st.get('number_of_outliers')),
+            ],
+            'atom_mapping': rd.atom_name_mapping(st),
+            'completeness': completeness,
+            'outliers': outlier,
+            'outlier_count': st.get('number_of_outliers') if st.get('number_of_outliers') is not None else len(outlier),
+            'show_outlier_ins': has_ins(outlier),
+            'show_outlier_details': any((o or {}).get('details') not in (None, '') for o in outlier),
+            'unmapped': unmapped,
+            'unmapped_count': st.get('number_of_unmapped_to_model') if st.get('number_of_unmapped_to_model') is not None else len(unmapped),
+            'show_unmapped_ins': has_ins(unmapped),
+            'unparsed': unparsed,
+            'show_unparsed_ins': has_ins(unparsed),
+            'duplicated': duplicated,
+            'show_duplicated_ins': has_ins(duplicated),
+            'charts': sf_charts.get(lid, []),
+        })
+    return sections
+
+
 def render_charts(specs: list, work_dir: Path) -> dict:
     """Run the Node SSR renderer; return {id: svg_markup} for charts that
     produced an SVG (null entries — no data — are dropped)."""
@@ -295,7 +350,7 @@ def main() -> int:
 
     ctx = build_context(stats, ensemble, provenance, charts,
                         report_timestamp_utc(report_path))
-    ctx['chem_shift_charts'] = cs_by_sf
+    ctx['chem_shift_sections'] = build_chem_shift_sections(stats, cs_by_sf)
     icon_path = ASSETS_DIR / 'report_logo.svg'
     ctx['service_icon_svg'] = _inline_svg(icon_path.read_text(encoding='utf-8')) if icon_path.is_file() else ''
 

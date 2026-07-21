@@ -167,6 +167,139 @@ def _domain_bands(domain_id):
     return bands
 
 
+# --- Completeness of resonance assignments (5.x.2) --------------------------- #
+# Mirrors the frontend COMPLETENESS_ROWS / NUCLEUS_COLUMNS / buildCompletenessView.
+
+COMPLETENESS_ROWS = [
+    ('completeness_of_backbone_assignments', 'Backbone'),
+    ('completeness_of_sidechain_assignments', 'Sidechain'),
+    ('completeness_of_aromatic_assignments', 'Aromatic'),
+    ('completeness_of_sugar_assignments', 'Sugar'),
+    ('completeness_of_base_assignments', 'Base'),
+    ('completeness_of_overall_assignments', 'Overall'),
+]
+NUCLEUS_COLUMNS = ['Total', '¹H', '¹³C', '¹⁵N', '³¹P']
+
+
+def _nucleus_column(atom_group):
+    g = (atom_group or '').lower()
+    if '1h' in g:
+        return '¹H'
+    if '13c' in g:
+        return '¹³C'
+    if '15n' in g:
+        return '¹⁵N'
+    if '31p' in g:
+        return '³¹P'
+    return 'Total'
+
+
+def _fmt_completeness_cell(e):
+    if not e:
+        return '– / –'
+    a = e.get('number_of_assigned_shifts') or 0
+    t = e.get('number_of_target_shifts') or 0
+    comp = e.get('completeness')
+    if comp is not None:
+        pct = round(comp * 100)
+    elif t:
+        pct = round(a / t * 100)
+    else:
+        pct = None
+    return f'{a}/{t}' if pct is None else f'{a}/{t} ({pct}%)'
+
+
+def _by_nucleus(entries):
+    m = {}
+    for e in entries or []:
+        col = _nucleus_column(e.get('atom_group'))
+        if col not in m:
+            m[col] = e
+    return m
+
+
+def completeness_view(region):
+    """Pivot a completeness-region object into {columns, rows, overall_*, stereo}
+    or None when empty (mirrors buildCompletenessView)."""
+    if not region:
+        return None
+    present = set()
+    for key, _ in COMPLETENESS_ROWS:
+        for e in region.get(key) or []:
+            if e.get('atom_group'):
+                present.add(_nucleus_column(e['atom_group']))
+    if not present:
+        return None
+    columns = [n for n in NUCLEUS_COLUMNS if n in present]
+    rows = []
+    for key, label in COMPLETENESS_ROWS:
+        arr = region.get(key)
+        if not arr:
+            continue
+        bg = _by_nucleus(arr)
+        rows.append({'label': label, 'cells': [_fmt_completeness_cell(bg.get(c)) for c in columns]})
+    if not rows:
+        return None
+    overall = _by_nucleus(region.get('completeness_of_overall_assignments')).get('Total')
+    stereo_by = _by_nucleus(region.get('completeness_of_stereomethyl_assignments'))
+    stereo = stereo_by.get('Total') or (region.get('completeness_of_stereomethyl_assignments') or [None])[0]
+    return {
+        'columns': columns,
+        'rows': rows,
+        'overall_pct': (round(overall['completeness'] * 100)
+                        if overall and overall.get('completeness') is not None else None),
+        'overall_assigned': overall.get('number_of_assigned_shifts') if overall else None,
+        'overall_target': overall.get('number_of_target_shifts') if overall else None,
+        'stereo': ({'assigned': stereo.get('number_of_assigned_shifts') or 0,
+                    'target': stereo.get('number_of_target_shifts') or 0} if stereo else None),
+    }
+
+
+# --- Atom-name mapping history (5.x.1) --------------------------------------- #
+# Ported from the backend _atom_name_mapping / _atom_mapping_normal.
+
+def _atom_mapping_normal(atom_name, atom_ids):
+    """Whether an original → IUPAC atom-name mapping looks expected."""
+    if not atom_name or not atom_ids:
+        return True
+
+    def matches(name):
+        return bool(name) and (
+            any(a.startswith(name) for a in atom_ids)
+            or any(name.startswith(a) for a in atom_ids)
+        )
+
+    if matches(atom_name):
+        return True
+    name = atom_name.replace('#', '').replace('%', '').replace('*', '')
+    if name and name[0] in ('Q', 'M'):
+        name = 'H' + name[1:]
+    if name and name[0] in ('1', '2', '3'):
+        name = name[1:] + name[0]
+    if matches(name):
+        return True
+    if (len(name) > 2 and name[-1].isdigit()
+            and (not name[-2].isdigit() or atom_ids[0].startswith(name[:-1]))):
+        if matches(name[:-1]):
+            return True
+    return False
+
+
+def atom_name_mapping(st):
+    """[{comp_id, history:[{name, atoms, unusual}]}] for one saveframe."""
+    out = []
+    for m in st.get('atom_name_mapping') or []:
+        history = []
+        for h in m.get('history') or []:
+            name = h.get('atom_name', '')
+            atom_ids = [str(a) for a in (h.get('atom_id') or [])]
+            history.append({'name': name, 'atoms': ', '.join(atom_ids),
+                            'unusual': not _atom_mapping_normal(name, atom_ids)})
+        if history:
+            out.append({'comp_id': m.get('comp_id', ''), 'history': history})
+    return out
+
+
 def rci_charts(chem_shift_list, auth=False):
     """RCI/S² (0–1) and NMR-RMSD (Å, with well-defined-region threshold)
     per-residue line charts from `random_coil_index`. auth=True keys residues by

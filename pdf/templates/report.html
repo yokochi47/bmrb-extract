@@ -16,6 +16,33 @@
   {%- endif %}
 {%- endmacro -%}
 
+{#- Chemical-shift row table (unmapped / unparsed / duplicated): shared columns. -#}
+{%- macro shift_table(rows, show_ins) -%}
+  <table>
+    <thead><tr>
+      <th class="num" style="width:9%">Auth chain</th>
+      <th class="num" style="width:11%">Auth seq ID</th>
+      {%- if show_ins %}<th class="num" style="width:8%">Ins code</th>{% endif %}
+      <th style="width:12%">Comp ID</th><th>Atom ID</th>
+      <th class="num" style="width:12%">Value</th>
+      <th class="num" style="width:13%">Uncertainty</th>
+      <th class="num" style="width:11%">Ambig code</th>
+    </tr></thead>
+    <tbody>
+      {%- for r in rows %}
+      <tr>
+        <td class="num">{{ r.auth_chain_id }}</td>
+        <td class="num">{{ r.auth_seq_id }}</td>
+        {%- if show_ins %}<td class="num">{{ r.ins_code }}</td>{% endif %}
+        <td>{{ r.comp_id }}</td><td class="mono">{{ r.atom_id }}</td>
+        <td class="num">{{ r.value }}</td><td class="num">{{ r.error }}</td>
+        <td class="num">{{ r.ambig_code }}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+{%- endmacro -%}
+
 <div class="page-footer">{{ service_icon_svg | safe_svg }}</div>
 
 {#- ===================================================== title / provenance -#}
@@ -206,22 +233,112 @@
 {#- ===================================================== 5. Chem shift validation -#}
 <section class="report-section">
   <h2>5. Chemical shift validation</h2>
-  {%- for sf in stats.chem_shift %}
+  {%- for sf in chem_shift_sections %}
   <h3>5.{{ sf.list_id }} Bookkeeping — {{ sf.sf_framecode }}{% if sf.original_file_name %} ({{ sf.original_file_name }}){% endif %}</h3>
-  {{ kv_table([
-    ('Number of parsed', sf.number_of_parsed),
-    ('Number of mapped to model', sf.number_of_mapped_to_model),
-    ('Number of unmapped to model', sf.number_of_unmapped_to_model),
-    ('Number of unparsed with error', sf.number_of_unparsed_with_error),
-    ('Number of parsed with warning', sf.number_of_parsed_with_warning),
-    ('Number of chemical shift outliers', sf.number_of_outliers),
-  ]) }}
-  {%- for c in chem_shift_charts.get(sf.list_id, []) %}
+  {{ kv_table(sf.bookkeeping) }}
+
+  {#- Unmapped / unparsed / duplicated shift tables -#}
+  {%- if sf.unmapped %}
+  <h4>Chemical shifts not mapped to the model ({{ sf.unmapped_count }})</h4>
+  {{ shift_table(sf.unmapped, sf.show_unmapped_ins) }}
+  {%- endif %}
+  {%- if sf.unparsed %}
+  <h4>Unparsed chemical shifts</h4>
+  {{ shift_table(sf.unparsed, sf.show_unparsed_ins) }}
+  {%- endif %}
+  {%- if sf.duplicated %}
+  <h4>Duplicated chemical shifts</h4>
+  {{ shift_table(sf.duplicated, sf.show_duplicated_ins) }}
+  {%- endif %}
+
+  {#- 5.x.1 Atom name mapping history -#}
+  <h4>5.{{ sf.list_id }}.1 Atom name mapping history</h4>
+  {%- if sf.atom_mapping %}
+  <p class="caption">Author-defined atom names standardized against the Chemical Component
+  Dictionary (CCD). Unusual mappings are shown in red — verify they are correct.</p>
+  <table>
+    <thead><tr><th style="width:16%">Comp ID</th><th>Mapping history (author-defined → NMR-data atom names)</th></tr></thead>
+    <tbody>
+      {%- for m in sf.atom_mapping %}
+      <tr>
+        <td>{{ m.comp_id }}</td>
+        <td class="mono">
+          {%- for h in m.history -%}
+          <span{% if h.unusual %} style="color:#dc2626"{% endif %}>{{ h.name }} → {{ h.atoms }}</span>{% if not loop.last %}; {% endif %}
+          {%- endfor -%}
+        </td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  {%- else %}
+  <p class="caption muted">The atom names defined by the author conformed to the CCD.</p>
+  {%- endif %}
+
+  {#- 5.x.2 Completeness of resonance assignments -#}
+  <h4>5.{{ sf.list_id }}.2 Completeness of resonance assignments</h4>
+  {%- for c in sf.completeness %}
+  <p class="caption">Completeness of the chemical shift assignments for the <strong>{{ c.phrase }}</strong>.
+    {%- if c.view.overall_pct is not none %} The overall completeness is <strong>{{ c.view.overall_pct }}%</strong>
+    ({{ c.view.overall_assigned }} of {{ c.view.overall_target }} atoms assigned).{% endif %}
+    {%- if c.view.stereo %} {{ c.view.stereo.assigned }} of {{ c.view.stereo.target }} methyl groups (LEU/VAL)
+    were assigned stereospecifically.{% endif %}</p>
+  <table>
+    <thead><tr><th></th>
+      {%- for col in c.view.columns %}<th class="num">{{ col }}</th>{% endfor %}
+    </tr></thead>
+    <tbody>
+      {%- for row in c.view.rows %}
+      <tr><td class="k">{{ row.label }}</td>
+        {%- for cell in row.cells %}<td class="num">{{ cell }}</td>{% endfor %}
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  {%- endfor %}
+
+  {#- 5.x.3 Statistically unusual chemical shifts -#}
+  <h4>5.{{ sf.list_id }}.3 Statistically unusual chemical shifts</h4>
+  {%- if sf.outliers %}
+  <p class="caption">The {{ sf.outlier_count }} statistically unusual chemical shifts below are
+  statistical measures; large deviations do not necessarily imply incorrect assignments
+  (paramagnetic centres or hemes are expected to give anomalous shifts).</p>
+  <table>
+    <thead><tr>
+      <th class="num" style="width:7%">Auth chain</th>
+      <th class="num" style="width:7%">Seq ID</th>
+      {%- if sf.show_outlier_ins %}<th class="num" style="width:6%">Ins</th>{% endif %}
+      <th style="width:8%">Comp</th><th style="width:8%">Atom</th>
+      <th class="num" style="width:8%">Value</th>
+      <th class="num" style="width:6%">Ambig</th>
+      <th class="num" style="width:8%">Z score</th>
+      <th class="num" style="width:12%">Expected range</th>
+      {%- if sf.show_outlier_details %}<th>Details</th>{% endif %}
+    </tr></thead>
+    <tbody>
+      {%- for o in sf.outliers %}
+      <tr>
+        <td class="num">{{ o.auth_chain_id }}</td>
+        <td class="num">{{ o.auth_seq_id }}</td>
+        {%- if sf.show_outlier_ins %}<td class="num">{{ o.ins_code }}</td>{% endif %}
+        <td>{{ o.comp_id }}</td><td class="mono">{{ o.atom_id }}</td>
+        <td class="num">{{ o.value }}</td><td class="num">{{ o.ambig_code }}</td>
+        <td class="num">{{ o.z_score }}</td>
+        <td class="num">{% if o.expected_range %}{{ o.expected_range.min_value }} – {{ o.expected_range.max_value }}{% endif %}</td>
+        {%- if sf.show_outlier_details %}<td>{{ o.details }}</td>{% endif %}
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  {%- else %}
+  <p class="caption muted">No statistically unusual chemical shifts were found.</p>
+  {%- endif %}
+
+  {#- 5.x.4 RCI/S² and NMR-RMSD per-residue plots -#}
+  {%- for c in sf.charts %}
   {{ chart(c.id, c.title) }}
   {%- endfor %}
   {%- endfor %}
-  <p class="caption muted">Detailed per-saveframe outlier, unmapped/unparsed and completeness
-  tables appear in the interactive report; a future revision will add them here.</p>
 </section>
 
 {#- ===================================================== 6. Restraint analysis -#}
