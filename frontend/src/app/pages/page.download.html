@@ -125,8 +125,8 @@
       </p-message>
     } @else if (nefGenerating() || pdfGenerating()) {
       <p-message severity="info" styleClass="mb-3 w-full" [closable]="false">
-        <i class="pi pi-spin pi-spinner mr-2"></i>Preparing the remaining result files — the download
-        will be enabled once
+        <i class="pi pi-spin pi-spinner mr-2"></i>Preparing the remaining result files — the
+        download will be enabled once
         @if (nefGenerating() && pdfGenerating()) {
           the NMR Exchange Format (NEF) file and the conversion report (PDF) are
         } @else if (nefGenerating()) {
@@ -325,8 +325,9 @@
           <p class="text-base mb-4 mx-4">
             This entry contains <strong>{{ ensembleTotalModels() }}</strong> models. Model
             <strong>{{ ensembleMedoidModel() }}</strong> is the overall representative, medoid model
-            (most similar to other models). The following residues defined as well-defined regions
-            are included in the computation of the following validation analysis.
+            (most similar to other models). The following residues, defined as well-defined defined
+            regions, will be considered in the subsequent validation analysis throuhgout this
+            report.
             @if (ensembleSelectionCriteria()) {
               The authors have identified model
               <strong>{{ ensembleRepresentativeModel() }}</strong> as representative, based on the
@@ -432,8 +433,8 @@
 
             @if (ensemblePcaChart(); as pca) {
               <p class="text-base mb-4 mx-2">
-                The image below shows a Principal Component Analysis (PCA) plot used for clustering
-                the models in the ensemble. However, since the actual clustering was performed using
+                The plot below shows a Principal Component Analysis (PCA) used for clustering the
+                models in the ensemble. Since the actual clustering was performed using
                 higher-dimensional features, the plot and the clustering results may not visually
                 align.
               </p>
@@ -636,8 +637,8 @@
         @if (chemShiftProps().length) {
           <p class="text-base mb-4 mx-4">
             The following table shows overall chemical shift statistics as aggregates over all
-            chemical shift saveframe(s) in the NMR data file. If there were any issues when parsing
-            (e.g., format compliance) or mapping (matching the structure) the chemical shifts data,
+            chemical shift saveframe(s) in the NMR data file, flags any issues found when parsing
+            (e.g. format compliance) or mapping (matching the structure) the chemical shift data,
             and reports the completeness of assignment.
           </p>
           <div class="overflow-x-auto">
@@ -1059,7 +1060,11 @@
                       <th
                         class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
                       >
-                        Auth chain
+                        @if (sf.showOutlierDetails) {
+                          Chain
+                        } @else {
+                          Auth chain
+                        }
                       </th>
                       <th
                         class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
@@ -1159,6 +1164,11 @@
                 There is no unusual chemical shifts meaning that all chemical shift values assigned
                 to standard residues are within their expected ranges.
               </p>
+            }
+
+            @for (h of sf.histograms; track $index) {
+              <p class="text-base mt-2 mb-2">{{ h.title }}</p>
+              <app-echart [option]="h.option" [height]="420" />
             }
 
             @if (sf.rciPanels.length) {
