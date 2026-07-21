@@ -141,6 +141,11 @@ tr { break-inside: avoid; }
 td.num, th.num { text-align: center; }
 td.mono { font-family: 'Lato', monospace; word-break: break-all; }
 
+/* Most-violated tables (7.4 / 8.4): auto layout + smaller no-wrap cells so the
+   long atom-key values (e.g. A:62:VAL:HG11) each stay on a single line. */
+table.mv { table-layout: auto; font-size: 7pt; }
+table.mv th, table.mv td { white-space: nowrap; word-break: normal; }
+
 /* Key/value property tables: narrow label column, no header shading. */
 table.kv { table-layout: fixed; }
 table.kv td.k { width: 42%; font-weight: 600; color: #334155; background: #f8fafc; }

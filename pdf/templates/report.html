@@ -132,7 +132,7 @@
    `four` adds atom-3/atom-4 columns for dihedral angles; `type_key` selects the
    category field. -#}
 {%- macro most_violated_table(rows, four, unit, type_key) -%}
-  <table>
+  <table class="mv">
     <thead><tr><th>Key</th><th>Type</th><th>Atom-1</th><th>Atom-2</th>
       {%- if four %}<th>Atom-3</th><th>Atom-4</th>{% endif %}
       <th class="num">Models</th><th class="num">Mean ({{ unit }})</th><th class="num">Std ({{ unit }})</th><th class="num">Median ({{ unit }})</th></tr></thead>
