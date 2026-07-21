@@ -455,6 +455,17 @@ def render_charts(specs: list, work_dir: Path) -> dict:
 def build_context(stats: dict, ensemble: dict, provenance: dict,
                   charts: dict, timestamp: str) -> dict:
     rs = stats.get('restraint_summary', {}) or {}
+    clusters = ensemble.get('cluster_analysis') or []
+    regions = ensemble.get('well_defined_region') or []
+    single_cluster = next((c for c in clusters if c.get('cluster_id') == -1), None)
+    ensemble_caption = {
+        'total': ensemble.get('total_models'),
+        'medoid': regions[0].get('medoid_model_id') if regions else None,
+        'representative': ensemble.get('representative_model_id'),
+        'criteria': ensemble.get('selection_criteria'),
+        'clustered_count': sum(1 for c in clusters if c.get('cluster_id') != -1),
+        'single_model_count': len(single_cluster.get('model_ids') or []) if single_cluster else 0,
+    }
     conv_id = provenance.get('conversion_id')
     public_id = f'C_{conv_id}' if conv_id is not None else ''
     depsys = provenance.get('target_depsys')
@@ -471,6 +482,7 @@ def build_context(stats: dict, ensemble: dict, provenance: dict,
         ),
         'stats': stats,
         'ensemble': ensemble,
+        'ensemble_caption': ensemble_caption,
         'software': stats.get('software', []) or [],
         'model': stats.get('model'),
         'restraint_summary': rs,

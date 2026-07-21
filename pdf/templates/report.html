@@ -168,9 +168,10 @@
 
 {#- ===================================================== title / provenance -#}
 <div class="title-page">
-  {% if service_icon %}<div class="service-icon"><img src="{{ service_icon }}" alt="bmrb_extract"></div>{% endif %}
-  <div class="doc-title">bmrb_extract</div>
-  <div class="doc-subtitle">data conversion statistical report</div>
+  {% if service_icon %}<div class="service-icon"><img src="{{ service_icon }}" alt="bmrb_extract"></div>
+  {% else %}<div class="doc-title">bmrb_extract</div>
+  {% endif %}
+  <div class="doc-title">data conversion statistical report</div>
 
   <div class="provenance">
     <h2>Provenance information</h2>
@@ -185,7 +186,7 @@
     <h3>Input files</h3>
     <table>
       <thead><tr>
-        <th style="width:8%">#</th><th>Original file name</th>
+        <th style="width:8% num">Ordinal #</th><th>Original file name</th>
         <th style="width:16%">Size</th><th style="width:22%">File type</th>
         <th style="width:18%">Upload date</th>
         {%- if show_input_source %}<th style="width:12%">Source</th>{% endif %}
@@ -240,6 +241,13 @@
 {#- ===================================================== 1. Ensemble comp. -#}
 <section class="report-section">
   <h2>1. Ensemble composition analysis</h2>
+  {%- set ec = ensemble_caption %}
+  <p class="caption">This entry contains <strong>{{ ec.total }}</strong> models. Model
+  <strong>{{ ec.medoid }}</strong> is the overall representative, medoid model (most similar to
+  other models). The following residues defined as well-defined regions are included in the
+  computation of the validation analysis below.{% if ec.criteria %} The authors have identified
+  model <strong>{{ ec.representative }}</strong> as representative, based on the following criterion:
+  <strong>{{ ec.criteria }}</strong>.{% endif %}</p>
   {%- if ensemble.well_defined_region %}
   <table>
     <thead><tr>
@@ -262,14 +270,21 @@
   {%- endif %}
   {%- if ensemble.cluster_analysis %}
   <h3>Clustering analysis of models in the ensemble</h3>
+  <p class="caption">The models can be grouped into <strong>{{ ec.clustered_count }}</strong> clusters{% if ec.single_model_count > 0 %}, and <strong>{{ ec.single_model_count }}</strong> single-model clusters were found{% endif %}.</p>
   <table>
-    <thead><tr><th class="num">Cluster number</th><th class="num">Models (centroid model)</th><th class="num">Mean RMSD in a cluster (Å)</th></tr></thead>
+    <thead><tr><th style="width:14%">Cluster number</th><th>Models (centroid model)</th><th class="num" style="width:24%">Mean RMSD in a cluster (Å)</th></tr></thead>
     <tbody>
       {%- for c in ensemble.cluster_analysis %}
       <tr>
-        <td class="num">{{ 'Single-model' if c.cluster_id == -1 else c.cluster_id }}</td>
-        <td class="num">{{ (c.model_ids | length) if c.model_ids else 0 }} ({{ c.centroid_model_id }})</td>
+        {%- if c.cluster_id != -1 %}
+        <td class="num">{{ c.cluster_id }}</td>
+        <td>{{ c.model_ids | join(', ') }} ({{ c.centroid_model_id }})</td>
         <td class="num">{{ c.mean_rmsd }}</td>
+        {%- else %}
+        <td>Single-model clusters</td>
+        <td>{{ c.model_ids | join(', ') }}</td>
+        <td></td>
+        {%- endif %}
       </tr>
       {%- endfor %}
     </tbody>
