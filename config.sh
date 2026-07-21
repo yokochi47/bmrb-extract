@@ -84,6 +84,7 @@ if [[ "${SERVICE_LEVEL}" = "development" ]] ; then
 fi
 
 email_regex='^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\n$'
+email_list_regex='^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:\s*,\s*[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})*\n?$'
 
 if [[ -z "${SERVICE_ADMIN_EMAIL}" ]] ; then
 
@@ -97,6 +98,26 @@ if [[ -z "${SERVICE_ADMIN_EMAIL}" ]] ; then
   fi
 
   SERVICE_ADMIN_EMAIL=$ans
+
+fi
+
+if [[ -z "${SERVICE_ANNOT_EMAILS}" ]] ; then
+
+  echo "Please set list of email addresses for annotators assigned to both sites (must have access to all sessions to handle user inquiries; comma-separated):"
+
+  read ans
+
+  if [[ "${and}" =~ $email_list_regex ]] ; then
+    echo "Error: ${ans} is not valid."
+    exit 1
+  fi
+
+else
+
+ if [[ "${SERVICE_ANNOT_EMAILS}" =~ $email_list_regex ]] ; then
+    echo "Error: ${SERVICE_ANNOT_EMAILS} is not valid."
+    exit 1
+ fi
 
 fi
 
@@ -205,6 +226,7 @@ export SERVICE_DOMAIN=${SERVICE_DOMAIN}
 export SERVICE_HOST=${SERVICE_SUBDOMAIN}.${SERVICE_DOMAIN}
 export SERVICE_ADMIN_EMAIL=${SERVICE_ADMIN_EMAIL}
 export SERVICE_HELP_EMAIL=${SERVICE_HELP_EMAIL}
+export SERVICE_ANNOT_EMAILS=${SERVICE_ANNOT_EMAILS}
 
 # Nginx
 NGINX_LOG_FORMAT=${NGINX_LOG_FORMAT}
