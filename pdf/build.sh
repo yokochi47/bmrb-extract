@@ -24,11 +24,10 @@ fi
 mkdir -p src
 cp "$src" src/report-charts.ts
 
-# Stage the service icon (used on the title page and page footer). This is a
-# WeasyPrint-friendly variant (no filters / transformed gradients) of the web
-# logo, so it rasterizes cleanly into the PDF.
+# Stage the service icon (used on the title page and page footer) — a PNG so it
+# rasterizes into the PDF without any SVG-feature limitations.
 mkdir -p assets
-cp report_logo.svg assets/report_logo.svg
+cp report_logo.png assets/report_logo.png
 
 echo "Building $image ..."
 docker build -t "$image" .

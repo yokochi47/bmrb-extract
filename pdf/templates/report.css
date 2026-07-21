@@ -49,7 +49,7 @@
   position: running(page-footer);
   text-align: center;
 }
-.page-footer svg { height: 6mm; width: auto; }
+.page-footer img { height: 6mm; width: auto; }
 
 /* ------------------------------------------------------------- base type --- */
 
@@ -74,11 +74,18 @@ p { margin: 0 0 2mm; }
 /* ------------------------------------------------------------ title page --- */
 
 .title-page { text-align: center; }
-.title-page .service-icon { margin: 8mm auto 6mm; }
-.title-page .service-icon svg { height: 22mm; width: auto; }
-.title-page .doc-title { font-size: 22pt; font-weight: 700; margin-bottom: 2mm; }
-.title-page .doc-subtitle { font-size: 12pt; color: #475569; margin-bottom: 10mm; }
-.provenance { text-align: left; margin-top: 6mm; }
+.title-page .service-icon { margin: 0 auto 2mm; }
+.title-page .service-icon img { height: 14mm; width: auto; }
+.title-page .doc-title { font-size: 19pt; font-weight: 700; margin-bottom: 1mm; }
+.title-page .doc-subtitle { font-size: 11pt; color: #475569; margin-bottom: 4mm; }
+.provenance { text-align: left; margin-top: 3mm; }
+
+/* Compact the whole title page so the provenance block fits on one page. */
+.title-page h2 { font-size: 12pt; margin: 3mm 0 1.5mm; }
+.title-page h3 { font-size: 10pt; margin: 2.5mm 0 1mm; }
+.title-page h4 { font-size: 9pt; margin: 1.5mm 0 0.8mm; }
+.title-page table { font-size: 7.5pt; margin-bottom: 1.5mm; }
+.title-page th, .title-page td { padding: 0.5mm 1.4mm; }
 
 /* ------------------------------------------------------- section breaks --- */
 

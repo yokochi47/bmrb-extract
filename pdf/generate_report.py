@@ -55,14 +55,6 @@ TARGET_DEPSYS_LABEL = {
 
 # ------------------------------------------------------------- extraction --- #
 
-def _inline_svg(svg: str) -> str:
-    """Strip any <?xml …?> / <!DOCTYPE …> prolog so the <svg> can be inlined in
-    HTML — WeasyPrint's HTML parser renders inline SVG only from the <svg> tag,
-    and shows a leading prolog as literal text otherwise."""
-    idx = svg.find('<svg')
-    return svg[idx:] if idx > 0 else svg
-
-
 def restraint_type_label(value) -> str:
     """Display label for a violation-summary restraint_type (mirrors the TS
     restraintTypeLabel): a "<abbr>; <sub-type>" becomes an indented lower-case
@@ -204,6 +196,138 @@ def build_chem_shift_charts(stats: dict) -> tuple[list, dict]:
             entries.append({'id': cid, 'title': f"{c.get('label')} — Auth_asym_ID: {c.get('chain')}"})
         by_sf[lid] = entries
     return specs, by_sf
+
+
+_DIST_TABLE_COLS = [
+    {'key': 'ir_viol_count', 'label': 'IR'}, {'key': 'sq_viol_count', 'label': 'SQ'},
+    {'key': 'mr_viol_count', 'label': 'MR'}, {'key': 'lr_viol_count', 'label': 'LR'},
+    {'key': 'ic_viol_count', 'label': 'IC'}, {'key': 'total_viol_count', 'label': 'Total'},
+]
+_TABLE_ROW_CAP = 250
+
+_BOOKKEEPING_DEFS = [
+    ('dist_restraint', '6.3', 'Bookkeeping of distance restraints', 'There is no distance restraints.', 'distance restraints'),
+    ('dihed_restraint', '6.4', 'Bookkeeping of dihedral-angle restraints', 'There is no dihedral-angle restraints.', 'dihedral-angle restraints'),
+    ('rdc_restraint', '6.5', 'Bookkeeping of RDC restraints', 'There is no RDC restraints.', 'RDC restraints'),
+    ('spectral_peak', '6.6', 'Bookkeeping of spectral peak lists', 'There is no spectral peak lists.', 'spectral peaks'),
+]
+
+
+def _dihed_table_cols(rows):
+    """Dynamic dihedral-angle columns: phi, psi, then other types sorted, total
+    last (mirrors dihedModelViolations / dihedEnsembleViolations)."""
+    seen = set()
+    for r in rows or []:
+        for k in (r or {}):
+            if k.endswith('_viol_count'):
+                seen.add(k)
+    fixed = ['phi_viol_count', 'psi_viol_count', 'total_viol_count']
+    others = sorted(k for k in seen if k not in fixed)
+    ordered = ([k for k in ('phi_viol_count', 'psi_viol_count') if k in seen]
+               + others + (['total_viol_count'] if 'total_viol_count' in seen else []))
+    return [{'key': k, 'label': k[:-len('_viol_count')].capitalize()} for k in ordered]
+
+
+def _viol_bins(rs, key):
+    v = rs.get(key)
+    return v if isinstance(v, list) else []
+
+
+def _nonviolated(summary_rows):
+    """Non-violated = restraint_count − viol_count, overall + per distance category."""
+    def nv(r):
+        return (r.get('restraint_count') or 0) - (r.get('viol_count') or 0) if r else 0
+
+    def find(pred):
+        return next((r for r in summary_rows if pred((r.get('restraint_type') or '').lower())), None)
+    return {
+        'total': nv(find(lambda t: t == 'total')),
+        'ir': nv(find(lambda t: t.startswith('intra-residue'))),
+        'sq': nv(find(lambda t: t.startswith('sequential'))),
+        'mr': nv(find(lambda t: t.startswith('medium'))),
+        'lr': nv(find(lambda t: t.startswith('long'))),
+        'ic': nv(find(lambda t: t.startswith('inter-chain'))),
+    }
+
+
+def build_restraint_sections(stats: dict) -> dict:
+    """Structured data for the NMR-restraint / distance / dihedral sections (6–8):
+    per-model violation bins, restraint bookkeeping groups, and the per-model /
+    per-ensemble / most-violated / all-violation tables. Mirrors the download
+    page's restraint computeds."""
+    import report_data as rd
+
+    rs = stats.get('restraint_summary', {}) or {}
+    dist_sum = rs.get('dist_violation_summary') or []
+    dihed_sum = [r for r in (rs.get('dihed_violation_summary') or [])]
+
+    def bookkeeping(key, noun):
+        sfs = []
+        for it in stats.get(key) or []:
+            if not isinstance(it, dict):
+                continue
+            sfs.append({
+                'list_id': it.get('list_id'),
+                'title': f"{it.get('sf_framecode', '')} ({it.get('original_file_name', '')})".strip(),
+                'mapped_to_model': it.get('number_of_mapped_to_model'),
+                'rows': [
+                    (f'Number of parsed {noun}', it.get('number_of_parsed')),
+                    (f'Number of {noun} mapped to model', it.get('number_of_mapped_to_model')),
+                    (f'Number of {noun} unmapped to model', it.get('number_of_unmapped_to_model')),
+                    (f'Number of unparsed {noun} with error', it.get('number_of_unparsed_with_error')),
+                    (f'Number of parsed {noun} with warning', it.get('number_of_parsed_with_warning')),
+                ],
+                'atom_mapping': rd.atom_name_mapping(it),
+            })
+        return sfs
+
+    # The most-violated / all-violation lists can hold thousands of rows (both are
+    # collapsed panels on screen). Cap them in the static PDF — they are sorted so
+    # the most severe come first — and note the truncation.
+    cap = _TABLE_ROW_CAP
+
+    def capped(lst):
+        return lst[:cap], len(lst)
+
+    most_dist, most_dist_n = capped(rs.get('most_violated_dist_restraints') or [])
+    most_dihed, most_dihed_n = capped(rs.get('most_violated_dihed_restraints') or [])
+    all_dist, all_dist_n = capped(rs.get('all_dist_violations') or [])
+    all_dihed, all_dihed_n = capped(rs.get('all_dihed_violations') or [])
+
+    dihed_nonviol_total = _nonviolated(dihed_sum)['total']
+    dihed_nonviol_per = [
+        {'label': (r.get('restraint_type') or '').capitalize(),
+         'count': (r.get('restraint_count') or 0) - (r.get('viol_count') or 0)}
+        for r in dihed_sum if (r.get('restraint_type') or '').lower() != 'total'
+    ]
+
+    return {
+        'restraint_available': bool(rs),
+        'dist_per_model_bins': _viol_bins(rs, 'average_number_of_dist_violations_per_model'),
+        'dihed_per_model_bins': _viol_bins(rs, 'average_number_of_dihed_violations_per_model'),
+        'bookkeeping_groups': [
+            {'section': sec, 'heading': head, 'empty_text': empty, 'saveframes': bookkeeping(key, noun)}
+            for key, sec, head, empty, noun in _BOOKKEEPING_DEFS
+        ],
+        # 7 / 8 tables
+        'dist_summary': dist_sum,
+        'dihed_summary': dihed_sum,
+        'dist_model_cols': _DIST_TABLE_COLS,
+        'dist_model_rows': rs.get('dist_violation_for_each_model') or [],
+        'dihed_model_cols': _dihed_table_cols(rs.get('dihed_violation_for_each_model')),
+        'dihed_model_rows': rs.get('dihed_violation_for_each_model') or [],
+        'dist_ensemble_cols': _DIST_TABLE_COLS,
+        'dist_ensemble_rows': rs.get('dist_violation_for_ensemble') or [],
+        'dihed_ensemble_cols': _dihed_table_cols(rs.get('dihed_violation_for_ensemble')),
+        'dihed_ensemble_rows': rs.get('dihed_violation_for_ensemble') or [],
+        'dist_nonviol': _nonviolated(dist_sum),
+        'dihed_nonviol': {'total': dihed_nonviol_total, 'per_type': dihed_nonviol_per},
+        'most_violated_dist': most_dist, 'most_violated_dist_total': most_dist_n,
+        'most_violated_dihed': most_dihed, 'most_violated_dihed_total': most_dihed_n,
+        'all_dist': all_dist, 'all_dist_total': all_dist_n,
+        'all_dihed': all_dihed, 'all_dihed_total': all_dihed_n,
+        'row_cap': cap,
+    }
 
 
 def _split_notice_css(doc) -> str:
@@ -391,8 +515,14 @@ def main() -> int:
     ctx = build_context(stats, ensemble, provenance, charts,
                         report_timestamp_utc(report_path))
     ctx['chem_shift_sections'] = build_chem_shift_sections(stats, cs_by_sf)
-    icon_path = ASSETS_DIR / 'report_logo.svg'
-    ctx['service_icon_svg'] = _inline_svg(icon_path.read_text(encoding='utf-8')) if icon_path.is_file() else ''
+    ctx['r'] = build_restraint_sections(stats)
+    icon_path = ASSETS_DIR / 'report_logo.png'
+    if icon_path.is_file():
+        import base64
+        b64 = base64.b64encode(icon_path.read_bytes()).decode('ascii')
+        ctx['service_icon'] = f'data:image/png;base64,{b64}'
+    else:
+        ctx['service_icon'] = ''
 
     env = Environment(
         loader=FileSystemLoader(str(TEMPLATES_DIR)),
@@ -402,6 +532,7 @@ def main() -> int:
     # inlines them as elements instead of escaping the angle brackets to text.
     env.filters['safe_svg'] = lambda s: Markup(s) if s else ''
     env.filters['restraint_type_label'] = restraint_type_label
+    env.filters['pct1'] = lambda v: '' if v is None else f'{v:.1f}'
     html = env.get_template('report.html').render(**ctx)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
