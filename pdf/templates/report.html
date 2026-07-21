@@ -171,7 +171,7 @@
   {% if service_icon %}<div class="service-icon"><img src="{{ service_icon }}" alt="bmrb_extract"></div>
   {% else %}<div class="doc-title">bmrb_extract</div>
   {% endif %}
-  <div class="doc-title">data conversion statistical report</div>
+  <div class="doc-title">Data conversion statistical report</div>
 
   <div class="provenance">
     <h2>Provenance information</h2>
@@ -186,7 +186,7 @@
     <h3>Input files</h3>
     <table>
       <thead><tr>
-        <th style="width:8% num">Ordinal #</th><th>Original file name</th>
+        <th style="width:4%">#</th><th>Original file name</th>
         <th style="width:16%">Size</th><th style="width:22%">File type</th>
         <th style="width:18%">Upload date</th>
         {%- if show_input_source %}<th style="width:12%">Source</th>{% endif %}
@@ -194,7 +194,7 @@
       <tbody>
         {%- for f in input_files %}
         <tr>
-          <td class="num">{{ loop.index }}</td>
+          <td>{{ loop.index }}</td>
           <td class="mono">{{ f.original_name }}</td>
           <td>{{ (f.file_size | filesizeformat(binary=True)) if f.file_size else '' }}</td>
           <td>{{ f.file_type }}</td>
@@ -226,6 +226,7 @@
 
     {%- if software %}
     <h3>Software</h3>
+    <p class="caption">The following versions of software were used in the production of this report.</p>
     <table>
       <thead><tr><th>Name</th><th style="width:22%">Version</th><th style="width:34%">Classification</th></tr></thead>
       <tbody>
@@ -313,14 +314,16 @@
   <table>
     <thead><tr>
       <th class="num">ID</th><th>Name</th><th class="num">Entity ID</th><th>Entity label</th>
-      <th>Chain</th><th>Auth chain</th><th>Physical state</th><th>Role</th>
+      <th>Chain</th><th>Auth chain</th><th>Exp. data</th><th>Physical state</th><th>Role</th>
     </tr></thead>
     <tbody>
       {%- for e in a.entity_assembly %}
       <tr>
-        <td class="num">{{ e.id }}</td><td>{{ e.name }}</td><td class="num">{{ e.entity_id }}</td>
-        <td>{{ e.entity_label }}</td><td>{{ e.asym_id }}</td><td>{{ e.auth_asym_id }}</td>
-        <td>{{ e.physical_state }}</td><td>{{ e.experimental_data_reported or e.role }}</td>
+        <td class="num">{{ e.entity_assembly_id }}</td><td>{{ e.entity_assembly_name }}</td>
+        <td class="num">{{ e.entity_id }}</td><td>{{ e.entity_label }}</td>
+        <td>{{ e.chain_id }}</td><td>{{ e.auth_chain_id }}</td>
+        <td>{% if e.experimental_data_reported is not none %}{{ 'Yes' if e.experimental_data_reported else 'No' }}{% endif %}</td>
+        <td>{{ e.physical_state }}</td><td>{{ e.role }}</td>
       </tr>
       {%- endfor %}
     </tbody>
