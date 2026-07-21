@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -208,6 +209,57 @@ _DIST_TABLE_COLS = [
 ]
 _TABLE_ROW_CAP = 250
 
+# 6.1 restraint-count table (mirrors RESTRAINT_KEY_ORDER / RESTRAINT_LABEL_HTML /
+# DIST_TYPE_LABELS and restraintProps in page.download.ts).
+_RESTRAINT_KEY_ORDER = [
+    'total_distance_restraints', 'intra-residue', 'sequential', 'medium_range',
+    'long_range', 'inter-chain', 'hydrogen_bond_restraints', 'disulfide_bond_restraints',
+    'diselenide_bond_restraints', 'metal_coordination_restraints',
+    'total_dihedral_angle_restraints', 'total_rdc_restraints', 'number_of_unmapped_restraints',
+    'number_of_restaints_per_residue', 'number_of_long_range_restraints_per_residue',
+]
+_RESTRAINT_LABEL_HTML = {
+    'intra-residue': 'Intra-residue (<em>| i - j | = 0</em>)',
+    'sequential': 'Sequential (<em>| i - j | = 1</em>)',
+    'medium_range': 'Medium range (<em>1 &lt; | i - j | &lt; 5</em>)',
+    'long_range': 'Long range (<em>| i - j | ≥ 5</em>)',
+}
+_DIST_TYPE_LABELS = {
+    'ir': 'Intra-residue', 'se': 'Sequential', 'mr': 'Medium range',
+    'lr': 'Long range', 'ic': 'Inter-chain',
+}
+_BOND_RESTRAINT_RE = re.compile(
+    r'^(hydrogen_bond|disulfide_bond|diselenide_bond|metal_coordination)_restraints$')
+
+
+def _dist_type_subclasses(csv):
+    return ', '.join(_DIST_TYPE_LABELS.get(c, c) for c in
+                     (p.strip() for p in str(csv).split(',')) if c)
+
+
+def _restraint_props(rs):
+    """6.1 rows [{label(HTML), value}]: scalar restraint counts, ordered, with the
+    *_bond / metal_coordination subclass list folded into the value as
+    '{count} (Medium range, Long range)'. Mirrors restraintProps."""
+    def rank(k):
+        return _RESTRAINT_KEY_ORDER.index(k) if k in _RESTRAINT_KEY_ORDER else len(_RESTRAINT_KEY_ORDER)
+
+    items = [
+        (k, v) for k, v in rs.items()
+        if not re.search('average|violation', k, re.I)
+        and not k.endswith('_dist_types')
+        and isinstance(v, (int, float, str)) and not isinstance(v, bool)
+    ]
+    rows = []
+    for k, v in sorted(items, key=lambda kv: rank(kv[0])):
+        m = _BOND_RESTRAINT_RE.match(k)
+        types = rs.get(f'{m.group(1)}_dist_types') if m else None
+        subs = _dist_type_subclasses(types) if isinstance(types, str) else ''
+        label = _RESTRAINT_LABEL_HTML.get(k) or (k.replace('_', ' ').capitalize())
+        rows.append({'label': label, 'value': f'{v} ({subs})' if subs else str(v)})
+    return rows
+
+
 _BOOKKEEPING_DEFS = [
     ('dist_restraint', '6.3', 'Bookkeeping of distance restraints', 'There is no distance restraints.', 'distance restraints'),
     ('dihed_restraint', '6.4', 'Bookkeeping of dihedral-angle restraints', 'There is no dihedral-angle restraints.', 'dihedral-angle restraints'),
@@ -306,6 +358,7 @@ def build_restraint_sections(stats: dict) -> dict:
 
     return {
         'restraint_available': bool(rs),
+        'restraint_props': _restraint_props(rs),
         'dist_per_model_bins': _viol_bins(rs, 'average_number_of_dist_violations_per_model'),
         'dihed_per_model_bins': _viol_bins(rs, 'average_number_of_dihed_violations_per_model'),
         'bookkeeping_groups': [

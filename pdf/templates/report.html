@@ -467,10 +467,10 @@
   paramagnetic centres or hemes are expected to give rise to anomalous chemical shifts.</p>
   <table>
     <thead><tr>
-      <th class="num" style="width:7%">Auth chain</th>
-      <th class="num" style="width:7%">Seq ID</th>
+      <th class="num" style="width:7%">Chain&nbsp;code</th>
+      <th class="num" style="width:7%">Seq&nbsp;ID</th>
       {%- if sf.show_outlier_ins %}<th class="num" style="width:6%">Ins</th>{% endif %}
-      <th style="width:8%">Comp</th><th style="width:8%">Atom</th>
+      <th style="width:8%">Comp&nbsp;ID</th><th style="width:8%">Atom</th>
       <th class="num" style="width:8%">Value</th>
       <th class="num" style="width:6%">Ambig</th>
       <th class="num" style="width:8%">Z score</th>
@@ -534,9 +534,13 @@
 <section class="report-section">
   <h2>6. NMR restraint analysis</h2>
   <h3>6.1 Conformationally restricting restraints</h3>
+  <p class="caption">The following table provides the summary of experimentally observed NMR restraints
+  in different categories. Restraints are classified into different categories based on the sequence
+  separation of the atoms involved. Long range hydrogen bonds and disulfide bonds are counted as long
+  range restraints while calculating the number of long range restraints per residue.</p>
   <table class="kv">
-    {%- for k, v in restraint_summary.items() if (v is number or v is string) and 'average' not in k and 'violation' not in k and not k.endswith('_dist_types') %}
-    <tr><td class="k">{{ k.replace('_', ' ') | capitalize }}</td><td>{{ v }}</td></tr>
+    {%- for p in r.restraint_props %}
+    <tr><td class="k">{{ p.label | safe }}</td><td>{{ p.value }}</td></tr>
     {%- endfor %}
   </table>
 
