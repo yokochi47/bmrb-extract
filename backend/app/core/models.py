@@ -178,6 +178,7 @@ class Session(Base):
     token_admin = sa.Column(UUID, server_default='gen_random_uuid()')
     token_expiry = sa.Column(sa.TIMESTAMP(), nullable=False)
     consented = sa.Column(sa.Boolean(), nullable=False, server_default='FALSE')
+    user_id = sa.Column(UUID, sa.ForeignKey('app_user.id'))  # owner (NULL = anonymous)
     client_ip = sa.Column(INET())
     user_agent = sa.Column(sa.Text())
     status = sa.Column(EnumStr('session_status_code'), nullable=False, server_default='created')
@@ -269,3 +270,66 @@ class Workflow(Base):
     started_at = sa.Column(sa.TIMESTAMP())
     finished_at = sa.Column(sa.TIMESTAMP())
     expiry_at = sa.Column(sa.TIMESTAMP())
+
+
+class UserRoleCode(str, Enum):
+
+    user = 'user'
+    annotator = 'annotator'
+
+
+class AppUser(Base):
+
+    __tablename__ = 'app_user'
+
+    id = sa.Column(UUID, server_default='uuidv7()', primary_key=True)
+    email = sa.Column(sa.Text(), nullable=False, unique=True)
+    role = sa.Column(EnumStr('user_role_code'), nullable=False, server_default='user')
+    totp_secret = sa.Column(sa.Text())
+    totp_enrolled = sa.Column(sa.Boolean(), nullable=False, server_default='FALSE')
+    disabled = sa.Column(sa.Boolean(), nullable=False, server_default='FALSE')
+    created_at = sa.Column(sa.TIMESTAMP(), server_default=func.now())
+    last_login_at = sa.Column(sa.TIMESTAMP())
+
+
+class LoginChallenge(Base):
+
+    __tablename__ = 'login_challenge'
+
+    id = sa.Column(UUID, server_default='uuidv7()', primary_key=True)
+    email = sa.Column(sa.Text(), nullable=False)
+    token_hash = sa.Column(sa.Text(), nullable=False)
+    purpose = sa.Column(sa.Text(), nullable=False, server_default='login')
+    created_at = sa.Column(sa.TIMESTAMP(), server_default=func.now())
+    expires_at = sa.Column(sa.TIMESTAMP(), nullable=False)
+    consumed_at = sa.Column(sa.TIMESTAMP())
+    attempts = sa.Column(sa.Integer(), nullable=False, server_default='0')
+
+
+class AuthSession(Base):
+
+    __tablename__ = 'auth_session'
+
+    id = sa.Column(sa.Text(), primary_key=True)
+    user_id = sa.Column(UUID, sa.ForeignKey('app_user.id', ondelete='CASCADE'), nullable=False)
+    csrf_token = sa.Column(sa.Text(), nullable=False)
+    totp_ok = sa.Column(sa.Boolean(), nullable=False, server_default='FALSE')
+    created_at = sa.Column(sa.TIMESTAMP(), server_default=func.now())
+    last_seen_at = sa.Column(sa.TIMESTAMP(), server_default=func.now())
+    absolute_expiry = sa.Column(sa.TIMESTAMP(), nullable=False)
+    revoked = sa.Column(sa.Boolean(), nullable=False, server_default='FALSE')
+    client_ip = sa.Column(INET())
+    user_agent = sa.Column(sa.Text())
+
+
+class AdminAccessAudit(Base):
+
+    __tablename__ = 'admin_access_audit'
+
+    id = sa.Column(UUID, server_default='uuidv7()', primary_key=True)
+    annotator_id = sa.Column(UUID, sa.ForeignKey('app_user.id'))
+    session_token = sa.Column(UUID)
+    conversion_id = sa.Column(sa.Integer())
+    action = sa.Column(sa.Text(), nullable=False)
+    at = sa.Column(sa.TIMESTAMP(), server_default=func.now())
+    client_ip = sa.Column(INET())

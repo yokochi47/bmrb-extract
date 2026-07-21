@@ -8,9 +8,10 @@
 
 \c internal;
 
-DROP TABLE IF EXISTS workflow, communication, notification, output_file, upload_file, session CASCADE;
+DROP TABLE IF EXISTS admin_access_audit, auth_session, login_challenge,
+  workflow, communication, notification, output_file, upload_file, session, app_user CASCADE;
 DROP TYPE IF EXISTS wf_status_code, wf_task_code, delivery_status_code,
-  output_file_type, upload_file_type, target_depsys_code,
+  output_file_type, upload_file_type, user_role_code, target_depsys_code,
   session_status_code, processing_site_code CASCADE;
 
 DROP TYPE IF EXISTS processing_site_code;
@@ -19,6 +20,20 @@ DROP TYPE IF EXISTS session_status_code;
 CREATE TYPE session_status_code AS ENUM ('created', 'uploading', 'processing', 'completed', 'failed', 'expired');
 DROP TYPE IF EXISTS target_depsys_code;
 CREATE TYPE target_depsys_code AS ENUM ('onedep', 'repl_cs', 'bmrbdep');
+
+DROP TYPE IF EXISTS user_role_code;
+CREATE TYPE user_role_code AS ENUM ('user', 'annotator');
+
+CREATE TABLE IF NOT EXISTS app_user (
+    id              UUID PRIMARY KEY DEFAULT uuidv7(),
+    email           TEXT NOT NULL UNIQUE,
+    role            user_role_code NOT NULL DEFAULT 'user',
+    totp_secret     TEXT,
+    totp_enrolled   BOOLEAN NOT NULL DEFAULT FALSE,
+    disabled        BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at      TIMESTAMP DEFAULT now(),
+    last_login_at   TIMESTAMP
+);
 
 --
 -- Represents one UI session.
@@ -31,6 +46,8 @@ CREATE TABLE IF NOT EXISTS session (
     token_expiry        TIMESTAMP NOT NULL,                 -- time of expiry of the session.
 
     consented           BOOLEAN NOT NULL DEFAULT FALSE,     -- whether user consented to our policies: 'Terms and Conditions' and 'Privacy Policy'
+
+    user_id             UUID REFERENCES app_user(id),       -- owner when created while logged in (NULL = anonymous)
 
     client_ip           INET,
     user_agent          TEXT,
@@ -232,5 +249,39 @@ CREATE TABLE IF NOT EXISTS workflow (
     expiry_at       TIMESTAMP,
 
     PRIMARY KEY ( conversion_id, run_number, ordinal )
+);
+
+CREATE TABLE IF NOT EXISTS login_challenge (
+    id              UUID PRIMARY KEY DEFAULT uuidv7(),
+    email           TEXT NOT NULL,
+    token_hash      TEXT NOT NULL,
+    purpose         TEXT NOT NULL DEFAULT 'login',
+    created_at      TIMESTAMP DEFAULT now(),
+    expires_at      TIMESTAMP NOT NULL,
+    consumed_at     TIMESTAMP,
+    attempts        INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS auth_session (
+    id              TEXT PRIMARY KEY,
+    user_id         UUID NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,
+    csrf_token      TEXT NOT NULL,
+    totp_ok         BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at      TIMESTAMP DEFAULT now(),
+    last_seen_at    TIMESTAMP DEFAULT now(),
+    absolute_expiry TIMESTAMP NOT NULL,
+    revoked         BOOLEAN NOT NULL DEFAULT FALSE,
+    client_ip       INET,
+    user_agent      TEXT
+);
+
+CREATE TABLE IF NOT EXISTS admin_access_audit (
+    id              UUID PRIMARY KEY DEFAULT uuidv7(),
+    annotator_id    UUID REFERENCES app_user(id),
+    session_token   UUID,
+    conversion_id   INT,
+    action          TEXT NOT NULL,
+    at              TIMESTAMP DEFAULT now(),
+    client_ip       INET
 );
 

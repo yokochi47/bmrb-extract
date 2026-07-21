@@ -107,10 +107,12 @@ if [[ -z "${SERVICE_ANNOT_EMAILS}" ]] ; then
 
   read ans
 
-  if [[ "${and}" =~ $email_list_regex ]] ; then
+  if [[ "${ans}" =~ $email_list_regex ]] ; then
     echo "Error: ${ans} is not valid."
     exit 1
   fi
+
+  SERVICE_ANNOT_EMAILS=$ans
 
 else
 
@@ -199,6 +201,12 @@ if [[ -z "${SECRET_KEY}" ]] ; then
 
 fi
 
+if [[ -z "${AUTH_SECRET}" ]] ; then
+
+  AUTH_SECRET=$(python3 -c "import secrets; print(secrets.token_urlsafe(48))")
+
+fi
+
 # Gunicorn auto-reloads on source change in development (the backend source is
 # volume-mounted), so edits take effect without restarting the container; empty
 # in production. Gunicorn applies this natively via the GUNICORN_CMD_ARGS env var.
@@ -215,6 +223,7 @@ cat << EOF >> .env
 ## Configure bellow lines
 ##
 export SECRET_KEY=${SECRET_KEY}
+export AUTH_SECRET=${AUTH_SECRET}
 export SMTP_SERVER=${SMTP_SERVER}
 export CONV_ID_RANGE_BEGIN=${CONV_ID_RANGE_BEGIN}
 export CONV_ID_RANGE_END=${CONV_ID_RANGE_END}
