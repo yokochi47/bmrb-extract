@@ -186,7 +186,7 @@
     <h3>Input files</h3>
     <table>
       <thead><tr>
-        <th style="width:4%">#</th><th>Original file name</th>
+        <th style="width:2%">#</th><th>Original file name</th>
         <th style="width:16%">Size</th><th style="width:22%">File type</th>
         <th style="width:18%">Upload date</th>
         {%- if show_input_source %}<th style="width:12%">Source</th>{% endif %}
@@ -407,8 +407,11 @@
   {#- 5.x.1 Atom name mapping history -#}
   <h4>5.{{ sf.list_id }}.1 Atom name mapping history</h4>
   {%- if sf.atom_mapping %}
-  <p class="caption">Author-defined atom names standardized against the Chemical Component
-  Dictionary (CCD). Unusual mappings are shown in red — verify they are correct.</p>
+  <p class="caption">The table below shows how the system interpreted author-defined atom names (e.g.
+  pseudoatom names specific to NMR) during data conversion. All atom names have been standardized
+  based on the Chemical Component Dictionary (CCD). Atom names subject to unusual mapping are
+  highlighted in red color. Please verify that the atom name mappings are correct. If any mappings
+  are unexpected, modify the uploaded file to use appropriate atom names that comply with the CCD.</p>
   <table>
     <thead><tr><th style="width:16%">Comp ID</th><th>Mapping history (author-defined → NMR-data atom names)</th></tr></thead>
     <tbody>
@@ -431,11 +434,15 @@
   {#- 5.x.2 Completeness of resonance assignments -#}
   <h4>5.{{ sf.list_id }}.2 Completeness of resonance assignments</h4>
   {%- for c in sf.completeness %}
-  <p class="caption">Completeness of the chemical shift assignments for the <strong>{{ c.phrase }}</strong>.
-    {%- if c.view.overall_pct is not none %} The overall completeness is <strong>{{ c.view.overall_pct }}%</strong>
-    ({{ c.view.overall_assigned }} of {{ c.view.overall_target }} atoms assigned).{% endif %}
-    {%- if c.view.stereo %} {{ c.view.stereo.assigned }} of {{ c.view.stereo.target }} methyl groups (LEU/VAL)
-    were assigned stereospecifically.{% endif %}</p>
+  <p class="caption">The following table shows the completeness of the chemical shift assignments for
+    the <strong>{{ c.phrase }}</strong>.
+    {%- if c.view.overall_pct is not none %} The overall completeness is
+    <strong>{{ c.view.overall_pct }}%</strong>, i.e. <strong>{{ c.view.overall_assigned }}</strong>
+    atoms were assigned a chemical shift out of a possible
+    <strong>{{ c.view.overall_target }}</strong>.{% endif %}
+    {%- if c.view.stereo %} <strong>{{ c.view.stereo.assigned }}</strong> out of
+    <strong>{{ c.view.stereo.target }}</strong> assigned methyl groups (LEU and VAL) were assigned
+    stereospecifically.{% endif %}</p>
   <table>
     <thead><tr><th></th>
       {%- for col in c.view.columns %}<th class="num">{{ col }}</th>{% endfor %}
@@ -453,9 +460,10 @@
   {#- 5.x.3 Statistically unusual chemical shifts -#}
   <h4>5.{{ sf.list_id }}.3 Statistically unusual chemical shifts</h4>
   {%- if sf.outliers %}
-  <p class="caption">The {{ sf.outlier_count }} statistically unusual chemical shifts below are
-  statistical measures; large deviations do not necessarily imply incorrect assignments
-  (paramagnetic centres or hemes are expected to give anomalous shifts).</p>
+  <p class="caption">The following table lists the statistically unusual
+  <strong>{{ sf.outlier_count }}</strong> chemical shifts. These are statistical measures, and large
+  deviations from the mean do not necessarily imply incorrect assignments. Molecules containing
+  paramagnetic centres or hemes are expected to give rise to anomalous chemical shifts.</p>
   <table>
     <thead><tr>
       <th class="num" style="width:7%">Auth chain</th>
@@ -486,11 +494,38 @@
   {%- else %}
   <p class="caption muted">No statistically unusual chemical shifts were found.</p>
   {%- endif %}
-
-  {#- 5.x.4 RCI/S² and NMR-RMSD per-residue plots -#}
-  {%- for c in sf.charts %}
+  {#- Z-score histogram(s) belong under the statistically-unusual section. -#}
+  {%- for c in sf.charts if c.kind == 'hist' %}
   {{ chart(c.id, c.title) }}
   {%- endfor %}
+
+  {#- 5.x.4 RCI/S² and NMR-RMSD per-residue plots -#}
+  {%- set rci_panels = sf.charts | rejectattr('kind', 'equalto', 'hist') | list %}
+  {%- if rci_panels %}
+  <h4>5.{{ sf.list_id }}.4 Random Coil Index (RCI) plots</h4>
+  {%- for c in rci_panels %}
+  {%- if c.kind == 'rci' %}
+  <p class="caption">The image below reports random coil index (RCI) values and predicted order
+  parameters (S²) for the protein chains in the structure. The height of RCI point gives a
+  probability of a given residue to be disordered, as predicted from the available backbone chemical
+  shifts and the amino acid sequence. A RCI value above 0.2 is an indication of significant predicted
+  disorder. An S² value of 1 indicates completely restricted or rigid bonds, whereas 0 reflects
+  completely isotropic, unrestricted motion on the picosecond to nanosecond timescale. It is known
+  that experimentally determined order parameters for backbone N-H vector correlate well with the RCI
+  values. The color of the region indicates whether the residue forms secondary structure (helix:
+  light coral; sheet: sky blue).</p>
+  {%- else %}
+  <p class="caption">The image below reports predicted NMR RMSD values for the protein chains in the
+  structure. These values are known to correlate with RCI values. The horizontal dotted line
+  indicates the average RMSD value of the principal well-defined region of the chain. If the RMSD is
+  too low than the dotted line, the models may be over-converged, or the number of models
+  constituting the ensemble may be too small. The cyan region indicates residues involed in
+  well-defined cores as described in the Ensemble composition analysis section. The gray region
+  indicates residues are not modeled.</p>
+  {%- endif %}
+  {{ chart(c.id, c.title) }}
+  {%- endfor %}
+  {%- endif %}
   {%- endfor %}
 </section>
 

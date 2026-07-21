@@ -348,6 +348,9 @@ export function lineOption(c: PerResidueLine): object {
             fontSize: 10,
             formatter: `RMSD in well-defined region of the coordinates: ${c.threshold}Å`,
             distance: 0,
+            // Plain black text, no white outline (ECharts' default label stroke).
+            color: '#000000',
+            textBorderWidth: 0,
           },
           data: [{ yAxis: c.threshold }],
           lineStyle: { color: '#64748b', type: 'dashed' },

@@ -543,25 +543,29 @@ async def download_results():
             .all()
         )
 
-        # Block the download while the deferred PDF report is still generating, so
-        # the Zip always carries the report (the download page also disables the
-        # button on pdf_generating; this guards a direct fetch). A failed PDF run
-        # (no longer pending/processing) does not block — the run is best-effort.
-        pdf_status = (
-            await db.execute(
-                select(Workflow.status).where(
-                    Workflow.conversion_id == conversion_id,
-                    Workflow.run_number == run_number,
-                    Workflow.task == WfTaskCode.convert_pdf.value,
+        # Block the download while either deferred step (NEF release, PDF report)
+        # is still generating, so the Zip always carries them (the download page
+        # also disables the button; this guards a direct fetch). A failed/absent
+        # step (no longer pending/processing) does not block — both are best-effort.
+        _busy = (WfStatusCode.pending.value, WfStatusCode.processing.value)
+        deferred_status = {
+            task: (
+                await db.execute(
+                    select(Workflow.status).where(
+                        Workflow.conversion_id == conversion_id,
+                        Workflow.run_number == run_number,
+                        Workflow.task == task,
+                    )
                 )
-            )
-        ).scalar_one_or_none()
+            ).scalar_one_or_none()
+            for task in (WfTaskCode.nef_release.value, WfTaskCode.convert_pdf.value)
+        }
         has_pdf = any(r.file_type == OutputFileType.pdf_report.value for r in output_rows)
-        if (
-            pdf_status in (WfStatusCode.pending.value, WfStatusCode.processing.value)
-            and not has_pdf
-        ):
+        has_nef = any(r.file_type == OutputFileType.nef.value for r in output_rows)
+        if deferred_status[WfTaskCode.convert_pdf.value] in _busy and not has_pdf:
             return {'error': 'conversion report (PDF) is still being generated'}, 409
+        if deferred_status[WfTaskCode.nef_release.value] in _busy and not has_nef:
+            return {'error': 'NMR Exchange Format (NEF) file is still being generated'}, 409
 
         # Build the zip from the files present on disk (best-effort: skip a
         # missing row so a partial harvest still yields a usable archive).

@@ -188,12 +188,15 @@ def build_chem_shift_charts(stats: dict) -> tuple[list, dict]:
                           'args': [h, 'Z-score', '# of chemical shifts',
                                    {'inverse': True, 'rangeLabels': True}],
                           'width': 680, 'height': 420})
-            entries.append({'id': cid, 'title': 'Normalized assigned chemical shifts (Z-score)'})
+            entries.append({'id': cid, 'kind': 'hist',
+                            'title': 'Normalized assigned chemical shifts (Z-score)'})
         for i, c in enumerate(rd.rci_charts([st], auth=True)):
             cid = f'cs{lid}_rci{i}'
             specs.append({'id': cid, 'builder': 'lineOption', 'args': [c],
                           'width': 720, 'height': 360})
-            entries.append({'id': cid, 'title': f"{c.get('label')} — Auth_asym_ID: {c.get('chain')}"})
+            kind = 'rci' if str(c.get('label', '')).startswith('RCI') else 'nmr'
+            entries.append({'id': cid, 'kind': kind,
+                            'title': f"{c.get('label')} — Auth_asym_ID: {c.get('chain')}"})
         by_sf[lid] = entries
     return specs, by_sf
 
