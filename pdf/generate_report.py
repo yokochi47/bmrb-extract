@@ -206,6 +206,46 @@ def build_chem_shift_charts(stats: dict) -> tuple[list, dict]:
     return specs, by_sf
 
 
+def _split_notice_css(doc) -> str:
+    """Given a first-pass rendered document, return @page:nth(N) rules that place
+    'Continued on next page…' / '…continued from previous page' notices on the
+    pages where a table spans a page break. Margin-box content does not reflow the
+    page, so the first-pass page numbers stay valid for the second pass."""
+    pages_of: dict = {}
+    def walk(box, pi):
+        el = getattr(box, 'element', None)
+        if el is not None and getattr(box, 'element_tag', None) == 'table':
+            pages_of.setdefault(el, set()).add(pi)
+        for c in getattr(box, 'children', None) or []:
+            walk(c, pi)
+    for pi, page in enumerate(doc.pages):
+        walk(page._page_box, pi)
+
+    onward: set = set()   # pages where a table continues onto the next page
+    fromprev: set = set()  # pages where a table continued from the previous page
+    for pgs in pages_of.values():
+        s = sorted(pgs)
+        if len(s) < 2:
+            continue
+        onward.update(s[:-1])
+        fromprev.update(s[1:])
+    onward.discard(0)  # never annotate the title page
+    fromprev.discard(0)
+    if not onward and not fromprev:
+        return ''
+
+    style = 'font-size:7.5pt;font-style:italic;color:#64748b'
+    rules = []
+    for pi in sorted(onward | fromprev):
+        boxes = []
+        if pi in fromprev:
+            boxes.append(f'@bottom-left {{ content: "\\2026 continued from previous page"; {style} }}')
+        if pi in onward:
+            boxes.append(f'@bottom-right {{ content: "Continued on next page \\2026"; {style} }}')
+        rules.append(f'@page:nth({pi + 1}) {{ {" ".join(boxes)} }}')
+    return '\n'.join(rules)
+
+
 def build_chem_shift_sections(stats: dict, sf_charts: dict) -> list:
     """Full Section 5 content, one entry per chemical-shift saveframe: bookkeeping
     counts, atom-name-mapping history, completeness pivots, the statistically
@@ -338,7 +378,7 @@ def main() -> int:
 
     from jinja2 import Environment, FileSystemLoader, select_autoescape
     from markupsafe import Markup
-    from weasyprint import HTML
+    from weasyprint import CSS, HTML
 
     stats = output_statistics(report)
     ensemble = ensemble_composition(report)
@@ -365,9 +405,17 @@ def main() -> int:
     html = env.get_template('report.html').render(**ctx)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    HTML(string=html, base_url=str(TEMPLATES_DIR)).write_pdf(
-        str(out_path), stylesheets=[str(TEMPLATES_DIR / 'report.css')],
-    )
+    base_css = CSS(filename=str(TEMPLATES_DIR / 'report.css'))
+    # Pass 1: lay out to find which tables span page breaks; Pass 2: re-render
+    # with per-page "Continued…" notices (margin content, so layout is unchanged).
+    doc = HTML(string=html, base_url=str(TEMPLATES_DIR)).render(stylesheets=[base_css])
+    extra = _split_notice_css(doc)
+    if extra:
+        HTML(string=html, base_url=str(TEMPLATES_DIR)).write_pdf(
+            str(out_path), stylesheets=[base_css, CSS(string=extra)],
+        )
+    else:
+        doc.write_pdf(str(out_path))
     print(f'[generate_report] wrote {out_path}')
     return 0
 
