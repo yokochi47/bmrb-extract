@@ -56,6 +56,19 @@ TARGET_DEPSYS_LABEL = {
 
 # ------------------------------------------------------------- extraction --- #
 
+def _format_size(b):
+    """Human-readable byte size (mirrors the frontend formatSize: 1024 divisor,
+    KB/MB/GB labels, one decimal). None → None (row skipped); 0 → '0 B'."""
+    if b is None:
+        return None
+    if not b:
+        return '0 B'
+    import math
+    units = ['B', 'KB', 'MB', 'GB']
+    i = min(int(math.floor(math.log(b) / math.log(1024))), len(units) - 1)
+    return f'{b / (1024 ** i):.1f} {units[i]}'
+
+
 def restraint_type_label(value) -> str:
     """Display label for a violation-summary restraint_type (mirrors the TS
     restraintTypeLabel): a "<abbr>; <sub-type>" becomes an indented lower-case
@@ -631,6 +644,7 @@ def main() -> int:
     env.filters['restraint_type_label'] = restraint_type_label
     env.filters['pct1'] = lambda v: '' if v is None else f'{v:.1f}'
     env.filters['yesno'] = lambda v: None if v is None else ('Yes' if v else 'No')
+    env.filters['formatsize'] = _format_size
     import report_data as _rd
     env.filters['input_type_label'] = _rd.input_file_type_label
     env.filters['output_type_label'] = _rd.output_file_type_label

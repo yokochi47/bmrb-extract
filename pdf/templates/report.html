@@ -196,7 +196,7 @@
         <tr>
           <td>{{ loop.index }}</td>
           <td class="mono">{{ f.original_name }}</td>
-          <td>{{ (f.file_size | filesizeformat(binary=True)) if f.file_size else '' }}</td>
+          <td>{{ f.file_size | formatsize }}</td>
           <td>{{ f.file_type | input_type_label }}</td>
           <td>{{ f.upload_date }}</td>
           {%- if show_input_source %}<td>{{ 'BMRB' if f.source == 'bmrb' else 'User' }}</td>{% endif %}
@@ -213,14 +213,14 @@
       ('Entry ID', stats.entry_id), ('Entry title', stats.entry_title),
       ('Entry authors', stats.entry_authors), ('Submission date', stats.submission_date),
       ('Processed date', stats.processed_date), ('Processed site', stats.processed_site),
-      ('File size', stats.file_size), ('MD5 checksum', stats.md5_checksum),
+      ('File size', stats.file_size | formatsize), ('MD5 checksum', stats.md5_checksum),
     ]) }}
     {%- if model %}
     <h4>Coordinate file</h4>
     {{ kv_table([
       ('File name', model.file_name), ('Entry title', model.struct_title),
       ('File type', model.file_type | output_type_label), ('Entry authors', model.audit_authors),
-      ('File size', model.file_size), ('MD5 checksum', model.md5_checksum),
+      ('File size', model.file_size | formatsize), ('MD5 checksum', model.md5_checksum),
     ]) }}
     {%- endif %}
 
