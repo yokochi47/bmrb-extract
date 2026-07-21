@@ -1,0 +1,7 @@
+# Runtime dependencies (installed via `npm install` in the Docker image build).
+node_modules/
+# Generated bundle of the shared chart builders (built via `npm run bundle-charts`).
+vendor/
+# Python bytecode.
+__pycache__/
+*.pyc
