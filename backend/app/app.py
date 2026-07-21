@@ -148,8 +148,7 @@ async def get_session():
     if not token:
         return {'error': 'token is required'}, 400
     async with async_session_factory() as db:
-        result = await db.execute(select(Session).where(Session.token == token))
-        session_row = result.scalar_one_or_none()
+        session_row = await session_by_token(db, token, '/api/session')
         if session_row is None:
             return {'error': 'session not found'}, 404
         expired = session_row.token_expiry < datetime.now()
@@ -184,9 +183,7 @@ async def get_files():
         return {'error': 'token is required'}, 400
 
     async with async_session_factory() as db:
-        session_row = (
-            await db.execute(select(Session).where(Session.token == token))
-        ).scalar_one_or_none()
+        session_row = await session_by_token(db, token, '/api/files')
         if session_row is None:
             return {'error': 'session not found'}, 404
 
@@ -245,9 +242,7 @@ async def get_upload_files():
         return {'error': 'token is required'}, 400
 
     async with async_session_factory() as db:
-        session_row = (
-            await db.execute(select(Session).where(Session.token == token))
-        ).scalar_one_or_none()
+        session_row = await session_by_token(db, token, '/api/upload_files')
         if session_row is None:
             return {'error': 'session not found'}, 404
 
@@ -316,9 +311,7 @@ async def get_progress():
     if not token:
         return {'error': 'token is required'}, 400
     async with async_session_factory() as db:
-        session_row = (
-            await db.execute(select(Session).where(Session.token == token))
-        ).scalar_one_or_none()
+        session_row = await session_by_token(db, token, '/api/progress')
         if session_row is None:
             return {'error': 'session not found'}, 404
         conversion_id = session_row.conversion_id
@@ -379,9 +372,7 @@ async def get_log():
     if task not in _TASK_LOG_FILE:
         return {'error': 'unknown task'}, 400
     async with async_session_factory() as db:
-        session_row = (
-            await db.execute(select(Session).where(Session.token == token))
-        ).scalar_one_or_none()
+        session_row = await session_by_token(db, token, '/api/log')
         if session_row is None:
             return {'error': 'session not found'}, 404
         conversion_id = session_row.conversion_id
@@ -422,9 +413,7 @@ async def get_coordinate():
         return {'error': 'token is required'}, 400
 
     async with async_session_factory() as db:
-        session_row = (
-            await db.execute(select(Session).where(Session.token == token))
-        ).scalar_one_or_none()
+        session_row = await session_by_token(db, token, '/api/coordinate')
         if session_row is None:
             return {'error': 'session not found'}, 404
         conversion_id = session_row.conversion_id
@@ -628,9 +617,7 @@ async def get_output_files():
         return {'error': 'token is required'}, 400
 
     async with async_session_factory() as db:
-        session_row = (
-            await db.execute(select(Session).where(Session.token == token))
-        ).scalar_one_or_none()
+        session_row = await session_by_token(db, token, '/api/output_files')
         if session_row is None:
             return {'error': 'session not found'}, 404
         conversion_id = session_row.conversion_id
@@ -738,7 +725,7 @@ def _send_email(to_address: str, subject: str, content: str) -> str:
 
 # Register the passwordless-login + annotator/admin auth blueprint. Injecting the
 # session factory and mailer avoids a circular import with features.auth.
-from features.auth import current_auth, init_auth  # noqa: E402
+from features.auth import current_auth, init_auth, session_by_token  # noqa: E402
 init_auth(app, async_session_factory, _send_email)
 
 
@@ -1102,9 +1089,7 @@ async def get_coordinate_validation():
         return {'error': 'token is required'}, 400
 
     async with async_session_factory() as db:
-        session_row = (
-            await db.execute(select(Session).where(Session.token == token))
-        ).scalar_one_or_none()
+        session_row = await session_by_token(db, token, '/api/coordinate_validation')
         if session_row is None:
             return {'error': 'session not found'}, 404
         conversion_id = session_row.conversion_id
@@ -1320,9 +1305,7 @@ async def get_nmr_validation():
         return {'error': 'token is required'}, 400
 
     async with async_session_factory() as db:
-        session_row = (
-            await db.execute(select(Session).where(Session.token == token))
-        ).scalar_one_or_none()
+        session_row = await session_by_token(db, token, '/api/nmr_validation')
         if session_row is None:
             return {'error': 'session not found'}, 404
         conversion_id = session_row.conversion_id
@@ -2724,9 +2707,7 @@ async def get_nmr_preview():
         return {'error': 'token is required'}, 400
 
     async with async_session_factory() as db:
-        session_row = (
-            await db.execute(select(Session).where(Session.token == token))
-        ).scalar_one_or_none()
+        session_row = await session_by_token(db, token, '/api/nmr_preview')
         if session_row is None:
             return {'error': 'session not found'}, 404
         conversion_id = session_row.conversion_id
@@ -2979,9 +2960,7 @@ async def get_output_statistics():
         return {'error': 'token is required'}, 400
 
     async with async_session_factory() as db:
-        session_row = (
-            await db.execute(select(Session).where(Session.token == token))
-        ).scalar_one_or_none()
+        session_row = await session_by_token(db, token, '/api/output_statistics')
         if session_row is None:
             return {'error': 'session not found'}, 404
         conversion_id = session_row.conversion_id
