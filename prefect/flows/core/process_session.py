@@ -48,6 +48,7 @@ from core.models import (  # noqa: E402
     OutputFile,
     Session,
     SessionStatusCode,
+    UploadFile,
     Workflow,
     WfStatusCode,
     WfTaskCode,
@@ -55,6 +56,7 @@ from core.models import (  # noqa: E402
 from core.site_config import (  # noqa: E402
     MAXIT_CCD_IMAGE,
     MAXIT_MEMORY_LIMIT,
+    PDF_REPORT_IMAGE,
     UTILS_NMR_IMAGE,
     SERVICE_ADMIN_EMAIL,
     SERVICE_DATABASE_URL,
@@ -216,6 +218,7 @@ _OUTPUT_FILE_SPECS = (
     ('C_{cid}_model.cif', 'pdbx'),
     ('C_{cid}_nmr-data.str', 'nmr-star'),
     ('C_{cid}_nmr-data.nef', 'nef'),
+    ('C_{cid}_report.pdf', 'pdf_report'),
 )
 
 # Report files produced in the run's log/ dir: maxit-ccd's coordinate-check log
@@ -1329,6 +1332,161 @@ def _run_nef_release(conversion_id: int, run_number: int, workspace_base: str) -
     ))
 
 
+async def _start_pdf_workflow(conversion_id: int, run_number: int, log_path: str) -> None:
+    """Create (or reset) the convert_pdf workflow row = processing so the download
+    page can surface a 'PDF still generating' state while the deferred report
+    build runs. Mirrors _start_nef_workflow. log_path is the build stdout log."""
+    engine = create_async_engine(SERVICE_DATABASE_URL, poolclass=NullPool)
+    try:
+        async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+            existing = (
+                await db.execute(
+                    select(Workflow).where(
+                        Workflow.conversion_id == conversion_id,
+                        Workflow.run_number == run_number,
+                        Workflow.task == WfTaskCode.convert_pdf,
+                    )
+                )
+            ).scalar_one_or_none()
+            if existing is None:
+                max_ord = (
+                    await db.execute(
+                        select(func.max(Workflow.ordinal)).where(
+                            Workflow.conversion_id == conversion_id,
+                            Workflow.run_number == run_number,
+                        )
+                    )
+                ).scalar_one_or_none() or 0
+                await db.execute(
+                    Workflow.__table__.insert().values(
+                        conversion_id=conversion_id,
+                        run_number=run_number,
+                        ordinal=max_ord + 1,
+                        task=WfTaskCode.convert_pdf,
+                        status=WfStatusCode.processing,
+                        started_at=func.now(),
+                        log_path=log_path,
+                    )
+                )
+            else:
+                await db.execute(
+                    update(Workflow)
+                    .where(
+                        Workflow.conversion_id == conversion_id,
+                        Workflow.run_number == run_number,
+                        Workflow.task == WfTaskCode.convert_pdf,
+                    )
+                    .values(status=WfStatusCode.processing, started_at=func.now(), finished_at=None)
+                )
+            await db.commit()
+    finally:
+        await engine.dispose()
+
+
+async def _pdf_provenance(token: str, conversion_id: int, run_number: int) -> tuple[str | None, dict]:
+    """Read the convert_nmr_data report path + the provenance the PDF title page
+    needs (target deposition system, participating input files) from the DB, so
+    the PDF container stays database-free. Returns (report_json_path, provenance)."""
+    engine = create_async_engine(SERVICE_DATABASE_URL, poolclass=NullPool)
+    try:
+        async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+            report_path = (
+                await db.execute(
+                    select(Workflow.log_path).where(
+                        Workflow.conversion_id == conversion_id,
+                        Workflow.run_number == run_number,
+                        Workflow.task == WfTaskCode.convert_nmr_data,
+                    )
+                )
+            ).scalar_one_or_none()
+            depsys = (
+                await db.execute(select(Session.target_depsys).where(Session.token == token))
+            ).scalar_one_or_none()
+            rows = (
+                (
+                    await db.execute(
+                        select(UploadFile)
+                        .where(UploadFile.token == token, UploadFile.selected.is_(True))
+                        .order_by(UploadFile.ordinal.asc())
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            input_files = [
+                {
+                    'original_name': r.original_name,
+                    'file_size': r.file_size,
+                    'file_type': r.file_type,
+                    'source': r.source,
+                    'upload_date': r.uploaded_at.strftime('%Y-%m-%d') if r.uploaded_at else '',
+                }
+                for r in rows
+            ]
+    finally:
+        await engine.dispose()
+
+    provenance = {
+        'conversion_id': conversion_id,
+        'run_number': run_number,
+        'target_depsys': depsys,
+        'input_files': input_files,
+    }
+    return report_path, provenance
+
+
+def _run_pdf_report(token: str, conversion_id: int, run_number: int, workspace_base: str) -> None:
+    """Deferred JSON -> PDF conversion report: runs AFTER the session is marked
+    completed (off the summary critical path), gated by the caller on a
+    non-blocking run. Tracks a convert_pdf workflow row, runs the PDF image, then
+    re-harvests so the pdf_report output is recorded. Best-effort — the run
+    outcome is already fixed, so this never changes it. Mirrors _run_nef_release."""
+    out_dir = ws.output_dir(conversion_id, run_number, workspace_base)
+    log_d = ws.log_dir(conversion_id, run_number, workspace_base)
+    work_d = ws.work_dir(conversion_id, run_number, workspace_base)
+    ws.ensure_run_dirs(conversion_id, run_number, workspace_base)  # deferred step needs work/
+
+    stdout_log = log_d / f'C_{conversion_id}_report-pdf.log'
+    asyncio.run(_start_pdf_workflow(conversion_id, run_number, str(stdout_log)))
+
+    report_path, provenance = asyncio.run(_pdf_provenance(token, conversion_id, run_number))
+    ok = False
+    if not report_path or not Path(report_path).is_file():
+        print(f'[{conversion_id}] PDF report: no NMR data report to render ({report_path})')
+    else:
+        prov_path = work_d / 'provenance.json'
+        prov_path.write_text(json.dumps(provenance), encoding='utf-8')
+        out_pdf = out_dir / f'C_{conversion_id}_report.pdf'
+        pdf_work = work_d / 'pdf'
+        try:
+            cmd = [
+                'docker', 'run', '--rm',
+                '-u', f'{os.getuid()}:{os.getgid()}',
+                '-v', f'{os.environ["WORKSPACE_VOL_DIR"]}:{WORKSPACE_BASE_PATH}',
+                PDF_REPORT_IMAGE,
+                '--report', str(report_path), '--out', str(out_pdf),
+                '--provenance', str(prov_path), '--work-dir', str(pdf_work),
+            ]
+            with open(stdout_log, 'w') as fh:
+                proc = subprocess.run(cmd, stdout=fh, stderr=subprocess.STDOUT, text=True, timeout=1800)
+            if proc.returncode != 0:
+                tail = stdout_log.read_text(errors='ignore')[-400:].strip() if stdout_log.exists() else ''
+                print(f'[{conversion_id}] PDF report FAILED (exit {proc.returncode}): {tail}')
+            elif out_pdf.exists() and out_pdf.stat().st_size > 0:
+                ok = True
+                # Re-harvest so the new .pdf appears in output_file (full replace).
+                _harvest_output_files(conversion_id, run_number, workspace_base)
+        except Exception as exc:  # noqa: BLE001
+            print(f'[{conversion_id}] PDF report docker error: {exc}')
+
+    asyncio.run(_update_workflow_status(
+        conversion_id, run_number, WfTaskCode.convert_pdf,
+        WfStatusCode.completed if ok else WfStatusCode.failed,
+        finished=True, log_path=str(stdout_log),
+        detail=None if ok else 'PDF report generation failed',
+    ))
+
+
 @flow(name='process-session')
 def process_session(
     token: str,
@@ -1433,6 +1591,16 @@ def process_session(
                 _run_nef_release(conversion_id, run_number, workspace_base)
             except Exception as exc:  # noqa: BLE001
                 print(f'[{conversion_id}] NEF release FAILED ({exc})')
+
+        # Deferred JSON -> PDF conversion report: runs on any non-blocking run
+        # (report_status OK or Warning), like the NEF release. Best-effort — the
+        # run outcome and the summary page are unaffected. The download page
+        # blocks the final Zip until this completes (pdf_generating flag).
+        if success and not blocked:
+            try:
+                _run_pdf_report(token, conversion_id, run_number, workspace_base)
+            except Exception as exc:  # noqa: BLE001
+                print(f'[{conversion_id}] PDF report FAILED ({exc})')
     finally:
         # work/ is pure scratch — drop it last (the deferred NEF step above uses
         # it). output/ and log/ are kept for the validity period (download).

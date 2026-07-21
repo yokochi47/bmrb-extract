@@ -47,10 +47,10 @@
         <tr>
           <td class="num">{{ loop.index }}</td>
           <td class="mono">{{ f.original_name }}</td>
-          <td>{{ f.file_size_h or f.file_size }}</td>
-          <td>{{ f.file_type_label or f.file_type }}</td>
+          <td>{{ (f.file_size | filesizeformat(binary=True)) if f.file_size else '' }}</td>
+          <td>{{ f.file_type }}</td>
           <td>{{ f.upload_date }}</td>
-          {%- if show_input_source %}<td>{{ f.source_label or f.source }}</td>{% endif %}
+          {%- if show_input_source %}<td>{{ 'BMRB' if f.source == 'bmrb' else 'User' }}</td>{% endif %}
         </tr>
         {%- endfor %}
       </tbody>
