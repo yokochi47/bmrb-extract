@@ -32,12 +32,20 @@ import redis.asyncio as aioredis
 from cryptography.fernet import Fernet, InvalidToken
 from flask import Blueprint, jsonify, request
 from io import BytesIO
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 
-from core.models import AdminAccessAudit, AppUser, AuthSession, LoginChallenge
+from core.models import (
+    AdminAccessAudit,
+    AppUser,
+    AuthSession,
+    Communication,
+    LoginChallenge,
+    Session,
+)
 from core.site_config import (
     AUTH_SECRET,
     SERVICE_ANNOT_EMAILS,
+    SERVICE_HELP_EMAIL,
     SERVICE_HOST,
     SERVICE_LEVEL,
 )
@@ -192,6 +200,29 @@ async def record_admin_access(db, user, session_row, action: str):
         client_ip=request.remote_addr,
     ))
     await db.commit()
+
+
+async def session_by_token(db, token, action='access'):
+    """Resolve a session for a token-scoped request. First match session.token
+    (the normal capability — anonymous, owner, or anyone the token was shared
+    with, unchanged). If that misses, and the caller is a logged-in annotator
+    (TOTP-satisfied), match session.token_admin — the admin per-session handle —
+    and audit it. Returns the Session row or None. Used by app.py's read
+    endpoints to give annotators token_admin access without a shared secret."""
+    row = (
+        await db.execute(select(Session).where(Session.token == token))
+    ).scalar_one_or_none()
+    if row is not None:
+        return row
+    auth_session, user = await current_auth(db)
+    if is_admin(auth_session, user):
+        row = (
+            await db.execute(select(Session).where(Session.token_admin == token))
+        ).scalar_one_or_none()
+        if row is not None:
+            await record_admin_access(db, user, row, action)
+            return row
+    return None
 
 
 async def authorize_session(db, session_row, auth_session, user, action='access'):
@@ -410,3 +441,155 @@ async def logout():
     resp = jsonify({'ok': True})
     _clear_cookie(resp)
     return resp
+
+
+def _session_view(row, *, admin=False):
+    """Serialize a session for the listing. Own rows expose the token (to reopen);
+    admin (scope=all) rows expose token_admin instead (the audited admin handle)."""
+    view = {
+        'conversion_id': row.conversion_id,
+        'public_id': f'C_{row.conversion_id}' if row.conversion_id is not None else None,
+        'status': row.status,
+        'target_depsys': row.target_depsys,
+        'created_at': row.created_at.isoformat() if row.created_at else None,
+        'token_expiry': row.token_expiry.isoformat() if row.token_expiry else None,
+        'approved': bool(row.approved),
+        'downloaded': bool(row.downloaded),
+    }
+    view['token_admin' if admin else 'token'] = str(row.token_admin if admin else row.token)
+    return view
+
+
+@auth_bp.route('/api/sessions', methods=['GET'])
+async def list_sessions():
+    """List the caller's own sessions. An annotator may pass ?scope=all to list
+    every session (audited) — each row carries token_admin for the audited admin
+    open, not the user's token."""
+    async with _session_factory() as db:
+        auth_session, user = await current_auth(db)
+        if user is None:
+            return {'error': 'authentication required'}, 401
+        scope_all = request.args.get('scope') == 'all' and is_admin(auth_session, user)
+        if scope_all:
+            rows = (
+                await db.execute(select(Session).order_by(Session.created_at.desc()).limit(500))
+            ).scalars().all()
+            await record_admin_access(db, user, None, 'list_all_sessions')
+            return {'sessions': [_session_view(r, admin=True) for r in rows], 'scope': 'all'}, 200
+        rows = (
+            await db.execute(
+                select(Session).where(Session.user_id == user.id).order_by(Session.created_at.desc())
+            )
+        ).scalars().all()
+        return {'sessions': [_session_view(r) for r in rows], 'scope': 'own'}, 200
+
+
+async def _next_ordinal(db, conversion_id):
+    n = (
+        await db.execute(
+            select(func.max(Communication.ordinal)).where(Communication.conversion_id == conversion_id)
+        )
+    ).scalar_one_or_none()
+    return (n or 0) + 1
+
+
+@auth_bp.route('/api/help/inquiry', methods=['POST'])
+async def help_inquiry():
+    """A logged-in user files a help-desk inquiry about one of their sessions
+    (Terms #5). Logged as a communication row and emailed to the help address.
+    Requires the session to have a conversion_id (i.e. it has been processed)."""
+    async with _session_factory() as db:
+        auth_session, user = await current_auth(db)
+        if user is None:
+            return {'error': 'authentication required'}, 401
+        if not csrf_valid(auth_session):
+            return {'error': 'invalid CSRF token'}, 403
+        body = request.get_json(silent=True) or {}
+        token = body.get('token')
+        subject = (body.get('subject') or '').strip()
+        content = (body.get('content') or '').strip()
+        if not token or not subject or not content:
+            return {'error': 'token, subject and content are required'}, 400
+        row = (
+            await db.execute(select(Session).where(Session.token == token))
+        ).scalar_one_or_none()
+        if row is None:
+            return {'error': 'session not found'}, 404
+        # The inquiry must be about the caller's own session.
+        if row.user_id is None or str(row.user_id) != str(user.id):
+            return {'error': 'not authorized for this session'}, 403
+        if row.conversion_id is None:
+            return {'error': 'process the session before contacting support'}, 409
+        ordinal = await _next_ordinal(db, row.conversion_id)
+        await db.execute(Communication.__table__.insert().values(
+            conversion_id=row.conversion_id, ordinal=ordinal,
+            subject=subject, content=content, email_address=user.email,
+        ))
+        await db.commit()
+    if _send_email is not None:
+        _send_email(SERVICE_HELP_EMAIL, f'[Help desk] C_{row.conversion_id}: {subject}',
+                    f'From: {user.email}\nConversion: C_{row.conversion_id}\n\n{content}')
+    return {'ok': True}, 200
+
+
+@auth_bp.route('/api/help/inquiries', methods=['GET'])
+async def help_inquiries():
+    """Annotator view: all help-desk threads (communication rows)."""
+    async with _session_factory() as db:
+        auth_session, user = await current_auth(db)
+        if not is_admin(auth_session, user):
+            return {'error': 'not authorized'}, 403
+        rows = (
+            await db.execute(
+                select(Communication).order_by(
+                    Communication.conversion_id.desc(), Communication.ordinal.asc()
+                ).limit(1000)
+            )
+        ).scalars().all()
+        items = [{
+            'conversion_id': r.conversion_id,
+            'public_id': f'C_{r.conversion_id}',
+            'ordinal': r.ordinal,
+            'subject': r.subject,
+            'content': r.content,
+            'email_address': r.email_address,
+            'sent_at': r.sent_at.isoformat() if r.sent_at else None,
+        } for r in rows]
+        return {'inquiries': items}, 200
+
+
+@auth_bp.route('/api/help/reply', methods=['POST'])
+async def help_reply():
+    """Annotator replies to an inquiry thread; logged and emailed to the user."""
+    async with _session_factory() as db:
+        auth_session, user = await current_auth(db)
+        if not is_admin(auth_session, user):
+            return {'error': 'not authorized'}, 403
+        if not csrf_valid(auth_session):
+            return {'error': 'invalid CSRF token'}, 403
+        body = request.get_json(silent=True) or {}
+        conversion_id = body.get('conversion_id')
+        content = (body.get('content') or '').strip()
+        subject = (body.get('subject') or 'Re: your bmrb_extract inquiry').strip()
+        if not conversion_id or not content:
+            return {'error': 'conversion_id and content are required'}, 400
+        # Recipient: the most recent user address recorded for this conversation.
+        recipient = (
+            await db.execute(
+                select(Communication.email_address).where(
+                    Communication.conversion_id == conversion_id
+                ).order_by(Communication.ordinal.desc()).limit(1)
+            )
+        ).scalar_one_or_none()
+        ordinal = await _next_ordinal(db, conversion_id)
+        await db.execute(Communication.__table__.insert().values(
+            conversion_id=conversion_id, ordinal=ordinal,
+            subject=subject, content=content,
+            email_address=recipient or SERVICE_HELP_EMAIL,
+        ))
+        await record_admin_access(db, user, None, f'help_reply:C_{conversion_id}')
+        await db.commit()
+    if _send_email is not None and recipient:
+        _send_email(recipient, f'[bmrb_extract] {subject}',
+                    f'{content}\n\n(Regarding C_{conversion_id})')
+    return {'ok': True}, 200
