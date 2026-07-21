@@ -186,7 +186,7 @@
     <h3>Input files</h3>
     <table>
       <thead><tr>
-        <th style="width:2%">#</th><th>Original file name</th>
+        <th>Original file name</th>
         <th style="width:16%">Size</th><th style="width:22%">File type</th>
         <th style="width:18%">Upload date</th>
         {%- if show_input_source %}<th style="width:12%">Source</th>{% endif %}
@@ -194,7 +194,6 @@
       <tbody>
         {%- for f in input_files %}
         <tr>
-          <td>{{ loop.index }}</td>
           <td class="mono">{{ f.original_name }}</td>
           <td>{{ f.file_size | formatsize }}</td>
           <td>{{ f.file_type | input_type_label }}</td>
