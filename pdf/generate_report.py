@@ -1,0 +1,289 @@
+#!/usr/bin/env python3
+"""Render the static "bmrb_extract data conversion statistical report" PDF.
+
+Data source: the last NMR data-processing JSON report (the convert_nmr_data
+workflow's *-str_deposit.json). Provenance extras (input files, target
+deposition system, processed site) come from a small provenance.json the flow
+assembles from the DB — this container never touches the database.
+
+Pipeline (Python is the single data-shaping layer):
+  1. Extract output_statistics + ensemble_composition from the report JSON.
+  2. Build chart_inputs.json (positional args for the shared chart builders).
+  3. Shell out to `node render_charts.mjs` -> per-chart SVGs + charts.json.
+  4. Render report.html (Jinja2) with the SVGs inlined; WeasyPrint -> PDF (A4).
+
+Usage:
+  generate_report.py --report <deposit.json> --out <C_<id>_report.pdf>
+                     [--provenance <provenance.json>] [--work-dir <dir>]
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+APP_DIR = Path(__file__).resolve().parent
+TEMPLATES_DIR = APP_DIR / 'templates'
+ASSETS_DIR = APP_DIR / 'assets'
+RENDERER = APP_DIR / 'render_charts.mjs'
+
+# Preferred category order for the distance mean/all-violation histograms
+# (mirrors DIST_CAT_ORDER in report-charts.ts; passed as the `order` arg).
+DIST_CAT_ORDER = [
+    'intra-residue', 'sequential', 'medium_range', 'long_range', 'inter-chain',
+    'hydrogen_bond', 'disulfide_bond', 'diselenide_bond', 'metal_coordiantion',
+]
+# Fixed distance sub-type categories (key/label/color) shared by the per-model
+# and per-ensemble distance charts (mirrors the frontend computeds).
+DIST_CATS = [
+    {'key': 'ir_viol_count', 'label': 'Intra-residue', 'color': '#5470c6'},
+    {'key': 'sq_viol_count', 'label': 'Sequential', 'color': '#a3c4f3'},
+    {'key': 'mr_viol_count', 'label': 'Medium range', 'color': '#3ba272'},
+    {'key': 'lr_viol_count', 'label': 'Long range', 'color': '#c0ca33'},
+    {'key': 'ic_viol_count', 'label': 'Inter-chain', 'color': '#808000'},
+]
+
+TARGET_DEPSYS_LABEL = {
+    'onedep': 'OneDep (new deposition)',
+    'repl_cs': 'OneDep (ongoing deposition - replacing assigned chemical shifts)',
+    'bmrbdep': 'BMRBdep (new deposition)',
+}
+
+
+# ------------------------------------------------------------- extraction --- #
+
+def _inline_svg(svg: str) -> str:
+    """Strip any <?xml …?> / <!DOCTYPE …> prolog so the <svg> can be inlined in
+    HTML — WeasyPrint's HTML parser renders inline SVG only from the <svg> tag,
+    and shows a leading prolog as literal text otherwise."""
+    idx = svg.find('<svg')
+    return svg[idx:] if idx > 0 else svg
+
+
+def restraint_type_label(value) -> str:
+    """Display label for a violation-summary restraint_type (mirrors the TS
+    restraintTypeLabel): a "<abbr>; <sub-type>" becomes an indented lower-case
+    sub-type; a top-level type is capitalized with underscores as spaces."""
+    if not value:
+        return ''
+    value = str(value)
+    semi = value.find(';')
+    if semi >= 0:
+        return '  ' + value[semi + 1:].replace('_', ' ').lstrip()
+    s = value.replace('_', ' ').lower()
+    return s[:1].upper() + s[1:]
+
+
+def output_statistics(report: dict) -> dict:
+    return (report.get('information', {}) or {}).get('output_statistics', {}) or {}
+
+
+def ensemble_composition(report: dict) -> dict:
+    """From the pdbx input source (mirrors the backend _ensemble_composition)."""
+    for src in (report.get('information', {}) or {}).get('input_sources', []) or []:
+        if isinstance(src, dict) and src.get('file_type') == 'pdbx':
+            return src.get('ensemble_composition', {}) or {}
+    return {}
+
+
+def report_timestamp_utc(report_path: Path) -> str:
+    """The report file's mtime in UTC (matches /api/output_statistics)."""
+    ts = datetime.fromtimestamp(report_path.stat().st_mtime, tz=timezone.utc)
+    return ts.strftime('%Y-%m-%d %H:%M:%S')
+
+
+# ------------------------------------------------------------ chart specs --- #
+
+def _dihed_ensemble_cats(rows: list) -> list:
+    """Dynamic dihedral-angle categories (phi, psi, then others sorted); the
+    aggregate 'total' column is kept out of the per-ensemble chart."""
+    seen = set()
+    for r in rows:
+        for k in (r or {}):
+            if k.endswith('_viol_count'):
+                seen.add(k)
+    fixed = ['phi_viol_count', 'psi_viol_count', 'total_viol_count']
+    others = sorted(k for k in seen if k not in fixed)
+    ordered = ([k for k in ('phi_viol_count', 'psi_viol_count') if k in seen] + others)
+    return [{'key': k, 'label': k[:-len('_viol_count')].capitalize()} for k in ordered]
+
+
+def _value_pts(rows: list, value_key: str, cat_key: str) -> list:
+    """Shape {value, cat} points for stackedValueHistogram."""
+    pts = []
+    for r in rows or []:
+        v = r.get(value_key)
+        c = r.get(cat_key)
+        if isinstance(v, (int, float)) and c:
+            pts.append({'value': v, 'cat': str(c)})
+    return pts
+
+
+def build_chart_inputs(stats: dict, ensemble: dict) -> list:
+    """Positional-arg specs for the shared builders (see render_charts.mjs).
+    Charts with no data resolve to null in charts.json and are simply omitted."""
+    rs = stats.get('restraint_summary', {}) or {}
+    specs = []
+
+    # 1. Ensemble PCA scatter.
+    clusters = ensemble.get('cluster_analysis', []) or []
+    specs.append({'id': 'ens_pca', 'builder': 'pcaChartOption',
+                  'args': [clusters], 'width': 560, 'height': 460})
+
+    # 7.1 / 8.1 distribution of restraints & violations.
+    specs.append({'id': 'dist_violation', 'builder': 'distViolationChart',
+                  'args': [rs.get('dist_violation_summary', [])], 'width': 680, 'height': 420})
+    specs.append({'id': 'dihed_violation', 'builder': 'dihedViolationChart',
+                  'args': [rs.get('dihed_violation_summary', [])], 'width': 680, 'height': 420})
+
+    # 7.2 / 8.2 per-model violation statistics (dual-axis).
+    specs.append({'id': 'dist_model', 'builder': 'modelViolationChartOption',
+                  'args': [rs.get('dist_violation_for_each_model', []), 'Å', DIST_CATS],
+                  'width': 700, 'height': 420})
+    specs.append({'id': 'dihed_model', 'builder': 'modelViolationChartOption',
+                  'args': [rs.get('dihed_violation_for_each_model', []), '°',
+                           [{'key': 'phi_viol_count', 'label': 'Phi'},
+                            {'key': 'psi_viol_count', 'label': 'Psi'}]],
+                  'width': 700, 'height': 420})
+
+    # 7.3 / 8.3 per-ensemble violation statistics.
+    specs.append({'id': 'dist_ensemble', 'builder': 'violationEnsembleStackChart',
+                  'args': [rs.get('dist_violation_for_ensemble', []), DIST_CATS],
+                  'width': 680, 'height': 420})
+    dihed_ens_rows = rs.get('dihed_violation_for_ensemble', []) or []
+    specs.append({'id': 'dihed_ensemble', 'builder': 'violationEnsembleStackChart',
+                  'args': [dihed_ens_rows, _dihed_ensemble_cats(dihed_ens_rows)],
+                  'width': 680, 'height': 420})
+
+    # 7.4 / 8.4 mean-violation histograms.
+    specs.append({'id': 'dist_mean_hist', 'builder': 'meanViolationHistogram',
+                  'args': [rs.get('most_violated_dist_restraints', []), 'distance_type',
+                           'Å', DIST_CAT_ORDER], 'width': 680, 'height': 420})
+    specs.append({'id': 'dihed_mean_hist', 'builder': 'meanViolationHistogram',
+                  'args': [rs.get('most_violated_dihed_restraints', []), 'dihedral_angle_name',
+                           '°', ['phi', 'psi']], 'width': 680, 'height': 420})
+
+    # 7.5 / 8.5 all-violation histograms.
+    specs.append({'id': 'dist_all_hist', 'builder': 'stackedValueHistogram',
+                  'args': [_value_pts(rs.get('all_dist_violations', []), 'violation', 'distance_type'),
+                           'Å', DIST_CAT_ORDER, 'Violation'], 'width': 680, 'height': 420})
+    specs.append({'id': 'dihed_all_hist', 'builder': 'stackedValueHistogram',
+                  'args': [_value_pts(rs.get('all_dihed_violations', []), 'violation', 'dihedral_angle_name'),
+                           '°', ['phi', 'psi'], 'Violation'], 'width': 680, 'height': 420})
+
+    return specs
+
+
+def render_charts(specs: list, work_dir: Path) -> dict:
+    """Run the Node SSR renderer; return {id: svg_markup} for charts that
+    produced an SVG (null entries — no data — are dropped)."""
+    work_dir.mkdir(parents=True, exist_ok=True)
+    inputs_path = work_dir / 'chart_inputs.json'
+    inputs_path.write_text(json.dumps(specs), encoding='utf-8')
+    svg_dir = work_dir / 'charts'
+
+    proc = subprocess.run(
+        ['node', str(RENDERER), str(inputs_path), str(svg_dir)],
+        capture_output=True, text=True, timeout=600,
+    )
+    if proc.stderr:
+        print(proc.stderr, file=sys.stderr)
+    if proc.returncode != 0:
+        raise RuntimeError(f'chart renderer failed (exit {proc.returncode})')
+
+    manifest = json.loads((svg_dir / 'charts.json').read_text(encoding='utf-8'))
+    svgs = {}
+    for cid, fname in manifest.items():
+        if fname:
+            svgs[cid] = (svg_dir / fname).read_text(encoding='utf-8')
+    return svgs
+
+
+# --------------------------------------------------------------- context --- #
+
+def build_context(stats: dict, ensemble: dict, provenance: dict,
+                  charts: dict, timestamp: str) -> dict:
+    rs = stats.get('restraint_summary', {}) or {}
+    conv_id = provenance.get('conversion_id')
+    public_id = f'C_{conv_id}' if conv_id is not None else ''
+    depsys = provenance.get('target_depsys')
+
+    return {
+        'public_id': public_id,
+        'output_used_for': TARGET_DEPSYS_LABEL.get(depsys, depsys or ''),
+        'processed_site': stats.get('processed_site') or provenance.get('processed_site', ''),
+        'timestamp': timestamp,
+        'input_files': provenance.get('input_files', []) or [],
+        'show_input_source': any(
+            (f or {}).get('source', 'user') != 'user'
+            for f in provenance.get('input_files', []) or []
+        ),
+        'stats': stats,
+        'ensemble': ensemble,
+        'software': stats.get('software', []) or [],
+        'model': stats.get('model'),
+        'restraint_summary': rs,
+        # Straightforward violation summary tables (rendered generically).
+        'dist_violation_summary': rs.get('dist_violation_summary', []) or [],
+        'dihed_violation_summary': rs.get('dihed_violation_summary', []) or [],
+        'charts': charts,
+    }
+
+
+# ------------------------------------------------------------------ main --- #
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description='Render the conversion report PDF.')
+    ap.add_argument('--report', required=True, help='NMR data-processing JSON report')
+    ap.add_argument('--out', required=True, help='output PDF path')
+    ap.add_argument('--provenance', help='provenance JSON (input files, depsys, …)')
+    ap.add_argument('--work-dir', help='scratch dir for chart_inputs/SVGs (default: alongside --out)')
+    args = ap.parse_args()
+
+    report_path = Path(args.report)
+    out_path = Path(args.out)
+    work_dir = Path(args.work_dir) if args.work_dir else out_path.parent / '_pdf_work'
+
+    report = json.loads(report_path.read_text(encoding='utf-8'))
+    provenance = {}
+    if args.provenance and Path(args.provenance).is_file():
+        provenance = json.loads(Path(args.provenance).read_text(encoding='utf-8'))
+
+    from jinja2 import Environment, FileSystemLoader, select_autoescape
+    from markupsafe import Markup
+    from weasyprint import HTML
+
+    stats = output_statistics(report)
+    ensemble = ensemble_composition(report)
+
+    specs = build_chart_inputs(stats, ensemble)
+    charts = render_charts(specs, work_dir)
+
+    ctx = build_context(stats, ensemble, provenance, charts,
+                        report_timestamp_utc(report_path))
+    icon_path = ASSETS_DIR / 'bmrb_extract_logo.svg'
+    ctx['service_icon_svg'] = _inline_svg(icon_path.read_text(encoding='utf-8')) if icon_path.is_file() else ''
+
+    env = Environment(
+        loader=FileSystemLoader(str(TEMPLATES_DIR)),
+        autoescape=select_autoescape(['html', 'xml']),
+    )
+    # Chart / icon SVGs are trusted markup we generated; mark safe so autoescape
+    # inlines them as elements instead of escaping the angle brackets to text.
+    env.filters['safe_svg'] = lambda s: Markup(s) if s else ''
+    env.filters['restraint_type_label'] = restraint_type_label
+    html = env.get_template('report.html').render(**ctx)
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    HTML(string=html, base_url=str(TEMPLATES_DIR)).write_pdf(
+        str(out_path), stylesheets=[str(TEMPLATES_DIR / 'report.css')],
+    )
+    print(f'[generate_report] wrote {out_path}')
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

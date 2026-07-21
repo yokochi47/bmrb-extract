@@ -1,0 +1,304 @@
+{#- Static conversion report. Paged-media layout comes from report.css. -#}
+{%- macro kv_table(rows) -%}
+  <table class="kv">
+    {%- for label, value in rows if value not in (none, '', []) %}
+    <tr><td class="k">{{ label }}</td><td>{{ value }}</td></tr>
+    {%- endfor %}
+  </table>
+{%- endmacro -%}
+
+{%- macro chart(cid, caption) -%}
+  {%- if charts.get(cid) %}
+  <figure class="chart">
+    {{ charts.get(cid) | safe_svg }}
+    {%- if caption %}<figcaption>{{ caption }}</figcaption>{% endif %}
+  </figure>
+  {%- endif %}
+{%- endmacro -%}
+
+<div class="page-footer">{{ service_icon_svg | safe_svg }}</div>
+
+{#- ===================================================== title / provenance -#}
+<div class="title-page">
+  <div class="service-icon">{{ service_icon_svg | safe_svg }}</div>
+  <div class="doc-title">bmrb_extract</div>
+  <div class="doc-subtitle">data conversion statistical report</div>
+
+  <div class="provenance">
+    <h2>Provenance information</h2>
+    <table class="kv">
+      <tr><td class="k">Conversion ID</td><td class="conv-id">{{ public_id }}</td></tr>
+      {%- if output_used_for %}<tr><td class="k">Output used for</td><td>{{ output_used_for }}</td></tr>{% endif %}
+      {%- if processed_site %}<tr><td class="k">Processed site</td><td>{{ processed_site }}</td></tr>{% endif %}
+      <tr><td class="k">Timestamp (UTC)</td><td>{{ timestamp }}</td></tr>
+    </table>
+
+    {%- if input_files %}
+    <h3>Input files</h3>
+    <table>
+      <thead><tr>
+        <th style="width:8%">#</th><th>Original file name</th>
+        <th style="width:16%">Size</th><th style="width:22%">File type</th>
+        <th style="width:18%">Upload date</th>
+        {%- if show_input_source %}<th style="width:12%">Source</th>{% endif %}
+      </tr></thead>
+      <tbody>
+        {%- for f in input_files %}
+        <tr>
+          <td class="num">{{ loop.index }}</td>
+          <td class="mono">{{ f.original_name }}</td>
+          <td>{{ f.file_size_h or f.file_size }}</td>
+          <td>{{ f.file_type_label or f.file_type }}</td>
+          <td>{{ f.upload_date }}</td>
+          {%- if show_input_source %}<td>{{ f.source_label or f.source }}</td>{% endif %}
+        </tr>
+        {%- endfor %}
+      </tbody>
+    </table>
+    {%- endif %}
+
+    <h3>Output files</h3>
+    <h4>NMR data file</h4>
+    {{ kv_table([
+      ('File name', stats.file_name), ('File type', stats.file_type),
+      ('Entry ID', stats.entry_id), ('Entry title', stats.entry_title),
+      ('Entry authors', stats.entry_authors), ('Submission date', stats.submission_date),
+      ('Processed date', stats.processed_date), ('Processed site', stats.processed_site),
+      ('File size', stats.file_size), ('MD5 checksum', stats.md5_checksum),
+    ]) }}
+    {%- if model %}
+    <h4>Coordinate file</h4>
+    {{ kv_table([
+      ('File name', model.file_name), ('Entry title', model.struct_title),
+      ('File type', model.file_type), ('Entry authors', model.audit_authors),
+      ('File size', model.file_size), ('MD5 checksum', model.md5_checksum),
+    ]) }}
+    {%- endif %}
+
+    {%- if software %}
+    <h3>Software</h3>
+    <table>
+      <thead><tr><th>Name</th><th style="width:22%">Version</th><th style="width:34%">Classification</th></tr></thead>
+      <tbody>
+        {%- for s in software %}
+        <tr><td>{{ s.name }}</td><td>{{ s.version }}</td><td>{{ s.classification }}</td></tr>
+        {%- endfor %}
+      </tbody>
+    </table>
+    {%- endif %}
+  </div>
+</div>
+
+{#- ===================================================== 1. Ensemble comp. -#}
+<section class="report-section">
+  <h2>1. Ensemble composition analysis</h2>
+  {%- if ensemble.well_defined_region %}
+  <table>
+    <thead><tr>
+      <th>Well-defined core</th><th class="num">Residue range (total)</th>
+      <th class="num">Percent of core (%)</th><th class="num">Backbone RMSD (Å)</th>
+      <th class="num">Medoid model</th>
+    </tr></thead>
+    <tbody>
+      {%- for r in ensemble.well_defined_region %}
+      <tr>
+        <td class="num">{{ r.domain_id }}</td>
+        <td class="num">{{ r.range_of_seq_id }} ({{ r.number_of_monomers }})</td>
+        <td class="num">{{ r.percent_of_core }}</td>
+        <td class="num">{{ r.medoid_rmsd }}</td>
+        <td class="num">{{ r.medoid_model_id }}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  {%- endif %}
+  {%- if ensemble.cluster_analysis %}
+  <h3>Clustering analysis of models in the ensemble</h3>
+  <table>
+    <thead><tr><th class="num">Cluster number</th><th class="num">Models (centroid model)</th><th class="num">Mean RMSD in a cluster (Å)</th></tr></thead>
+    <tbody>
+      {%- for c in ensemble.cluster_analysis %}
+      <tr>
+        <td class="num">{{ 'Single-model' if c.cluster_id == -1 else c.cluster_id }}</td>
+        <td class="num">{{ (c.model_ids | length) if c.model_ids else 0 }} ({{ c.centroid_model_id }})</td>
+        <td class="num">{{ c.mean_rmsd }}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  {%- endif %}
+  {{ chart('ens_pca', 'Clustering analysis of models in the ensemble (PC1 vs PC2)') }}
+</section>
+
+{#- ===================================================== 2. Assembly -#}
+<section class="report-section">
+  <h2>2. Assembly information</h2>
+  {%- set a = stats.assembly %}
+  {%- if a %}
+  {{ kv_table([
+    ('Name', a.name), ('Number of components', a.number_of_components),
+    ('Organic ligands', a.organic_ligands), ('Metal ions', a.metal_ions),
+    ('Thiol state', a.thiol_state), ('Molecular mass (Da)', a.molecular_mass),
+  ]) }}
+  {%- if a.entity_assembly %}
+  <h3>Components in the molecular assembly</h3>
+  <table>
+    <thead><tr>
+      <th class="num">ID</th><th>Name</th><th class="num">Entity ID</th><th>Entity label</th>
+      <th>Chain</th><th>Auth chain</th><th>Physical state</th><th>Role</th>
+    </tr></thead>
+    <tbody>
+      {%- for e in a.entity_assembly %}
+      <tr>
+        <td class="num">{{ e.id }}</td><td>{{ e.name }}</td><td class="num">{{ e.entity_id }}</td>
+        <td>{{ e.entity_label }}</td><td>{{ e.asym_id }}</td><td>{{ e.auth_asym_id }}</td>
+        <td>{{ e.physical_state }}</td><td>{{ e.experimental_data_reported or e.role }}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  {%- endif %}
+  {%- endif %}
+</section>
+
+{#- ===================================================== 3. Entity -#}
+<section class="report-section">
+  <h2>3. Entity information</h2>
+  {%- if stats.entity %}
+  <table>
+    <thead><tr>
+      <th class="num">ID</th><th>Name</th><th>Type</th><th>Polymer</th>
+      <th>Auth chains</th><th class="num">Monomers</th>
+    </tr></thead>
+    <tbody>
+      {%- for e in stats.entity %}
+      <tr>
+        <td class="num">{{ e.entity_id }}</td><td>{{ e.name }}</td><td>{{ e.type }}</td>
+        <td>{{ e.polymer_type }}</td><td>{{ e.auth_asym_ids }}</td>
+        <td class="num">{{ e.number_of_monomers }}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  {%- for e in stats.entity if e.polymer_seq_one_letter_code %}
+  <h4>Entity {{ e.entity_id }} sequence</h4>
+  <pre class="mono" style="white-space:pre-wrap;font-size:7.5pt">{{ e.polymer_seq_one_letter_code }}</pre>
+  {%- endfor %}
+  {%- endif %}
+</section>
+
+{#- ===================================================== 4. Chem shift summary -#}
+<section class="report-section">
+  <h2>4. Chemical shift summary</h2>
+  {%- set c = stats.chem_shift_summary %}
+  {%- if c %}
+  {{ kv_table([
+    ('Assigned shifts (well-defined region)', c.number_of_assigned_shifts_in_well_defined_region),
+    ('Target shifts (well-defined region)', c.number_of_target_shifts_in_well_defined_region),
+    ('Completeness (well-defined region)', c.completeness_in_well_defined_region),
+    ('Assigned shifts (full-length region)', c.number_of_assigned_shifts_in_full_length_region),
+    ('Target shifts (full-length region)', c.number_of_target_shifts_in_full_length_region),
+    ('Completeness (full-length region)', c.completeness_in_full_length_region),
+  ]) }}
+  {%- endif %}
+</section>
+
+{#- ===================================================== 5. Chem shift validation -#}
+<section class="report-section">
+  <h2>5. Chemical shift validation</h2>
+  {%- for sf in stats.chem_shift %}
+  <h3>5.{{ sf.list_id }} Bookkeeping — {{ sf.sf_framecode }}{% if sf.original_file_name %} ({{ sf.original_file_name }}){% endif %}</h3>
+  {{ kv_table([
+    ('Number of parsed', sf.number_of_parsed),
+    ('Number of mapped to model', sf.number_of_mapped_to_model),
+    ('Number of unmapped to model', sf.number_of_unmapped_to_model),
+    ('Number of unparsed with error', sf.number_of_unparsed_with_error),
+    ('Number of parsed with warning', sf.number_of_parsed_with_warning),
+    ('Number of chemical shift outliers', sf.number_of_outliers),
+  ]) }}
+  {%- endfor %}
+  <p class="caption muted">Detailed per-saveframe outlier / completeness tables and RCI/NMR-RMSD plots
+  are rendered in the interactive report; a future revision will add them here.</p>
+</section>
+
+{#- ===================================================== 6. Restraint analysis -#}
+<section class="report-section">
+  <h2>6. NMR restraint analysis</h2>
+  <h3>6.1 Conformationally restricting restraints</h3>
+  {%- set rs = restraint_summary %}
+  <table class="kv">
+    {%- for k, v in rs.items() if (v is number or v is string) and 'average' not in k and 'violation' not in k and not k.endswith('_dist_types') %}
+    <tr><td class="k">{{ k.replace('_', ' ') | capitalize }}</td><td>{{ v }}</td></tr>
+    {%- endfor %}
+  </table>
+</section>
+
+{#- ===================================================== 7. Distance violations -#}
+<section class="report-section">
+  <h2>7. Distance violation analysis</h2>
+
+  <h3>7.1 Summary of distance violations</h3>
+  {%- if dist_violation_summary %}
+  <table>
+    <thead><tr>
+      <th>Restraint type</th><th class="num">Restraints</th>
+      <th class="num">Violations</th><th class="num">Consistent violations</th>
+    </tr></thead>
+    <tbody>
+      {%- for r in dist_violation_summary %}
+      <tr>
+        <td>{{ r.restraint_type | restraint_type_label }}</td>
+        <td class="num">{{ r.restraint_count }}</td>
+        <td class="num">{{ r.viol_count }}</td>
+        <td class="num">{{ r.consist_viol_count }}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  {%- endif %}
+  {{ chart('dist_violation', 'Distribution of distance restraints and violations') }}
+
+  <h3>7.2 Distance violation statistics for each model</h3>
+  {{ chart('dist_model', 'Per-model distance violation statistics') }}
+  <h3>7.3 Distance violation statistics for the ensemble</h3>
+  {{ chart('dist_ensemble', 'Violated distance restraints vs fraction of the ensemble') }}
+  <h3>7.4 Most violated distance restraints</h3>
+  {{ chart('dist_mean_hist', 'Distribution of mean distance violations') }}
+  <h3>7.5 All distance violations</h3>
+  {{ chart('dist_all_hist', 'Distribution of distance violations') }}
+</section>
+
+{#- ===================================================== 8. Dihedral violations -#}
+<section class="report-section">
+  <h2>8. Dihedral-angle violation analysis</h2>
+
+  <h3>8.1 Summary of dihedral-angle violations</h3>
+  {%- if dihed_violation_summary %}
+  <table>
+    <thead><tr>
+      <th>Restraint type</th><th class="num">Restraints</th>
+      <th class="num">Violations</th><th class="num">Consistent violations</th>
+    </tr></thead>
+    <tbody>
+      {%- for r in dihed_violation_summary %}
+      <tr>
+        <td>{{ r.restraint_type | restraint_type_label }}</td>
+        <td class="num">{{ r.restraint_count }}</td>
+        <td class="num">{{ r.viol_count }}</td>
+        <td class="num">{{ r.consist_viol_count }}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  {%- endif %}
+  {{ chart('dihed_violation', 'Distribution of dihedral-angle restraints and violations') }}
+
+  <h3>8.2 Dihedral-angle violation statistics for each model</h3>
+  {{ chart('dihed_model', 'Per-model dihedral-angle violation statistics') }}
+  <h3>8.3 Dihedral-angle violation statistics for the ensemble</h3>
+  {{ chart('dihed_ensemble', 'Violated dihedral-angle restraints vs fraction of the ensemble') }}
+  <h3>8.4 Most violated dihedral-angle restraints</h3>
+  {{ chart('dihed_mean_hist', 'Distribution of mean dihedral-angle violations') }}
+  <h3>8.5 All dihedral-angle violations</h3>
+  {{ chart('dihed_all_hist', 'Distribution of dihedral-angle violations') }}
+</section>

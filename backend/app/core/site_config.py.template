@@ -45,3 +45,8 @@ MAXIT_MEMORY_LIMIT = '16g'
 # the NMR data to NMR-STAR against the model mmCIF.
 UTILS_NMR_IMAGE = '${UTILS_NMR_IMAGE}'
 
+# JSON -> PDF conversion report. Built locally from ./pdf (Python+WeasyPrint +
+# Node/ECharts); the deferred convert_pdf task runs it via `docker run` to render
+# C_<id>_report.pdf from the last NMR data-processing JSON report.
+PDF_REPORT_IMAGE = 'bmrb-extract-pdf-report:local'
+

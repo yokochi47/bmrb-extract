@@ -2,6 +2,9 @@
 node_modules/
 # Generated bundle of the shared chart builders (built via `npm run bundle-charts`).
 vendor/
+# Build-time staged copies (populated by build.sh from canonical sources).
+src/
+assets/
 # Python bytecode.
 __pycache__/
 *.pyc
