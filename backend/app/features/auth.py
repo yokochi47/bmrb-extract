@@ -1,0 +1,412 @@
+"""Passwordless email login + annotator (admin) authentication.
+
+Security model (see the design plan):
+- Users log in with an emailed single-use, short-TTL **magic link**; an account is
+  created on first login. No passwords.
+- Annotators (email in SERVICE_ANNOT_EMAILS) get the 'annotator' role and MUST
+  additionally pass **TOTP** (authenticator app) before their admin authority
+  (access to any session) is granted (auth_session.totp_ok).
+- The login session is **server-side** (auth_session row), addressed by an opaque
+  high-entropy id in an httpOnly + SameSite cookie (Secure in production), so it is
+  revocable (logout / expiry / account disable). A per-session **CSRF token** must
+  accompany every state-changing request (custom header).
+- The legacy anonymous capability-URL flow (?token=) is untouched; login is additive.
+
+This module exposes the /api/auth/* blueprint plus helpers reused by app.py for
+authorization (`current_auth`, `require_csrf`, `authorize_session`, `record_admin_access`).
+"""
+from __future__ import annotations
+
+import base64
+import hashlib
+import hmac
+import os
+import re
+import secrets
+from datetime import datetime, timedelta
+from functools import wraps
+
+import pyotp
+import qrcode
+import redis.asyncio as aioredis
+from cryptography.fernet import Fernet, InvalidToken
+from flask import Blueprint, jsonify, request
+from io import BytesIO
+from sqlalchemy import select, update
+
+from core.models import AdminAccessAudit, AppUser, AuthSession, LoginChallenge
+from core.site_config import (
+    AUTH_SECRET,
+    SERVICE_ANNOT_EMAILS,
+    SERVICE_HOST,
+    SERVICE_LEVEL,
+)
+
+auth_bp = Blueprint('auth', __name__)
+
+# --- tunables ---------------------------------------------------------------- #
+LOGIN_LINK_TTL = timedelta(minutes=15)      # magic-link validity
+SESSION_IDLE = timedelta(hours=8)           # inactivity timeout
+SESSION_ABSOLUTE = timedelta(days=7)        # hard cap regardless of activity
+COOKIE_NAME = 'bmrbx_auth'
+CSRF_HEADER = 'X-CSRF-Token'
+TOTP_ISSUER = 'bmrb_extract'
+# Rate limits: (max, window seconds) keyed in Redis.
+RL_REQUEST_LOGIN_IP = (20, 3600)
+RL_REQUEST_LOGIN_EMAIL = (5, 3600)
+RL_VERIFY_IP = (30, 3600)
+RL_TOTP_SESSION = (8, 900)                  # TOTP attempts per login session
+
+_EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+
+# Annotator allowlist (normalized).
+ANNOT_EMAILS = {e.strip().lower() for e in (SERVICE_ANNOT_EMAILS or '').split(',') if e.strip()}
+
+# --- module state (set by init_auth) ---------------------------------------- #
+_session_factory = None   # async_sessionmaker
+_send_email = None        # app.py's _send_email(to, subject, content) -> status str
+_redis = None
+
+
+def init_auth(app, session_factory, send_email):
+    """Wire the blueprint: DB session factory + app's mailer (injected to avoid a
+    circular import) + a Redis client for rate limiting."""
+    global _session_factory, _send_email, _redis
+    _session_factory = session_factory
+    _send_email = send_email
+    _redis = aioredis.Redis(
+        host=os.environ.get('AUTH_REDIS_HOST', 'redis'),
+        port=int(os.environ.get('AUTH_REDIS_PORT', '6379')),
+        db=int(os.environ.get('AUTH_REDIS_DB', '1')),
+        decode_responses=True,
+    )
+    app.register_blueprint(auth_bp)
+
+
+# --- crypto / helpers -------------------------------------------------------- #
+
+def _fernet() -> Fernet:
+    """Fernet keyed from AUTH_SECRET (for encrypting TOTP secrets at rest)."""
+    key = base64.urlsafe_b64encode(hashlib.sha256(AUTH_SECRET.encode()).digest())
+    return Fernet(key)
+
+
+def _encrypt(plaintext: str) -> str:
+    return _fernet().encrypt(plaintext.encode()).decode()
+
+
+def _decrypt(ciphertext: str) -> str:
+    return _fernet().decrypt(ciphertext.encode()).decode()
+
+
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def _norm_email(email: str) -> str:
+    return (email or '').strip().lower()
+
+
+def _now() -> datetime:
+    return datetime.now()  # naive, matches the TIMESTAMP columns used elsewhere
+
+
+def _secure_cookie() -> bool:
+    # Secure in production; relaxed in development so it works without HTTPS.
+    return SERVICE_LEVEL == 'production'
+
+
+async def _rate_ok(key: str, limit: int, window: int) -> bool:
+    """Redis fixed-window counter. Fails OPEN if Redis is unavailable (single-use
+    short-TTL tokens + TOTP remain the primary controls)."""
+    if _redis is None:
+        return True
+    try:
+        n = await _redis.incr(key)
+        if n == 1:
+            await _redis.expire(key, window)
+        return n <= limit
+    except Exception:  # noqa: BLE001 — availability over strictness
+        return True
+
+
+def _set_cookie(resp, sid: str):
+    resp.set_cookie(
+        COOKIE_NAME, sid, max_age=int(SESSION_ABSOLUTE.total_seconds()),
+        httponly=True, secure=_secure_cookie(), samesite='Lax', path='/',
+    )
+
+
+def _clear_cookie(resp):
+    resp.set_cookie(COOKIE_NAME, '', max_age=0, httponly=True,
+                    secure=_secure_cookie(), samesite='Lax', path='/')
+
+
+# --- shared auth resolution / CSRF (reused by app.py) ------------------------ #
+
+async def current_auth(db):
+    """Resolve the caller's login from the cookie. Returns (auth_session, app_user)
+    or (None, None). Enforces revocation, absolute + idle expiry; refreshes
+    last_seen_at. Does NOT enforce TOTP — callers check `totp_ok` for admin power."""
+    sid = request.cookies.get(COOKIE_NAME)
+    if not sid:
+        return None, None
+    row = (
+        await db.execute(select(AuthSession).where(AuthSession.id == sid))
+    ).scalar_one_or_none()
+    if row is None or row.revoked:
+        return None, None
+    now = _now()
+    if row.absolute_expiry < now or (row.last_seen_at and row.last_seen_at + SESSION_IDLE < now):
+        return None, None
+    user = (
+        await db.execute(select(AppUser).where(AppUser.id == row.user_id))
+    ).scalar_one_or_none()
+    if user is None or user.disabled:
+        return None, None
+    await db.execute(update(AuthSession).where(AuthSession.id == sid).values(last_seen_at=now))
+    await db.commit()
+    return row, user
+
+
+def csrf_valid(auth_session) -> bool:
+    """Constant-time compare of the request's CSRF header to the session token."""
+    if auth_session is None:
+        return False
+    sent = request.headers.get(CSRF_HEADER, '')
+    return bool(sent) and hmac.compare_digest(sent, auth_session.csrf_token or '')
+
+
+def is_admin(auth_session, user) -> bool:
+    """Full annotator (admin) authority = annotator role AND TOTP satisfied."""
+    return bool(user and user.role == 'annotator' and auth_session and auth_session.totp_ok)
+
+
+async def record_admin_access(db, user, session_row, action: str):
+    """Audit one annotator access to a session they do not own."""
+    await db.execute(AdminAccessAudit.__table__.insert().values(
+        annotator_id=user.id,
+        session_token=session_row.token if session_row is not None else None,
+        conversion_id=session_row.conversion_id if session_row is not None else None,
+        action=action,
+        client_ip=request.remote_addr,
+    ))
+    await db.commit()
+
+
+async def authorize_session(db, session_row, auth_session, user, action='access'):
+    """Authorization decision for a session-scoped request. Allow when:
+      - the session is anonymous (user_id NULL) — legacy capability flow, or
+      - the caller owns it, or
+      - the caller is an admin annotator (audited).
+    Returns True/False. (The caller must already have matched the session token.)"""
+    if session_row is None:
+        return False
+    if session_row.user_id is None:
+        return True
+    if user is not None and str(session_row.user_id) == str(user.id):
+        return True
+    if is_admin(auth_session, user):
+        await record_admin_access(db, user, session_row, action)
+        return True
+    return False
+
+
+# --- endpoints --------------------------------------------------------------- #
+
+@auth_bp.route('/api/auth/request_login', methods=['POST'])
+async def request_login():
+    """Email a single-use magic link. Always returns a generic 200 (no account
+    enumeration). Rate-limited per IP and per email."""
+    body = request.get_json(silent=True) or {}
+    email = _norm_email(body.get('email'))
+    generic = {'ok': True, 'message': 'If that address can sign in, a login link has been sent.'}
+
+    if not _EMAIL_RE.match(email):
+        return generic, 200  # never reveal validity
+    ip = request.remote_addr or 'unknown'
+    if not await _rate_ok(f'auth:rl:reqip:{ip}', *RL_REQUEST_LOGIN_IP):
+        return generic, 200
+    if not await _rate_ok(f'auth:rl:reqemail:{email}', *RL_REQUEST_LOGIN_EMAIL):
+        return generic, 200
+
+    token = secrets.token_urlsafe(32)
+    async with _session_factory() as db:
+        await db.execute(LoginChallenge.__table__.insert().values(
+            email=email, token_hash=_hash_token(token), purpose='login',
+            expires_at=_now() + LOGIN_LINK_TTL,
+        ))
+        await db.commit()
+
+    link = f'https://{SERVICE_HOST}/login/verify?c={token}'
+    subject = 'bmrb_extract sign-in link'
+    content = (
+        f'Use the link below to sign in to bmrb_extract. It is valid for '
+        f'{int(LOGIN_LINK_TTL.total_seconds() // 60)} minutes and can be used once.\n\n'
+        f'{link}\n\n'
+        'If you did not request this, you can ignore this email.'
+    )
+    if _send_email is not None:
+        _send_email(email, subject, content)
+    return generic, 200
+
+
+@auth_bp.route('/api/auth/verify', methods=['POST'])
+async def verify():
+    """Consume a magic-link token, create/find the user, and issue a login session
+    cookie. Annotators still need TOTP before admin authority (totp_ok stays False)."""
+    ip = request.remote_addr or 'unknown'
+    if not await _rate_ok(f'auth:rl:verifyip:{ip}', *RL_VERIFY_IP):
+        return {'error': 'too many attempts, please retry later'}, 429
+
+    body = request.get_json(silent=True) or {}
+    token = body.get('c') or request.args.get('c') or ''
+    if not token:
+        return {'error': 'invalid or expired link'}, 400
+    token_hash = _hash_token(token)
+
+    async with _session_factory() as db:
+        now = _now()
+        ch = (
+            await db.execute(
+                select(LoginChallenge).where(
+                    LoginChallenge.token_hash == token_hash,
+                    LoginChallenge.consumed_at.is_(None),
+                    LoginChallenge.expires_at > now,
+                )
+            )
+        ).scalar_one_or_none()
+        if ch is None:
+            return {'error': 'invalid or expired link'}, 400
+        # Single-use: consume immediately.
+        await db.execute(update(LoginChallenge).where(LoginChallenge.id == ch.id)
+                         .values(consumed_at=now))
+
+        email = _norm_email(ch.email)
+        user = (
+            await db.execute(select(AppUser).where(AppUser.email == email))
+        ).scalar_one_or_none()
+        role = 'annotator' if email in ANNOT_EMAILS else 'user'
+        if user is None:
+            await db.execute(AppUser.__table__.insert().values(email=email, role=role))
+            user = (
+                await db.execute(select(AppUser).where(AppUser.email == email))
+            ).scalar_one()
+        else:
+            # Keep the role in sync with the current allowlist.
+            if user.role != role:
+                await db.execute(update(AppUser).where(AppUser.id == user.id).values(role=role))
+                user.role = role
+            if user.disabled:
+                await db.commit()
+                return {'error': 'account disabled'}, 403
+        await db.execute(update(AppUser).where(AppUser.id == user.id).values(last_login_at=now))
+
+        # Fresh login session (anti-fixation: brand-new id). Users are fully
+        # authenticated immediately; annotators require the TOTP step next.
+        sid = secrets.token_urlsafe(32)
+        csrf = secrets.token_urlsafe(32)
+        await db.execute(AuthSession.__table__.insert().values(
+            id=sid, user_id=user.id, csrf_token=csrf,
+            totp_ok=(role != 'annotator'),
+            absolute_expiry=now + SESSION_ABSOLUTE,
+            client_ip=request.remote_addr, user_agent=request.headers.get('User-Agent', ''),
+        ))
+        await db.commit()
+
+        totp_required = role == 'annotator'
+        payload = {
+            'authenticated': True,
+            'email': email,
+            'role': role,
+            'csrf_token': csrf,
+            'totp_required': totp_required,
+            'totp_enrolled': bool(user.totp_enrolled),
+        }
+    resp = jsonify(payload)
+    _set_cookie(resp, sid)
+    return resp
+
+
+@auth_bp.route('/api/auth/me', methods=['GET'])
+async def me():
+    """Current auth state for the frontend."""
+    async with _session_factory() as db:
+        auth_session, user = await current_auth(db)
+        if user is None:
+            return {'authenticated': False}, 200
+        return {
+            'authenticated': True,
+            'email': user.email,
+            'role': user.role,
+            'csrf_token': auth_session.csrf_token,
+            'totp_required': user.role == 'annotator' and not auth_session.totp_ok,
+            'totp_enrolled': bool(user.totp_enrolled),
+        }, 200
+
+
+@auth_bp.route('/api/auth/totp/enroll', methods=['POST'])
+async def totp_enroll():
+    """Begin TOTP enrollment for an annotator who has not enrolled yet: generate a
+    secret (stored encrypted, not yet active) and return the otpauth URI + QR PNG."""
+    async with _session_factory() as db:
+        auth_session, user = await current_auth(db)
+        if user is None or user.role != 'annotator':
+            return {'error': 'not authorized'}, 403
+        if not csrf_valid(auth_session):
+            return {'error': 'invalid CSRF token'}, 403
+        if user.totp_enrolled:
+            return {'error': 'already enrolled'}, 409
+        secret = pyotp.random_base32()
+        await db.execute(update(AppUser).where(AppUser.id == user.id)
+                         .values(totp_secret=_encrypt(secret)))
+        await db.commit()
+        uri = pyotp.TOTP(secret).provisioning_uri(name=user.email, issuer_name=TOTP_ISSUER)
+    img = qrcode.make(uri)
+    buf = BytesIO()
+    img.save(buf, format='PNG')
+    qr_data_uri = 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode()
+    return {'otpauth_uri': uri, 'qr': qr_data_uri}, 200
+
+
+@auth_bp.route('/api/auth/totp/verify', methods=['POST'])
+async def totp_verify():
+    """Verify a 6-digit TOTP code; on success mark the login session totp_ok (and
+    finalize enrollment on first use). Rate-limited per session."""
+    async with _session_factory() as db:
+        auth_session, user = await current_auth(db)
+        if user is None or user.role != 'annotator' or auth_session is None:
+            return {'error': 'not authorized'}, 403
+        if not csrf_valid(auth_session):
+            return {'error': 'invalid CSRF token'}, 403
+        if not await _rate_ok(f'auth:rl:totp:{auth_session.id}', *RL_TOTP_SESSION):
+            return {'error': 'too many attempts, please retry later'}, 429
+        if not user.totp_secret:
+            return {'error': 'not enrolled'}, 409
+        code = str((request.get_json(silent=True) or {}).get('code', '')).strip()
+        try:
+            secret = _decrypt(user.totp_secret)
+        except InvalidToken:
+            return {'error': 'server misconfiguration'}, 500
+        if not code or not pyotp.TOTP(secret).verify(code, valid_window=1):
+            return {'error': 'invalid code'}, 401
+        if not user.totp_enrolled:
+            await db.execute(update(AppUser).where(AppUser.id == user.id)
+                             .values(totp_enrolled=True))
+        await db.execute(update(AuthSession).where(AuthSession.id == auth_session.id)
+                         .values(totp_ok=True))
+        await db.commit()
+    return {'ok': True, 'role': 'annotator'}, 200
+
+
+@auth_bp.route('/api/auth/logout', methods=['POST'])
+async def logout():
+    """Revoke the current login session and clear the cookie."""
+    sid = request.cookies.get(COOKIE_NAME)
+    if sid:
+        async with _session_factory() as db:
+            await db.execute(update(AuthSession).where(AuthSession.id == sid).values(revoked=True))
+            await db.commit()
+    resp = jsonify({'ok': True})
+    _clear_cookie(resp)
+    return resp

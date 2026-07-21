@@ -736,6 +736,12 @@ def _send_email(to_address: str, subject: str, content: str) -> str:
         return DeliveryStatusCode.failed.value
 
 
+# Register the passwordless-login + annotator/admin auth blueprint. Injecting the
+# session factory and mailer avoids a circular import with features.auth.
+from features.auth import init_auth  # noqa: E402
+init_auth(app, async_session_factory, _send_email)
+
+
 @app.route('/api/send_resume_url', methods=['POST'])
 async def send_resume_url():
     """Email the session's resumable URL to a recipient and log it as a
