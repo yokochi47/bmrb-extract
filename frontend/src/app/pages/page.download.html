@@ -103,6 +103,12 @@
             included for this conversion.
           </p>
         }
+        @if (pdfGenerating()) {
+          <p class="text-sm text-surface-500 mt-3">
+            <i class="pi pi-spin pi-spinner mr-1"></i>The conversion report (PDF) is still being
+            generated — the download will be available once it is ready.
+          </p>
+        }
       } @else {
         <p class="text-surface-500 text-sm">No result files are available for this conversion.</p>
       }
@@ -122,7 +128,7 @@
       label="Download {{ zipName() }}"
       icon="pi pi-download"
       severity="success"
-      [disabled]="!approved()"
+      [disabled]="!approved() || pdfGenerating()"
       (click)="download()"
     />
   } @else {

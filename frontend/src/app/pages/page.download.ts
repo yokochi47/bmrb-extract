@@ -506,8 +506,8 @@ export class Download {
 
   constructor() {
     // Load the result-file listing once the session token is known, then keep
-    // polling while the deferred NEF release is still generating (so the .nef row
-    // appears on its own); stops as soon as nef_generating clears.
+    // polling while either deferred step (NEF release, PDF report) is still
+    // generating, so their rows appear on their own; stops once both clear.
     let started = false;
     effect(() => {
       const token = this.pageService.pageState().tokenBase;
@@ -516,18 +516,20 @@ export class Download {
       timer(0, 5000)
         .pipe(
           switchMap(() =>
-            this.http.get<{ files: OutputFileRow[]; nef_generating?: boolean }>(
-              API_URL + 'output_files',
-              { params: { token } },
-            ),
+            this.http.get<{
+              files: OutputFileRow[];
+              nef_generating?: boolean;
+              pdf_generating?: boolean;
+            }>(API_URL + 'output_files', { params: { token } }),
           ),
-          takeWhile((res) => !!res.nef_generating, true),
+          takeWhile((res) => !!res.nef_generating || !!res.pdf_generating, true),
           takeUntilDestroyed(this.destroyRef),
         )
         .subscribe({
           next: (res) => {
             this.files.set(res.files ?? []);
             this.nefGenerating.set(!!res.nef_generating);
+            this.pdfGenerating.set(!!res.pdf_generating);
           },
           error: (err) => console.error('Failed to load output files', err),
         });
@@ -598,6 +600,10 @@ export class Download {
 
   /** The deferred NMR-STAR→NEF release is still running (poll until it clears). */
   nefGenerating = signal(false);
+
+  /** The deferred JSON→PDF conversion report is still running; the download is
+   * blocked until it clears so the Zip always carries the report. */
+  pdfGenerating = signal(false);
 
   /** A NEF file was produced — else the table shows the NEF-unavailable note. */
   hasNef = computed(() => this.files().some((f) => f.file_type === 'nef'));
