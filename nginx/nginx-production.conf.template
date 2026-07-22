@@ -81,6 +81,8 @@ http {
         add_header Alt-Svc 'h3=":443"; ma=86400' always;
         add_header QUIC-Status $quic always;
         add_header Referrer-Policy 'same-origin' always;
+        # HSTS: enforce HTTPS for the auth cookies and the whole service.
+        add_header Strict-Transport-Security 'max-age=31536000; includeSubDomains' always;
 
         # ---- Prefect server ----
         location /prefect-server {
