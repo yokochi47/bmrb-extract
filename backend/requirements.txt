@@ -5,3 +5,7 @@ asyncpg
 gitpython
 httpx
 py3-validate-email
+pyotp
+qrcode[pil]
+redis
+cryptography

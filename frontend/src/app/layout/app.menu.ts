@@ -5,6 +5,7 @@ import { MenuItem } from 'primeng/api';
 
 import { AppMenuitem } from './app.menuitem';
 import { PageService } from '../pages/page.service';
+import { AuthService } from '../pages/auth.service';
 
 @Component({
   selector: 'app-menu',
@@ -13,11 +14,13 @@ import { PageService } from '../pages/page.service';
 })
 export class AppMenu {
   pageService = inject(PageService);
+  private auth = inject(AuthService);
 
   // Protected pages (Upload files / Upload summary / Download) stay disabled
   // until the user agrees to the policy, and re-disable when consent is revoked.
   model = computed<MenuItem[]>(() => {
     const consented = this.pageService.pageState().consentedTo;
+    const authed = this.auth.authenticated();
     return [
       {
         label: 'Navigation',
@@ -55,20 +58,17 @@ export class AppMenu {
       {
         label: 'Communication',
         path: '',
-        items: [
-          {
-            label: 'Login',
-            icon: 'pi pi-fw pi-sign-in',
-            routerLink: ['/login'],
-          },
-          {
-            label: 'Help desk',
-            icon: 'pi pi-fw pi-question-circle',
-            routerLink: ['/help'],
-            queryParamsHandling: 'preserve',
-            disabled: !consented,
-          },
-        ],
+        items: authed
+          ? [
+              { label: 'My sessions', icon: 'pi pi-fw pi-list', routerLink: ['/sessions'] },
+              {
+                label: 'Help desk',
+                icon: 'pi pi-fw pi-question-circle',
+                routerLink: ['/help'],
+              },
+              { label: 'Account', icon: 'pi pi-fw pi-user', routerLink: ['/login'] },
+            ]
+          : [{ label: 'Login', icon: 'pi pi-fw pi-sign-in', routerLink: ['/login'] }],
       },
       {
         label: 'Document',

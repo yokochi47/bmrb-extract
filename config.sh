@@ -8,13 +8,14 @@ if [ -e .env ] ; then
   source .env
 fi
 
-echo "Choose service level: [ production or development ]"
+echo "Choose service level: [ production or development (80 port) or cert-devel (80 and 433 ports)]"
 
 read ans
 
 case "${ans}" in
   p*)
     SERVICE_LEVEL=production
+    NGINX_SERVICE_LEVEL=${SERVICE_LEVEL}
     ;;
   d*)
     if [[ "${SERVICE_LEVEL}" = "production" ]] ; then
@@ -33,6 +34,26 @@ case "${ans}" in
 
     fi
     SERVICE_LEVEL=development
+    NGINX_SERVICE_LEVEL=${SERVICE_LEVEL}
+    ;;
+  c*)
+    if [[ "${SERVICE_LEVEL}" = "production" ]] ; then
+
+      echo "CAVEAT: Do you really want to change the service level from 'production' to 'development'? [y/N]"
+
+      read ans2
+
+      case "${ans2}" in
+        y*|Y*)
+          ;;
+        *)
+          echo Aborted.
+          exit 1;;
+      esac
+
+    fi
+    SERVICE_LEVEL=development
+    NGINX_SERVICE_LEVEL=production
     ;;
   *)
     echo "Error: ${ans} is not defined."
@@ -40,6 +61,8 @@ case "${ans}" in
     ;;
 
 esac
+
+echo "The current service level is \"${SERVICE_LEVEL}\"."
 
 if [[ -z "${SERVICE_DOMAIN}" ]] ; then
 
@@ -84,6 +107,7 @@ if [[ "${SERVICE_LEVEL}" = "development" ]] ; then
 fi
 
 email_regex='^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\n$'
+email_list_regex='^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:\s*,\s*[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})*\n?$'
 
 if [[ -z "${SERVICE_ADMIN_EMAIL}" ]] ; then
 
@@ -97,6 +121,28 @@ if [[ -z "${SERVICE_ADMIN_EMAIL}" ]] ; then
   fi
 
   SERVICE_ADMIN_EMAIL=$ans
+
+fi
+
+if [[ -z "${SERVICE_ANNOT_EMAILS}" ]] ; then
+
+  echo "Please set list of email addresses for annotators assigned to both sites (must have access to all sessions to handle user inquiries; comma-separated):"
+
+  read ans
+
+  if [[ "${ans}" =~ $email_list_regex ]] ; then
+    echo "Error: ${ans} is not valid."
+    exit 1
+  fi
+
+  SERVICE_ANNOT_EMAILS=$ans
+
+else
+
+ if [[ "${SERVICE_ANNOT_EMAILS}" =~ $email_list_regex ]] ; then
+    echo "Error: ${SERVICE_ANNOT_EMAILS} is not valid."
+    exit 1
+ fi
 
 fi
 
@@ -172,9 +218,9 @@ if [[ -z "${UTILS_NMR_SELF_RUNNER_TOKEN}" ]] ; then
 
 fi
 
-if [[ -z "${SECRET_KEY}" ]] ; then
+if [[ -z "${AUTH_SECRET}" ]] ; then
 
-  SECRET_KEY=$(python3 -c "import uuid; print(uuid.uuid4())")
+  AUTH_SECRET=$(python3 -c "import secrets; print(secrets.token_urlsafe(48))")
 
 fi
 
@@ -193,7 +239,7 @@ cat << EOF >> .env
 ##
 ## Configure bellow lines
 ##
-export SECRET_KEY=${SECRET_KEY}
+export AUTH_SECRET=${AUTH_SECRET}
 export SMTP_SERVER=${SMTP_SERVER}
 export CONV_ID_RANGE_BEGIN=${CONV_ID_RANGE_BEGIN}
 export CONV_ID_RANGE_END=${CONV_ID_RANGE_END}
@@ -205,6 +251,7 @@ export SERVICE_DOMAIN=${SERVICE_DOMAIN}
 export SERVICE_HOST=${SERVICE_SUBDOMAIN}.${SERVICE_DOMAIN}
 export SERVICE_ADMIN_EMAIL=${SERVICE_ADMIN_EMAIL}
 export SERVICE_HELP_EMAIL=${SERVICE_HELP_EMAIL}
+export SERVICE_ANNOT_EMAILS=${SERVICE_ANNOT_EMAILS}
 
 # Nginx
 NGINX_LOG_FORMAT=${NGINX_LOG_FORMAT}
@@ -248,7 +295,7 @@ source .env
 #
 ( cd nginx
   rm -f nginx.conf.template
-  ln -s nginx-${SERVICE_LEVEL}.conf.template nginx.conf.template )
+  ln -s nginx-${NGINX_SERVICE_LEVEL}.conf.template nginx.conf.template )
 sed -e 's/${SERVICE_HOST}/'"${SERVICE_HOST}"'/' < nginx/nginx.conf.template | \
 sed -e 's/${NGINX_LOG_FORMAT}/'"${NGINX_LOG_FORMAT}"'/' > nginx/nginx.conf
 
@@ -257,7 +304,7 @@ check_file nginx/nginx.conf
 #
 # Write ssl.conf
 #
-envsubst < nginx/ssl.conf.template > nginx/ssl.conf
+envsubst < nginx/ssl-${NGINX_SERVICE_LEVEL}.conf.template > nginx/ssl.conf
 
 check_file nginx/ssl.conf
 

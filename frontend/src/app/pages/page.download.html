@@ -169,19 +169,19 @@
             <tbody>
               <tr>
                 <td class="pr-3 py-0.5 align-top">Conversion ID</td>
-                <td class="py-0.5 font-bold">{{ publicId() }}</td>
+                <td class="py-0.5">{{ publicId() }}</td>
               </tr>
               <tr>
                 <td class="pr-3 py-0.5 align-top">Output used for</td>
-                <td class="py-0.5 font-bold">{{ outputUsedFor() }}</td>
+                <td class="py-0.5">{{ outputUsedFor() }}</td>
               </tr>
               <tr>
                 <td class="pr-3 py-0.5 align-top">Processed site</td>
-                <td class="py-0.5 font-bold">{{ processedSite() }}</td>
+                <td class="py-0.5">{{ processedSite() }}</td>
               </tr>
               <tr>
                 <td class="pr-3 py-0.5 align-top">Timestamp (UTC)</td>
-                <td class="py-0.5 font-bold">{{ reportTimestamp() }}</td>
+                <td class="py-0.5">{{ reportTimestamp() }}</td>
               </tr>
             </tbody>
           </table>
@@ -1365,12 +1365,8 @@
                 </p>
                 @if (sf.atomNameMapping.length) {
                   <p class="text-base mb-4 mx-2">
-                    The table below shows how the system interpreted author-defined atom names (e.g.
-                    pseudoatom names specific to NMR) during data conversion. All atom names have
-                    been standardized based on the Chemical Component Dictionary (CCD). Atom names
-                    subject to unusual mapping are highlighted in red color. Please verify that the
-                    atom name mappings are correct. If any mappings are unexpected, modify the
-                    uploaded file to use appropriate atom names that comply with the CCD.
+                    Author-defined atom names standardized against the CCD. Unusual mappings are
+                    shown in red — verify they are correct.
                   </p>
                   <div class="overflow-x-auto">
                     <table class="w-full text-sm border-collapse mb-4">

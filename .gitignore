@@ -21,5 +21,9 @@ nginx/nginx.conf.template
 nginx/ssl.conf
 postgres/init.sql
 postgres/init.seq.template
+postgres/init.sql.template
+backend/app/core/site_config.py
+certbot/certbot.sh
+prefect/data/memo_store.toml
 redis/data/dump.rdb
 redis/data/appendonlydir
