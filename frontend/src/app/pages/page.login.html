@@ -1,0 +1,60 @@
+<div class="max-w-2xl mx-auto p-4">
+  <h2 class="text-2xl font-bold mb-4">Sign in</h2>
+
+  @if (authenticated() && !totpRequired()) {
+    <p-message severity="success" styleClass="w-full mb-4" [closable]="false">
+      Signed in as <strong>{{ email() }}</strong> ({{ role() }}).
+    </p-message>
+    <div class="flex flex-wrap gap-2">
+      <a pButton routerLink="/sessions" icon="pi pi-list">My sessions</a>
+      <a pButton routerLink="/help" icon="pi pi-question-circle" severity="secondary">Help desk</a>
+      <p-button label="Sign out" icon="pi pi-sign-out" severity="secondary" [outlined]="true" (click)="logout()" />
+    </div>
+  } @else if (authenticated() && totpRequired()) {
+    <p class="mb-3">
+      Two-factor authentication is required for annotator (admin) access. Use an authenticator app
+      such as Google Authenticator or Authy.
+    </p>
+    @if (!totpEnrolled()) {
+      @if (!qr()) {
+        <p-button label="Begin authenticator setup" icon="pi pi-shield" (click)="startEnroll()" />
+      } @else {
+        <p class="mb-2">Scan this QR code with your authenticator app, then enter the 6-digit code:</p>
+        <img [src]="qr()" alt="Authenticator QR code" class="mb-3 border rounded"
+             style="width:180px;height:180px" />
+      }
+    }
+    @if (totpEnrolled() || qr()) {
+      <div class="flex gap-2 items-center mt-2">
+        <input pInputText inputmode="numeric" autocomplete="one-time-code" placeholder="123456"
+               [ngModel]="codeInput()" (ngModelChange)="codeInput.set($event)" />
+        <p-button label="Verify" (click)="submitTotp()" [disabled]="totpBusy()" />
+      </div>
+    }
+    @if (totpError()) {
+      <p-message severity="error" styleClass="w-full mt-3" [closable]="false">{{ totpError() }}</p-message>
+    }
+    <div class="mt-4">
+      <p-button label="Cancel and sign out" [link]="true" (click)="logout()" />
+    </div>
+  } @else {
+    @if (!sent()) {
+      <p class="mb-3">Enter your email address and we'll send you a single-use sign-in link.</p>
+      <div class="flex gap-2 items-center">
+        <input pInputText type="email" autocomplete="email" placeholder="you@example.org"
+               class="w-80" [ngModel]="emailInput()" (ngModelChange)="emailInput.set($event)"
+               (keyup.enter)="submit()" />
+        <p-button label="Send link" icon="pi pi-envelope" (click)="submit()" [disabled]="busy()" />
+      </div>
+      <p class="text-sm text-surface-500 mt-3">
+        Login lets you revisit your past sessions and contact our annotators via the Help desk. You
+        can continue to use the service anonymously without signing in.
+      </p>
+    } @else {
+      <p-message severity="info" styleClass="w-full" [closable]="false">
+        If that address can sign in, a login link has been sent. Please check your email — the link
+        is valid for a short time and can be used once.
+      </p-message>
+    }
+  }
+</div>

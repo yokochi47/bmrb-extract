@@ -1,11 +1,25 @@
 import { inject } from '@angular/core';
-import { CanActivateFn, Routes } from '@angular/router';
+import { CanActivateFn, Router, Routes } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { catchError, map, of } from 'rxjs';
 
 import { AppLayout } from './app/layout/app.layout';
 import { PageService } from './app/pages/page.service';
+import { AuthService } from './app/pages/auth.service';
 import { API_URL } from './site.config';
+
+/** Require a logged-in user; otherwise redirect to /login. */
+export const authGuard: CanActivateFn = () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  if (auth.authenticated()) {
+    return true;
+  }
+  return auth.refresh().pipe(
+    map((s) => (s.authenticated ? true : router.createUrlTree(['/login']))),
+    catchError(() => of(router.createUrlTree(['/login']))),
+  );
+};
 
 /**
  * Block navigation when the session token is absent, consent is revoked,
@@ -106,7 +120,22 @@ export const appRoutes: Routes = [
         canActivate: [tokenGuard],
         loadComponent: () => import('./app/pages/page.download').then((m) => m.Download),
       },
-      // { path: 'help',     canActivate: [tokenGuard], loadComponent: ... },
+      // Authentication + account pages.
+      { path: 'login', loadComponent: () => import('./app/pages/page.login').then((m) => m.Login) },
+      {
+        path: 'login/verify',
+        loadComponent: () => import('./app/pages/page.login-verify').then((m) => m.LoginVerify),
+      },
+      {
+        path: 'sessions',
+        canActivate: [authGuard],
+        loadComponent: () => import('./app/pages/page.sessions').then((m) => m.Sessions),
+      },
+      {
+        path: 'help',
+        canActivate: [authGuard],
+        loadComponent: () => import('./app/pages/page.help').then((m) => m.Help),
+      },
     ],
   },
 ];

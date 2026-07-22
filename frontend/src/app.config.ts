@@ -1,4 +1,6 @@
-import { provideHttpClient, withFetch } from '@angular/common/http';
+import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
+
+import { authInterceptor } from './app/pages/auth.interceptor';
 import { ApplicationConfig, provideZonelessChangeDetection } from '@angular/core';
 import {
   provideRouter,
@@ -66,7 +68,7 @@ export const appConfig: ApplicationConfig = {
       withInMemoryScrolling({ anchorScrolling: 'enabled', scrollPositionRestoration: 'enabled' }),
       withEnabledBlockingInitialNavigation(),
     ),
-    provideHttpClient(withFetch()),
+    provideHttpClient(withFetch(), withInterceptors([authInterceptor])),
     provideZonelessChangeDetection(),
     providePrimeNG({ theme: { preset: MyPreset, options: { darkModeSelector: '.app-dark' } } }),
   ],
