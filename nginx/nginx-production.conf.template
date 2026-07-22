@@ -53,6 +53,13 @@ http {
             root /var/www/certbot;
         }
 
+        # ---- Container healthcheck (plain HTTP, no redirect/TLS) ----
+        location = /healthz {
+            access_log off;
+            add_header Content-Type text/plain;
+            return 200 'ok';
+        }
+
         # ---- Redirect from HTTP to HTTPS ----
         location / {
             return 301 https://$host$request_uri;
@@ -79,7 +86,7 @@ http {
 
         # ---- QUIC / HTTP3 ----
         add_header Alt-Svc 'h3=":443"; ma=86400' always;
-        add_header QUIC-Status $quic always;
+        add_header QUIC-Status $http3 always;
         add_header Referrer-Policy 'same-origin' always;
         # HSTS: enforce HTTPS for the auth cookies and the whole service.
         add_header Strict-Transport-Security 'max-age=31536000; includeSubDomains' always;

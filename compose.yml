@@ -154,22 +154,22 @@ services:
       - ./nginx/share/401.html:/usr/share/nginx/html/401.html
       - ./nginx/share/403.html:/usr/share/nginx/html/403.html
       - nginx_logs:/var/log/nginx
-      # - ./certbot/cert:/etc/letsencrypt
-      # - ./certbot/www:/var/www/certbot
+      - ./certbot/cert:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
       interval: 5s
       timeout: 5s
       retries: 3
 
-#  certbot:
-#    image: certbot/certbot:latest
-#    container_name: bmrb-extract-certbot
-#    volumes:
-#      - ./certbot/cert:/etc/letsencrypt
-#      - ./certbot/www:/var/www/certbot
-#      - ./certbot/certbot.sh:/certbot.sh:ro
-#    entrypoint: ["/bin/sh", "/certbot.sh"]
+  certbot:
+    image: certbot/certbot:latest
+    container_name: bmrb-extract-certbot
+    volumes:
+      - ./certbot/cert:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/certbot.sh:/certbot.sh:ro
+    entrypoint: ["/bin/sh", "/certbot.sh"]
 
 networks:
   internal:

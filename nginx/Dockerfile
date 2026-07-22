@@ -3,8 +3,7 @@
 # =========================
 FROM alpine:latest AS build
 
-ARG NGINX_VERSION=1.29.6
-ARG OPENSSL_VERSION=3.6.1
+ARG NGINX_VERSION=1.30.4
 
 RUN apk add --no-cache \
     build-base \
@@ -15,25 +14,19 @@ RUN apk add --no-cache \
     perl \
     zlib-dev \
     pcre2-dev \
-    brotli-dev
+    brotli-dev \
+    openssl \
+    openssl-dev
 
 WORKDIR /build
 
 ENV MIN_NGINX_VERSION=1.25.3
 ENV MIN_OPENSSL_VERSION=3.5.1
 
-# ---- Download OpenSSL (QUIC requires >= 3.0) ----
-RUN echo "OpenSSL version: $OPENSSL_VERSION"; \
- if [ "$(printf '%s\n' "$MIN_OPENSSL_VERSION" "$OPENSSL_VERSION" | sort -V | head -n1)" = "$MIN_OPENSSL_VERSION" ]; then \
-    echo "Version OK"; else exit 1; fi; \
- curl -LO https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz \
- && tar xzf openssl-${OPENSSL_VERSION}.tar.gz \
- && cd openssl-${OPENSSL_VERSION} \
- && ./Configure linux-x86_64 no-shared \
- && make -j$(nproc) \
- && make install_sw
-
-ENV OPENSSL_PREFIX=/build/openssl-${OPENSSL_VERSION}
+# ---- Check OpenSSL version (QUIC requires >= 3.5)
+RUN OPENSSL_VERSION=`openssl version`; \
+    if [ "$(printf '%s\n' "$MIN_OPENSSL_VERSION" "$OPENSSL_VERSION" | sort -V | head -n1)" = "$MIN_OPENSSL_VERSION" ]; then \
+     echo "Version OK"; else exit 1; fi
 
 # ---- Download Nginx ----
 RUN echo "Nginx version: $NGINX_VERSION"; \
@@ -57,7 +50,6 @@ RUN ./configure \
     --with-http_v3_module \
     --with-pcre-jit \
     --with-threads \
-    --with-openssl=${OPENSSL_PREFIX} \
     --with-openssl-opt=enable-tls1_3 \
     --with-stream \
     --with-stream_ssl_module \
@@ -79,7 +71,8 @@ RUN apk add --no-cache \
     ca-certificates \
     tzdata \
     logrotate \
-    busybox-suid
+    busybox-suid \
+    openssl
 
 # Nginx runtime user
 RUN addgroup -S nginx && adduser -S nginx -G nginx

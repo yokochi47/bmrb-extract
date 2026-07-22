@@ -177,7 +177,6 @@ docker system info
 #
 # Pull Docker containers
 #
-
 for repo in "${ACTION_RUNNER_REPOS[@]}" ; do
 
   case $repo in
@@ -200,7 +199,6 @@ done
 #
 # Setup Docker Swarm Cluster
 #
-
 for repo in "${ACTION_RUNNER_REPOS[@]}" ; do
 
   case $repo in
@@ -238,9 +236,9 @@ docker volume ls
 # nginx depends on frontend
 COMPOSE_BAKE=true docker compose build frontend
 
-COMPOSE_BAKE=true docker compose build --build-arg OPENSSL_VERSION=${OPENSSL_VERSION} --build-arg NGINX_VERSION=${NGINX_VERSION} --build-arg CACHEBUST=$(date +%s) # --no-cache
+COMPOSE_BAKE=true docker compose build --build-arg NGINX_VERSION=${NGINX_VERSION} --build-arg CACHEBUST=$(date +%s) # --no-cache
 
-# Performance tuning for HTTP/3 (UDP)
+# Tuning for HTTP/3 (UDP)
 net_core_mem_max=7500000
 
 if [[ "`sysctl -n net.core.rmem_max`" -lt $net_core_mem_max ]] ; then
@@ -249,5 +247,10 @@ fi
 
 if [[ "`sysctl -n net.core.wmem_max`" -lt $net_core_mem_max ]] ; then
   sudo sysctl -w net.core.wmem_max=$net_core_mem_max
+fi
+
+# Tuning for redis
+if [[ "`sysctl -n vm.overcommit_memory`" -eq 0 ]] ; then
+  sudo sysctl -w vm.overcommit_memory=1
 fi
 

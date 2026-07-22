@@ -8,10 +8,9 @@
 
 \c internal;
 
-DROP TABLE IF EXISTS admin_access_audit, auth_session, login_challenge,
-  workflow, communication, notification, output_file, upload_file, session, app_user CASCADE;
+DROP TABLE IF EXISTS workflow, communication, notification, output_file, upload_file, session CASCADE;
 DROP TYPE IF EXISTS wf_status_code, wf_task_code, delivery_status_code,
-  output_file_type, upload_file_type, user_role_code, target_depsys_code,
+  output_file_type, upload_file_type, target_depsys_code,
   session_status_code, processing_site_code CASCADE;
 
 DROP TYPE IF EXISTS processing_site_code;
@@ -24,11 +23,18 @@ CREATE TYPE target_depsys_code AS ENUM ('onedep', 'repl_cs', 'bmrbdep');
 DROP TYPE IF EXISTS user_role_code;
 CREATE TYPE user_role_code AS ENUM ('user', 'annotator');
 
+--
+-- Registered users. Login is passwordless (emailed magic link); an account is
+-- created on first successful login. 'annotator' accounts (email in
+-- SERVICE_ANNOT_EMAILS) additionally require a TOTP second factor and may access
+-- every session. Anonymous use (session with no user_id) remains supported.
+--
+
 CREATE TABLE IF NOT EXISTS app_user (
     id              UUID PRIMARY KEY DEFAULT uuidv7(),
-    email           TEXT NOT NULL UNIQUE,
+    email           TEXT NOT NULL UNIQUE,               -- normalized lowercase
     role            user_role_code NOT NULL DEFAULT 'user',
-    totp_secret     TEXT,
+    totp_secret     TEXT,                               -- base32 TOTP secret, encrypted at rest (annotators)
     totp_enrolled   BOOLEAN NOT NULL DEFAULT FALSE,
     disabled        BOOLEAN NOT NULL DEFAULT FALSE,
     created_at      TIMESTAMP DEFAULT now(),
@@ -47,7 +53,10 @@ CREATE TABLE IF NOT EXISTS session (
 
     consented           BOOLEAN NOT NULL DEFAULT FALSE,     -- whether user consented to our policies: 'Terms and Conditions' and 'Privacy Policy'
 
-    user_id             UUID REFERENCES app_user(id),       -- owner when created while logged in (NULL = anonymous)
+    -- Owner of the session when it was created while logged in; NULL for anonymous
+    -- sessions (still reachable only via their token). Logged-in users can list
+    -- their own sessions; annotators may access any session.
+    user_id             UUID REFERENCES app_user(id),
 
     client_ip           INET,
     user_agent          TEXT,
@@ -251,10 +260,15 @@ CREATE TABLE IF NOT EXISTS workflow (
     PRIMARY KEY ( conversion_id, run_number, ordinal )
 );
 
+--
+-- Passwordless login challenges (emailed magic link). Only a hash of the token
+-- is stored; single-use and short-lived.
+--
+
 CREATE TABLE IF NOT EXISTS login_challenge (
     id              UUID PRIMARY KEY DEFAULT uuidv7(),
-    email           TEXT NOT NULL,
-    token_hash      TEXT NOT NULL,
+    email           TEXT NOT NULL,                      -- normalized lowercase
+    token_hash      TEXT NOT NULL,                      -- SHA-256 of the emailed token
     purpose         TEXT NOT NULL DEFAULT 'login',
     created_at      TIMESTAMP DEFAULT now(),
     expires_at      TIMESTAMP NOT NULL,
@@ -262,8 +276,15 @@ CREATE TABLE IF NOT EXISTS login_challenge (
     attempts        INT NOT NULL DEFAULT 0
 );
 
+--
+-- Server-side authenticated sessions. The opaque id is stored in an httpOnly,
+-- Secure, SameSite cookie; state here so it is revocable (logout / expiry /
+-- account disable). totp_ok gates annotator (admin) authority until the second
+-- factor is satisfied.
+--
+
 CREATE TABLE IF NOT EXISTS auth_session (
-    id              TEXT PRIMARY KEY,
+    id              TEXT PRIMARY KEY,                   -- opaque high-entropy id (cookie value)
     user_id         UUID NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,
     csrf_token      TEXT NOT NULL,
     totp_ok         BOOLEAN NOT NULL DEFAULT FALSE,
@@ -274,6 +295,10 @@ CREATE TABLE IF NOT EXISTS auth_session (
     client_ip       INET,
     user_agent      TEXT
 );
+
+--
+-- Audit trail: one row each time an annotator accesses a session they do not own.
+--
 
 CREATE TABLE IF NOT EXISTS admin_access_audit (
     id              UUID PRIMARY KEY DEFAULT uuidv7(),

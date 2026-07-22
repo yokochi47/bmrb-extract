@@ -8,6 +8,8 @@ certbot certonly \
   --email ${SERVICE_ADMIN_EMAIL} \
   --agree-tos \
   --no-eff-email \
+  --keep-until-expiring \
+  --non-interactive \
   -d ${SERVICE_HOST}
 
 while :; do

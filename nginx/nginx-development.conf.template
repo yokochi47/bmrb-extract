@@ -53,6 +53,13 @@ http {
             root /var/www/certbot;
         }
 
+        # ---- Container healthcheck (plain HTTP) ----
+        location = /healthz {
+            access_log off;
+            add_header Content-Type text/plain;
+            return 200 'ok';
+        }
+
         # ---- Prefect server ----
         location /prefect-server {
             allow 127.0.0.1;

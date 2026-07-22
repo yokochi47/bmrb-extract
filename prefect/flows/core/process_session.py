@@ -62,7 +62,7 @@ from core.site_config import (  # noqa: E402
     SERVICE_DATABASE_URL,
     SERVICE_HELP_EMAIL,
     SERVICE_HOST,
-    SECRET_KEY,
+    AUTH_SECRET,
     SMTP_SERVER,
     ARCHIVE_BASE_PATH,
     WORKSPACE_BASE_PATH,
@@ -401,7 +401,7 @@ def _nmr_driver_script(
         "u.addInput(name='resolve_conflict', value=True, type='param')\n"
         "u.addInput(name='check_mandatory_tag', value=True, type='param')\n"
         "u.addInput(name='conversion_server', value=True, type='param')\n"
-        f"u.addInput(name='secret_key', value={SECRET_KEY!r}, type='param')\n"
+        f"u.addInput(name='secret_key', value={AUTH_SECRET!r}, type='param')\n"
         f"u.addInput(name='service_host', value={SERVICE_HOST!r}, type='param')\n"
         "u.addInput(name='dep_sys_name', value='onedep', type='param')\n"
         f"u.addOutput(name='entry_id', value={entry_id!r}, type='param')\n"
@@ -480,7 +480,7 @@ def _nmr_merge_driver_script(
         "u.addInput(name='nonblk_bad_nterm', value=True, type='param')\n"
         "u.addInput(name='resolve_conflict', value=True, type='param')\n"
         "u.addInput(name='check_mandatory_tag', value=True, type='param')\n"
-        f"u.addInput(name='secret_key', value={SECRET_KEY!r}, type='param')\n"
+        f"u.addInput(name='secret_key', value={AUTH_SECRET!r}, type='param')\n"
         f"u.addInput(name='service_host', value={SERVICE_HOST!r}, type='param')\n"
         "u.addInput(name='dep_sys_name', value='onedep', type='param')\n"
         f"u.addOutput(name='entry_id', value={entry_id!r}, type='param')\n"
@@ -544,7 +544,7 @@ def _nmr_replace_cs_driver_script(
         "u.addInput(name='check_mandatory_tag', value=True, type='param')\n"
         "u.addInput(name='remediation', value=True, type='param')\n"
         "u.addInput(name='conversion_server', value=True, type='param')\n"
-        f"u.addInput(name='secret_key', value={SECRET_KEY!r}, type='param')\n"
+        f"u.addInput(name='secret_key', value={AUTH_SECRET!r}, type='param')\n"
         f"u.addInput(name='service_host', value={SERVICE_HOST!r}, type='param')\n"
         "u.addInput(name='dep_sys_name', value='repl_cs', type='param')\n"
         f"u.addOutput(name='entry_id', value={entry_id!r}, type='param')\n"
@@ -597,7 +597,7 @@ def _nmr_bmrbdep_driver_script(
         "u.addInput(name='check_mandatory_tag', value=True, type='param')\n"
         "u.addInput(name='remediation', value=True, type='param')\n"
         "u.addInput(name='conversion_server', value=True, type='param')\n"
-        f"u.addInput(name='secret_key', value={SECRET_KEY!r}, type='param')\n"
+        f"u.addInput(name='secret_key', value={AUTH_SECRET!r}, type='param')\n"
         f"u.addInput(name='service_host', value={SERVICE_HOST!r}, type='param')\n"
         "u.addInput(name='dep_sys_name', value='bmrbdep', type='param')\n"
         f"u.addOutput(name='entry_id', value={entry_id!r}, type='param')\n"

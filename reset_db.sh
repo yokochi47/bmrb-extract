@@ -26,3 +26,4 @@ docker exec -i bmrb-extract-postgres \
   psql -U "${POSTGRES_USER}" -d "${POSTGRES_SERVICE_DB}" < postgres/reset.sql
 
 echo "Development database reset."
+
