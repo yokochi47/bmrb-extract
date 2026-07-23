@@ -233,12 +233,17 @@ echo
 
 docker volume ls
 
+BUILD_OPTION=
+if [[ $# -ge 1 ]] ; then
+ BUILD_OPTION=$1
+fi
+
 # nginx depends on frontend
 COMPOSE_BAKE=true docker compose build frontend
 
-COMPOSE_BAKE=true docker compose build --build-arg NGINX_VERSION=${NGINX_VERSION} --build-arg CACHEBUST=$(date +%s) # --no-cache
+COMPOSE_BAKE=true docker compose build --build-arg NGINX_VERSION=${NGINX_VERSION} --build-arg CACHEBUST=$(date +%s) ${BUILD_OPTION}
 
-# Tuning for HTTP/3 (UDP)
+# Tweak for HTTP/3 (UDP)
 net_core_mem_max=7500000
 
 if [[ "`sysctl -n net.core.rmem_max`" -lt $net_core_mem_max ]] ; then
@@ -249,7 +254,7 @@ if [[ "`sysctl -n net.core.wmem_max`" -lt $net_core_mem_max ]] ; then
   sudo sysctl -w net.core.wmem_max=$net_core_mem_max
 fi
 
-# Tuning for redis
+# Tweak for Redis
 if [[ "`sysctl -n vm.overcommit_memory`" -eq 0 ]] ; then
   sudo sysctl -w vm.overcommit_memory=1
 fi

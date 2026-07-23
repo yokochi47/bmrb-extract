@@ -8,50 +8,42 @@ if [ -e .env ] ; then
   source .env
 fi
 
-echo "Choose service level: [ production or development (80 port) or cert-devel (80 and 433 ports)]"
+check_step_back() {
+
+  if [[ "${SERVICE_LEVEL}" = "production" ]] ; then
+
+    echo "CAVEAT: Do you really want to change the service level from 'production' to 'development'? [y/N]"
+
+    read ans2
+
+    case "${ans2}" in
+      y*|Y*)
+        ;;
+      *)
+        echo Aborted.
+        exit 1;;
+    esac
+
+  fi
+
+}
+
+echo "Choose service level: [ production or development (tcp/80) or cert-devel (tcp/80, tcp+udp/433)]"
 
 read ans
 
 case "${ans}" in
-  p*)
+  p*|P*)
     SERVICE_LEVEL=production
     NGINX_SERVICE_LEVEL=${SERVICE_LEVEL}
     ;;
-  d*)
-    if [[ "${SERVICE_LEVEL}" = "production" ]] ; then
-
-      echo "CAVEAT: Do you really want to change the service level from 'production' to 'development'? [y/N]"
-
-      read ans2
-
-      case "${ans2}" in
-        y*|Y*)
-          ;;
-        *)
-          echo Aborted.
-          exit 1;;
-      esac
-
-    fi
+  d*|D*)
+    check_step_back
     SERVICE_LEVEL=development
     NGINX_SERVICE_LEVEL=${SERVICE_LEVEL}
     ;;
-  c*)
-    if [[ "${SERVICE_LEVEL}" = "production" ]] ; then
-
-      echo "CAVEAT: Do you really want to change the service level from 'production' to 'development'? [y/N]"
-
-      read ans2
-
-      case "${ans2}" in
-        y*|Y*)
-          ;;
-        *)
-          echo Aborted.
-          exit 1;;
-      esac
-
-    fi
+  c*|C*)
+    check_step_back
     SERVICE_LEVEL=development
     NGINX_SERVICE_LEVEL=production
     ;;
@@ -62,7 +54,37 @@ case "${ans}" in
 
 esac
 
+set_conv_id_range() {
+
+ if [[ "${SERVICE_DOMAIN}" = "bmrb.io" ]] ; then
+
+    if [[ "${SERVICE_LEVEL}" = "development" ]] ; then
+      CONV_ID_RANGE_BEGIN=8100001
+      CONV_ID_RANGE_END=8200000
+    else
+      CONV_ID_RANGE_BEGIN=1000001
+      CONV_ID_RANGE_END=2000000
+    fi
+
+  elif [[ "${SERVICE_DOMAIN}" = "pdbj.org" ]] ; then
+
+    if [[ "${SERVICE_LEVEL}" = "development" ]] ; then
+      CONV_ID_RANGE_BEGIN=8000001
+      CONV_ID_RANGE_END=8100000
+    else
+      CONV_ID_RANGE_BEGIN=2000001
+      CONV_ID_RANGE_END=3000000
+    fi
+
+  fi
+
+}
+
 echo "The current service level is \"${SERVICE_LEVEL}\"."
+
+if [[ "${SERVICE_LEVEL}" != "${NGINX_SERVICE_LEVEL}" ]] ; then
+  echo "While nginx service level is \"${NGINX_SERVICE_LEVEL}\"."
+fi
 
 if [[ -z "${SERVICE_DOMAIN}" ]] ; then
 
@@ -71,18 +93,16 @@ if [[ -z "${SERVICE_DOMAIN}" ]] ; then
   read ans
 
   case "${ans}" in
-    b*)
+    b*|B*)
       SERVICE_DOMAIN=bmrb.io
       SERVICE_HELP_EMAIL=help@bmrb.io
-      CONV_ID_RANGE_BEGIN=1000001
-      CONV_ID_RANGE_END=2000000
+      set_conv_id_range
       TZ=US/Eastern
       ;;
-    p*)
+    p*|P*)
       SERVICE_DOMAIN=pdbj.org
       SERVICE_HELP_EMAIL=bmrbhelp@protein.osaka-u.ac.jp
-      CONV_ID_RANGE_BEGIN=2000001
-      CONV_ID_RANGE_END=3000000
+      set_conv_id_range
       TZ=Asia/Tokyo
       ;;
     *)
@@ -92,18 +112,15 @@ if [[ -z "${SERVICE_DOMAIN}" ]] ; then
   esac
 
 elif [[ "${SERVICE_DOMAIN}" = "bmrb.io" ]] ; then
-  CONV_ID_RANGE_BEGIN=1000001
-  CONV_ID_RANGE_END=2000000
+  set_conv_id_range
   TZ=US/Eastern
 elif [[ "${SERVICE_DOMAIN}" = "pdbj.org" ]] ; then
-  CONV_ID_RANGE_BEGIN=2000001
-  CONV_ID_RANGE_END=3000000
+  set_conv_id_range
   TZ=Asia/Tokyo
-fi
-
-if [[ "${SERVICE_LEVEL}" = "development" ]] ; then
-  CONV_ID_RANGE_BEGIN=8000001
+else
+  CONV_ID_RANGE_BEGIN=8900001
   CONV_ID_RANGE_END=9000000
+  TZ=`date +%Z`
 fi
 
 email_regex='^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\n$'
@@ -355,7 +372,7 @@ if [[ ${SERVICE_DOMAIN} = "bmrb.io" ]] ; then
     envsubst < bmrb.config.ts.template > bmrb.config.ts
     ln -s bmrb.config.ts site.config.ts )
 
-else
+elif [[ "${SERVICE_DOMAIN}" = "pdbj.org" ]] ; then
 
   ( cd frontend/src
     rm -f index.html site.config.ts
