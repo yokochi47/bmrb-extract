@@ -1,4 +1,4 @@
-import { Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpClient } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
@@ -12,6 +12,7 @@ import { timer } from 'rxjs';
 import { switchMap, takeWhile } from 'rxjs/operators';
 
 import { PageService, TargetDepsys } from './page.service';
+import { AuthService } from './auth.service';
 import { API_URL, HOST_SITE_URL } from '../../site.config';
 import { fileTypeLabel } from './file-types';
 import { EchartComponent } from './echart.component';
@@ -501,6 +502,7 @@ const OUTPUT_TYPE_LABELS: Record<string, string> = {
 })
 export class Download {
   private pageService = inject(PageService);
+  private auth = inject(AuthService);
   private http = inject(HttpClient);
   private destroyRef = inject(DestroyRef);
 
@@ -552,6 +554,52 @@ export class Download {
       if (!token || inputFilesFetched) return;
       inputFilesFetched = true;
       this.loadInputFiles(token);
+    });
+
+    // `claimable`/`owned` are auth-dependent and fetched once at page load, so
+    // re-check them whenever the user logs in (authenticated flips) or a claim
+    // completes (claimRevision bumps) — otherwise the claim button only appears
+    // after a manual refresh. untracked() reads the token without subscribing to
+    // pageState, so refreshSession's own update can't re-trigger this effect.
+    effect(() => {
+      const authed = this.auth.authenticated();
+      this.auth.claimRevision();
+      untracked(() => {
+        const token = this.pageService.pageState().tokenBase;
+        if (authed && token) this.pageService.refreshSession(token);
+      });
+    });
+  }
+
+  // --- Adopt an anonymous session into the logged-in user's account --------- //
+
+  /** Show the "save to my account" affordance: logged in, and this session is
+   * unowned + non-expired (the backend sets `claimable`). Hidden once owned. */
+  canClaim = computed(() => this.auth.authenticated() && this.pageService.pageState().claimable);
+  /** Set once the user adopts the session via the button (transient confirmation;
+   * auto-claim on login stays silent by design). */
+  justClaimed = signal(false);
+  claimBusy = signal(false);
+  claimError = signal<string | null>(null);
+
+  /** Explicit claim: bind this anonymous session to the account so it appears in
+   * "My sessions". Auto-claim on login covers the common case; this is the manual
+   * affordance. Idempotent server-side. */
+  claimToMyAccount(): void {
+    const token = this.pageService.pageState().tokenBase;
+    if (!token || this.claimBusy()) return;
+    this.claimBusy.set(true);
+    this.claimError.set(null);
+    this.auth.claimSession(token).subscribe({
+      next: () => {
+        this.claimBusy.set(false);
+        this.justClaimed.set(true);
+        this.pageService.markSessionClaimed();
+      },
+      error: () => {
+        this.claimBusy.set(false);
+        this.claimError.set('Could not save this conversion to your account — please retry.');
+      },
     });
   }
 

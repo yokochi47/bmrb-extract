@@ -9,35 +9,45 @@
       <p class="text-surface-500">There are no inquiries.</p>
     }
     @for (t of threads(); track t.conversion_id) {
-      <div class="border border-surface-200 dark:border-surface-700 rounded mb-4 p-3">
-        <div class="font-mono font-medium mb-2">{{ t.public_id }}</div>
+      <div
+        class="border rounded mb-4 p-3"
+        [class.border-primary]="unreadIds().has(t.conversion_id)"
+        [class.border-2]="unreadIds().has(t.conversion_id)"
+        [class.border-surface-200]="!unreadIds().has(t.conversion_id)"
+        [class.dark:border-surface-700]="!unreadIds().has(t.conversion_id)"
+      >
+        <div class="font-mono font-medium mb-2">
+          {{ t.public_id }}
+          @if (unreadIds().has(t.conversion_id)) {
+            <p-tag severity="danger" value="Awaiting reply" styleClass="ml-2" />
+          }
+        </div>
         @for (m of t.messages; track m.ordinal) {
-          <div class="mb-2 pl-2 border-l-2 border-surface-200 dark:border-surface-700">
-            <div class="text-sm text-surface-500">
-              {{ m.email_address }} · {{ m.sent_at ? m.sent_at.slice(0, 16).replace('T', ' ') : '' }}
-            </div>
-            <div class="font-medium">{{ m.subject }}</div>
-            <div class="whitespace-pre-wrap">{{ m.content }}</div>
-          </div>
+          <p-card [styleClass]="m.from_admin ? 'mb-3 border-l-4 border-primary' : 'mb-3'">
+            <div class="font-semibold">{{ m.subject }}</div>
+            <div class="text-sm text-surface-500">{{ adminMessageMeta(m) }}</div>
+            <p-divider styleClass="!my-2" />
+            <p class="whitespace-pre-wrap m-0">{{ m.content }}</p>
+          </p-card>
         }
         <div class="flex gap-2 items-start mt-2">
-          <textarea rows="2" placeholder="Reply…"
-            class="flex-1 border border-surface-300 dark:border-surface-600 rounded p-2 text-sm bg-transparent"
+          <textarea
+            pTextarea
+            rows="2"
+            placeholder="Reply…"
+            class="flex-1 text-sm"
             [ngModel]="replies()[t.conversion_id] || ''"
-            (ngModelChange)="setReply(t.conversion_id, $event)"></textarea>
+            (ngModelChange)="setReply(t.conversion_id, $event)"
+          ></textarea>
           <p-button label="Reply" size="small" (click)="submitReply(t.conversion_id)" />
         </div>
       </div>
     }
-  } @else if (userSent()) {
-    <p-message severity="success" styleClass="w-full" [closable]="false">
-      Your inquiry has been sent to our annotators. They will reply by email.
-    </p-message>
   } @else {
     <!-- User: file an inquiry about one of their sessions -->
     <p class="mb-3">
-      Have a question or issue with one of your conversions? Send it to our annotators. Only sessions
-      you created while signed in and that have been processed are listed here.
+      Have a question or issue with one of your conversions? Send it to our annotators. Only
+      sessions you created while signed in and that have been processed are listed here.
     </p>
     @if (!ownSessions().length) {
       <p-message severity="info" styleClass="w-full" [closable]="false">
@@ -45,31 +55,81 @@
       </p-message>
     } @else {
       <div class="flex flex-col gap-3 max-w-xl">
-        <label class="text-sm font-medium">Session
-          <select class="block w-full mt-1 border border-surface-300 dark:border-surface-600 rounded p-2 bg-transparent"
-            [ngModel]="selectedToken()" (ngModelChange)="selectedToken.set($event)">
-            <option value="">— select a session —</option>
-            @for (s of ownSessions(); track s.token) {
-              <option [value]="s.token">{{ s.public_id }} ({{ s.status }})</option>
-            }
-          </select>
+        <div>
+          <label for="help-session" class="text-sm font-medium">Conversion ID</label>
+          <p-select
+            inputId="help-session"
+            class="mt-1 block"
+            styleClass="w-full"
+            [options]="sessionOptions()"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select a conversion ID"
+            [ngModel]="selectedToken()"
+            (ngModelChange)="onSelectSession($event)"
+          />
+        </div>
+        <label class="text-sm font-medium"
+          >Subject
+          <input
+            pInputText
+            class="block w-full mt-1"
+            [ngModel]="subject()"
+            (ngModelChange)="subject.set($event)"
+          />
         </label>
-        <label class="text-sm font-medium">Subject
-          <input pInputText class="block w-full mt-1" [ngModel]="subject()"
-                 (ngModelChange)="subject.set($event)" />
-        </label>
-        <label class="text-sm font-medium">Message
-          <textarea rows="5"
-            class="block w-full mt-1 border border-surface-300 dark:border-surface-600 rounded p-2 bg-transparent"
-            [ngModel]="content()" (ngModelChange)="content.set($event)"></textarea>
+        <label class="text-sm font-medium"
+          >Message
+          <textarea
+            pTextarea
+            rows="5"
+            class="block w-full mt-1"
+            [ngModel]="content()"
+            (ngModelChange)="content.set($event)"
+          ></textarea>
         </label>
         @if (userError()) {
-          <p-message severity="error" styleClass="w-full" [closable]="false">{{ userError() }}</p-message>
+          <p-message severity="error" styleClass="w-full" [closable]="false">{{
+            userError()
+          }}</p-message>
         }
         <div>
-          <p-button label="Send inquiry" icon="pi pi-send" (click)="submitInquiry()" [disabled]="userBusy()" />
+          <p-button
+            label="Send inquiry"
+            icon="pi pi-send"
+            (click)="submitInquiry()"
+            [disabled]="userBusy()"
+          />
         </div>
+        @if (userSent()) {
+          <p-message severity="success" styleClass="w-full" [closable]="false">
+            Your inquiry has been sent to our annotators. They will also reply by email.
+          </p-message>
+        }
       </div>
+
+      <!-- Previous messages for the selected session (newest first) -->
+      @if (selectedToken()) {
+        <div class="mt-6 max-w-xl">
+          <h3 class="text-lg font-semibold mb-2">Conversation history</h3>
+          @if (threadLoading()) {
+            <p class="text-surface-500 text-sm">
+              <i class="pi pi-spin pi-spinner mr-2"></i>Loading…
+            </p>
+          } @else if (!thread().length) {
+            <p class="text-surface-500 text-sm">No messages yet for this session.</p>
+          } @else {
+            @for (m of thread(); track m.ordinal) {
+              <p-card [styleClass]="m.from_admin ? 'mb-3 border-l-4 border-primary' : 'mb-3'">
+                <div class="font-semibold">{{ m.subject }}</div>
+                <div class="text-sm text-surface-500">{{ messageMeta(m) }}</div>
+                <p-divider styleClass="!my-2" />
+                <p class="whitespace-pre-wrap m-0">{{ m.content }}</p>
+              </p-card>
+            }
+          }
+        </div>
+      }
     }
   }
 </div>

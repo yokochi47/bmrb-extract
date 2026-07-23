@@ -192,6 +192,7 @@ class Session(Base):
     approved = sa.Column(sa.Boolean(), server_default='FALSE')
     exchanged = sa.Column(sa.Boolean(), server_default='FALSE')
     downloaded = sa.Column(sa.Boolean(), server_default='FALSE')
+    help_user_seen_at = sa.Column(sa.TIMESTAMP())
 
 
 class UploadFile(Base):
@@ -252,6 +253,8 @@ class Communication(Base):
     email_address = sa.Column(sa.Text(), nullable=False)
     sent_at = sa.Column(sa.TIMESTAMP(), server_default=func.now())
     delivery_status = sa.Column(EnumStr('delivery_status_code'))
+    from_admin = sa.Column(sa.Boolean(), nullable=False, server_default='FALSE')
+    is_help_desk = sa.Column(sa.Boolean(), nullable=False, server_default='FALSE')
 
 
 class Workflow(Base):
@@ -304,6 +307,7 @@ class LoginChallenge(Base):
     expires_at = sa.Column(sa.TIMESTAMP(), nullable=False)
     consumed_at = sa.Column(sa.TIMESTAMP())
     attempts = sa.Column(sa.Integer(), nullable=False, server_default='0')
+    claim_token = sa.Column(sa.Text())  # session.token to adopt on verify (pending claim)
 
 
 class AuthSession(Base):

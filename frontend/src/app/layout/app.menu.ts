@@ -66,9 +66,21 @@ export class AppMenu {
                 icon: 'pi pi-fw pi-question-circle',
                 routerLink: ['/help'],
               },
-              { label: 'Account', icon: 'pi pi-fw pi-user', routerLink: ['/login'] },
+              {
+                label: 'Account',
+                icon: 'pi pi-fw pi-user',
+                routerLink: ['/login'],
+                queryParamsHandling: 'preserve',
+              },
             ]
-          : [{ label: 'Login', icon: 'pi pi-fw pi-sign-in', routerLink: ['/login'] }],
+          : [
+              {
+                label: 'Login',
+                icon: 'pi pi-fw pi-sign-in',
+                routerLink: ['/login'],
+                queryParamsHandling: 'preserve',
+              },
+            ],
       },
       {
         label: 'Document',

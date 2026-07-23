@@ -223,6 +223,8 @@ CREATE TABLE IF NOT EXISTS communication (
 
     delivery_status delivery_status_code,
 
+    from_admin      BOOLEAN NOT NULL DEFAULT false,     -- true = annotator reply, false = user inquiry
+
     PRIMARY KEY ( conversion_id, ordinal )
 );
 
@@ -273,7 +275,9 @@ CREATE TABLE IF NOT EXISTS login_challenge (
     created_at      TIMESTAMP DEFAULT now(),
     expires_at      TIMESTAMP NOT NULL,
     consumed_at     TIMESTAMP,
-    attempts        INT NOT NULL DEFAULT 0
+    attempts        INT NOT NULL DEFAULT 0,
+    claim_token     TEXT                                -- session.token to adopt on verify (carries a
+                                                        -- pending claim across the login round-trip)
 );
 
 --

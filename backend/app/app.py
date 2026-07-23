@@ -152,6 +152,19 @@ async def get_session():
         if session_row is None:
             return {'error': 'session not found'}, 404
         expired = session_row.token_expiry < datetime.now()
+        # Ownership / claim affordance for a logged-in user. `owned` is true when
+        # the caller already owns this session; `claimable` is true when a logged-in
+        # user holds the real capability token for an as-yet-unowned, non-expired
+        # session (they may adopt it into their account via /api/auth/claim_session).
+        auth_session, user = await current_auth(db)
+        owned = user is not None and str(session_row.user_id or '') == str(user.id)
+        claimable = (
+            user is not None
+            and session_row.user_id is None
+            and str(token) == str(session_row.token)  # not a token_admin admin view
+            and not expired
+            and session_row.status != 'expired'
+        )
         return {
             'conversion_id': session_row.conversion_id,
             'expired': expired,
@@ -162,6 +175,8 @@ async def get_session():
             'related_bmrb_id': session_row.related_bmrb_id,
             'approved': bool(session_row.approved),
             'downloaded': bool(session_row.downloaded),
+            'owned': owned,
+            'claimable': claimable,
         }
 
 

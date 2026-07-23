@@ -1,8 +1,10 @@
 import { Injectable, effect, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { NavigationEnd, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
+import { filter } from 'rxjs';
 
 import { API_URL } from '../../site.config';
+import { AuthService } from './auth.service';
 
 export enum TargetDepsys {
   onedep,
@@ -29,6 +31,11 @@ export interface PageState {
   approved: boolean;
   /** Conversion results have been downloaded — session is read-only. */
   downloaded: boolean;
+  /** The logged-in user already owns this session. */
+  owned: boolean;
+  /** A logged-in user holding this token may adopt this (unowned, non-expired)
+   * session into their account. */
+  claimable: boolean;
 }
 
 @Injectable({
@@ -60,11 +67,17 @@ export class PageService {
     tokenExpiry: null,
     approved: false,
     downloaded: false,
+    owned: false,
+    claimable: false,
   });
 
   private initialized = false;
+  /** Token whose session state is currently loaded, so navigation events don't
+   * re-fetch the same session repeatedly. */
+  private loadedToken: string | null = null;
   private router = inject(Router);
   private http = inject(HttpClient);
+  private auth = inject(AuthService);
 
   constructor() {
     effect(() => {
@@ -83,61 +96,106 @@ export class PageService {
       }
     });
 
-    // Restore session from URL on page load / refresh
-    const token = new URLSearchParams(window.location.search).get('token');
-    if (token) {
-      // consentedTo is restored from the backend below (not forced true), so a
-      // revoked consent stays revoked across reloads / direct URLs.
-      this.pageState.update((prev) => ({
-        ...prev,
-        tokenBase: token,
-        firstConsent: false,
-      }));
-      this.http
-        .get<{
-          conversion_id: number | null;
-          expired: boolean;
-          token_expiry: string;
-          consented: boolean;
-          target_depsys: string;
-          related_bmrb_id: number | null;
-          approved: boolean;
-          downloaded: boolean;
-        }>(API_URL + 'session', { params: { token } })
-        .subscribe({
-          next: ({
-            conversion_id,
-            expired,
-            token_expiry,
-            consented,
-            target_depsys,
-            related_bmrb_id,
-            approved,
-            downloaded,
-          }) => {
-            if (expired) {
-              this.tokenValidation.set('expired');
-              this.pageState.update((prev) => ({ ...prev, expiredSession: true }));
-            } else {
-              this.tokenValidation.set('valid');
-              this.pageState.update((prev) => ({
-                ...prev,
-                consentedTo: !!consented,
-                conversionId: conversion_id,
-                tokenExpiry: token_expiry,
-                targetDepsys:
-                  TargetDepsys[target_depsys as keyof typeof TargetDepsys] ?? TargetDepsys.onedep,
-                relatedBmrbId: related_bmrb_id,
-                approved: !!approved,
-                downloaded: !!downloaded,
-              }));
-            }
-          },
-          error: () => {
-            this.tokenValidation.set('invalid');
-          },
-        });
-    }
+    // Restore session state whenever a token is present in the URL: at initial
+    // page load AND on SPA navigation to a token-bearing route (e.g. opening a
+    // session from "My sessions", a resume link). Constructor-only restore used
+    // to miss SPA navigations, leaving the target page without session state.
+    this.restoreSession(new URLSearchParams(window.location.search).get('token'));
+    this.router.events
+      .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd))
+      .subscribe(() =>
+        this.restoreSession(new URLSearchParams(window.location.search).get('token')),
+      );
+  }
+
+  /** Fetch and restore session state for `token`. No-op if the token is absent
+   * or already loaded. Called at page load and on navigation to a token route. */
+  private restoreSession(token: string | null): void {
+    if (!token || token === this.loadedToken) return;
+    this.loadedToken = token;
+    // consentedTo is restored from the backend below (not forced true), so a
+    // revoked consent stays revoked across reloads / direct URLs.
+    this.pageState.update((prev) => ({ ...prev, tokenBase: token, firstConsent: false }));
+    this.http
+      .get<{
+        conversion_id: number | null;
+        expired: boolean;
+        token_expiry: string;
+        consented: boolean;
+        target_depsys: string;
+        related_bmrb_id: number | null;
+        approved: boolean;
+        downloaded: boolean;
+        owned: boolean;
+        claimable: boolean;
+      }>(API_URL + 'session', { params: { token } })
+      .subscribe({
+        next: ({
+          conversion_id,
+          expired,
+          token_expiry,
+          consented,
+          target_depsys,
+          related_bmrb_id,
+          approved,
+          downloaded,
+          owned,
+          claimable,
+        }) => {
+          if (expired) {
+            this.tokenValidation.set('expired');
+            this.pageState.update((prev) => ({ ...prev, expiredSession: true }));
+          } else {
+            this.tokenValidation.set('valid');
+            // Remember this session so it can be adopted if the user logs in
+            // (e.g. clicks Login before saving the resume URL). Harmless if the
+            // session is already owned — the backend claim is idempotent/guarded.
+            this.auth.rememberPendingClaim(token);
+            this.pageState.update((prev) => ({
+              ...prev,
+              consentedTo: !!consented,
+              conversionId: conversion_id,
+              tokenExpiry: token_expiry,
+              targetDepsys:
+                TargetDepsys[target_depsys as keyof typeof TargetDepsys] ?? TargetDepsys.onedep,
+              relatedBmrbId: related_bmrb_id,
+              approved: !!approved,
+              downloaded: !!downloaded,
+              owned: !!owned,
+              claimable: !!claimable,
+            }));
+          }
+        },
+        error: () => {
+          this.tokenValidation.set('invalid');
+        },
+      });
+  }
+
+  /** Mark the current session as adopted into the logged-in user's account
+   * (after a successful claim), so the claim affordance disappears. */
+  markSessionClaimed(): void {
+    this.pageState.update((prev) => ({ ...prev, owned: true, claimable: false }));
+  }
+
+  /** Re-fetch ownership / claimability for the current session. `claimable` is
+   * auth-dependent (server-side), so it must be refreshed when the user logs in
+   * or a claim completes — otherwise the value from the initial (anonymous) page
+   * load is stale until a manual refresh. */
+  refreshSession(token?: string | null): void {
+    const t = token ?? this.pageState().tokenBase;
+    if (!t) return;
+    this.http
+      .get<{ owned: boolean; claimable: boolean }>(API_URL + 'session', { params: { token: t } })
+      .subscribe({
+        next: ({ owned, claimable }) =>
+          this.pageState.update((prev) => ({
+            ...prev,
+            owned: !!owned,
+            claimable: !!claimable,
+          })),
+        error: () => undefined,
+      });
   }
 
   /** Toggle consent. Updates the in-memory flag, and for an existing session

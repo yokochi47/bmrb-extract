@@ -11,6 +11,37 @@
     </p-card>
   }
 
+  @if (canClaim()) {
+    <!-- Adopt an anonymous session into the logged-in user's account so it appears
+         under "My sessions" and survives losing the resume link. -->
+    <p-card styleClass="mb-6 border-l-4 border-emerald-500">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <span class="text-base">
+          <i class="pi pi-user-plus mr-2"></i>Save this conversion to your account so it appears in
+          <strong>My sessions</strong> and stays accessible even without this link.
+        </span>
+        <p-button
+          label="Save to my account"
+          icon="pi pi-bookmark"
+          [loading]="claimBusy()"
+          (click)="claimToMyAccount()"
+        />
+      </div>
+      @if (claimError()) {
+        <p-message severity="error" styleClass="w-full mt-3" [closable]="false">{{
+          claimError()
+        }}</p-message>
+      }
+    </p-card>
+  } @else if (justClaimed()) {
+    <p-card styleClass="mb-6 border-l-4 border-emerald-500">
+      <span class="text-emerald-700 dark:text-emerald-400 font-medium">
+        <i class="pi pi-check-circle mr-2"></i>Saved to your account — find this conversion under
+        <strong>My sessions</strong>.
+      </span>
+    </p-card>
+  }
+
   @if (publicId()) {
     <p class="text-xl mb-4">
       This session and conversion results are accessible until
