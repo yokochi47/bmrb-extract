@@ -251,6 +251,10 @@ async def request_login():
     enumeration). Rate-limited per IP and per email."""
     body = request.get_json(silent=True) or {}
     email = _norm_email(body.get('email'))
+    # Optional session the requester wants adopted once they authenticate — carried
+    # with the challenge so it survives the login round-trip (even a magic link
+    # opened on another device). Only acted on at verify, for an unowned session.
+    claim_token = (body.get('claim_token') or '').strip() or None
     generic = {'ok': True, 'message': 'If that address can sign in, a login link has been sent.'}
 
     if not _EMAIL_RE.match(email):
@@ -265,7 +269,7 @@ async def request_login():
     async with _session_factory() as db:
         await db.execute(LoginChallenge.__table__.insert().values(
             email=email, token_hash=_hash_token(token), purpose='login',
-            expires_at=_now() + LOGIN_LINK_TTL,
+            expires_at=_now() + LOGIN_LINK_TTL, claim_token=claim_token,
         ))
         await db.commit()
 
@@ -343,6 +347,20 @@ async def verify():
             absolute_expiry=now + SESSION_ABSOLUTE,
             client_ip=request.remote_addr, user_agent=request.headers.get('User-Agent', ''),
         ))
+
+        # Adopt the session the requester bound to this challenge (they held its
+        # token when requesting the link). Survives the login round-trip / a link
+        # opened on another device. Only an unowned, non-expired session is claimed.
+        claimed_session = False
+        if ch.claim_token:
+            s = (
+                await db.execute(select(Session).where(Session.token == ch.claim_token))
+            ).scalar_one_or_none()
+            if (s is not None and s.user_id is None
+                    and s.status != 'expired' and s.token_expiry >= now):
+                await db.execute(update(Session).where(Session.token == ch.claim_token)
+                                 .values(user_id=user.id))
+                claimed_session = True
         await db.commit()
 
         totp_required = role == 'annotator'
@@ -353,6 +371,7 @@ async def verify():
             'csrf_token': csrf,
             'totp_required': totp_required,
             'totp_enrolled': bool(user.totp_enrolled),
+            'claimed_session': claimed_session,
         }
     resp = jsonify(payload)
     _set_cookie(resp, sid)
@@ -443,6 +462,42 @@ async def logout():
     return resp
 
 
+@auth_bp.route('/api/auth/claim_session', methods=['POST'])
+async def claim_session():
+    """Link the caller's account to a session they started anonymously.
+
+    The caller must be logged in and possess the session's own capability `token`
+    (proving they are the legitimate anonymous holder). Only an unowned, non-expired
+    session can be claimed; a session already owned by someone else is never
+    reassigned. Idempotent when the caller already owns it.
+
+    Matches the real `token` only (never `token_admin`): claiming is the anonymous
+    holder adopting their own session, not audited admin access."""
+    async with _session_factory() as db:
+        auth_session, user = await current_auth(db)
+        if user is None:
+            return {'error': 'authentication required'}, 401
+        if not csrf_valid(auth_session):
+            return {'error': 'invalid CSRF token'}, 403
+        token = (request.get_json(silent=True) or {}).get('token')
+        if not token:
+            return {'error': 'token is required'}, 400
+        row = (
+            await db.execute(select(Session).where(Session.token == token))
+        ).scalar_one_or_none()
+        if row is None:
+            return {'error': 'session not found'}, 404
+        if str(row.user_id or '') == str(user.id):
+            return {'ok': True, 'already_owned': True}, 200
+        if row.user_id is not None:
+            return {'error': 'session already belongs to another account'}, 409
+        if row.status == 'expired' or row.token_expiry < _now():
+            return {'error': 'session has expired'}, 410
+        await db.execute(update(Session).where(Session.token == token).values(user_id=user.id))
+        await db.commit()
+    return {'ok': True}, 200
+
+
 def _session_view(row, *, admin=False):
     """Serialize a session for the listing. Own rows expose the token (to reopen);
     admin (scope=all) rows expose token_admin instead (the audited admin handle)."""
@@ -524,7 +579,11 @@ async def help_inquiry():
         await db.execute(Communication.__table__.insert().values(
             conversion_id=row.conversion_id, ordinal=ordinal,
             subject=subject, content=content, email_address=user.email,
+            from_admin=False, is_help_desk=True,
         ))
+        # The user is up to date with their own thread after posting.
+        await db.execute(update(Session).where(Session.token == token)
+                         .values(help_user_seen_at=_now()))
         await db.commit()
     if _send_email is not None:
         _send_email(SERVICE_HELP_EMAIL, f'[Help desk] C_{row.conversion_id}: {subject}',
@@ -541,21 +600,120 @@ async def help_inquiries():
             return {'error': 'not authorized'}, 403
         rows = (
             await db.execute(
-                select(Communication).order_by(
-                    Communication.conversion_id.desc(), Communication.ordinal.asc()
-                ).limit(1000)
+                select(Communication)
+                .where(Communication.is_help_desk.is_(True))
+                .order_by(Communication.conversion_id.desc(), Communication.ordinal.asc())
+                .limit(1000)
             )
         ).scalars().all()
-        items = [{
-            'conversion_id': r.conversion_id,
-            'public_id': f'C_{r.conversion_id}',
-            'ordinal': r.ordinal,
-            'subject': r.subject,
-            'content': r.content,
-            'email_address': r.email_address,
-            'sent_at': r.sent_at.isoformat() if r.sent_at else None,
-        } for r in rows]
+        items = [_message_view(r) for r in rows]
         return {'inquiries': items}, 200
+
+
+def _message_view(r):
+    """Serialize one help-desk communication row for the frontend."""
+    return {
+        'conversion_id': r.conversion_id,
+        'public_id': f'C_{r.conversion_id}',
+        'ordinal': r.ordinal,
+        'subject': r.subject,
+        'content': r.content,
+        'email_address': r.email_address,
+        'sent_at': r.sent_at.isoformat() if r.sent_at else None,
+        'from_admin': bool(r.from_admin),
+    }
+
+
+@auth_bp.route('/api/help/thread', methods=['GET'])
+async def help_thread():
+    """Return the help-desk message thread (the caller's inquiries + annotator
+    replies) for one of the caller's own sessions, newest first. Owner-only."""
+    async with _session_factory() as db:
+        auth_session, user = await current_auth(db)
+        if user is None:
+            return {'error': 'authentication required'}, 401
+        token = request.args.get('token')
+        if not token:
+            return {'error': 'token is required'}, 400
+        row = (
+            await db.execute(select(Session).where(Session.token == token))
+        ).scalar_one_or_none()
+        if row is None:
+            return {'error': 'session not found'}, 404
+        if row.user_id is None or str(row.user_id) != str(user.id):
+            return {'error': 'not authorized for this session'}, 403
+        if row.conversion_id is None:
+            return {'messages': []}, 200
+        rows = (
+            await db.execute(
+                select(Communication)
+                .where(
+                    Communication.conversion_id == row.conversion_id,
+                    Communication.is_help_desk.is_(True),
+                )
+                .order_by(Communication.ordinal.desc())
+            )
+        ).scalars().all()
+        # Opening the thread marks all replies seen (clears the new-reply badge).
+        await db.execute(update(Session).where(Session.token == token)
+                         .values(help_user_seen_at=_now()))
+        await db.commit()
+        return {'messages': [_message_view(r) for r in rows]}, 200
+
+
+@auth_bp.route('/api/help/unread', methods=['GET'])
+async def help_unread():
+    """Notification state for the bell badge + row highlighting (per site).
+
+    - annotator: sessions whose latest help-desk message is a user inquiry with no
+      reply after it (awaiting a reply on this site).
+    - user: own sessions with an annotator reply newer than help_user_seen_at.
+
+    Returns {count, conversion_ids}. Anonymous callers get zeros (no error)."""
+    async with _session_factory() as db:
+        auth_session, user = await current_auth(db)
+        if user is None:
+            return {'count': 0, 'conversion_ids': []}, 200
+
+        if is_admin(auth_session, user):
+            rows = (
+                await db.execute(
+                    select(
+                        Communication.conversion_id,
+                        Communication.ordinal,
+                        Communication.from_admin,
+                    ).where(Communication.is_help_desk.is_(True))
+                )
+            ).all()
+            latest = {}  # conversion_id -> (max ordinal, from_admin of that row)
+            for cid, ordi, from_admin in rows:
+                if cid not in latest or ordi > latest[cid][0]:
+                    latest[cid] = (ordi, from_admin)
+            ids = sorted(cid for cid, (_, from_admin) in latest.items() if not from_admin)
+            return {'count': len(ids), 'conversion_ids': ids}, 200
+
+        # Regular user: own sessions with an unseen annotator reply.
+        sessions = (
+            await db.execute(
+                select(Session.conversion_id, Session.help_user_seen_at).where(
+                    Session.user_id == user.id, Session.conversion_id.isnot(None)
+                )
+            )
+        ).all()
+        ids = []
+        for cid, seen_at in sessions:
+            latest_reply = (
+                await db.execute(
+                    select(func.max(Communication.sent_at)).where(
+                        Communication.conversion_id == cid,
+                        Communication.is_help_desk.is_(True),
+                        Communication.from_admin.is_(True),
+                    )
+                )
+            ).scalar_one_or_none()
+            if latest_reply is not None and (seen_at is None or latest_reply > seen_at):
+                ids.append(cid)
+        return {'count': len(ids), 'conversion_ids': sorted(ids)}, 200
 
 
 @auth_bp.route('/api/help/reply', methods=['POST'])
@@ -577,7 +735,9 @@ async def help_reply():
         recipient = (
             await db.execute(
                 select(Communication.email_address).where(
-                    Communication.conversion_id == conversion_id
+                    Communication.conversion_id == conversion_id,
+                    Communication.is_help_desk.is_(True),
+                    Communication.from_admin.is_(False),
                 ).order_by(Communication.ordinal.desc()).limit(1)
             )
         ).scalar_one_or_none()
@@ -586,6 +746,7 @@ async def help_reply():
             conversion_id=conversion_id, ordinal=ordinal,
             subject=subject, content=content,
             email_address=recipient or SERVICE_HELP_EMAIL,
+            from_admin=True, is_help_desk=True,
         ))
         await record_admin_access(db, user, None, f'help_reply:C_{conversion_id}')
         await db.commit()

@@ -10,9 +10,9 @@
 ```shell
 ./config.sh
 ```
-2. Setup service (build Docker images, create volumes, init GitHub Action runners, start Docker Swarm services)
+2. Setup service (build Docker images, create volumes, init GitHub Action runners, start Docker Swarm services, build Docker images)
 ```shell
-./setup.sh
+./setup.sh  # use '--no-cache' for clean build
 ```
 3. Start/Stop service
 ```shell

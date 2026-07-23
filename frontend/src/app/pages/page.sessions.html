@@ -3,8 +3,18 @@
     <h2 class="text-2xl font-bold">{{ scope() === 'all' ? 'All sessions' : 'My sessions' }}</h2>
     @if (isAdmin()) {
       <div class="flex gap-2">
-        <p-button label="My sessions" size="small" [outlined]="scope() !== 'own'" (click)="load(false)" />
-        <p-button label="All sessions" size="small" [outlined]="scope() !== 'all'" (click)="load(true)" />
+        <p-button
+          label="My sessions"
+          size="small"
+          [outlined]="scope() !== 'own'"
+          (click)="load(false)"
+        />
+        <p-button
+          label="All sessions"
+          size="small"
+          [outlined]="scope() !== 'all'"
+          (click)="load(true)"
+        />
       </div>
     }
   </div>
@@ -21,7 +31,8 @@
         <tr>
           <th>Conversion ID</th>
           <th>Status</th>
-          <th>Deposition</th>
+          <th>Output used for</th>
+          <th>Read-only</th>
           <th>Created</th>
           <th>Accessible until</th>
           <th></th>
@@ -29,14 +40,29 @@
       </ng-template>
       <ng-template pTemplate="body" let-r>
         <tr>
-          <td class="font-mono">{{ r.public_id || '—' }}</td>
-          <td>{{ r.status }}</td>
-          <td>{{ r.target_depsys }}</td>
+          <td class="font-mono">
+            {{ r.public_id || '—' }}
+            @if (r.conversion_id !== null && unreadIds().has(r.conversion_id)) {
+              <p-tag
+                severity="danger"
+                [value]="isAdmin() ? 'New inquiry' : 'New reply'"
+                styleClass="ml-2"
+              />
+            }
+          </td>
+          <td>{{ r.status | titlecase }}</td>
+          <td>{{ depsysLabel(r.target_depsys) }}</td>
+          <td>{{ r.downloaded ? 'Yes' : 'No' }}</td>
           <td class="tabular-nums">{{ shortDate(r.created_at) }}</td>
           <td class="tabular-nums">{{ shortDate(r.token_expiry) }}</td>
           <td>
-            <a pButton size="small" icon="pi pi-arrow-right"
-               routerLink="/info" [queryParams]="{ token: openToken(r) }">Open</a>
+            <p-button
+              label="Open"
+              icon="pi pi-arrow-right"
+              iconPos="right"
+              size="small"
+              (onClick)="open(r)"
+            />
           </td>
         </tr>
       </ng-template>
