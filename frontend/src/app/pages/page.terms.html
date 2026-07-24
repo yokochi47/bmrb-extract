@@ -133,9 +133,11 @@
   <div class="font-semibold text-xl mb-4">8. Data Retention Policy</div>
   <ul class="leading-normal list-disc pl-8 text-lg mb-4">
     <li>
-      Data is stored only for the duration necessary to provide the Service (
-      {{ SUCCESS_VALIDITY_PERIOD_IN_DAYS }} days since the last successful conversion,
-      {{ FAILURE_VALIDITY_PERIOD_IN_DAYS }} days since the last failed conversion or unprocessed)
+      Data is stored only for the duration necessary to provide the Service ({{
+        SUCCESS_VALIDITY_PERIOD_IN_DAYS
+      }}
+      days since the last successful conversion, {{ FAILURE_VALIDITY_PERIOD_IN_DAYS }} days since
+      the last failed conversion or unprocessed)
     </li>
     <li>Each session is associated with an <strong>expiration date</strong></li>
     <li>All data (files, logs, metadata) will be deleted after the expiration</li>

@@ -108,12 +108,10 @@ export class AuthService {
       this.unread.set({ count: 0, conversion_ids: [] });
       return;
     }
-    this.http
-      .get<{ count: number; conversion_ids: number[] }>(API_URL + 'help/unread')
-      .subscribe({
-        next: (r) => this.unread.set(r ?? { count: 0, conversion_ids: [] }),
-        error: () => undefined,
-      });
+    this.http.get<{ count: number; conversion_ids: number[] }>(API_URL + 'help/unread').subscribe({
+      next: (r) => this.unread.set(r ?? { count: 0, conversion_ids: [] }),
+      error: () => undefined,
+    });
   }
 
   /** Bind the current account to a session started anonymously. Requires the
@@ -138,7 +136,10 @@ export class AuthService {
     if (token) this.claimSession(token).subscribe({ error: () => undefined });
   }
 
-  requestLogin(email: string, claimToken?: string | null): Observable<{ ok: boolean; message: string }> {
+  requestLogin(
+    email: string,
+    claimToken?: string | null,
+  ): Observable<{ ok: boolean; message: string }> {
     const body: { email: string; claim_token?: string } = { email };
     if (claimToken) body.claim_token = claimToken;
     return this.http.post<{ ok: boolean; message: string }>(API_URL + 'auth/request_login', body);
