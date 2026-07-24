@@ -1,4 +1,8 @@
 
+# Run workers as the 'nginx' user that owns /var/log/nginx, so the dynamic
+# (per-request, variable-path) access_log can be created/written by the worker.
+user nginx;
+
 events {}
 
 http {
