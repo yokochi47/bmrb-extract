@@ -1,3 +1,12 @@
+@if (isDevelopment) {
+  <p-message severity="warn" styleClass="w-full mb-4" [closable]="false">
+    <span class="font-medium">
+      This service is currently under construction or maintenance. Please refrain from using it if
+      you are considering doing so.
+    </span>
+  </p-message>
+}
+
 <div class="card">
   <div class="test-primary font-semibold text-2xl mb-4">Welcome to bmrb_extract</div>
   <p class="text-xl mb-4">
@@ -36,12 +45,12 @@
       system and upload files, and choose the appropriate format for each
     </li>
     <li>
-      In case the requirements matches, conversion starts when you select "Process selected files"
+      In case the requirements matche, conversion starts when you select "Process selected files"
       button
     </li>
     <li>
       After analysis of upload files, you can overview conversion status ("OK", "Warning", or
-      "Error") and diagnostic messages if necessary on an
+      "Error") and diagnostic messages on an
       <strong><a routerLink="/summary">Upload summary</a></strong> page
     </li>
     <li>
@@ -66,8 +75,12 @@
     </li>
     <li>Your mail address must be verified before using the Help desk</li>
     <li>
-      You can log-in with the verified mail and access to all your previous conversion sessions from
-      <i class="pi pi-user"></i> icon of the top-bar menu
+      You can log-in with the verified mail and access to all your previous conversion sessions and
+      conversation with annotators
+    </li>
+    <li>
+      <i class="pi pi-bell"></i> icon of the top-bar menu lets you know that new message has been
+      arrived
     </li>
   </ul>
 
