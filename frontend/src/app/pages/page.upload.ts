@@ -153,7 +153,7 @@ export class Upload implements OnDestroy {
   /** Hidden once conversion ID is issued. */
   showSetupSection = computed(() => this.state().conversionId === null);
 
-  /** Choose Files is disabled after the session is locked or downloaded. */
+  /** Choose files is disabled after the session is locked or downloaded. */
   isLocked = computed(
     () =>
       this.state().lockedSession ||
