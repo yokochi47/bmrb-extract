@@ -140,6 +140,18 @@
             generated — the download will be available once it is ready.
           </p>
         }
+        <p class="text-sm text-surface-500 mt-3">
+          <i class="pi pi-check-circle mr-1"></i>The machine-readable conversion report
+          (<span class="font-mono">C_&lt;id&gt;_report.json</span>) conforms to a published
+          <a
+            [href]="reportSchemaUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-primary font-medium hover:underline"
+            >JSON Schema</a
+          >
+          (NMR data processing report v5), so it can be validated and parsed programmatically.
+        </p>
       } @else {
         <p class="text-surface-500 text-sm">No result files are available for this conversion.</p>
       }

@@ -506,6 +506,10 @@ export class Download {
   private http = inject(HttpClient);
   private destroyRef = inject(DestroyRef);
 
+  /** Canonical published JSON Schema the machine-readable conversion report
+   * conforms to (matches the schema's own $id; served as a static asset). */
+  readonly reportSchemaUrl = '/schema/nmr-data-processing-report-schema.json';
+
   constructor() {
     // Load the result-file listing once the session token is known, then keep
     // polling while either deferred step (NEF release, PDF report) is still
