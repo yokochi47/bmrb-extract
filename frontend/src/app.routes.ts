@@ -28,9 +28,21 @@ export const authGuard: CanActivateFn = () => {
  */
 export const tokenGuard: CanActivateFn = (route) => {
   const pageService = inject(PageService);
+  const router = inject(Router);
   const token = route.queryParamMap.get('token');
 
   if (!token) {
+    // Returning to a session page after visiting a communication page (My sessions
+    // / Help desk / Account) or the bell icon, which drop ?token= from the URL.
+    // Re-attach the active session's token (held in memory) and redirect, rather
+    // than demanding consent again for an already-consented session.
+    const active = pageService.pageState().tokenBase;
+    if (active) {
+      const path = '/' + route.url.map((s) => s.path).join('/');
+      return router.createUrlTree([path], {
+        queryParams: { ...route.queryParams, token: active },
+      });
+    }
     pageService.consentRequired.set(true);
     return false;
   }
