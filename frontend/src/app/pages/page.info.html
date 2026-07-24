@@ -1,3 +1,12 @@
+@if (isDevelopment) {
+  <p-message severity="warn" styleClass="w-full mb-4" [closable]="false">
+    <span class="font-medium">
+      This service is currently under construction or maintenance. Please refrain from using it if
+      you are considering doing so.
+    </span>
+  </p-message>
+}
+
 <div class="card">
   <div class="test-primary font-semibold text-2xl mb-4">Welcome to bmrb_extract</div>
   <p class="text-xl mb-4">
