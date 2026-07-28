@@ -243,6 +243,11 @@ COMPOSE_BAKE=true docker compose build frontend
 
 COMPOSE_BAKE=true docker compose build --build-arg NGINX_VERSION=${NGINX_VERSION} --build-arg CACHEBUST=$(date +%s) ${BUILD_OPTION}
 
+# PDF-report generator image (bmrb-extract-pdf-report:local). Not a compose
+# service — built standalone here so a clean install has it; the deferred
+# convert_pdf Prefect task runs it via `docker run`.
+./pdf/build.sh
+
 # Tweak for HTTP/3 (UDP)
 net_core_mem_max=7500000
 
