@@ -130,6 +130,11 @@ services:
       # Read-only backend source so flows can reuse the service ORM models via
       # the prefect/flows/shared/core symlink (-> backend/app/core).
       - ./backend/app:/backend/app:ro
+      # Cross-site exchange (core/exchange.py): the peer SSH private key +
+      # known_hosts live under ./secrets (gitignored), mounted at /secrets. The
+      # dir always exists (see secrets/.gitkeep) so this mount is safe even
+      # before the key is provisioned; the exchange flow no-ops until PEER_HOST.
+      - ./secrets:/secrets
       # The coordinate_conversion task runs maxit-ccd via `docker run` against
       # the host daemon (per the maxit-ccd README's memory-limited invocation).
       - /var/run/docker.sock:/var/run/docker.sock

@@ -27,3 +27,7 @@ certbot/certbot.sh
 prefect/data/memo_store.toml
 redis/data/dump.rdb
 redis/data/appendonlydir
+# Cross-site exchange credentials — never commit the SSH key / known_hosts.
+secrets/*
+!secrets/.gitkeep
+!secrets/README.md

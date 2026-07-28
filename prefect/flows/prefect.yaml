@@ -47,3 +47,18 @@ deployments:
     pull:
       - prefect.deployments.steps.set_working_directory:
           directory: /flows
+
+  # Cross-site data exchange (Osaka <-> UConn): every 6 hours pulls the PEER
+  # site's valid sessions (DB rows + archive + workspace) over SSH/rsync and
+  # merges them into the local DB for troubleshooting. No-ops while PEER_HOST is
+  # empty. Timezone is the worker's TZ. Deployment: exchange-sessions/default.
+  - name: default
+    entrypoint: core/exchange.py:exchange_sessions_flow
+    work_pool:
+      name: local-pool
+    schedules:
+      - cron: "0 */6 * * *"
+        timezone: "{{ $TZ }}"
+    pull:
+      - prefect.deployments.steps.set_working_directory:
+          directory: /flows

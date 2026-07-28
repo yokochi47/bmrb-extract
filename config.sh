@@ -123,6 +123,23 @@ else
   TZ=`date +%Z`
 fi
 
+# Cross-site data exchange: PEER_DOMAIN is the OTHER production domain (the
+# processing_site whose sessions this site imports). PEER_HOST (the peer's
+# reachable host/IP) is prompted once and may be left empty to keep the
+# exchange flow disabled until the peer is available.
+if [[ "${SERVICE_DOMAIN}" = "bmrb.io" ]] ; then
+  PEER_DOMAIN=pdbj.org
+elif [[ "${SERVICE_DOMAIN}" = "pdbj.org" ]] ; then
+  PEER_DOMAIN=bmrb.io
+else
+  PEER_DOMAIN=
+fi
+
+if [[ -z "${PEER_HOST:-}" ]] ; then
+  echo "Enter peer site host/IP for cross-site data exchange (leave empty to disable):"
+  read PEER_HOST
+fi
+
 email_regex='^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\n$'
 email_list_regex='^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:\s*,\s*[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})*\n?$'
 
@@ -269,6 +286,10 @@ export SERVICE_HOST=${SERVICE_SUBDOMAIN}.${SERVICE_DOMAIN}
 export SERVICE_ADMIN_EMAIL=${SERVICE_ADMIN_EMAIL}
 export SERVICE_HELP_EMAIL=${SERVICE_HELP_EMAIL}
 export SERVICE_ANNOT_EMAILS=${SERVICE_ANNOT_EMAILS}
+
+# Cross-site data exchange (peer production server; empty PEER_HOST disables it)
+export PEER_HOST=${PEER_HOST}
+export PEER_DOMAIN=${PEER_DOMAIN}
 
 # Nginx
 NGINX_LOG_FORMAT=${NGINX_LOG_FORMAT}
