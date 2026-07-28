@@ -380,6 +380,11 @@ def build_restraint_sections(stats: dict) -> dict:
             for key, sec, head, empty, noun in _BOOKKEEPING_DEFS
         ],
         # 7 / 8 tables
+        # Whether any distance / dihedral-angle restraints exist at all (the
+        # violation summary lists every restraint category, so an empty summary
+        # means there are no restraints of that kind).
+        'has_dist': bool(dist_sum),
+        'has_dihed': bool(dihed_sum),
         'dist_summary': dist_sum,
         'dihed_summary': dihed_sum,
         'dist_model_cols': _DIST_TABLE_COLS,
