@@ -591,6 +591,10 @@
 <section class="report-section">
   <h2>7. Distance violation analysis</h2>
 
+  {%- if not r.has_dist %}
+  <p class="caption muted">There is no distance restraints.</p>
+  {%- endif %}
+
   {%- if r.dist_summary %}
   <h3>7.1 Summary of distance violations</h3>
   <p class="caption">Summary of distance violations in different restraint categories based on the
@@ -665,6 +669,10 @@
 {#- ===================================================== 8. Dihedral violations -#}
 <section class="report-section">
   <h2>8. Dihedral-angle violation analysis</h2>
+
+  {%- if not r.has_dihed %}
+  <p class="caption muted">There is no dihedral-angle restraints.</p>
+  {%- endif %}
 
   {%- if r.dihed_summary %}
   <h3>8.1 Summary of dihedral-angle violations</h3>
