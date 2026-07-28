@@ -90,7 +90,9 @@ CREATE TABLE IF NOT EXISTS session (
 
     approved            BOOLEAN DEFAULT FALSE,  -- wheather user acknowledges all warnings, allowing user to download the conversion results.
     exchanged           BOOLEAN DEFAULT FALSE,  -- wheather data exchange among production servers completes.
-    downloaded          BOOLEAN DEFAULT FALSE   -- wheather user downloads the conversion results.
+    downloaded          BOOLEAN DEFAULT FALSE,  -- wheather user downloads the conversion results.
+
+    help_user_seen_at   TIMESTAMP               -- when the owner last viewed the help-desk thread (drives the new-reply badge)
 );
 
 DROP TYPE IF EXISTS upload_file_type;
@@ -224,6 +226,7 @@ CREATE TABLE IF NOT EXISTS communication (
     delivery_status delivery_status_code,
 
     from_admin      BOOLEAN NOT NULL DEFAULT false,     -- true = annotator reply, false = user inquiry
+    is_help_desk    BOOLEAN NOT NULL DEFAULT false,     -- true = help-desk inquiry/reply; false = system mail (e.g. resume URL)
 
     PRIMARY KEY ( conversion_id, ordinal )
 );

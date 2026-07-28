@@ -9,6 +9,8 @@ FROM prefecthq/prefect:3-latest
 # docker-cli provides just the `docker` client binary (no daemon); the daemon is
 # the host's, reached via the mounted socket. (The docker.io package keeps the
 # CLI in a separate `docker-cli` recommends, so install docker-cli directly.)
+# openssh-client + rsync are used by the cross-site exchange flow (core/exchange.py)
+# to pull the peer site's session rows and archive/workspace files over SSH.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends docker-cli \
+    && apt-get install -y --no-install-recommends docker-cli openssh-client rsync \
     && rm -rf /var/lib/apt/lists/*

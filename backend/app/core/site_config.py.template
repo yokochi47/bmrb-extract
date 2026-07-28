@@ -36,6 +36,20 @@ FAILURE_VALIDITY_PERIOD_IN_DAYS = ${FAILURE_VALIDITY_PERIOD_IN_DAYS}
 ARCHIVE_BASE_PATH = '${ARCHIVE_BASE_PATH}'
 WORKSPACE_BASE_PATH = '${WORKSPACE_BASE_PATH}'
 
+# Cross-site data exchange (peer production server). The exchange-sessions flow
+# pulls the peer's valid sessions every 6 hours; it no-ops while PEER_HOST is
+# empty. PEER_DOMAIN is the peer's processing_site value; PEER_PSQL is the
+# command the peer SSH account runs to read its own 'internal' DB (SQL on stdin).
+PEER_HOST = '${PEER_HOST}'
+PEER_DOMAIN = '${PEER_DOMAIN}'
+PEER_SSH_USER = '${PEER_SSH_USER}'
+PEER_SSH_PORT = '${PEER_SSH_PORT}'
+PEER_SSH_KEY = '${PEER_SSH_KEY}'
+PEER_KNOWN_HOSTS = '${PEER_KNOWN_HOSTS}'
+PEER_PSQL = '${PEER_PSQL}'
+PEER_ARCHIVE_DIR = '${PEER_ARCHIVE_DIR}'
+PEER_WORKSPACE_DIR = '${PEER_WORKSPACE_DIR}'
+
 # BMRB FTP entry directory base. The assigned chemical shifts for a valid
 # related BMRB ID (onedep conventional mode) are downloaded from
 # {BMRB_ENTRY_DIR_URL}/bmr{ID}/bmr{ID}_3.str. Both production sites fetch from
