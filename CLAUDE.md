@@ -11,10 +11,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Service lifecycle (Docker-based)
 ```bash
 ./config.sh       # interactive setup — generates .env, nginx.conf, init.sql, site_config.py, etc.
-./setup.sh        # build Docker images, create volumes, init GitHub Action runners, start Docker Swarm services
+./setup.sh        # build Docker images (incl. the PDF-report image via ./pdf/build.sh), create volumes, init GitHub Action runners, start Docker Swarm services
 ./start.sh        # docker compose up -d (all services)
 ./stop.sh         # docker compose down
 ./reload_wfe.sh   # rebuild frontend + nginx only (for frontend development)
+./pdf/build.sh    # (re)build the PDF-report generator image (bmrb-extract-pdf-report:local); run after editing pdf/ — setup.sh runs it on a clean install
 ```
 
 ### Frontend (Angular 21)

@@ -13,14 +13,14 @@ export const FILE_TYPE_OPTIONS: readonly FileTypeOption[] = [
   { label: 'Coordinates (PDBx/mmCIF format)', value: 'co-cif' },
   { label: 'Coordinates (PDB format)', value: 'co-pdb' },
   // Assigned chemical shifts
-  { label: 'Assigned chemical shifts (NMR-STAR V3 format)', value: 'nm-shi' },
+  { label: 'Assigned chemical shifts (NMR-STAR V3 or NEF)', value: 'nm-shi' },
   { label: 'Assigned chemical shifts (ARIA format)', value: 'nm-shi-ari' },
   { label: 'Assigned chemical shifts (GARRET format)', value: 'nm-shi-gar' },
   { label: 'Assigned chemical shifts (NMRPIPE format)', value: 'nm-shi-npi' },
   { label: 'Assigned chemical shifts (OLIVIA format)', value: 'nm-shi-oli' },
   { label: 'Assigned chemical shifts (PIPP format)', value: 'nm-shi-pip' },
   { label: 'Assigned chemical shifts (NMRVIEW/CAMRA format)', value: 'nm-shi-ppm' },
-  { label: 'Assigned chemical shifts (NMR-STAR V2 format, seq+cs loop)', value: 'nm-shi-st2' },
+  { label: 'Assigned chemical shifts (NMR-STAR V2, seq+cs loop)', value: 'nm-shi-st2' },
   { label: 'Assigned chemical shifts (XEASY format, aka. prot)', value: 'nm-shi-xea' },
   {
     label:
@@ -91,8 +91,8 @@ export const FILE_TYPE_OPTIONS: readonly FileTypeOption[] = [
     value: 'nm-pea-any',
   },
   // NMR unified data
-  { label: 'NMR unified data (NEF: NMR Exchange Format)', value: 'nm-uni-nef' },
-  { label: 'NMR unified data (NMR-STAR V3 format)', value: 'nm-uni-str' },
+  { label: 'NMR unified data (NEF)', value: 'nm-uni-nef' },
+  { label: 'NMR unified data (NMR-STAR V3)', value: 'nm-uni-str' },
 ];
 
 const FILE_TYPE_LABELS = new Map(FILE_TYPE_OPTIONS.map((o) => [o.value, o.label]));
