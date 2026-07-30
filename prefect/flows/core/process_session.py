@@ -1018,7 +1018,7 @@ def nmr_data_conversion(
     if target == 'bmrbdep':
         # BMRB-only: merge chemical shifts (+ optional topology) into NMR-STAR with
         # no coordinates. 2 step ops: nmr-cs-mr-merge + nmr-str-consistency-check with conversion_server=True.
-        merge_log = log_d / f'C_{conversion_id}_nmr-data-bmrb_only.json'
+        merge_log = log_d / f'C_{conversion_id}_nmr-data-str_bmrb_only.json'
         nmr_log = log_d / f'C_{conversion_id}_nmr-data-str_consist.json'
         report_path = merge_log  # first task report
         cs_list = []
@@ -1051,7 +1051,7 @@ def nmr_data_conversion(
         # Replacing CS: replace the assigned chemical shifts in the OneDep-processed
         # NMR-STAR unified data file (nm-uni-str) with the correct ones (nm-shi),
         # against the coordinates. 2 step ops: nmr-str-replace-cs + nmr-str-consistency-check.
-        replace_log = log_d / f'C_{conversion_id}_nmr-data-repl_cs.json'
+        replace_log = log_d / f'C_{conversion_id}_nmr-data-str_repl_cs.json'
         nmr_log = log_d / f'C_{conversion_id}_nmr-data-str_consist.json'
         report_path = replace_log  # first task report
         if uni is None or uni['file_type'] != 'nm-uni-str' or not cs_files:
@@ -1085,7 +1085,7 @@ def nmr_data_conversion(
     else:
         # OneDep separated: merge chemical shifts + restraints/topology/peaks, then deposit.
         nmr_log = deposit_log
-        merge_log = log_d / f'C_{conversion_id}_cs_mr_merge.json'
+        merge_log = log_d / f'C_{conversion_id}_nmr-data-str_merge.json'
         report_path = merge_log  # first task (cs-mr-merge) report
         merged_str = work_d / f'C_{conversion_id}_cs-mr-merged.str'
         atypical_list, restraint_list = [], []
@@ -1109,19 +1109,23 @@ def nmr_data_conversion(
         report_path, onedep_combined,
     )
 
-    # OneDep combined and repl_cs (onedep_combined): when the run produced a clean
-    # (non-blocking) NMR-STAR whose content is fully NEF-representable, a NEF
-    # release file is emitted as an additional output. The actual generation is
-    # DEFERRED to the flow (after the session is marked completed) so it stays off
-    # the summary critical path; here we only decide whether it applies. nmr_log is
-    # the *final* report (str_deposit.json / repl_cs.json).
+    # NEF release applies to OneDep (combined OR separated) and repl_cs — any run
+    # that produces a coordinate + NMR-STAR deposition. When that NMR-STAR is clean
+    # (non-blocking) and its content is fully NEF-representable, a NEF release file
+    # is emitted as an additional output. (onedep_combined is intentionally NOT used
+    # here — it is kept only for the report-blocker semantics above; NEF eligibility
+    # no longer requires a unified input file.) The actual generation is DEFERRED to
+    # the flow (after the session is marked completed) so it stays off the summary
+    # critical path; here we only decide whether it applies. nmr_log is the *final*
+    # report (str_deposit.json / repl_cs.json).
+    nef_target = target in ('onedep', 'repl_cs')
     attempt_nef = bool(
         ok
         and report_status != 'Error'
-        and onedep_combined
+        and nef_target
         and _nef_release_eligible(nmr_log, conversion_id)
     )
-    if onedep_combined and ok and report_status != 'Error' and not attempt_nef:
+    if nef_target and ok and report_status != 'Error' and not attempt_nef:
         print(f'[{conversion_id}] NEF release skipped (content not fully NEF-representable)')
 
     return ok, attempt_nef

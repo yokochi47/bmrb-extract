@@ -590,7 +590,7 @@ export class Upload implements OnDestroy {
           const short = this.shortLabel(opt.label);
           // Item list shows the short label; the closed select shows the
           // '{group} - {short}' selected label (e.g. 'Coordinates - PDBx/mmCIF format').
-          return { label: `• ${short}`, selectedLabel: `${g.label} - ${short}`, value: opt.value };
+          return { label: `  • ${short}`, selectedLabel: `${g.label} - ${short}`, value: opt.value };
         },
       ),
     })).filter((g) => g.items.length > 0);
@@ -1017,7 +1017,14 @@ export class Upload implements OnDestroy {
           token,
         }),
       );
-      this.pageService.pageState.update((prev) => ({ ...prev, conversionId: res.conversion_id }));
+      this.pageService.pageState.update((prev) => ({
+        ...prev,
+        conversionId: res.conversion_id,
+        // A new run supersedes any prior approval (the backend also resets
+        // session.approved), so the summary's acknowledgment checkboxes start
+        // unchecked (opt-out) rather than inheriting the previous run's approval.
+        approved: false,
+      }));
       // Re-disable Process until the next file change (re-upload requires an edit).
       this.fileOpDone.set(false);
       this.submitting.set(false);
