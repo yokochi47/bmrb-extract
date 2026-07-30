@@ -177,6 +177,10 @@ async def get_session():
             'downloaded': bool(session_row.downloaded),
             'owned': owned,
             'claimable': claimable,
+            # Session lifecycle status; 'failed' marks a run that did not complete
+            # successfully (a conversion task failed/aborted or a blocking report),
+            # so its partial results must not be approved/downloaded.
+            'status': session_row.status,
         }
 
 
@@ -539,6 +543,12 @@ async def download_results():
         run_number = session_row.latest_run_number
         if conversion_id is None or run_number < 1:
             return {'error': 'no conversion results available'}, 404
+        # A failed run leaves only partial outputs (e.g. the coordinate file + JSON
+        # report, but no converted NMR data); it must never be downloadable, even if
+        # the user acknowledged warnings (session.approved). Only a completed run is.
+        if session_row.status != SessionStatusCode.completed:
+            return {'error': 'conversion did not complete successfully; '
+                             'results are not available for download'}, 409
         if not session_row.approved:
             return {'error': 'results not approved for download'}, 409
 

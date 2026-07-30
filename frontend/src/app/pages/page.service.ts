@@ -1,4 +1,4 @@
-import { Injectable, effect, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { NavigationEnd, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { filter } from 'rxjs';
@@ -36,6 +36,9 @@ export interface PageState {
   /** A logged-in user holding this token may adopt this (unowned, non-expired)
    * session into their account. */
   claimable: boolean;
+  /** Session lifecycle status ('completed' | 'failed' | 'processing' | …); null
+   * until restored. 'failed' ⇒ the run did not complete, results not downloadable. */
+  sessionStatus: string | null;
 }
 
 @Injectable({
@@ -69,7 +72,14 @@ export class PageService {
     downloaded: false,
     owned: false,
     claimable: false,
+    sessionStatus: null,
   });
+
+  /** Single source of truth for "the run did not complete" — a conversion task
+   * failed/aborted or a blocking NMR report; the backend sets session.status =
+   * 'failed' for all of these. Shared by the summary and download pages so they
+   * never diverge. Its results are incomplete and must not be downloaded. */
+  sessionFailed = computed(() => this.pageState().sessionStatus === 'failed');
 
   private initialized = false;
   /** Token whose session state is currently loaded, so navigation events don't
@@ -128,6 +138,7 @@ export class PageService {
         downloaded: boolean;
         owned: boolean;
         claimable: boolean;
+        status: string;
       }>(API_URL + 'session', { params: { token } })
       .subscribe({
         next: ({
@@ -141,6 +152,7 @@ export class PageService {
           downloaded,
           owned,
           claimable,
+          status,
         }) => {
           if (expired) {
             this.tokenValidation.set('expired');
@@ -163,6 +175,7 @@ export class PageService {
               downloaded: !!downloaded,
               owned: !!owned,
               claimable: !!claimable,
+              sessionStatus: status ?? null,
             }));
           }
         },
@@ -178,21 +191,25 @@ export class PageService {
     this.pageState.update((prev) => ({ ...prev, owned: true, claimable: false }));
   }
 
-  /** Re-fetch ownership / claimability for the current session. `claimable` is
-   * auth-dependent (server-side), so it must be refreshed when the user logs in
-   * or a claim completes — otherwise the value from the initial (anonymous) page
-   * load is stale until a manual refresh. */
+  /** Re-fetch ownership / claimability / lifecycle status for the current session.
+   * `claimable` is auth-dependent and `sessionStatus` becomes terminal only after
+   * processing, so both must be refreshed after login / a claim / reaching the
+   * summary — the initial (pre-processing, anonymous) values are otherwise stale
+   * until a manual reload (same-token navigation skips a full restore). */
   refreshSession(token?: string | null): void {
     const t = token ?? this.pageState().tokenBase;
     if (!t) return;
     this.http
-      .get<{ owned: boolean; claimable: boolean }>(API_URL + 'session', { params: { token: t } })
+      .get<{ owned: boolean; claimable: boolean; status: string }>(API_URL + 'session', {
+        params: { token: t },
+      })
       .subscribe({
-        next: ({ owned, claimable }) =>
+        next: ({ owned, claimable, status }) =>
           this.pageState.update((prev) => ({
             ...prev,
             owned: !!owned,
             claimable: !!claimable,
+            sessionStatus: status ?? null,
           })),
         error: () => undefined,
       });

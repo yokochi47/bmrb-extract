@@ -462,6 +462,13 @@
 >
   <p class="text-base leading-relaxed mb-4 shrink-0">{{ progressCaption() }}</p>
 
+  @if (progressOutcome() === 'failed') {
+    <p-message severity="error" styleClass="mb-4 w-full shrink-0" [closable]="false">
+      <i class="pi pi-times-circle mr-2"></i>The conversion failed — an error occurred during
+      processing, so the results are incomplete and cannot be downloaded.
+    </p-message>
+  }
+
   <div class="flex flex-col gap-3 flex-1 min-h-0 overflow-auto">
     @for (t of progressTasks(); track t.task) {
       <div

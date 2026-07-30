@@ -322,7 +322,7 @@ export class Upload implements OnDestroy {
       );
       if (hasSeparated) {
         errors.push(
-          'Combined single file deposition allows only the coordinate file and the NMR unified data file; separated chemical shift, restraint, peak list, or topology files are not allowed alongside it.',
+          'Combined single file deposition allows only the coordinate file and the NMR unified data file; separated chemical shift, restraint, peak list, or topology files are not allowed alongside it. FYI, if you wish to re-merge selected restraints into the NMR unified data, please select it as "Assigned chemical shifts (NMR-STAR V3 or NEF)"',
         );
       }
     }
@@ -590,7 +590,7 @@ export class Upload implements OnDestroy {
           const short = this.shortLabel(opt.label);
           // Item list shows the short label; the closed select shows the
           // '{group} - {short}' selected label (e.g. 'Coordinates - PDBx/mmCIF format').
-          return { label: short, selectedLabel: `${g.label} - ${short}`, value: opt.value };
+          return { label: `• ${short}`, selectedLabel: `${g.label} - ${short}`, value: opt.value };
         },
       ),
     })).filter((g) => g.items.length > 0);
