@@ -4,6 +4,7 @@
 
 ## Requirements
 - Docker engin
+- Node.js
 
 ## Install
 1. Configure service (generates .env, nginx.conf, init.sql, site_config.py, etc.)
