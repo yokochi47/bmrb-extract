@@ -560,6 +560,17 @@ export class Download {
       this.loadInputFiles(token);
     });
 
+    // Refresh the (post-processing) session status once, so a failed run is
+    // recognized here even when arriving from the summary via SPA navigation
+    // (which skips a full session restore) — drives runFailed / the error notice.
+    let statusRefreshed = false;
+    effect(() => {
+      const token = this.pageService.pageState().tokenBase;
+      if (!token || statusRefreshed) return;
+      statusRefreshed = true;
+      this.pageService.refreshSession(token);
+    });
+
     // `claimable`/`owned` are auth-dependent and fetched once at page load, so
     // re-check them whenever the user logs in (authenticated flips) or a claim
     // completes (claimRevision bumps) — otherwise the claim button only appears
@@ -1354,6 +1365,11 @@ export class Download {
 
   /** All warnings acknowledged on the summary page (Terms #7) — gates download. */
   approved = computed(() => this.pageService.pageState().approved);
+
+  /** The run did not complete (failed/aborted) — results are incomplete and must
+   * not be downloadable; the download page shows an error notice instead. Shared
+   * with the summary page via PageService so the two never diverge. */
+  runFailed = this.pageService.sessionFailed;
 
   /** Date (YYYY-MM-DD) until which the session and results stay accessible
    * (from GET /api/session via the page state). */

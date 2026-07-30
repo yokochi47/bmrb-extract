@@ -480,6 +480,7 @@ def _nmr_merge_driver_script(
         "u.addInput(name='nonblk_bad_nterm', value=True, type='param')\n"
         "u.addInput(name='resolve_conflict', value=True, type='param')\n"
         "u.addInput(name='check_mandatory_tag', value=True, type='param')\n"
+        "u.addInput(name='conversion_server', value=True, type='param')\n"
         f"u.addInput(name='secret_key', value={AUTH_SECRET!r}, type='param')\n"
         f"u.addInput(name='service_host', value={SERVICE_HOST!r}, type='param')\n"
         "u.addInput(name='dep_sys_name', value='onedep', type='param')\n"
@@ -629,7 +630,7 @@ def _nmr_bmrbdep_driver_script(
         f"{common_inputs}"
         # conversion_server mode derives entry_id = C_<conversion_id> from this
         # (the conversion_id matches CNV_ID_PAT ^C_[1-9]\\d{6}$ as C_<id>).
-        "u.addInput(name='bmrb_id', value=BMRB_ID, type='param')\n"
+        "u.addOutput(name='bmrb_id', value=BMRB_ID, type='param')\n"
         "u.setLog(MERGE_LOG)\n"
         "u.setDestination(OUT_STR)\n"
         "u.setVerbose(True)\n"

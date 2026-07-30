@@ -10,11 +10,12 @@
   </p>
 
   @if (processed()) {
-    @if (hasBlockingError()) {
+    @if (runFailed()) {
       <p-card styleClass="mb-6 border-l-4 border-red-500">
         <span class="text-red-600 font-medium">
-          <i class="pi pi-times-circle mr-2"></i>The conversion has blocking errors. Please fix the
-          reported issues and re-upload before you can download the results.
+          <i class="pi pi-times-circle mr-2"></i>The conversion failed to complete — an error
+          occurred during processing. The results are incomplete and cannot be downloaded. Review
+          the task logs in the processing dialog, and re-upload after correcting the input.
         </span>
       </p-card>
     } @else if (downloaded()) {
@@ -1634,7 +1635,7 @@
                   }
                   <span
                     class="font-medium px-2 py-0.5 rounded"
-                    [style.background-color]="g.real ? 'orange' : 'transparent'"
+                    [style.background-color]="g.real ? 'red' : 'orangered'"
                   >
                     {{ g.real ? 'Error' : 'Potential error' }}: {{ g.title }} — {{ g.count }}
                   </span>

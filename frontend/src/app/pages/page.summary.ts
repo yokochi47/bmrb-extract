@@ -813,8 +813,17 @@ export class Summary implements OnDestroy {
     return keys;
   });
 
-  /** A real (blocking) NMR error is present → download is blocked; cannot approve. */
-  hasBlockingError = computed(() => this.nmrErrors().some((g) => g.real));
+  /** A real (blocking) NMR validation error is present in the report. */
+  private hasRealNmrError = computed(() => this.nmrErrors().some((g) => g.real));
+
+  /** The run did not complete due to a processing failure/abort (as opposed to a
+   * blocking NMR report) → shows the distinct "conversion failed" notice. */
+  runFailed = computed(() => this.pageService.sessionFailed() && !this.hasRealNmrError());
+
+  /** Any blocking condition — the run failed OR a real NMR error → download is
+   * blocked; the user cannot approve incomplete results. Shares PageService's
+   * sessionFailed() so the summary and download pages never diverge. */
+  hasBlockingError = computed(() => this.pageService.sessionFailed() || this.hasRealNmrError());
 
   /** Download is allowed: no blocking error and every acknowledgeable table checked. */
   canApprove = computed(
@@ -855,6 +864,7 @@ export class Summary implements OnDestroy {
   private coordinateHost = viewChild<ElementRef<HTMLDivElement>>('molstarHost');
 
   private fetched = false;
+  private statusRefreshed = false;
   private validationFetched = false;
   private nmrFetched = false;
   private nmrPreviewFetched = false;
@@ -873,6 +883,18 @@ export class Summary implements OnDestroy {
       if (token && !this.fetched) {
         this.fetched = true;
         this.loadFiles(token);
+      }
+    });
+
+    // Refresh the (post-processing) session status once the run exists: arriving
+    // from the processing dialog doesn't re-run the full session restore, so the
+    // in-memory status can be pre-terminal. A 'failed' run must block approval /
+    // download (see runFailed / hasBlockingError).
+    effect(() => {
+      const token = this.pageService.pageState().tokenBase;
+      if (token && this.processed() && !this.statusRefreshed) {
+        this.statusRefreshed = true;
+        this.pageService.refreshSession(token);
       }
     });
 
