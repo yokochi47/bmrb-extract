@@ -2,6 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { PopoverModule } from 'primeng/popover';
 import {
+  HOST_SITE_NAME,
   HOST_SITE_URL,
   HOST_SITE_LOGO,
   ONEDEP_URL,
@@ -27,6 +28,7 @@ interface Versions {
   templateUrl: './app.footer.html',
 })
 export class AppFooter {
+  HOST_SITE_NAME = HOST_SITE_NAME;
   HOST_SITE_URL = HOST_SITE_URL;
   HOST_SITE_LOGO = HOST_SITE_LOGO;
   ONEDEP_URL = ONEDEP_URL;
