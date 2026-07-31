@@ -941,8 +941,8 @@ def _parse_validation_categories(path):
     return cats
 
 
-def _join(get, *items, sep=' '):
-    """Join non-empty item values into one cell (e.g. 'A ASP 84 OD1')."""
+def _join(get, *items, sep=':'):
+    """Join non-empty item values into one cell (e.g. 'A:ASP:84:OD1')."""
     return sep.join(v for v in (get(it) for it in items) if v).strip()
 
 
