@@ -607,7 +607,7 @@ export class Summary implements OnDestroy {
       title: 'Normalized assigned chemical shifts (Z-score)',
       // Reversed X-axis (high → low Z-score) to match ordinary NMR spectra, and
       // [v, v + step) range labels since each bin spans a Z-score interval.
-      option: this.histogramOption(h, 'Z-score', '# of chemical shifts', {
+      option: this.histogramOption(h, 'Z-score', 'Number of chemical shifts', {
         inverse: true,
         rangeLabels: true,
       }),
@@ -616,9 +616,9 @@ export class Summary implements OnDestroy {
 
   /** RCI / S² / NMR-RMSD per-residue line panels for one saveframe. */
   rciPanelsOf(sf: ChemShiftSaveframe): ChartPanel[] {
-    return sf.rci.map((c) => ({
+    return sf.rci.map((c, index) => ({
       title: `${c.label} — Entity_assembly_ID: ${c.chain}`,
-      option: this.lineOption(c),
+      option: this.lineOption(c, index % 2 == 0 ? 'RCI / S² values' : 'NMR RMSD (Å)'),
     }));
   }
 
@@ -642,7 +642,7 @@ export class Summary implements OnDestroy {
   distHistogramPanels(sf: DistRestraintSaveframe): ChartPanel[] {
     return sf.histogram.map((h) => ({
       title: 'Distance restraint target values',
-      option: this.histogramOption(h, 'Target distance (Å)', '# of distance restraints', {
+      option: this.histogramOption(h, 'Target distance (Å)', 'Number of distance restraints', {
         rangeLabels: true,
         yAxisLine: true,
       }),
@@ -651,16 +651,21 @@ export class Summary implements OnDestroy {
   distDiscrepancyPanels(sf: DistRestraintSaveframe): ChartPanel[] {
     return sf.discrepancy.map((h) => ({
       title: 'Discrepancy in redundant distance restraints',
-      option: this.histogramOption(h, 'Normalized discrepancy (%)', '# of redundant restraints', {
-        rangeLabels: true,
-        yAxisLine: true,
-      }),
+      option: this.histogramOption(
+        h,
+        'Normalized discrepancy (%)',
+        'Number of redundant restraints',
+        {
+          rangeLabels: true,
+          yAxisLine: true,
+        },
+      ),
     }));
   }
   distPerResiduePanels(sf: DistRestraintSaveframe): ChartPanel[] {
     return sf.per_residue.map((c) => ({
       title: `Distance restraints per residue — Entity_assembly_ID: ${c.chain}`,
-      option: this.perResidueOption(c),
+      option: this.perResidueOption(c, 'Number of distance restraints'),
     }));
   }
   distContactMapPanels(sf: DistRestraintSaveframe): ChartPanel[] {
@@ -718,7 +723,7 @@ export class Summary implements OnDestroy {
   dihedHistogramPanels(sf: DihedRestraintSaveframe): ChartPanel[] {
     return sf.histogram.map((h) => ({
       title: 'Dihedral angle target values',
-      option: this.histogramOption(h, 'Angle (°)', '# of dihedral angle restraints', {
+      option: this.histogramOption(h, 'Angle (°)', 'Number of dihedral angle restraints', {
         rangeLabels: true,
         yAxisLine: true,
       }),
@@ -730,7 +735,7 @@ export class Summary implements OnDestroy {
       option: this.histogramOption(
         h,
         'Discrepancy in dihedral angle restraints (°)',
-        '# of redundant restraints',
+        'Number of redundant restraints',
         { rangeLabels: true, yAxisLine: true },
       ),
     }));
@@ -738,7 +743,7 @@ export class Summary implements OnDestroy {
   dihedPerResiduePanels(sf: DihedRestraintSaveframe): ChartPanel[] {
     return sf.per_residue.map((c) => ({
       title: `Dihedral angles per residue — Entity_assembly_ID: ${c.chain}`,
-      option: this.lineOption(c),
+      option: this.lineOption(c, 'Target dihedral angle (°)'),
     }));
   }
 
@@ -749,7 +754,7 @@ export class Summary implements OnDestroy {
   rdcHistogramPanels(sf: RdcRestraintSaveframe): ChartPanel[] {
     return sf.histogram.map((h) => ({
       title: 'Observed RDC values',
-      option: this.histogramOption(h, 'Obs. RDC value (Hz)', '# of RDC restraints', {
+      option: this.histogramOption(h, 'Obs. RDC value (Hz)', 'Number of RDC restraints', {
         rangeLabels: true,
         yAxisLine: true,
       }),
@@ -761,7 +766,7 @@ export class Summary implements OnDestroy {
       option: this.histogramOption(
         h,
         'Discrepancy in RDC restraints (Hz)',
-        '# of redundant restraints',
+        'Number of redundant restraints',
         { rangeLabels: true, yAxisLine: true },
       ),
     }));
@@ -769,7 +774,7 @@ export class Summary implements OnDestroy {
   rdcPerResiduePanelsOf(sf: RdcRestraintSaveframe): ChartPanel[] {
     return sf.per_residue.map((c) => ({
       title: `Observed RDC per residue — Entity_assembly_ID: ${c.chain}`,
-      option: this.lineOption(c),
+      option: this.lineOption(c, 'Obs. RDC value (Hz)'),
     }));
   }
 
@@ -1100,6 +1105,8 @@ export class Summary implements OnDestroy {
       yAxis: {
         type: 'value',
         name: yName,
+        nameLocation: 'middle',
+        nameGap: 40,
         minInterval: 1,
         axisTick: { show: true },
         ...(yAxisLine ? { axisLine: { show: true } } : {}),
@@ -1262,7 +1269,7 @@ export class Summary implements OnDestroy {
 
   /** ECharts option for a per-residue stacked-count bar with secondary-structure
    * bands drawn as markAreas. */
-  private perResidueOption(c: PerResidueChart): object {
+  private perResidueOption(c: PerResidueChart, yName: string): object {
     const { markerAxis, holderSeries } = this.bandOverlay(c.categories, c.bands);
     const interval = Math.max(0, Math.ceil(c.categories.length / 24) - 1);
     return {
@@ -1274,7 +1281,14 @@ export class Summary implements OnDestroy {
         { type: 'category', data: c.categories, axisLabel: { interval, rotate: -75, fontSize: 8 } },
         markerAxis,
       ],
-      yAxis: { type: 'value', name: '# of restraints', minInterval: 1, axisLine: { show: true } },
+      yAxis: {
+        type: 'value',
+        name: yName,
+        nameLocation: 'middle',
+        nameGap: 40,
+        minInterval: 1,
+        axisLine: { show: true },
+      },
       series: [
         ...c.series.map((s) => ({ name: s.name, type: 'bar', stack: 'total', data: s.data })),
         holderSeries,
@@ -1461,7 +1475,24 @@ export class Summary implements OnDestroy {
 
   /** ECharts option for a per-residue value line chart (dihedral / RDC / RCI),
    * with secondary-structure bands and an optional threshold line. */
-  private lineOption(c: PerResidueLine): object {
+  /** A "nice" y-axis upper bound + tick step for a 0..max axis: pick an even step
+   * (1/2/5 × 10ⁿ, ~7 ticks) and round `max` UP to a multiple of it, so e.g.
+   * max=3.422 → { max: 3.5, step: 0.5 } instead of a ragged top tick at the exact
+   * data max. step 0 when max ≤ 0 (leave the axis to auto-scale). Mirrors the same
+   * helper in report-charts.ts (used by the download page / PDF). */
+  private niceAxisBound(max: number): { max: number; step: number } {
+    if (!(max > 0)) return { max, step: 0 };
+    const pow = Math.pow(10, Math.floor(Math.log10(max / 7)));
+    const norm = max / 7 / pow;
+    const step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * pow;
+    const decimals = Math.max(0, -Math.floor(Math.log10(step)));
+    return {
+      max: Number((Math.ceil(max / step) * step).toFixed(decimals)),
+      step: Number(step.toFixed(decimals)),
+    };
+  }
+
+  private lineOption(c: PerResidueLine, yName: string): object {
     const interval = Math.max(0, Math.ceil(c.categories.length / 24) - 1);
     const { markerAxis, holderSeries } = this.bandOverlay(c.categories, c.bands);
     const markLine =
@@ -1490,12 +1521,20 @@ export class Summary implements OnDestroy {
         { type: 'category', data: c.categories, axisLabel: { interval, rotate: -75, fontSize: 8 } },
         markerAxis,
       ],
-      yAxis: {
-        type: 'value',
-        axisLine: { show: true },
-        ...(c.ymin !== null ? { min: c.ymin } : {}),
-        ...(c.ymax !== null ? { max: c.ymax } : {}),
-      },
+      yAxis: (() => {
+        const yb = c.ymax !== null ? this.niceAxisBound(c.ymax) : null;
+        return {
+          type: 'value',
+          name: yName,
+          nameLocation: 'middle',
+          nameGap: 40,
+          axisLine: { show: true },
+          ...(c.ymin !== null
+            ? { min: yb && yb.step > 0 ? Math.floor(c.ymin / yb.step) * yb.step : c.ymin }
+            : {}),
+          ...(yb && yb.step > 0 ? { max: yb.max, interval: yb.step } : {}),
+        };
+      })(),
       series: [
         ...c.series.map((s, idx) => ({
           name: s.name,
