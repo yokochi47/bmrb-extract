@@ -459,6 +459,8 @@ const RESTRAINT_LABEL_HTML: Record<string, string> = {
   sequential: 'Sequential (<em>| i - j | = 1</em>)',
   medium_range: 'Medium range (<em>1 &lt; | i - j | &lt; 5</em>)',
   long_range: 'Long range (<em>| i - j | ≥ 5</em>)',
+  // Preserve the RDC acronym (the humanize fallback would lowercase it to "rdc").
+  total_rdc_restraints: 'Total RDC restraints',
 };
 
 /** Distance-type codes used in restraint_summary *_dist_types (comma-separated). */

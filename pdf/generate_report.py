@@ -237,6 +237,8 @@ _RESTRAINT_LABEL_HTML = {
     'sequential': 'Sequential (<em>| i - j | = 1</em>)',
     'medium_range': 'Medium range (<em>1 &lt; | i - j | &lt; 5</em>)',
     'long_range': 'Long range (<em>| i - j | ≥ 5</em>)',
+    # Preserve the RDC acronym (the capitalize fallback would lowercase it).
+    'total_rdc_restraints': 'Total RDC restraints',
 }
 _DIST_TYPE_LABELS = {
     'ir': 'Intra-residue', 'se': 'Sequential', 'mr': 'Medium range',
