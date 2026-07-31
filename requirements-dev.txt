@@ -1,0 +1,10 @@
+# Development tooling — Python linting (config in .flake8). Install into your dev
+# environment (host user site or a venv), NOT the runtime Docker images:
+#   python3 -m pip install -r requirements-dev.txt
+# Then, from the repo root:
+#   flake8 backend prefect pdf        # or: flake8 .
+#
+# Pinned so the lint result is reproducible: flake8-bugbear adds new checks over
+# time, which could otherwise turn a green tree red on an unrelated upgrade.
+flake8==7.3.0
+flake8-bugbear==25.11.29
