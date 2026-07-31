@@ -232,17 +232,17 @@
               "minimum": 1
             },
             "ph_titr_data": {
-              "description": "The number of lists associated with pH titration anlysis.",
+              "description": "The number of lists associated with pH titration analysis (pKa value).",
               "type": "integer",
               "minimum": 1
             },
             "ph_param_data": {
-              "description": "The number of lists associated with pH titration data.",
+              "description": "The number of lists associated with pH titration raw data.",
               "type": "integer",
               "minimum": 1
             },
             "coupling_constant_data": {
-              "description": "The number of lists associated with coupling consntat data.",
+              "description": "The number of lists associated with coupling consntat raw data.",
               "type": "integer",
               "minimum": 1
             },
