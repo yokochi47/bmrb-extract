@@ -590,7 +590,11 @@ export class Upload implements OnDestroy {
           const short = this.shortLabel(opt.label);
           // Item list shows the short label; the closed select shows the
           // '{group} - {short}' selected label (e.g. 'Coordinates - PDBx/mmCIF format').
-          return { label: `\u00A0\u00A0• ${short}`, selectedLabel: `${g.label} - ${short}`, value: opt.value };
+          return {
+            label: `\u00A0\u00A0• ${short}`,
+            selectedLabel: `${g.label} - ${short}`,
+            value: opt.value,
+          };
         },
       ),
     })).filter((g) => g.items.length > 0);

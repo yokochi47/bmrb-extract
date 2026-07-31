@@ -1,0 +1,10 @@
+[flake8]
+# Line length matched to the existing codebase (up to ~119 chars).
+max-line-length = 120
+# Add to flake8's default excludes: vendored / generated / non-source trees.
+# site_config.py is generated per site by config.sh (its .template is the source).
+extend-exclude =
+    node_modules,
+    actions-runner,
+    frontend,
+    backend/app/core/site_config.py

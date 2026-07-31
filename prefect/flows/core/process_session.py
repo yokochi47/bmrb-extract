@@ -529,7 +529,7 @@ def _nmr_merge_driver_script(
 
 def _nmr_replace_cs_driver_script(
     *, src: str, cif: str, cs_list: list, replace_log: str, consist_log: str,
-    out_str: str, work_dir: str, cache_dir: str,
+    out_str: str, entry_id: str, work_dir: str, cache_dir: str,
 ) -> str:
     """Driver for OneDep repl_cs (replacing assigned chemical shifts): replace the
     chemical shifts in the OneDep-processed NMR-STAR unified data file (setSource)
@@ -582,7 +582,8 @@ def _nmr_replace_cs_driver_script(
 
 def _nmr_bmrbdep_driver_script(
     *, cs_list: list, atypical_cs_list: list, atypical_restraint_list: list,
-    bmrb_id: int, merge_log: str, consist_log: str, out_str: str, work_dir: str, cache_dir: str,
+    bmrb_id: int, merge_log: str, consist_log: str, out_str: str, entry_id: str,
+    work_dir: str, cache_dir: str,
 ) -> str:
     """Driver for BMRBdep (BMRB-only) deposition: merge chemical shifts (NMR-STAR
     nm-uni-str/nm-shi and NEF nm-uni-nef in chem_shift_file_path_list, plus any
@@ -1044,8 +1045,8 @@ def nmr_data_conversion(
         driver_text = _nmr_bmrbdep_driver_script(
             cs_list=cs_list, atypical_cs_list=atypical_cs_list,
             atypical_restraint_list=atypical_restraint_list, bmrb_id=conversion_id,
-            merge_log=str(merge_log), consit_log=str(nmr_log), out_str=str(out_str),
-            work_dir=str(work_d), cache_dir=str(cache_d),
+            merge_log=str(merge_log), consist_log=str(nmr_log), out_str=str(out_str),
+            entry_id=entry_id, work_dir=str(work_d), cache_dir=str(cache_d),
         )
     elif target == 'repl_cs':
         # Replacing CS: replace the assigned chemical shifts in the OneDep-processed
@@ -1066,8 +1067,8 @@ def nmr_data_conversion(
         driver_text = _nmr_replace_cs_driver_script(
             src=str(in_dir / uni['original_name']), cif=str(model_cif),
             cs_list=_cs_dict_list(cs_files), replace_log=str(replace_log),
-            consist_log=str(nmr_log), out_str=str(out_str), work_dir=str(work_d),
-            cache_dir=str(cache_d),
+            consist_log=str(nmr_log), out_str=str(out_str), entry_id=entry_id,
+            work_dir=str(work_d), cache_dir=str(cache_d),
         )
     elif uni is not None:
         # OneDep combined: single NMR unified data file.

@@ -1381,18 +1381,55 @@ _NMR_CONTENT_NAMES = {
 }
 _NMR_SUBTYPE_NAMES = {
     'poly_seq': 'Covalent bonds',
-    'entity': 'Entity',
+    'entity': 'Molecular entities',
     'coordinate': 'Coordinates',
     'chem_shift': 'Assigned chemical shifts',
-    'chem_shift_ref': 'Chemical shift references',
+    'chem_shift_ref': 'Chemical shift reference',
     'dist_restraint': 'Distance restraints',
     'dihed_restraint': 'Dihedral angle restraints',
     'rdc_restraint': 'RDC restraints',
     'spectral_peak': 'Spectral peak lists',
     'spectral_peak_alt': 'Spectral peak lists (alt.)',
+    'noepk_restraint': 'NOESY peak volume restraints',
+    'plane_restraint': 'Planerity constraints',
+    'adist_restraint': 'Anti-distance restraints',
+    'jcoup_restraint': 'Scalar J-coupling restraints',
+    'rdc_raw_data': 'RDC raw data',
+    'csa_restraint': 'Chemical shift anisotropy restraints',
+    'ddc_restraint': 'Dipolar coupling restraints',
+    'hvycs_restraint': 'Carbon chemical shift restraints',
+    'procs_restraint': 'Proton chemical shift restraints',
+    'csp_restraint': 'Chemical shift perturbations or pseudo-contact shift (PCS) restraints',
+    'auto_relax_restraint': 'Auto relaxation data or paramagnetic relaxation enhancement (PRE) restraints',
+    'heteronucl_noe_data': 'Heteronuclear NOE data',
+    'heteronucl_t1_data': 'Heteronuclear T1 relaxation data',
+    'heteronucl_t2_data': 'Heteronuclear T2 relaxation data',
+    'heteronucl_t1r_data': 'Heteronuclear T1ρ relaxation data',
+    'order_param_data': 'Order parameter relaxation analysis',
+    'ph_titr_data': 'pH titration analysis (pKa value)',
+    'ph_param_data': 'pH titration raw data',
+    'coupling_const_data': 'Coupling constant raw data',
+    'ccr_d_csa_restraint': 'Cross-correlation rate (CCR, Dipolar-CSA) restraints',
+    'ccr_dd_restraint': 'Cross-correlation rate (CCR, Dipolar-Dipolar) restraints',
+    'fchiral_restraint': 'Floating chiral stereo assignments',
+    'saxs_restraint': 'Small angle X-ray scattering restraints',
+    'rama_restraint': 'Dihedral angle database restraints',
+    'diff_restraint': 'Diffusion anisotropy restraints',
+    'nbase_restraint': 'Nucleic acid base orientaion database restraints',
+    'ang_restraint': 'Angle database restraints',
+    'pre_restraint': 'Paramagnetic relaxation enhancement (PRE) restraints',
+    'pcs_restraint': 'Pseudo-contact shift (PCS) restraints',
+    'prdc_restraint': 'Paramagnetic residual dipolar coupling (RDC) restraints',
+    'pang_restraint': 'Paramagnetic orientation restraints',
+    'pccr_restraint': 'Paramagnetic cross-correlation rate (CCR) restraints',
+    'hbond_restraint': 'Hydrogen bond geometry restraints',
+    'ssbond_restraint': 'Disulfide bond geometry constraints',
+    'geo_restraint': 'Coordinate geometry restraints',
+    'other_restraint': 'Other unclassified data',
 }
 _SUPERSCRIPT = str.maketrans('0123456789', '⁰¹²³⁴⁵⁶⁷⁸⁹')
 _ISOTOPE_RE = re.compile(r'(\d+)([a-zA-Z]+)')
+
 
 def _normalize_label(key):
     """1. Format an isotope-bearing key (e.g. '1h_chemical_shifts', 'all_13c_…',
@@ -1403,11 +1440,14 @@ def _normalize_label(key):
     if m:
         return m.group(1).translate(_SUPERSCRIPT) + m.group(2).upper()
     key = key[0].upper() + key[1:]
-    key = key.replace('_constraints', '')\
-	.replace('backbone-backbone', '(bb-bb)')\
-        .replace('backbone-sidechain', '(bb-sc)')\
-	.replace('sidechain-sidechain', '(sc-sc)')
+    key = (
+        key.replace('_constraints', '')
+        .replace('backbone-backbone', '(bb-bb)')
+        .replace('backbone-sidechain', '(bb-sc)')
+        .replace('sidechain-sidechain', '(sc-sc)')
+    )
     return key.replace('_', ' ').strip()
+
 
 def _annotation_x(value, rov, inverse=False):
     """Precise fractional position of `value` on the hidden marker axis (xAxis
@@ -2865,6 +2905,7 @@ def _bookkeeping_by_sf(report):
                 out[item['sf_framecode']] = rows_for(item, noun)
     return out
 
+
 # Per-shift columns kept for each unmapped assigned chemical shift
 # (output_statistics.chem_shift[].chemical_shift_unmapped) — shown in a collapsible
 # table when a saveframe has unmapped shifts.
@@ -3476,7 +3517,7 @@ async def process():
         result = await db.execute(
             select(UploadFile).where(
                 UploadFile.token == token,
-                UploadFile.selected == True,
+                UploadFile.selected.is_(True),
             )
         )
         selected_files = list(result.scalars().all())

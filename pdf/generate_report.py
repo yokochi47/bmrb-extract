@@ -275,10 +275,14 @@ def _restraint_props(rs):
 
 
 _BOOKKEEPING_DEFS = [
-    ('dist_restraint', '6.3', 'Bookkeeping of distance restraints', 'There is no distance restraints.', 'distance restraints'),
-    ('dihed_restraint', '6.4', 'Bookkeeping of dihedral-angle restraints', 'There is no dihedral-angle restraints.', 'dihedral-angle restraints'),
-    ('rdc_restraint', '6.5', 'Bookkeeping of RDC restraints', 'There is no RDC restraints.', 'RDC restraints'),
-    ('spectral_peak', '6.6', 'Bookkeeping of spectral peak lists', 'There is no spectral peak lists.', 'spectral peaks'),
+    ('dist_restraint', '6.3', 'Bookkeeping of distance restraints',
+     'There is no distance restraints.', 'distance restraints'),
+    ('dihed_restraint', '6.4', 'Bookkeeping of dihedral-angle restraints',
+     'There is no dihedral-angle restraints.', 'dihedral-angle restraints'),
+    ('rdc_restraint', '6.5', 'Bookkeeping of RDC restraints',
+     'There is no RDC restraints.', 'RDC restraints'),
+    ('spectral_peak', '6.6', 'Bookkeeping of spectral peak lists',
+     'There is no spectral peak lists.', 'spectral peaks'),
 ]
 
 
@@ -411,6 +415,7 @@ def _split_notice_css(doc) -> str:
     pages where a table spans a page break. Margin-box content does not reflow the
     page, so the first-pass page numbers stay valid for the second pass."""
     pages_of: dict = {}
+
     def walk(box, pi):
         el = getattr(box, 'element', None)
         if el is not None and getattr(box, 'element_tag', None) == 'table':
@@ -489,10 +494,16 @@ def build_chem_shift_sections(stats: dict, sf_charts: dict) -> list:
             'show_outlier_ins': has_ins(outlier),
             'show_outlier_details': any((o or {}).get('details') not in (None, '') for o in outlier),
             'unmapped': unmapped,
-            'unmapped_count': st.get('number_of_unmapped_to_model') if st.get('number_of_unmapped_to_model') is not None else len(unmapped),
+            'unmapped_count': (
+                st.get('number_of_unmapped_to_model')
+                if st.get('number_of_unmapped_to_model') is not None else len(unmapped)
+            ),
             'show_unmapped_ins': has_ins(unmapped),
             'unparsed': unparsed,
-            'unparsed_count': st.get('number_of_unparsed_with_error') if st.get('number_of_unparsed_with_error') is not None else len(unparsed),
+            'unparsed_count': (
+                st.get('number_of_unparsed_with_error')
+                if st.get('number_of_unparsed_with_error') is not None else len(unparsed)
+            ),
             'show_unparsed_ins': has_ins(unparsed),
             'duplicated': duplicated,
             'duplicated_count': len(duplicated),
