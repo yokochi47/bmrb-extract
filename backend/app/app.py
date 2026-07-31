@@ -1650,7 +1650,7 @@ def _sc_type(sc):
     """Secondary-structure class from a struct_conf token (e.g. 'HELX_P:AA1')."""
     if not sc:
         return None
-    head = re.split(r'[_:]', str(sc), 1)[0].upper()
+    head = re.split(r'[_:]', str(sc), maxsplit=1)[0].upper()
     return _STRUCT_CONF_TYPES.get(head)
 
 
