@@ -582,7 +582,7 @@ def _nmr_replace_cs_driver_script(
 
 def _nmr_bmrbdep_driver_script(
     *, cs_list: list, atypical_cs_list: list, atypical_restraint_list: list,
-    bmrb_id: int, merge_log: str, consist_log: str, out_str: str, entry_id: str,
+    merge_log: str, consist_log: str, out_str: str, entry_id: str,
     work_dir: str, cache_dir: str,
 ) -> str:
     """Driver for BMRBdep (BMRB-only) deposition: merge chemical shifts (NMR-STAR
@@ -617,7 +617,6 @@ def _nmr_bmrbdep_driver_script(
         f"CS_LIST = {cs_list!r}\n"
         f"ATYPICAL_CS = {atypical_cs_list!r}\n"
         f"ATYPICAL_R = {atypical_restraint_list!r}\n"
-        f"BMRB_ID = {bmrb_id!r}\n"
         f"MERGE_LOG = {merge_log!r}\n"
         f"CONS_LOG = {consist_log!r}\n"
         f"OUT_STR = {out_str!r}\n"
@@ -631,7 +630,6 @@ def _nmr_bmrbdep_driver_script(
         f"{common_inputs}"
         # conversion_server mode derives entry_id = C_<conversion_id> from this
         # (the conversion_id matches CNV_ID_PAT ^C_[1-9]\\d{6}$ as C_<id>).
-        "u.addOutput(name='bmrb_id', value=BMRB_ID, type='param')\n"
         "u.setLog(MERGE_LOG)\n"
         "u.setDestination(OUT_STR)\n"
         "u.setVerbose(True)\n"
@@ -1044,7 +1042,7 @@ def nmr_data_conversion(
             return False, False
         driver_text = _nmr_bmrbdep_driver_script(
             cs_list=cs_list, atypical_cs_list=atypical_cs_list,
-            atypical_restraint_list=atypical_restraint_list, bmrb_id=conversion_id,
+            atypical_restraint_list=atypical_restraint_list,
             merge_log=str(merge_log), consist_log=str(nmr_log), out_str=str(out_str),
             entry_id=entry_id, work_dir=str(work_d), cache_dir=str(cache_d),
         )
