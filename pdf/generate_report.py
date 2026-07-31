@@ -199,7 +199,7 @@ def build_chem_shift_charts(stats: dict) -> tuple[list, dict]:
         for i, h in enumerate(rd.histogram_chart([st], inverse=True)):
             cid = f'cs{lid}_hist{i}'
             specs.append({'id': cid, 'builder': 'histogramOption',
-                          'args': [h, 'Z-score', '# of chemical shifts',
+                          'args': [h, 'Z-score', 'Number of chemical shifts',
                                    {'inverse': True, 'rangeLabels': True}],
                           'width': 680, 'height': 420})
             entries.append({'id': cid, 'kind': 'hist',
@@ -207,7 +207,8 @@ def build_chem_shift_charts(stats: dict) -> tuple[list, dict]:
         for i, c in enumerate(rd.rci_charts([st], auth=True)):
             cid = f'cs{lid}_rci{i}'
             # staticMode: drop per-point symbols + the non-interactive legend in the PDF.
-            specs.append({'id': cid, 'builder': 'lineOption', 'args': [c, {'staticMode': True}],
+            y_name = 'RCI / S² values' if str(c.get('label', '')).startswith('RCI') else 'NMR RMSD (Å)'
+            specs.append({'id': cid, 'builder': 'lineOption', 'args': [c, y_name, {'staticMode': True}],
                           'width': 720, 'height': 360})
             kind = 'rci' if str(c.get('label', '')).startswith('RCI') else 'nmr'
             entries.append({'id': cid, 'kind': kind,

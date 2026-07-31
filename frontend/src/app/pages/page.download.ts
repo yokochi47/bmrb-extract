@@ -989,15 +989,15 @@ export class Download {
         // Normalized (Z-score) assigned-chemical-shift histogram(s).
         histograms: (s.histogram ?? []).map((h) => ({
           title: 'Normalized assigned chemical shifts (Z-score)',
-          option: histogramOption(h, 'Z-score', '# of chemical shifts', {
+          option: histogramOption(h, 'Z-score', 'Number of chemical shifts', {
             inverse: true,
             rangeLabels: true,
           }),
         })),
         // RCI/S² and NMR-RMSD per-residue plots (chain = Auth_asym_ID).
-        rciPanels: (s.rci ?? []).map((c) => ({
+        rciPanels: (s.rci ?? []).map((c, index) => ({
           title: `${c.label} — Auth_asym_ID: ${c.chain}`,
-          option: lineOption(c),
+          option: lineOption(c, index % 2 == 0 ? 'RCI / S² values' : 'NMR RMSD (Å)'),
         })),
       };
     }),

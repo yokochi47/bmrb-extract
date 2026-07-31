@@ -128,6 +128,22 @@ function niceStep(max: number): number {
   return nice * pow;
 }
 
+/** A "nice" y-axis upper bound + tick step for a 0..max axis: pick an even step
+ * (1/2/5 × 10ⁿ, ~7 ticks) and round `max` UP to a multiple of it, so e.g.
+ * max=3.422 → { max: 3.5, step: 0.5 } instead of a ragged top tick at the exact
+ * data max. Returns step 0 when max ≤ 0 (leave the axis to auto-scale). */
+function niceAxisBound(max: number): { max: number; step: number } {
+  if (!(max > 0)) return { max, step: 0 };
+  const pow = Math.pow(10, Math.floor(Math.log10(max / 7)));
+  const norm = max / 7 / pow;
+  const step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * pow;
+  const decimals = Math.max(0, -Math.floor(Math.log10(step)));
+  return {
+    max: Number((Math.ceil(max / step) * step).toFixed(decimals)),
+    step: Number(step.toFixed(decimals)),
+  };
+}
+
 /** Structural-band fill color by type (secondary structure + ensemble domain). */
 function bandColor(type: string): string {
   if (type === 'helix') return 'rgba(204,47,0,0.12)';
@@ -322,6 +338,8 @@ export function histogramOption(
     yAxis: {
       type: 'value',
       name: yName,
+      nameLocation: 'middle',
+      nameGap: 40,
       minInterval: 1,
       axisTick: { show: true },
       ...(yAxisLine ? { axisLine: { show: true } } : {}),
@@ -337,7 +355,11 @@ export function histogramOption(
  * structural bands and an optional well-defined-region threshold line.
  * `opts.staticMode` (used by the static PDF) drops the per-point symbols; the
  * legend is kept so the series colors stay identifiable in the static image. */
-export function lineOption(c: PerResidueLine, opts: { staticMode?: boolean } = {}): object {
+export function lineOption(
+  c: PerResidueLine,
+  yName: string,
+  opts: { staticMode?: boolean } = {},
+): object {
   const staticMode = opts.staticMode ?? false;
   const interval = Math.max(0, Math.ceil(c.categories.length / 24) - 1);
   const { markerAxis, holderSeries } = bandOverlay(c.categories, c.bands);
@@ -367,12 +389,23 @@ export function lineOption(c: PerResidueLine, opts: { staticMode?: boolean } = {
       { type: 'category', data: c.categories, axisLabel: { interval, rotate: -75, fontSize: 8 } },
       markerAxis,
     ],
-    yAxis: {
-      type: 'value',
-      axisLine: { show: true },
-      ...(c.ymin !== null ? { min: c.ymin } : {}),
-      ...(c.ymax !== null ? { max: c.ymax } : {}),
-    },
+    // Round the top of the axis UP to a nice bound so the last gridline is an even
+    // value with a consistent step (e.g. max 3.422 → 3.5, step 0.5) instead of a
+    // ragged tick at the exact data max; align min/interval to that step.
+    yAxis: (() => {
+      const yb = c.ymax !== null ? niceAxisBound(c.ymax) : null;
+      return {
+        type: 'value',
+        name: yName,
+        nameLocation: 'middle',
+        nameGap: 40,
+        axisLine: { show: true },
+        ...(c.ymin !== null
+          ? { min: yb && yb.step > 0 ? Math.floor(c.ymin / yb.step) * yb.step : c.ymin }
+          : {}),
+        ...(yb && yb.step > 0 ? { max: yb.max, interval: yb.step } : {}),
+      };
+    })(),
     series: [
       ...c.series.map((s, idx) => ({
         name: s.name,
@@ -502,7 +535,13 @@ export function stackedValueHistogram(
       nameGap: 32,
       axisLabel: { fontSize: 9 },
     },
-    yAxis: { type: 'value', name: 'Count', nameLocation: 'middle', nameGap: 40, minInterval: 1 },
+    yAxis: {
+      type: 'value',
+      name: 'Number of violated restraints',
+      nameLocation: 'middle',
+      nameGap: 40,
+      minInterval: 1,
+    },
     series,
   };
 }
@@ -744,7 +783,7 @@ export function modelViolationChartOption(
     yAxis: [
       {
         type: 'value',
-        name: 'Number of violations',
+        name: 'Number of violated restraints',
         nameLocation: 'middle',
         nameGap: 44,
         splitNumber: 4,
