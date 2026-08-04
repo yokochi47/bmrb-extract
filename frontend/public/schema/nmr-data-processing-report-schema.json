@@ -759,7 +759,7 @@
             },
             "selection_criteria": {
               "description": "The criteria used to select the representative structure from the ensemble.",
-              "type": "string",
+              "type": "string"
             },
             "well_defined_region": {
               "description": "The summary of identified well-defined regions in the ensemble.",
@@ -3812,6 +3812,26 @@
             "$ref": "#/definitions/rdc_constraints_per_residue"
           }
         },
+        "correlation_plot": {
+          "description": "Template for correlation plot between observed and calculated RDCs per RDC vector type",
+          "type": "object",
+          "properties": {
+            "values": {
+              "$ref": "#/definitions/rdc_plot_values"
+            },
+            "errors": {
+              "$ref": "#/definitions/rdc_plot_errors"
+            },
+            "q_scores": {
+              "$ref": "#/definitions/rdc_plot_q_scores"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "values",
+            "errors"
+          ]
+        },
         "histogram": {
           "description": "Template for histogram of RDC restraints.",
           "type": "object",
@@ -3995,6 +4015,97 @@
         "atom_id_2",
         "discrepancy"
       ]
+    },
+    "rdc_plot_values": {
+      "description": "Template for plot data per RDC vector type.",
+      "type": "object",
+      "patternProperties": {
+        "^[1A-Za-z_]+$": {
+          "type": "array",
+          "items": {
+            "description": "The first/second items correspond to observed and calculated RDC, respectively, the last item represents the positions of RDC vector.",
+            "type": "array",
+            "items": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "minLength": 1
+              }
+            ],
+            "minItems": 3,
+            "maxItems": 3
+          }
+        }
+      }
+    },
+    "rdc_plot_errors": {
+      "description": "Template for plot error per RDC vector type.",
+      "type": "object",
+      "patternProperties": {
+        "^[1A-Za-z_]+$": {
+          "type": "array",
+          "items": {
+            "description": "The first/second items correspond to observed and calculated RDC, respectively, the rest items corespond to error bar for observed and calculated RDC.",
+            "type": "array",
+            "items": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "minItems": 6,
+            "maxItems": 6
+          }
+        }
+      }
+    },
+    "rdc_plot_q_scores": {
+      "description": "Template for quality score for correlation of observed and calculated RDCs per RDC vector type.",
+      "type": "object",
+      "patternProperties": {
+        "^[1A-Za-z_]+$": {
+          "type": "object",
+          "properties": {
+            "r2": {
+              "descritopn": "Linear correlation coefficients between observed and calculated RDC values: 1.0 - sum( (Dexp - Dcalc)^2 ) / sum( (Dexp - <Dexp>)^2 ), where Dexp is observed RDC value, Dcalc is calculated RDC value, and <Dexp> is mean value of observed RDCs.",
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0
+            },
+            "Cornilescu_Q": {
+              "descritopn": "Cornilescu's RDC quality score: sqrt( sum( (Dexp - Dcalc)^2 ) / sum( Dexp^2 )) where Dexp is observed RDC value, Dcalc is calculated RDC value.",
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0
+            },
+            "Clore_Q": {
+              "descritopn": "Clore's RDC quality score: sqrt( sum( (Dexp - Dcalc)^2 ) / (N * Da^2 * (4 + 3 * eta^2) / 5)) where N is the number of RDCs assessed, Da is the axial component (Dmax * Szz), and eta is the rhombicity ((Syy - Sxx) / Szz).",
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0
+            }
+          }
+        }
+      }
     },
     "common_stats_of_spectral_peak": {
       "description": "Template for common statistics of spectral peak lists.",
@@ -4640,7 +4751,7 @@
           "properties": {
             "name": {
               "description": "Summary of the molecular system.",
-              "type": "string",
+              "type": "string"
             },
             "number_of_components": {
               "description": "Total number of molecular components.",
@@ -4904,6 +5015,14 @@
                 "maxItems": 3
               }
             },
+            "average_number_of_rdc_violations_per_model": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/output_stats_violations_per_model",
+                "minItems": 3,
+                "maxItems": 3
+              }
+            },
             "dist_violation_summary": {
               "type": "array",
               "items": {
@@ -4968,6 +5087,41 @@
               }
             },
             "all_dihed_violations": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/output_stats_common_all_violations",
+                "minItems": 1
+              }
+            },
+            "rdc_violation_summary": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/output_stats_common_violation_summary",
+                "minItems": 2
+              }
+            },
+            "rdc_violation_for_each_model": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/output_stats_common_violation_for_each_model",
+                "minItems": 1
+              }
+            },
+            "rdc_violation_for_ensemble": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/output_stats_common_violation_for_ensemble",
+                "minItems": 1
+              }
+            },
+            "most_violated_rdc_restraints": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/output_stats_common_most_violated_restraints",
+                "minItems": 1
+              }
+            },
+            "all_rdc_violations": {
               "type": "array",
               "items": {
                 "$ref": "#/definitions/output_stats_common_all_violations",
@@ -5081,7 +5235,7 @@
         "role": {
           "description": "The function of the component within the assembly.",
           "type": "string"
-        },
+        }
       },
       "required": [
         "entity_assembly_id",

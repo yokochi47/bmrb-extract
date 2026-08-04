@@ -24,6 +24,7 @@ import { API_URL } from '../../site.config';
 import { fileTypeLabel } from './file-types';
 import { MolstarViewer } from './molstar';
 import { EchartComponent } from './echart.component';
+import { rdcCorrelationChartOption } from './report-charts';
 
 /** A selected upload file participating in the latest conversion run. */
 interface UploadFileRow {
@@ -104,6 +105,27 @@ interface DihedralChart {
   label: string;
   phi_psi?: DihedralPlot;
   chi1_chi2?: DihedralPlot;
+}
+/** One RDC-restraint saveframe's observed-vs-calculated correlation scatter,
+ * analogous to the dihedral φ/ψ scatter. Reuses DihedralPlot: each group's
+ * `comp_id` field carries the RDC vector type, and point x/y are the
+ * observed/calculated RDC (Hz). */
+interface RdcComparisonChart {
+  label: string;
+  correlation: DihedralPlot;
+}
+/** One RDC correlation quality-score row: r²/Cornilescu-Q/Clore-Q per RDC vector
+ * type, with the number of observations of that type (`count`). */
+interface RdcQScoreRow {
+  type: string;
+  count: number | null;
+  r2: number | null;
+  cornilescu_q: number | null;
+  clore_q: number | null;
+}
+interface RdcQScoreTable {
+  label: string;
+  rows: RdcQScoreRow[];
 }
 interface NmrPreviewSource {
   name: string;
@@ -311,6 +333,8 @@ interface RdcRestraintSaveframe {
   histogram: HistogramChart[];
   discrepancy: HistogramChart[];
   per_residue: PerResidueLine[];
+  correlation: RdcComparisonChart[];
+  q_scores: RdcQScoreTable[];
   atom_name_mapping: AtomNameMappingRow[];
 }
 /** Global properties of the molecular assembly (NMR experiment environment). */
@@ -776,6 +800,24 @@ export class Summary implements OnDestroy {
       title: `Observed RDC per residue — Entity_assembly_ID: ${c.chain}`,
       option: this.lineOption(c, 'Obs. RDC value (Hz)'),
     }));
+  }
+  rdcCorrelationPanels(sf: RdcRestraintSaveframe): ChartPanel[] {
+    return sf.correlation.map((d) => ({
+      // Square: observed and calculated RDC share one axis range, so a perfect
+      // fit lies on the 45° y=x diagonal — the plot area must stay square. marginX
+      // reserves the left axis + right-side legend so the box widens rather than
+      // squashing the plot (keeps grid.right in rdcCorrelationOption in sync).
+      title: 'Correlation between observed and calculated RDC values',
+      option: rdcCorrelationChartOption(d.correlation),
+      aspect: 1,
+      marginX: 56 + this.legendReserve(d.correlation.groups.map((g) => g.comp_id)),
+      marginY: 56,
+    }));
+  }
+  /** Per-saveframe RDC correlation quality-score tables (r²/Cornilescu-Q/Clore-Q
+   * per RDC vector type), shown beneath the correlation scatter. */
+  rdcQScoreTables(sf: RdcRestraintSaveframe): RdcQScoreTable[] {
+    return sf.q_scores;
   }
 
   /** True when the preview has any chart or table content to show. */

@@ -62,7 +62,7 @@
     <thead><tr><th style="width:22%">Bins ({{ unit }})</th><th>Average number of violations per model</th><th class="num" style="width:26%">Max violation in a bin ({{ unit }})</th></tr></thead>
     <tbody>
       {%- for b in bins %}
-      <tr><td>{{ b.bin_type }}</td><td class="num">{{ b.average_number_of_violations_per_model }}</td><td class="num">{{ b.max_violation_in_bin }}</td></tr>
+      <tr><td>{{ b.bin_type }}</td><td class="num">{{ b.average_number_of_violations_per_model if b.average_number_of_violations_per_model is not none }}</td><td class="num">{{ b.max_violation_in_bin if b.max_violation_in_bin is not none }}</td></tr>
       {%- endfor %}
     </tbody>
   </table>
@@ -546,7 +546,7 @@
     {%- endfor %}
   </table>
 
-  {%- if r.dist_per_model_bins or r.dihed_per_model_bins %}
+  {%- if r.dist_per_model_bins or r.dihed_per_model_bins or r.rdc_per_model_bins %}
   <h3>6.2 Residual restraint violations</h3>
   <p class="caption">This section provides the overview of the restraint violations analysis. The
   violations are binned as small, medium and large violations based on its absolute value. Average
@@ -561,6 +561,11 @@
   <h4>6.2.2 Average number of dihedral-angle violations per model</h4>
   <p class="caption">Dihedral-angle violations less than 1° are not included in the calculation.</p>
   {{ bins_table(r.dihed_per_model_bins, '°') }}
+  {%- endif %}
+  {%- if r.rdc_per_model_bins %}
+  <h4>6.2.3 Average number of RDC violations per model</h4>
+  <p class="caption">RDC violations less than 1 Hz are not included in the calculation.</p>
+  {{ bins_table(r.rdc_per_model_bins, 'Hz') }}
   {%- endif %}
   {%- endif %}
 
@@ -736,6 +741,112 @@
   <p class="caption">Distribution of the absolute violation value for all violated restraints in the
   ensemble.</p>
   {{ chart('dihed_all_hist', 'Distribution of dihedral-angle violations') }}
+  {%- endif %}
+  {%- endif %}
+</section>
+
+{#- ===================================================== 9. RDC violations -#}
+<section class="report-section">
+  <h2>9. RDC violation analysis</h2>
+
+  {%- if rdc_correlations %}
+  <p class="caption">The following plots and tables show the correlation between observed and
+  calculated RDCs, based on molecular alignment tensors predicted using the coordinates from each
+  save frame. A high linear correlation (e.g., r² &gt; 0.9) indicates that the RDCs are consistent
+  with the coordinates. Conversely, a low correlation (e.g., r² &lt; 0.8) suggests that the molecular
+  alignment tensor was not accurately determined; possible reasons for this include the presence of
+  RDCs arising from flexible regions, an overestimation of scaling factors for unreliable RDC, or the
+  molecule inherently adopting multiple conformations. A lower Q score (e.g. Q &lt; 0.2) indicates a
+  better structural fit, whereas a high Q score (e.g. Q &gt; 0.3) suggests significant structural
+  errors or incorrect stereochemical configurations. 'Q score (Clore)' is preferable in case of a
+  limited RDC sampling over all possible orientations.</p>
+  {%- for c in rdc_correlations %}
+  <h3>{{ c.sf_framecode }}</h3>
+  {%- if c.chart_id and charts.get(c.chart_id) %}
+  {{ chart(c.chart_id, 'Correlation between observed and calculated RDC values') }}
+  {%- endif %}
+  {%- if c.q_rows %}
+  <p class="caption">RDC correlation quality scores per RDC vector type.</p>
+  <table>
+    <thead><tr><th>Restraint type</th><th class="num">Count</th><th class="num">r²</th>
+      <th class="num">Q score (Cornilescu)</th><th class="num">Q score (Clore)</th></tr></thead>
+    <tbody>
+      {%- for row in c.q_rows %}
+      <tr><td>{{ row.type }}</td><td class="num">{{ row.count }}</td><td class="num">{{ row.r2 }}</td>
+        <td class="num">{{ row.cornilescu_q }}</td><td class="num">{{ row.clore_q }}</td></tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  {%- endif %}
+  {%- endfor %}
+  {%- endif %}
+
+  {%- if not r.has_rdc %}
+  <p class="caption muted">There is no RDC restraints.</p>
+  {%- endif %}
+
+  {%- if r.rdc_summary %}
+  <h3>9.1 Summary of RDC violations</h3>
+  <p class="caption">Summary of RDC violations by RDC vector type. Violations less than 1 Hz are not
+  included. Absolute percentage ('Absol.') is with respect to the total number of RDC restraints;
+  inline percentage ('Inline') is with respect to the number of restraints of that vector type.
+  Violations are restraints violated in at least one model; consistent violations are violated in all
+  models.</p>
+  {{ viol_summary_table(r.rdc_summary) }}
+  {%- if charts.get('rdc_violation') %}
+  <p class="caption">Violated and consistently violated restraints are shown using different hatch
+  patterns in their respective categories.</p>
+  {{ chart('rdc_violation', 'Distribution of RDC restraints and violations') }}
+  {%- endif %}
+  {%- endif %}
+
+  {%- if r.rdc_model_rows %}
+  <h3>9.2 RDC violation statistics for each model</h3>
+  <p class="caption">RDC violation statistics for each model in the ensemble. Violations less than
+  1 Hz are not included.</p>
+  {{ model_viol_table(r.rdc_model_cols, r.rdc_model_rows, 'Hz') }}
+  {%- if charts.get('rdc_model') %}
+  <p class="caption">The mean (dot), median (×) and standard deviation are shown in black with
+  respect to the y-axis on the right.</p>
+  {{ chart('rdc_model', 'RDC violation statistics for each model') }}
+  {%- endif %}
+  {%- endif %}
+
+  {%- if r.rdc_ensemble_rows %}
+  <h3>9.3 RDC violation statistics for the ensemble</h3>
+  <p class="caption">Number of violated restraints for a given fraction of the ensemble. In total,
+  <strong>{{ r.rdc_nonviol.total }}</strong> ({% for p in r.rdc_nonviol.per_type %}{{ p.label }}: {{ p.count }}{% if not loop.last %}, {% endif %}{% endfor %})
+  restraints are not violated in the ensemble.</p>
+  {{ ensemble_viol_table(r.rdc_ensemble_cols, r.rdc_ensemble_rows) }}
+  {{ chart('rdc_ensemble', 'RDC violation statistics for the ensemble') }}
+  {%- endif %}
+
+  {%- if r.most_violated_rdc %}
+  <h3>9.4 Most violated RDC restraints</h3>
+  <p class="caption">Mean and standard deviation of the violation for each restraint, sorted by number
+  of violated models and the mean value. Violations less than 1 Hz and single-model violations are
+  not included. The Key (restraint list ID, restraint ID) is the unique identifier; rows with the
+  same key are combinatorial/ambiguous restraints counted as a single restraint.</p>
+  {{ most_violated_table(r.most_violated_rdc, false, 'Hz', 'distance_type') }}
+  {%- if r.most_violated_rdc_total > r.row_cap %}<p class="caption muted">Showing the {{ r.row_cap }} most severe of {{ r.most_violated_rdc_total }} restraints; see the interactive report or the JSON report for the full list.</p>{% endif %}
+  {%- if charts.get('rdc_mean_hist') %}
+  <p class="caption">Distribution of the average violation value, computed for each restraint
+  violated in more than one model over all violated models in the ensemble.</p>
+  {{ chart('rdc_mean_hist', 'Distribution of mean RDC violations') }}
+  {%- endif %}
+  {%- endif %}
+
+  {%- if r.all_rdc %}
+  <h3>9.5 All violated RDC restraints</h3>
+  <p class="caption">Absolute value of the violation for each restraint in the ensemble, sorted by
+  its value. The Key (restraint list ID, restraint ID) is the unique identifier; rows with the same
+  key are combinatorial/ambiguous restraints counted as a single restraint.</p>
+  {{ all_viol_table(r.all_rdc, false, 'Hz', 'distance_type') }}
+  {%- if r.all_rdc_total > r.row_cap %}<p class="caption muted">Showing the {{ r.row_cap }} largest of {{ r.all_rdc_total }} violations; see the interactive report or the JSON report for the full list.</p>{% endif %}
+  {%- if charts.get('rdc_all_hist') %}
+  <p class="caption">Distribution of the absolute violation value for all violated restraints in the
+  ensemble.</p>
+  {{ chart('rdc_all_hist', 'Distribution of RDC violations') }}
   {%- endif %}
   {%- endif %}
 </section>

@@ -144,6 +144,8 @@ def build_chart_inputs(stats: dict, ensemble: dict) -> list:
                   'args': [rs.get('dist_violation_summary', [])], 'width': 680, 'height': 420})
     specs.append({'id': 'dihed_violation', 'builder': 'dihedViolationChart',
                   'args': [rs.get('dihed_violation_summary', [])], 'width': 680, 'height': 420})
+    specs.append({'id': 'rdc_violation', 'builder': 'rdcViolationChart',
+                  'args': [rs.get('rdc_violation_summary', [])], 'width': 680, 'height': 420})
 
     # 7.2 / 8.2 per-model violation statistics (dual-axis).
     specs.append({'id': 'dist_model', 'builder': 'modelViolationChartOption',
@@ -154,6 +156,12 @@ def build_chart_inputs(stats: dict, ensemble: dict) -> list:
                            [{'key': 'phi_viol_count', 'label': 'Phi'},
                             {'key': 'psi_viol_count', 'label': 'Psi'}]],
                   'width': 700, 'height': 420})
+    rdc_model_rows = rs.get('rdc_violation_for_each_model', []) or []
+    specs.append({'id': 'rdc_model', 'builder': 'modelViolationChartOption',
+                  'args': [rdc_model_rows, 'Hz',
+                           [c for c in _rdc_table_cols(rdc_model_rows)
+                            if c['key'] != 'total_viol_count']],
+                  'width': 700, 'height': 420})
 
     # 7.3 / 8.3 per-ensemble violation statistics.
     specs.append({'id': 'dist_ensemble', 'builder': 'violationEnsembleStackChart',
@@ -163,6 +171,12 @@ def build_chart_inputs(stats: dict, ensemble: dict) -> list:
     specs.append({'id': 'dihed_ensemble', 'builder': 'violationEnsembleStackChart',
                   'args': [dihed_ens_rows, _dihed_ensemble_cats(dihed_ens_rows)],
                   'width': 680, 'height': 420})
+    rdc_ens_rows = rs.get('rdc_violation_for_ensemble', []) or []
+    specs.append({'id': 'rdc_ensemble', 'builder': 'violationEnsembleStackChart',
+                  'args': [rdc_ens_rows,
+                           [c for c in _rdc_table_cols(rdc_ens_rows)
+                            if c['key'] != 'total_viol_count']],
+                  'width': 680, 'height': 420})
 
     # 7.4 / 8.4 mean-violation histograms.
     specs.append({'id': 'dist_mean_hist', 'builder': 'meanViolationHistogram',
@@ -171,6 +185,9 @@ def build_chart_inputs(stats: dict, ensemble: dict) -> list:
     specs.append({'id': 'dihed_mean_hist', 'builder': 'meanViolationHistogram',
                   'args': [rs.get('most_violated_dihed_restraints', []), 'dihedral_angle_name',
                            '°', ['phi', 'psi']], 'width': 680, 'height': 420})
+    specs.append({'id': 'rdc_mean_hist', 'builder': 'meanViolationHistogram',
+                  'args': [_rdc_most_violated(rs.get('most_violated_rdc_restraints')),
+                           'distance_type', 'Hz', []], 'width': 680, 'height': 420})
 
     # 7.5 / 8.5 all-violation histograms.
     specs.append({'id': 'dist_all_hist', 'builder': 'stackedValueHistogram',
@@ -179,8 +196,83 @@ def build_chart_inputs(stats: dict, ensemble: dict) -> list:
     specs.append({'id': 'dihed_all_hist', 'builder': 'stackedValueHistogram',
                   'args': [_value_pts(rs.get('all_dihed_violations', []), 'violation', 'dihedral_angle_name'),
                            '°', ['phi', 'psi'], 'Violation'], 'width': 680, 'height': 420})
+    specs.append({'id': 'rdc_all_hist', 'builder': 'stackedValueHistogram',
+                  'args': [_value_pts(_rdc_most_violated(rs.get('all_rdc_violations')),
+                                      'violation', 'distance_type'),
+                           'Hz', [], 'Violation'], 'width': 680, 'height': 420})
 
     return specs
+
+
+def _rdc_correlation_plot(plot):
+    """Normalize an RDC correlation_plot into {groups:[{comp_id, points:[{x,y,
+    seq_id}], errors:[[...]]}]} for rdcCorrelationChartOption (mirrors the backend
+    _scatter_plot with trim_label=False — seq_id keeps the full RDC vector)."""
+    if not isinstance(plot, dict) or not plot.get('values'):
+        return None
+    errors_by_key = plot.get('errors') or {}
+    groups = []
+    for key, vals in plot['values'].items():
+        pts = [{'x': p[0], 'y': p[1], 'seq_id': p[2]} for p in vals if len(p) >= 3]
+        if pts:
+            groups.append({'comp_id': key, 'points': pts, 'errors': errors_by_key.get(key) or []})
+    return {'groups': groups} if groups else None
+
+
+def _rdc_q_rows(plot):
+    """Quality-score rows [{type, count, r2, cornilescu_q, clore_q}] from a
+    correlation_plot's q_scores (mirrors the backend _rdc_q_scores)."""
+    q_scores = plot.get('q_scores') if isinstance(plot, dict) else None
+    if not isinstance(q_scores, dict) or not q_scores:
+        return []
+    values = plot.get('values') or {}
+    rows = []
+    for vtype, scores in q_scores.items():
+        if not isinstance(scores, dict):
+            continue
+        vals = values.get(vtype)
+        rows.append({
+            'type': vtype,
+            'count': len(vals) if isinstance(vals, list) else None,
+            'r2': scores.get('r2'),
+            'cornilescu_q': scores.get('Cornilescu_Q'),
+            'clore_q': scores.get('Clore_Q'),
+        })
+    return rows
+
+
+def build_rdc_correlation(report: dict) -> tuple[list, list]:
+    """Observed-vs-calculated RDC correlation scatter charts + quality-score tables
+    per RDC-restraint saveframe, from stats_of_exptl_data (mirrors the backend
+    nmr_preview and the download page's section-9 preamble). Returns
+    (chart_specs, [{sf_framecode, chart_id?, q_rows}])."""
+    info = report.get('information', {}) or {}
+    specs, correlations = [], []
+    for src in info.get('input_sources') or []:
+        if not isinstance(src, dict):
+            continue
+        stats = src.get('stats_of_exptl_data')
+        if not isinstance(stats, dict):
+            continue
+        for st in stats.get('rdc_restraint') or []:
+            if not isinstance(st, dict):
+                continue
+            plot = st.get('correlation_plot')
+            scatter = _rdc_correlation_plot(plot)
+            q_rows = _rdc_q_rows(plot)
+            if not scatter and not q_rows:
+                continue
+            entry = {'sf_framecode': st.get('sf_framecode', ''), 'q_rows': q_rows}
+            if scatter:
+                # Fixed size (the SSR renderer has no aspect logic); width chosen
+                # so the plot area — width minus the left axis + right legend — is
+                # ~square, keeping the y=x diagonal near 45°.
+                cid = f'rdc_corr_{len(specs)}'
+                specs.append({'id': cid, 'builder': 'rdcCorrelationChartOption',
+                              'args': [scatter], 'width': 600, 'height': 480})
+                entry['chart_id'] = cid
+            correlations.append(entry)
+    return specs, correlations
 
 
 def build_chem_shift_charts(stats: dict) -> tuple[list, dict]:
@@ -304,6 +396,34 @@ def _dihed_table_cols(rows):
     return [{'key': k, 'label': k[:-len('_viol_count')].capitalize()} for k in ordered]
 
 
+def _rdc_table_cols(rows):
+    """Dynamic RDC vector-type columns: types sorted, total last (mirrors
+    rdcModelViolations). Labels use restraint_type_label (e.g. 'Rdc other')."""
+    seen = set()
+    for r in rows or []:
+        for k in (r or {}):
+            if k.endswith('_viol_count'):
+                seen.add(k)
+    others = sorted(k for k in seen if k != 'total_viol_count')
+    ordered = others + (['total_viol_count'] if 'total_viol_count' in seen else [])
+    return [{'key': k, 'label': restraint_type_label(k[:-len('_viol_count')])} for k in ordered]
+
+
+def _rdc_most_violated(rows):
+    """Normalise RDC most-violated / all-violation rows: the shared schema's only
+    type slots are distance_type / dihedral_angle_name, so surface whichever the
+    converter populated (the RDC vector type) in distance_type — the shared table
+    (type_key='distance_type') and mean-violation histogram categorise by it."""
+    out = []
+    for r in rows or []:
+        if not isinstance(r, dict):
+            continue
+        r = dict(r)
+        r['distance_type'] = r.get('distance_type') or r.get('dihedral_angle_name')
+        out.append(r)
+    return out
+
+
 def _viol_bins(rs, key):
     v = rs.get(key)
     return v if isinstance(v, list) else []
@@ -336,6 +456,7 @@ def build_restraint_sections(stats: dict) -> dict:
     rs = stats.get('restraint_summary', {}) or {}
     dist_sum = rs.get('dist_violation_summary') or []
     dihed_sum = [r for r in (rs.get('dihed_violation_summary') or [])]
+    rdc_sum = rs.get('rdc_violation_summary') or []
 
     def bookkeeping(key, noun):
         sfs = []
@@ -367,8 +488,10 @@ def build_restraint_sections(stats: dict) -> dict:
 
     most_dist, most_dist_n = capped(rs.get('most_violated_dist_restraints') or [])
     most_dihed, most_dihed_n = capped(rs.get('most_violated_dihed_restraints') or [])
+    most_rdc, most_rdc_n = capped(_rdc_most_violated(rs.get('most_violated_rdc_restraints')))
     all_dist, all_dist_n = capped(rs.get('all_dist_violations') or [])
     all_dihed, all_dihed_n = capped(rs.get('all_dihed_violations') or [])
+    all_rdc, all_rdc_n = capped(_rdc_most_violated(rs.get('all_rdc_violations')))
 
     dihed_nonviol_total = _nonviolated(dihed_sum)['total']
     dihed_nonviol_per = [
@@ -376,12 +499,19 @@ def build_restraint_sections(stats: dict) -> dict:
          'count': (r.get('restraint_count') or 0) - (r.get('viol_count') or 0)}
         for r in dihed_sum if (r.get('restraint_type') or '').lower() != 'total'
     ]
+    rdc_nonviol_total = _nonviolated(rdc_sum)['total']
+    rdc_nonviol_per = [
+        {'label': restraint_type_label(r.get('restraint_type') or ''),
+         'count': (r.get('restraint_count') or 0) - (r.get('viol_count') or 0)}
+        for r in rdc_sum if (r.get('restraint_type') or '').lower() != 'total'
+    ]
 
     return {
         'restraint_available': bool(rs),
         'restraint_props': _restraint_props(rs),
         'dist_per_model_bins': _viol_bins(rs, 'average_number_of_dist_violations_per_model'),
         'dihed_per_model_bins': _viol_bins(rs, 'average_number_of_dihed_violations_per_model'),
+        'rdc_per_model_bins': _viol_bins(rs, 'average_number_of_rdc_violations_per_model'),
         'bookkeeping_groups': [
             {'section': sec, 'heading': head, 'empty_text': empty, 'saveframes': bookkeeping(key, noun)}
             for key, sec, head, empty, noun in _BOOKKEEPING_DEFS
@@ -392,22 +522,31 @@ def build_restraint_sections(stats: dict) -> dict:
         # means there are no restraints of that kind).
         'has_dist': bool(dist_sum),
         'has_dihed': bool(dihed_sum),
+        'has_rdc': bool(rdc_sum),
         'dist_summary': dist_sum,
         'dihed_summary': dihed_sum,
+        'rdc_summary': rdc_sum,
         'dist_model_cols': _DIST_TABLE_COLS,
         'dist_model_rows': rs.get('dist_violation_for_each_model') or [],
         'dihed_model_cols': _dihed_table_cols(rs.get('dihed_violation_for_each_model')),
         'dihed_model_rows': rs.get('dihed_violation_for_each_model') or [],
+        'rdc_model_cols': _rdc_table_cols(rs.get('rdc_violation_for_each_model')),
+        'rdc_model_rows': rs.get('rdc_violation_for_each_model') or [],
         'dist_ensemble_cols': _DIST_TABLE_COLS,
         'dist_ensemble_rows': rs.get('dist_violation_for_ensemble') or [],
         'dihed_ensemble_cols': _dihed_table_cols(rs.get('dihed_violation_for_ensemble')),
         'dihed_ensemble_rows': rs.get('dihed_violation_for_ensemble') or [],
+        'rdc_ensemble_cols': _rdc_table_cols(rs.get('rdc_violation_for_ensemble')),
+        'rdc_ensemble_rows': rs.get('rdc_violation_for_ensemble') or [],
         'dist_nonviol': _nonviolated(dist_sum),
         'dihed_nonviol': {'total': dihed_nonviol_total, 'per_type': dihed_nonviol_per},
+        'rdc_nonviol': {'total': rdc_nonviol_total, 'per_type': rdc_nonviol_per},
         'most_violated_dist': most_dist, 'most_violated_dist_total': most_dist_n,
         'most_violated_dihed': most_dihed, 'most_violated_dihed_total': most_dihed_n,
+        'most_violated_rdc': most_rdc, 'most_violated_rdc_total': most_rdc_n,
         'all_dist': all_dist, 'all_dist_total': all_dist_n,
         'all_dihed': all_dihed, 'all_dihed_total': all_dihed_n,
+        'all_rdc': all_rdc, 'all_rdc_total': all_rdc_n,
         'row_cap': cap,
     }
 
@@ -639,12 +778,15 @@ def main() -> int:
     specs = build_chart_inputs(stats, ensemble)
     cs_specs, cs_by_sf = build_chem_shift_charts(stats)
     specs += cs_specs
+    corr_specs, rdc_correlations = build_rdc_correlation(report)
+    specs += corr_specs
     charts = render_charts(specs, work_dir)
 
     ctx = build_context(stats, ensemble, provenance, charts,
                         report_timestamp_utc(report_path))
     ctx['chem_shift_sections'] = build_chem_shift_sections(stats, cs_by_sf)
     ctx['r'] = build_restraint_sections(stats)
+    ctx['rdc_correlations'] = rdc_correlations
     icon_path = ASSETS_DIR / 'report_logo.png'
     if icon_path.is_file():
         import base64
