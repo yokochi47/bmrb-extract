@@ -25,9 +25,13 @@ import {
   meanViolationHistogram,
   modelViolationChartOption,
   pcaChartOption,
+  rdcCorrelationChartOption,
+  rdcViolationChart as buildRdcViolationChart,
   restraintTypeLabel as restraintTypeLabelImpl,
   stackedValueHistogram,
   violationEnsembleStackChart,
+  legendReserve,
+  type RdcCorrelationPlot,
 } from './report-charts';
 
 /** One conversion-result file bundled in the download zip. */
@@ -432,6 +436,47 @@ interface AllViolationRow {
   violation?: number;
 }
 
+// ── RDC correlation preview (subset of GET /api/nmr_preview) ────────────────────
+// The observed-vs-calculated RDC correlation scatter + Q-score tables live in the
+// nmr_preview report (not output_statistics); the download page fetches just the
+// RDC saveframes it needs to mirror the summary page's "9.1" content.
+/** One RDC-restraint saveframe's observed-vs-calculated correlation scatter
+ * (`comp_id` = RDC vector type; point x/y are observed/calculated RDC in Hz). */
+interface RdcCorrelationChart {
+  label: string;
+  correlation: RdcCorrelationPlot;
+}
+/** One RDC correlation quality-score row (per RDC vector type). */
+interface RdcQScoreRow {
+  type: string;
+  count: number | null;
+  r2: number | null;
+  cornilescu_q: number | null;
+  clore_q: number | null;
+}
+interface RdcQScoreTable {
+  label: string;
+  rows: RdcQScoreRow[];
+}
+/** The RDC-restraint saveframe fields the download page consumes. */
+interface RdcRestraintPreviewSaveframe {
+  sf_framecode: string;
+  correlation: RdcCorrelationChart[];
+  q_scores: RdcQScoreTable[];
+}
+interface NmrPreviewSubset {
+  available: boolean;
+  rdc_restraint_saveframes: RdcRestraintPreviewSaveframe[];
+}
+/** One ECharts panel: a title + the option, with optional square-aspect sizing. */
+interface ChartPanel {
+  title: string;
+  option: object;
+  aspect?: number;
+  marginX?: number;
+  marginY?: number;
+}
+
 /** Display order of the restraint_summary key-value rows. Keys not listed here
  * are appended in their original order. */
 const RESTRAINT_KEY_ORDER: string[] = [
@@ -553,6 +598,16 @@ export class Download {
       this.loadStatistics(token);
     });
 
+    // NMR preview (RDC correlation scatter + Q-scores) — a separate report from
+    // output_statistics; fetched once for the "9.1" RDC correlation content.
+    let previewFetched = false;
+    effect(() => {
+      const token = this.pageService.pageState().tokenBase;
+      if (!token || previewFetched) return;
+      previewFetched = true;
+      this.loadNmrPreview(token);
+    });
+
     // Load the upload (input) file listing once, for the provenance card.
     let inputFilesFetched = false;
     effect(() => {
@@ -653,6 +708,38 @@ export class Download {
           this.statsAvailable.set(false);
         },
       });
+  }
+
+  /** NMR preview subset (GET /api/nmr_preview) — the RDC correlation scatter and
+   * Q-score tables, shared with the summary page's "9.1" content. */
+  private nmrPreview = signal<NmrPreviewSubset | null>(null);
+  /** RDC-restraint saveframes from the NMR preview (correlation + Q-scores). */
+  rdcRestraintSaveframes = computed<RdcRestraintPreviewSaveframe[]>(
+    () => this.nmrPreview()?.rdc_restraint_saveframes ?? [],
+  );
+
+  private loadNmrPreview(token: string): void {
+    this.http.get<NmrPreviewSubset>(API_URL + 'nmr_preview', { params: { token } }).subscribe({
+      next: (res) => this.nmrPreview.set(res),
+      error: (err) => console.error('Failed to load NMR preview', err),
+    });
+  }
+
+  /** Per-saveframe RDC correlation scatter panels (shared builder; square with a
+   * y=x diagonal, marginX reserving the right-side legend). */
+  rdcCorrelationPanels(sf: RdcRestraintPreviewSaveframe): ChartPanel[] {
+    return sf.correlation.map((d) => ({
+      title: 'Correlation between observed and calculated RDC values',
+      option: rdcCorrelationChartOption(d.correlation),
+      aspect: 1,
+      marginX: 56 + legendReserve(d.correlation.groups.map((g) => g.comp_id)),
+      marginY: 56,
+    }));
+  }
+  /** Per-saveframe RDC correlation quality-score tables (r²/Cornilescu-Q/Clore-Q
+   * per RDC vector type). */
+  rdcQScoreTables(sf: RdcRestraintPreviewSaveframe): RdcQScoreTable[] {
+    return sf.q_scores;
   }
 
   /** Conversion result files bundled in the zip (GET /api/output_files). */
@@ -1046,6 +1133,12 @@ export class Download {
     const v = rs?.['average_number_of_dihed_violations_per_model'];
     return Array.isArray(v) ? (v as ViolationBin[]) : [];
   });
+  /** Per-model RDC-violation bins for the corresponding table. */
+  rdcViolationsPerModel = computed<ViolationBin[]>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const v = rs?.['average_number_of_rdc_violations_per_model'];
+    return Array.isArray(v) ? (v as ViolationBin[]) : [];
+  });
   /** Per-category distance-violation summary rows for the violation-analysis table. */
   distViolationSummary = computed<ViolationSummaryRow[]>(() => {
     const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
@@ -1058,6 +1151,12 @@ export class Download {
     const v = rs?.['dihed_violation_summary'];
     return Array.isArray(v) ? (v as ViolationSummaryRow[]) : [];
   });
+  /** Per-category RDC-violation summary rows for the 9.1 violation-analysis table. */
+  rdcViolationSummary = computed<ViolationSummaryRow[]>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const v = rs?.['rdc_violation_summary'];
+    return Array.isArray(v) ? (v as ViolationSummaryRow[]) : [];
+  });
 
   /** Raw per-model violation rows (gate the 7.2 / 8.2 sections). */
   distViolationForEachModel = computed<Record<string, number | null>[]>(() => {
@@ -1068,6 +1167,11 @@ export class Download {
   dihedViolationForEachModel = computed<Record<string, number | null>[]>(() => {
     const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
     const v = rs?.['dihed_violation_for_each_model'];
+    return Array.isArray(v) ? (v as Record<string, number | null>[]) : [];
+  });
+  rdcViolationForEachModel = computed<Record<string, number | null>[]>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const v = rs?.['rdc_violation_for_each_model'];
     return Array.isArray(v) ? (v as Record<string, number | null>[]) : [];
   });
 
@@ -1119,6 +1223,32 @@ export class Download {
     return { columns, rows };
   });
 
+  /** Ordered RDC per-model vector-type violation-count keys (excludes total). */
+  private rdcModelTypeKeys(rows: Record<string, number | null>[]): string[] {
+    const seen = new Set<string>();
+    for (const r of rows) {
+      for (const k of Object.keys(r))
+        if (k.endsWith('_viol_count') && k !== 'total_viol_count') seen.add(k);
+    }
+    return [...seen].sort();
+  }
+
+  /** Per-model violation statistics table (dynamic RDC vector-type columns, plus
+   * Total last). Labels use restraintTypeLabel to match the 9.1 summary table. */
+  rdcModelViolations = computed<{
+    columns: { key: string; label: string }[];
+    rows: Record<string, number | null>[];
+  } | null>(() => {
+    const rows = this.rdcViolationForEachModel();
+    if (!rows.length) return null;
+    const keys = [...this.rdcModelTypeKeys(rows), 'total_viol_count'];
+    const columns = keys.map((k) => ({
+      key: k,
+      label: this.restraintTypeLabel(k.slice(0, -'_viol_count'.length)),
+    }));
+    return { columns, rows };
+  });
+
   /** Raw per-ensemble violation-fraction rows (gate the 7.3 / 8.3 sections). */
   distViolationForEnsemble = computed<Record<string, number | null>[]>(() => {
     const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
@@ -1128,6 +1258,11 @@ export class Download {
   dihedViolationForEnsemble = computed<Record<string, number | null>[]>(() => {
     const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
     const v = rs?.['dihed_violation_for_ensemble'];
+    return Array.isArray(v) ? (v as Record<string, number | null>[]) : [];
+  });
+  rdcViolationForEnsemble = computed<Record<string, number | null>[]>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const v = rs?.['rdc_violation_for_ensemble'];
     return Array.isArray(v) ? (v as Record<string, number | null>[]) : [];
   });
 
@@ -1161,6 +1296,18 @@ export class Download {
         const t = r.restraint_type ?? '';
         return { label: t.charAt(0).toUpperCase() + t.slice(1), count: nv(r) };
       });
+    return { total: totalRow ? nv(totalRow) : 0, perType };
+  });
+
+  /** Non-violated RDC restraints (restraint − violated): the overall total plus
+   * a per-vector-type breakdown (labels via restraintTypeLabel, matching 9.1). */
+  rdcNonViolated = computed(() => {
+    const rows = this.rdcViolationSummary();
+    const nv = (r: ViolationSummaryRow) => (r.restraint_count ?? 0) - (r.viol_count ?? 0);
+    const totalRow = rows.find((r) => (r.restraint_type ?? '').toLowerCase() === 'total');
+    const perType = rows
+      .filter((r) => (r.restraint_type ?? '').toLowerCase() !== 'total')
+      .map((r) => ({ label: this.restraintTypeLabel(r.restraint_type), count: nv(r) }));
     return { total: totalRow ? nv(totalRow) : 0, perType };
   });
 
@@ -1208,6 +1355,22 @@ export class Download {
     return { columns, rows };
   });
 
+  /** Per-ensemble RDC-violation table (dynamic vector-type columns, Total last;
+   * labels via restraintTypeLabel, matching the 9.1/9.2 tables). */
+  rdcEnsembleViolations = computed<{
+    columns: { key: string; label: string }[];
+    rows: Record<string, number | null>[];
+  } | null>(() => {
+    const rows = this.rdcViolationForEnsemble();
+    if (!rows.length) return null;
+    const keys = [...this.rdcModelTypeKeys(rows), 'total_viol_count'];
+    const columns = keys.map((k) => ({
+      key: k,
+      label: this.restraintTypeLabel(k.slice(0, -'_viol_count'.length)),
+    }));
+    return { columns, rows };
+  });
+
   /** Per-ensemble distance-violation stacked bar chart (fixed sub-type categories). */
   distViolationsForEnsembleChart = computed<object | null>(() =>
     violationEnsembleStackChart(this.distViolationForEnsemble(), [
@@ -1242,6 +1405,18 @@ export class Download {
     return violationEnsembleStackChart(rows, cats);
   });
 
+  /** Per-ensemble RDC-violation stacked bar chart (dynamic vector-type
+   * categories from the data; the aggregate 'total' column is excluded). */
+  rdcViolationsForEnsembleChart = computed<object | null>(() => {
+    const rows = this.rdcViolationForEnsemble();
+    if (!rows.length) return null;
+    const cats = this.rdcModelTypeKeys(rows).map((k) => ({
+      key: k,
+      label: this.restraintTypeLabel(k.slice(0, -'_viol_count'.length)),
+    }));
+    return violationEnsembleStackChart(rows, cats);
+  });
+
   /** Most-violated restraint rows (restraint_summary.most_violated_*_restraints). */
   mostViolaratedDist = computed<MostViolatedRow[]>(() => {
     const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
@@ -1252,6 +1427,19 @@ export class Download {
     const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
     const v = rs?.['most_violated_dihed_restraints'];
     return Array.isArray(v) ? (v as MostViolatedRow[]) : [];
+  });
+  mostViolaratedRdc = computed<MostViolatedRow[]>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const v = rs?.['most_violated_rdc_restraints'];
+    if (!Array.isArray(v)) return [];
+    // RDC reuses the shared most-violated schema, whose only type slots are
+    // distance_type / dihedral_angle_name; surface whichever the converter
+    // populated (the RDC vector type) in distance_type so the table's Type column
+    // and the mean-violation histogram categorise by it.
+    return (v as MostViolatedRow[]).map((r) => ({
+      ...r,
+      distance_type: r.distance_type || r.dihedral_angle_name,
+    }));
   });
 
   /** Distance mean-violation stacked histogram. */
@@ -1264,6 +1452,12 @@ export class Download {
     meanViolationHistogram(this.mostViolaratedDihed(), 'dihedral_angle_name', '°', ['phi', 'psi']),
   );
 
+  /** RDC mean-violation stacked histogram (categorised by RDC vector type, which
+   * mostViolaratedRdc normalises into distance_type). */
+  rdcMeanViolationHist = computed<object | null>(() =>
+    meanViolationHistogram(this.mostViolaratedRdc(), 'distance_type', 'Hz', []),
+  );
+
   /** All per-model violation entries (restraint_summary.all_*_violations). */
   allViolaratedDist = computed<AllViolationRow[]>(() => {
     const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
@@ -1274,6 +1468,18 @@ export class Download {
     const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
     const v = rs?.['all_dihed_violations'];
     return Array.isArray(v) ? (v as AllViolationRow[]) : [];
+  });
+  allViolaratedRdc = computed<AllViolationRow[]>(() => {
+    const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
+    const v = rs?.['all_rdc_violations'];
+    if (!Array.isArray(v)) return [];
+    // RDC reuses the shared all-violation schema (type slots distance_type /
+    // dihedral_angle_name only); surface whichever holds the vector type in
+    // distance_type so the Type column and histogram categorise by it.
+    return (v as AllViolationRow[]).map((r) => ({
+      ...r,
+      distance_type: r.distance_type || r.dihedral_angle_name,
+    }));
   });
 
   /** Stacked histogram of every distance violation value, by restraint category. */
@@ -1296,6 +1502,17 @@ export class Download {
       .filter((p): p is { value: number; cat: string } => p.value !== null && p.cat !== '');
     return stackedValueHistogram(pts, '°', ['phi', 'psi'], 'Violation');
   });
+  /** Stacked histogram of every RDC violation value, by vector type (normalised
+   * into distance_type by allViolaratedRdc). */
+  rdcViolationHist = computed<object | null>(() => {
+    const pts = this.allViolaratedRdc()
+      .map((r) => ({
+        value: typeof r.violation === 'number' ? r.violation : null,
+        cat: String(r.distance_type ?? ''),
+      }))
+      .filter((p): p is { value: number; cat: string } => p.value !== null && p.cat !== '');
+    return stackedValueHistogram(pts, 'Hz', [], 'Violation');
+  });
 
   /** Grouped bar chart of distance restraints (by sub-type) with the violated
    * (hatched) and consistently-violated (solid black) counts overlaid. */
@@ -1307,6 +1524,12 @@ export class Download {
    * (hatched) and consistently-violated (solid black) counts overlaid. */
   dihedViolationChart = computed<object | null>(() =>
     buildDihedViolationChart(this.dihedViolationSummary()),
+  );
+
+  /** Bar chart of RDC restraints per vector type with the violated (hatched) and
+   * consistently-violated (solid black) counts overlaid. */
+  rdcViolationChart = computed<object | null>(() =>
+    buildRdcViolationChart(this.rdcViolationSummary()),
   );
 
   /** Per-model distance-violation chart (fixed sub-type categories). */
@@ -1329,6 +1552,20 @@ export class Download {
       { key: 'psi_viol_count', label: 'Psi' },
     ]),
   );
+
+  /** Per-model RDC-violation chart (dynamic vector-type categories from the
+   * data; default palette, matching the 9.1/9.2 tables). */
+  rdcModelViolationsChart = computed<object | null>(() => {
+    const rows = this.rdcViolationForEachModel();
+    return modelViolationChartOption(
+      rows,
+      'Hz',
+      this.rdcModelTypeKeys(rows).map((k) => ({
+        key: k,
+        label: this.restraintTypeLabel(k.slice(0, -'_viol_count'.length)),
+      })),
+    );
+  });
 
   /** Display label for a violation-summary restraint_type: underscores become
    * spaces; a leading abbreviation prefix ("ir;", "lr;", "total;", …) becomes a

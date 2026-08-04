@@ -1575,31 +1575,40 @@ def _histogram_chart(stat_list, inverse=False, annotate=_histogram_annotations):
     return charts
 
 
+def _scatter_plot(plot, trim_label=True):
+    """Normalize a {values, errors} plot into {groups:[{comp_id, points:[{x,y,
+    seq_id}], errors:[[...]]}]}. `values`/`errors` are keyed by group name —
+    comp_id for the dihedral φ/ψ & χ1/χ2 scatter, RDC vector type for the RDC
+    correlation plot — so points and their error bars stay grouped per key (one
+    scatter + one error-bar series each, sharing a name so the legend toggles
+    both). Each value point is [x, y, label]; `seq_id` carries that label,
+    trimmed to `chain:seq:` for the dihedral scatter (trim_label) or kept whole
+    for the RDC correlation, whose label is the full RDC vector (chain:seq:comp:
+    atoms). Error arrays are [x, y, x_low, x_high, y_low, y_high] (absolute).
+    Returns None when the plot is empty."""
+    if not isinstance(plot, dict) or not plot.get('values'):
+        return None
+    errors_by_key = plot.get('errors') or {}
+    groups = []
+    for key, vals in plot['values'].items():
+        pts = [{'x': p[0], 'y': p[1],
+                'seq_id': ':'.join(p[2].split(':')[:2]) + ':' if trim_label else p[2]}
+               for p in vals if len(p) >= 3]
+        if pts:
+            groups.append({'comp_id': key, 'points': pts,
+                           'errors': errors_by_key.get(key) or []})
+    if not groups:
+        return None
+    return {'groups': groups}
+
+
 def _dihedral_charts(stat_list):
     """Build [{label, phi_psi, chi1_chi2}] scatter+error data from a
-    dihed_restraint stats list. Each plot → {groups:[{comp_id, points:[{x,y,seq_id}],
-    errors:[[...]]}]}. `plot['values']`/`plot['errors']` are keyed by comp_id, so
-    points and their error bars stay grouped per residue type (one scatter + one
-    error-bar series each, sharing a name so the legend toggles both). Error
-    arrays are [x, y, x_low, x_high, y_low, y_high] (absolute)."""
-    def _plot(plot):
-        if not isinstance(plot, dict) or not plot.get('values'):
-            return None
-        errors_by_comp = plot.get('errors') or {}
-        groups = []
-        for comp_id, vals in plot['values'].items():
-            pts = [{'x': p[0], 'y': p[1], 'seq_id': ':'.join(p[2].split(':')[:2]) + ':'} for p in vals if len(p) >= 3]
-            if pts:
-                groups.append({'comp_id': comp_id, 'points': pts,
-                               'errors': errors_by_comp.get(comp_id) or []})
-        if not groups:
-            return None
-        return {'groups': groups}
-
+    dihed_restraint stats list (each plot keyed by comp_id; see _scatter_plot)."""
     charts = []
     for st in stat_list or []:
-        phi_psi = _plot(st.get('phi_psi_plot'))
-        chi = _plot(st.get('chi1_chi2_plot'))
+        phi_psi = _scatter_plot(st.get('phi_psi_plot'))
+        chi = _scatter_plot(st.get('chi1_chi2_plot'))
         if phi_psi or chi:
             entry = {'label': st.get('sf_framecode', '')}
             if phi_psi:
@@ -1608,6 +1617,50 @@ def _dihedral_charts(stat_list):
                 entry['chi1_chi2'] = chi
             charts.append(entry)
     return charts
+
+
+def _rdc_correlation_charts(stat_list):
+    """Build [{label, correlation}] observed-vs-calculated scatter+error data from
+    an rdc_restraint stats list. Each correlation_plot → groups keyed by RDC vector
+    type (see _scatter_plot); x/y are the observed/calculated RDC (Hz)."""
+    charts = []
+    for st in stat_list or []:
+        correlation = _scatter_plot(st.get('correlation_plot'), trim_label=False)
+        if correlation:
+            charts.append({'label': st.get('sf_framecode', ''), 'correlation': correlation})
+    return charts
+
+
+def _rdc_q_scores(stat_list):
+    """Build [{label, rows:[{type, count, r2, cornilescu_q, clore_q}]}] RDC
+    correlation quality-score tables from an rdc_restraint stats list. The
+    correlation_plot's q_scores holds r²/Cornilescu-Q/Clore-Q per RDC vector type;
+    `count` is the number of observations of that type (its correlation_plot
+    values list length)."""
+    tables = []
+    for st in stat_list or []:
+        plot = st.get('correlation_plot')
+        if not isinstance(plot, dict):
+            continue
+        q_scores = plot.get('q_scores')
+        if not isinstance(q_scores, dict) or not q_scores:
+            continue
+        values = plot.get('values') or {}
+        rows = []
+        for vtype, scores in q_scores.items():
+            if not isinstance(scores, dict):
+                continue
+            vals = values.get(vtype)
+            rows.append({
+                'type': vtype,
+                'count': len(vals) if isinstance(vals, list) else None,
+                'r2': scores.get('r2'),
+                'cornilescu_q': scores.get('Cornilescu_Q'),
+                'clore_q': scores.get('Clore_Q'),
+            })
+        if rows:
+            tables.append({'label': st.get('sf_framecode', ''), 'rows': rows})
+    return tables
 
 
 _STRUCT_CONF_TYPES = {'HELX': 'helix', 'STRN': 'strand', 'TURN': 'turn'}
@@ -1839,7 +1892,7 @@ _ANGLE_LABELS = {'phi': 'φ', 'psi': 'ψ', 'chi1': 'χ1', 'chi2': 'χ2', 'chi3':
 def _angle_label(key):
     """Per-residue value-series label: 'phi_angle_constraints' → φ,
     'H-N_bond_vectors' → H-N, etc."""
-    base = key.replace('_angle_constraints', '').replace('_bond_vectors', '').replace('_constraints', '')
+    base = key.replace('_angle_constraints', '').replace('_constraints', '')
     return base.replace('_', ' ')
     # return _ANGLE_LABELS.get(base, base.replace('_', ' '))
 
@@ -2583,9 +2636,10 @@ def _dihed_restraint_saveframes(dihed_list, aligns):
 
 def _rdc_restraint_saveframes(rdc_list, aligns):
     """Per-saveframe RDC-restraint preview, in report order: status, constraint
-    counts/range, observed-value histogram, per-residue observed RDC, atom-name
-    mapping. Reuses the per-content helpers on a single saveframe. `aligns` is
-    the nmr_poly_seq_vs_rdc_restraint sequence alignments."""
+    counts/range, observed-value histogram, per-residue observed RDC, observed-vs-
+    calculated correlation scatter, correlation quality scores, atom-name mapping.
+    Reuses the per-content helpers on a single saveframe. `aligns` is the
+    nmr_poly_seq_vs_rdc_restraint sequence alignments."""
     out = []
     for st in rdc_list or []:
         rng = st.get('range') or {}
@@ -2603,6 +2657,8 @@ def _rdc_restraint_saveframes(rdc_list, aligns):
             'histogram': _histogram_chart([st]),
             'discrepancy': _discrepancy_charts([st], annotate=_rdc_discrepancy_annotations),
             'per_residue': _per_residue_value_charts([st]),
+            'correlation': _rdc_correlation_charts([st]),
+            'q_scores': _rdc_q_scores([st]),
             'atom_name_mapping': _atom_name_mapping(st),
         })
     return out
@@ -3063,10 +3119,11 @@ async def get_output_statistics():
             if isinstance(v, (int, float, str))
             and 'average' not in k and 'violation' not in k
         }
-        # Keep the per-model distance/dihedral-violation bins (small/medium/large)
-        # for the 'Average number of ... violations per model' tables.
+        # Keep the per-model distance/dihedral/RDC-violation bins (small/medium/
+        # large) for the 'Average number of ... violations per model' tables.
         for avg_key in ('average_number_of_dist_violations_per_model',
-                        'average_number_of_dihed_violations_per_model'):
+                        'average_number_of_dihed_violations_per_model',
+                        'average_number_of_rdc_violations_per_model'):
             avg = rs.get(avg_key)
             if isinstance(avg, list) and avg:
                 summary[avg_key] = [
@@ -3074,8 +3131,9 @@ async def get_output_statistics():
                                        'max_violation_in_bin') if k in e}
                     for e in avg if isinstance(e, dict)
                 ]
-        # Keep the per-category distance/dihedral-violation summary tables.
-        for vs_key in ('dist_violation_summary', 'dihed_violation_summary'):
+        # Keep the per-category distance/dihedral/RDC-violation summary tables.
+        for vs_key in ('dist_violation_summary', 'dihed_violation_summary',
+                       'rdc_violation_summary'):
             vs = rs.get(vs_key)
             if isinstance(vs, list) and vs:
                 summary[vs_key] = [
@@ -3086,7 +3144,9 @@ async def get_output_statistics():
         # *_viol_count plus mean/min/max/std/median_violation) and the per-ensemble
         # fraction breakdown (fraction_count / fraction_percent + *_viol_count).
         for m_key in ('dist_violation_for_each_model', 'dihed_violation_for_each_model',
-                      'dist_violation_for_ensemble', 'dihed_violation_for_ensemble'):
+                      'rdc_violation_for_each_model',
+                      'dist_violation_for_ensemble', 'dihed_violation_for_ensemble',
+                      'rdc_violation_for_ensemble'):
             mv = rs.get(m_key)
             if isinstance(mv, list) and mv:
                 summary[m_key] = [
@@ -3094,7 +3154,8 @@ async def get_output_statistics():
                     for e in mv if isinstance(e, dict)
                 ]
         # Most-violated restraint tables (kept to their display columns).
-        for mv_key in ('most_violated_dist_restraints', 'most_violated_dihed_restraints'):
+        for mv_key in ('most_violated_dist_restraints', 'most_violated_dihed_restraints',
+                       'most_violated_rdc_restraints'):
             mv = rs.get(mv_key)
             if isinstance(mv, list) and mv:
                 summary[mv_key] = [
@@ -3102,7 +3163,7 @@ async def get_output_statistics():
                     for e in mv if isinstance(e, dict)
                 ]
         # All per-model violation entries (potentially large; kept to columns).
-        for av_key in ('all_dist_violations', 'all_dihed_violations'):
+        for av_key in ('all_dist_violations', 'all_dihed_violations', 'all_rdc_violations'):
             av = rs.get(av_key)
             if isinstance(av, list) and av:
                 summary[av_key] = [

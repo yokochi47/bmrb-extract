@@ -93,7 +93,7 @@ const LEGEND_CAP = 160;
 /* ---------------------------------------------------------------- helpers --- */
 
 /** Reserved right-margin width (px) for a vertical legend, capped. */
-function legendReserve(names: string[]): number {
+export function legendReserve(names: string[]): number {
   const maxLen = names.reduce((m, n) => Math.max(m, n.length), 0);
   return Math.min(LEGEND_CAP, Math.round(82 + 5.8 * maxLen));
 }
@@ -647,6 +647,58 @@ export function distViolationChart(rows: ViolationSummaryRow[]): object | null {
   };
 }
 
+/** Bar chart of RDC restraints per vector type with the violated (hatched) and
+ * consistently-violated (solid black) counts overlaid. The aggregate "total" row
+ * is excluded (a summary, not a category); labels use the shared
+ * restraintTypeLabel so they match the 9.1 summary table (e.g. "Rdc other"). */
+export function rdcViolationChart(rows: ViolationSummaryRow[]): object | null {
+  const filtered = rows.filter((r) => (r.restraint_type ?? '').toLowerCase() !== 'total');
+  if (!filtered.length) return null;
+  const xLabels = filtered.map((r) => restraintTypeLabel(r.restraint_type));
+  return {
+    tooltip: {
+      trigger: 'item',
+      formatter: (p: { name?: string; seriesName?: string; value?: number | null }) =>
+        `${p.name} — ${p.seriesName}<br/>${p.value ?? 0}`,
+    },
+    legend: {
+      orient: 'vertical',
+      right: 8,
+      top: 'middle',
+      type: 'scroll',
+      data: ['Violated', 'Consistently violated'],
+    },
+    grid: { left: 56, right: 170, top: 24, bottom: 24, containLabel: true },
+    xAxis: { type: 'category', data: xLabels },
+    yAxis: { type: 'value', name: 'Number of restraints', nameLocation: 'middle', nameGap: 40 },
+    series: [
+      {
+        name: 'Restraints',
+        type: 'bar',
+        // Default palette color per vector type (matches the dihedral chart).
+        colorBy: 'data',
+        data: filtered.map((r) => r.restraint_count ?? 0),
+        barGap: '-100%',
+        barCategoryGap: '45%',
+      },
+      {
+        name: 'Violated',
+        type: 'bar',
+        data: filtered.map((r) => r.viol_count ?? 0),
+        barGap: '-100%',
+        itemStyle: { color: 'rgba(0,0,0,0.06)', decal: VIOL_DECAL },
+      },
+      {
+        name: 'Consistently violated',
+        type: 'bar',
+        data: filtered.map((r) => r.consist_viol_count ?? 0),
+        barGap: '-100%',
+        itemStyle: { color: '#000' },
+      },
+    ],
+  };
+}
+
 /** Bar chart of dihedral-angle restraints per angle type with the violated
  * (hatched) and consistently-violated (solid black) counts overlaid. The
  * aggregate "total" row is excluded (a summary, not a category). */
@@ -838,6 +890,136 @@ export function modelViolationChartOption(
         renderItem: errorBarRenderItem,
         data: errorData,
       },
+    ],
+  };
+}
+
+/** One RDC (or dihedral) correlation scatter plot: points grouped by category
+ * (`comp_id` = RDC vector type). Each point is {x, y, seq_id (hover label)}; each
+ * error array is [x, y, x_low, x_high, y_low, y_high] (absolute). */
+export interface RdcCorrelationPlot {
+  groups: {
+    comp_id: string;
+    points: { x: number; y: number; seq_id: string | number }[];
+    errors: number[][];
+  }[];
+}
+
+/** renderItem for a bidirectional (cross) error bar: a horizontal segment
+ * (x_low→x_high at y) and a vertical segment (y_low→y_high at x). Distinct from
+ * the mean±SD I-beam renderItem above. */
+const correlationErrorBarRenderItem = (
+  _params: unknown,
+  api: { value(i: number): number; coord(p: number[]): number[] },
+): object => {
+  const x = api.value(0);
+  const y = api.value(1);
+  const xlo = api.coord([api.value(2), y]);
+  const xhi = api.coord([api.value(3), y]);
+  const ylo = api.coord([x, api.value(4)]);
+  const yhi = api.coord([x, api.value(5)]);
+  const style = { stroke: 'rgba(37,99,235,0.25)', lineWidth: 1 };
+  return {
+    type: 'group',
+    children: [
+      { type: 'line', shape: { x1: xlo[0], y1: xlo[1], x2: xhi[0], y2: xhi[1] }, style },
+      { type: 'line', shape: { x1: ylo[0], y1: ylo[1], x2: yhi[0], y2: yhi[1] }, style },
+    ],
+  };
+};
+
+/** ECharts option for the RDC observed-vs-calculated correlation scatter: one
+ * scatter + one bidirectional error-bar series per RDC vector type, over a
+ * common, data-driven square axis range with a y=x reference diagonal. Shared by
+ * the summary and download pages. Pair with a panel `marginX` of
+ * `56 + legendReserve(groups.map(g => g.comp_id))` and `marginY` 56 so the plot
+ * stays square and the legend never overlaps it. */
+export function rdcCorrelationChartOption(plot: RdcCorrelationPlot): object {
+  // Common range across both observed (x) and calculated (y) so the plot is a
+  // true square and a perfect fit lies on the 45° diagonal.
+  const vals = plot.groups.flatMap((g) => g.points.flatMap((p) => [p.x, p.y]));
+  const lo = vals.length ? Math.min(...vals) : 0;
+  const hi = vals.length ? Math.max(...vals) : 1;
+  const pad = (hi - lo) * 0.05 || 1;
+  const bound = niceAxisBound(Math.max(Math.abs(lo - pad), Math.abs(hi + pad)));
+  const step = bound.step;
+  const min = step > 0 ? Math.floor((lo - pad) / step) * step : lo - pad;
+  const max = step > 0 ? Math.ceil((hi + pad) / step) * step : hi + pad;
+  const names = plot.groups.map((g) => g.comp_id);
+  const axis = (name: string, nameGap: number) => ({
+    type: 'value' as const,
+    name,
+    nameLocation: 'middle' as const,
+    nameGap,
+    min,
+    max,
+    ...(step > 0 ? { interval: step } : {}),
+    splitLine: { show: true },
+    axisLine: { show: false, onZero: false },
+    axisTick: { show: false },
+  });
+  return {
+    tooltip: {
+      trigger: 'item',
+      // Title '<rdc_vector> <vector_type>': data.name is the full RDC vector
+      // (chain:seq:comp:atoms), seriesName is the RDC vector type.
+      formatter: (p: {
+        seriesName?: string;
+        data?: { name?: string | number; value?: number[] };
+      }) =>
+        p.data?.value
+          ? `${p.data.name} ${p.seriesName}<br/>Obs.: ${p.data.value[0]} Hz<br/>Calc.: ${p.data.value[1]} Hz`
+          : '',
+    },
+    // RDC-vector-type legend on the right, sized to the longest label and reserved
+    // via grid.right (+ marginX on the panel) so it never overlaps the plot. Data
+    // excludes the invisible error series (shares each type's name).
+    legend: {
+      orient: 'vertical',
+      right: 8,
+      top: 'middle',
+      type: 'plain',
+      textStyle: { width: LEGEND_CAP - 82, overflow: 'truncate' },
+      tooltip: { show: true },
+      data: names,
+    },
+    grid: { left: 56, right: legendReserve(names), top: 24, bottom: 24, containLabel: true },
+    xAxis: axis('Observed RDC (Hz)', 28),
+    yAxis: axis('Calculated RDC (Hz)', 44),
+    series: [
+      // One scatter series per RDC vector type → categorized legend. Listed first
+      // so each gets a consecutive palette colour (and the legend icon).
+      ...plot.groups.map((g) => ({
+        name: g.comp_id,
+        type: 'scatter',
+        z: 2,
+        symbolSize: 6,
+        itemStyle: { opacity: 0.7 },
+        data: g.points.map((pt) => ({ name: pt.seq_id, value: [pt.x, pt.y] })),
+        // y=x reference diagonal, carried by the first series only.
+        ...(g === plot.groups[0]
+          ? {
+              markLine: {
+                silent: true,
+                symbol: 'none',
+                label: { show: false },
+                lineStyle: { color: '#94a3b8', type: 'dashed' },
+                data: [[{ coord: [min, min] }, { coord: [max, max] }]],
+              },
+            }
+          : {}),
+      })),
+      // Matching error-bar series per vector type, drawn beneath the points.
+      // Sharing the name makes the legend toggle show/hide bars with points.
+      ...plot.groups.map((g) => ({
+        name: g.comp_id,
+        type: 'custom',
+        silent: true,
+        z: 1,
+        data: g.errors,
+        encode: { x: 0, y: 1 },
+        renderItem: correlationErrorBarRenderItem,
+      })),
     ],
   };
 }

@@ -137,7 +137,7 @@
                       {{ d.range_of_seq_id }} ({{ d.number_of_monomers }})
                     </td>
                     <td class="px-2 py-1 tabular-nums">{{ d.percent_of_core }}</td>
-                    <td class="px-2 py-1 tabular-nums">{{ d.medoid_rmsd }}</td>
+                    <td class="px-2 py-1 tabular-nums">{{ d.medoid_rmsd?.toFixed(2) }}</td>
                     <td class="px-2 py-1 tabular-nums">{{ d.medoid_model_id }}</td>
                   </tr>
                 }
@@ -1442,6 +1442,71 @@
             <div class="mb-6">
               <div class="font-medium mb-1">{{ p.title }}</div>
               <app-echart [option]="p.option" [height]="360" />
+            </div>
+          }
+
+          <!-- Observed vs. calculated RDC correlation scatter (per vector type) -->
+          @for (p of rdcCorrelationPanels(sf); track $index) {
+            <div class="mb-6">
+              <div class="font-medium mb-1">{{ p.title }}</div>
+              <app-echart
+                [option]="p.option"
+                [height]="460"
+                [aspect]="p.aspect ?? null"
+                [marginX]="p.marginX ?? 0"
+                [marginY]="p.marginY ?? 0"
+              />
+            </div>
+          }
+
+          <!-- RDC correlation quality scores (r²/Cornilescu-Q/Clore-Q per vector type) -->
+          @for (t of rdcQScoreTables(sf); track $index) {
+            <div class="mb-6">
+              <div class="font-medium mb-1">RDC correlation quality scores</div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm border-collapse">
+                  <thead>
+                    <tr>
+                      <th
+                        class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                      >
+                        Restraint type
+                      </th>
+                      <th
+                        class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                      >
+                        Count
+                      </th>
+                      <th
+                        class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                      >
+                        r²
+                      </th>
+                      <th
+                        class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                      >
+                        Q score (Cornilescu)
+                      </th>
+                      <th
+                        class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                      >
+                        Q score (Clore)
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (r of t.rows; track $index) {
+                      <tr class="border-b border-surface-100 dark:border-surface-800">
+                        <td class="px-2 py-1 whitespace-nowrap">{{ r.type }}</td>
+                        <td class="px-2 py-1 tabular-nums">{{ r.count }}</td>
+                        <td class="px-2 py-1 tabular-nums">{{ r.r2 }}</td>
+                        <td class="px-2 py-1 tabular-nums">{{ r.cornilescu_q }}</td>
+                        <td class="px-2 py-1 tabular-nums">{{ r.clore_q }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
             </div>
           }
         </p-panel>
