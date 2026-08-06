@@ -1726,13 +1726,17 @@
             }
           }
 
-          @if (distModelViolationsChart(); as opt) {
-            <p class="text-base mt-2 mb-2">Distance violation statistics for each model</p>
-            <p class="text-base mb-2 mx-4">
-              The mean(dot), median(x) and the standard deviation are shown in black with respect to
-              the y-axis on the right.
-            </p>
-            <app-echart [option]="opt" [height]="440" />
+          @if (allViolaratedDist().length) {
+            @if (distModelViolationsChart(); as opt) {
+              <p class="text-base mt-2 mb-2">Distance violation statistics for each model</p>
+              <p class="text-base mb-2 mx-4">
+                The mean(dot), median(x) and the standard deviation are shown in black with respect to
+                the y-axis on the right.
+              </p>
+              <app-echart [option]="opt" [height]="440" />
+            }
+          } @else if (distViolationForEachModel().length) {
+            <p class="text-base mt-2 mb-2">There is no distance violation.</p>
           }
 
           <!-- /information/output_statistics/restraint_summary/dist_violation_for_ensemble -->
@@ -1822,9 +1826,13 @@
             }
           }
 
-          @if (distViolationsForEnsembleChart(); as opt) {
-            <p class="text-base mt-2 mb-2">Distance violation statistics for the ensemble</p>
-            <app-echart [option]="opt" [height]="440" />
+          @if (allViolaratedDist().length) {
+            @if (distViolationsForEnsembleChart(); as opt) {
+              <p class="text-base mt-2 mb-2">Distance violation statistics for the ensemble</p>
+              <app-echart [option]="opt" [height]="440" />
+            }
+          } @else if (distViolationForEnsemble().length) {
+            <p class="text-base mt-2 mb-2">There is no distance violation.</p>
           }
 
           <!-- /information/output_statistics/restraint_summary/most_violated_dist_restraints -->
@@ -2177,13 +2185,17 @@
             }
           }
 
-          @if (dihedModelViolationsChart(); as opt) {
-            <p class="text-base mt-2 mb-2">Dihderal-angle violation statistics for each model</p>
-            <p class="text-base mb-2 mx-4">
-              The mean(dot), median(x) and the standard deviation are shown in black with respect to
-              the y-axis on the right.
-            </p>
-            <app-echart [option]="opt" [height]="440" />
+          @if (allViolaratedDihed().length) {
+            @if (dihedModelViolationsChart(); as opt) {
+              <p class="text-base mt-2 mb-2">Dihderal-angle violation statistics for each model</p>
+              <p class="text-base mb-2 mx-4">
+                The mean(dot), median(x) and the standard deviation are shown in black with respect to
+                the y-axis on the right.
+              </p>
+              <app-echart [option]="opt" [height]="440" />
+            }
+          } @else if (dihedViolationForEachModel().length) {
+            <p class="text-base mt-2 mb-2">There is no dihedral-angle violation.</p>
           }
 
           <!-- /information/output_statistics/restraint_summary/dihed_violation_for_ensemble -->
@@ -2274,9 +2286,13 @@
             }
           }
 
-          @if (dihedViolationsForEnsembleChart(); as opt) {
-            <p class="text-base mt-2 mb-2">Dihedral-angle violation statistics for the ensemble</p>
-            <app-echart [option]="opt" [height]="440" />
+          @if (allViolaratedDihed().length) {
+            @if (dihedViolationsForEnsembleChart(); as opt) {
+              <p class="text-base mt-2 mb-2">Dihedral-angle violation statistics for the ensemble</p>
+              <app-echart [option]="opt" [height]="440" />
+            }
+          } @else if (dihedViolationForEnsemble().length) {
+            <p class="text-base mt-2 mb-2">There is no dihedral-angle violation.</p>
           }
 
           <!-- /information/output_statistics/restraint_summary/most_violated_dihed_restraints -->
@@ -2729,13 +2745,17 @@
             }
           }
 
-          @if (rdcModelViolationsChart(); as opt) {
-            <p class="text-base mt-2 mb-2">RDC violation statistics for each model</p>
-            <p class="text-base mb-2 mx-4">
-              The mean(dot), median(x) and the standard deviation are shown in black with respect to
-              the y-axis on the right.
-            </p>
-            <app-echart [option]="opt" [height]="440" />
+          @if (allViolaratedRdc().length) {
+            @if (rdcModelViolationsChart(); as opt) {
+              <p class="text-base mt-2 mb-2">RDC violation statistics for each model</p>
+              <p class="text-base mb-2 mx-4">
+                The mean(dot), median(x) and the standard deviation are shown in black with respect to
+                the y-axis on the right.
+              </p>
+              <app-echart [option]="opt" [height]="440" />
+            }
+          } @else if (rdcViolationForEachModel().length) {
+            <p class="text-base mt-2 mb-2">There is no RDC violation.</p>
           }
 
           <!-- /information/output_statistics/restraint_summary/rdc_violation_for_ensemble -->
@@ -2826,9 +2846,13 @@
             }
           }
 
-          @if (rdcViolationsForEnsembleChart(); as opt) {
-            <p class="text-base mt-2 mb-2">RDC violation statistics for the ensemble</p>
-            <app-echart [option]="opt" [height]="440" />
+          @if (allViolaratedRdc().length) {
+            @if (rdcViolationsForEnsembleChart(); as opt) {
+              <p class="text-base mt-2 mb-2">RDC violation statistics for the ensemble</p>
+              <app-echart [option]="opt" [height]="440" />
+            }
+          } @else if (rdcViolationForEnsemble().length) {
+            <p class="text-base mt-2 mb-2">There is no RDC violation.</p>
           }
 
           <!-- /information/output_statistics/restraint_summary/most_violated_rdc_restraints -->
