@@ -623,10 +623,14 @@
   than 0.1 Å are not included. The acronyms (IR, SQ, MR, LR, IC) represent intra-residue,
   sequential, medium-range, long-range and inter-chain restraints, respectively.</p>
   {{ model_viol_table(r.dist_model_cols, r.dist_model_rows, 'Å') }}
+  {%- if r.all_dist %}
   {%- if charts.get('dist_model') %}
   <p class="caption">The mean (dot), median (×) and standard deviation are shown in black with
   respect to the y-axis on the right.</p>
   {{ chart('dist_model', 'Distance violation statistics for each model') }}
+  {%- endif %}
+  {%- else %}
+  <p class="caption">There is no distance violation.</p>
   {%- endif %}
   {%- endif %}
 
@@ -638,7 +642,11 @@
   are not violated in the ensemble. The acronyms (IR, SQ, MR, LR, IC) represent intra-residue,
   sequential, medium-range, long-range and inter-chain restraints, respectively.</p>
   {{ ensemble_viol_table(r.dist_ensemble_cols, r.dist_ensemble_rows) }}
+  {%- if r.all_dist %}
   {{ chart('dist_ensemble', 'Distance violation statistics for the ensemble') }}
+  {%- else %}
+  <p class="caption">There is no distance violation.</p>
+  {%- endif %}
   {%- endif %}
 
   {%- if r.most_violated_dist %}
@@ -699,10 +707,14 @@
   <p class="caption">Dihedral-angle violation statistics for each model in the ensemble. Violations
   less than 1° are not included.</p>
   {{ model_viol_table(r.dihed_model_cols, r.dihed_model_rows, '°') }}
+  {%- if r.all_dihed %}
   {%- if charts.get('dihed_model') %}
   <p class="caption">The mean (dot), median (×) and standard deviation are shown in black with
   respect to the y-axis on the right.</p>
   {{ chart('dihed_model', 'Dihedral-angle violation statistics for each model') }}
+  {%- endif %}
+  {%- else %}
+  <p class="caption">There is no dihedral-angle violation.</p>
   {%- endif %}
   {%- endif %}
 
@@ -712,7 +724,11 @@
   <strong>{{ r.dihed_nonviol.total }}</strong> ({% for p in r.dihed_nonviol.per_type %}{{ p.label }}: {{ p.count }}{% if not loop.last %}, {% endif %}{% endfor %})
   restraints are not violated in the ensemble.</p>
   {{ ensemble_viol_table(r.dihed_ensemble_cols, r.dihed_ensemble_rows) }}
+  {%- if r.all_dihed %}
   {{ chart('dihed_ensemble', 'Dihedral-angle violation statistics for the ensemble') }}
+  {%- else %}
+  <p class="caption">There is no dihedral-angle violation.</p>
+  {%- endif %}
   {%- endif %}
 
   {%- if r.most_violated_dihed %}
@@ -805,10 +821,14 @@
   <p class="caption">RDC violation statistics for each model in the ensemble. Violations less than
   1 Hz are not included.</p>
   {{ model_viol_table(r.rdc_model_cols, r.rdc_model_rows, 'Hz') }}
+  {%- if r.all_rdc %}
   {%- if charts.get('rdc_model') %}
   <p class="caption">The mean (dot), median (×) and standard deviation are shown in black with
   respect to the y-axis on the right.</p>
   {{ chart('rdc_model', 'RDC violation statistics for each model') }}
+  {%- endif %}
+  {%- else %}
+  <p class="caption">There is no RDC violation.</p>
   {%- endif %}
   {%- endif %}
 
@@ -818,7 +838,11 @@
   <strong>{{ r.rdc_nonviol.total }}</strong> ({% for p in r.rdc_nonviol.per_type %}{{ p.label }}: {{ p.count }}{% if not loop.last %}, {% endif %}{% endfor %})
   restraints are not violated in the ensemble.</p>
   {{ ensemble_viol_table(r.rdc_ensemble_cols, r.rdc_ensemble_rows) }}
+  {%- if r.all_rdc %}
   {{ chart('rdc_ensemble', 'RDC violation statistics for the ensemble') }}
+  {%- else %}
+  <p class="caption">There is no RDC violation.</p>
+  {%- endif %}
   {%- endif %}
 
   {%- if r.most_violated_rdc %}
