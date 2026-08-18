@@ -1655,8 +1655,8 @@ def _rdc_q_scores(stat_list):
                 'type': vtype,
                 'count': len(vals) if isinstance(vals, list) else None,
                 'r2': scores.get('r2'),
-                'cornilescu_q': scores.get('Cornilescu_Q'),
-                'clore_q': scores.get('Clore_Q'),
+                'cornilescu_q': scores.get('cornilescu_q'),
+                'clore_q': scores.get('clore_q'),
             })
         if rows:
             tables.append({'label': st.get('sf_framecode', ''), 'rows': rows})
