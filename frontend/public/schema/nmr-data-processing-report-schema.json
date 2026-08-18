@@ -4091,13 +4091,13 @@
               "minimum": 0.0,
               "maximum": 1.0
             },
-            "Cornilescu_Q": {
+            "cornilescu_q": {
               "descritopn": "Cornilescu's RDC quality score: sqrt( sum( (Dexp - Dcalc)^2 ) / sum( Dexp^2 )) where Dexp is observed RDC value, Dcalc is calculated RDC value.",
               "type": "number",
               "minimum": 0.0,
               "maximum": 1.0
             },
-            "Clore_Q": {
+            "clore_q": {
               "descritopn": "Clore's RDC quality score: sqrt( sum( (Dexp - Dcalc)^2 ) / (N * Da^2 * (4 + 3 * eta^2) / 5)) where N is the number of RDCs assessed, Da is the axial component (Dmax * Szz), and eta is the rhombicity ((Syy - Sxx) / Szz).",
               "type": "number",
               "minimum": 0.0,

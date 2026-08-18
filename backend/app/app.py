@@ -1576,7 +1576,7 @@ def _histogram_chart(stat_list, inverse=False, annotate=_histogram_annotations):
 
 
 def _scatter_plot(plot, trim_label=True):
-    """Normalize a {values, errors} plot into {groups:[{comp_id, points:[{x,y,
+    """Normalize a {values, errors} plot into {groups:[{name, points:[{x,y,
     seq_id}], errors:[[...]]}]}. `values`/`errors` are keyed by group name —
     comp_id for the dihedral φ/ψ & χ1/χ2 scatter, RDC vector type for the RDC
     correlation plot — so points and their error bars stay grouped per key (one
@@ -1595,7 +1595,7 @@ def _scatter_plot(plot, trim_label=True):
                 'seq_id': ':'.join(p[2].split(':')[:2]) + ':' if trim_label else p[2]}
                for p in vals if len(p) >= 3]
         if pts:
-            groups.append({'comp_id': key, 'points': pts,
+            groups.append({'name': key, 'points': pts,
                            'errors': errors_by_key.get(key) or []})
     if not groups:
         return None
@@ -1604,7 +1604,7 @@ def _scatter_plot(plot, trim_label=True):
 
 def _dihedral_charts(stat_list):
     """Build [{label, phi_psi, chi1_chi2}] scatter+error data from a
-    dihed_restraint stats list (each plot keyed by comp_id; see _scatter_plot)."""
+    dihed_restraint stats list (each plot keyed by name; see _scatter_plot)."""
     charts = []
     for st in stat_list or []:
         phi_psi = _scatter_plot(st.get('phi_psi_plot'))
@@ -1655,8 +1655,8 @@ def _rdc_q_scores(stat_list):
                 'type': vtype,
                 'count': len(vals) if isinstance(vals, list) else None,
                 'r2': scores.get('r2'),
-                'cornilescu_q': scores.get('Cornilescu_Q'),
-                'clore_q': scores.get('Clore_Q'),
+                'cornilescu_q': scores.get('cornilescu_q'),
+                'clore_q': scores.get('clore_q'),
             })
         if rows:
             tables.append({'label': st.get('sf_framecode', ''), 'rows': rows})
