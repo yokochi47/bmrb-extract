@@ -993,8 +993,8 @@ export function rdcCorrelationChartOption(plot: RdcCorrelationPlot): object {
         name: g.comp_id,
         type: 'scatter',
         z: 2,
-        symbolSize: 6,
-        itemStyle: { opacity: 0.7 },
+        symbolSize: 5,
+        itemStyle: { opacity: 0.8 },
         data: g.points.map((pt) => ({ name: pt.seq_id, value: [pt.x, pt.y] })),
         // y=x reference diagonal, carried by the first series only.
         ...(g === plot.groups[0]
