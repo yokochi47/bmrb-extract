@@ -1730,8 +1730,8 @@
             @if (distModelViolationsChart(); as opt) {
               <p class="text-base mt-2 mb-2">Distance violation statistics for each model</p>
               <p class="text-base mb-2 mx-4">
-                The mean(dot), median(x) and the standard deviation are shown in black with respect to
-                the y-axis on the right.
+                The mean(dot), median(x) and the standard deviation are shown in black with respect
+                to the y-axis on the right.
               </p>
               <app-echart [option]="opt" [height]="440" />
             }
@@ -2189,8 +2189,8 @@
             @if (dihedModelViolationsChart(); as opt) {
               <p class="text-base mt-2 mb-2">Dihderal-angle violation statistics for each model</p>
               <p class="text-base mb-2 mx-4">
-                The mean(dot), median(x) and the standard deviation are shown in black with respect to
-                the y-axis on the right.
+                The mean(dot), median(x) and the standard deviation are shown in black with respect
+                to the y-axis on the right.
               </p>
               <app-echart [option]="opt" [height]="440" />
             }
@@ -2288,7 +2288,9 @@
 
           @if (allViolaratedDihed().length) {
             @if (dihedViolationsForEnsembleChart(); as opt) {
-              <p class="text-base mt-2 mb-2">Dihedral-angle violation statistics for the ensemble</p>
+              <p class="text-base mt-2 mb-2">
+                Dihedral-angle violation statistics for the ensemble
+              </p>
               <app-echart [option]="opt" [height]="440" />
             }
           } @else if (dihedViolationForEnsemble().length) {
@@ -2749,8 +2751,8 @@
             @if (rdcModelViolationsChart(); as opt) {
               <p class="text-base mt-2 mb-2">RDC violation statistics for each model</p>
               <p class="text-base mb-2 mx-4">
-                The mean(dot), median(x) and the standard deviation are shown in black with respect to
-                the y-axis on the right.
+                The mean(dot), median(x) and the standard deviation are shown in black with respect
+                to the y-axis on the right.
               </p>
               <app-echart [option]="opt" [height]="440" />
             }

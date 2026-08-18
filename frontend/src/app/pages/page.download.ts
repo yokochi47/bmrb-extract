@@ -441,7 +441,7 @@ interface AllViolationRow {
 // nmr_preview report (not output_statistics); the download page fetches just the
 // RDC saveframes it needs to mirror the summary page's "9.1" content.
 /** One RDC-restraint saveframe's observed-vs-calculated correlation scatter
- * (`comp_id` = RDC vector type; point x/y are observed/calculated RDC in Hz). */
+ * (`name` = RDC vector type; point x/y are observed/calculated RDC in Hz). */
 interface RdcCorrelationChart {
   label: string;
   correlation: RdcCorrelationPlot;
@@ -732,7 +732,7 @@ export class Download {
       title: 'Correlation between observed and calculated RDC values',
       option: rdcCorrelationChartOption(d.correlation),
       aspect: 1,
-      marginX: 56 + legendReserve(d.correlation.groups.map((g) => g.comp_id)),
+      marginX: 56 + legendReserve(d.correlation.groups.map((g) => g.name)),
       marginY: 56,
     }));
   }

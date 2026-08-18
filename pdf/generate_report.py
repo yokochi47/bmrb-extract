@@ -205,7 +205,7 @@ def build_chart_inputs(stats: dict, ensemble: dict) -> list:
 
 
 def _rdc_correlation_plot(plot):
-    """Normalize an RDC correlation_plot into {groups:[{comp_id, points:[{x,y,
+    """Normalize an RDC correlation_plot into {groups:[{name, points:[{x,y,
     seq_id}], errors:[[...]]}]} for rdcCorrelationChartOption (mirrors the backend
     _scatter_plot with trim_label=False — seq_id keeps the full RDC vector)."""
     if not isinstance(plot, dict) or not plot.get('values'):
@@ -215,7 +215,7 @@ def _rdc_correlation_plot(plot):
     for key, vals in plot['values'].items():
         pts = [{'x': p[0], 'y': p[1], 'seq_id': p[2]} for p in vals if len(p) >= 3]
         if pts:
-            groups.append({'comp_id': key, 'points': pts, 'errors': errors_by_key.get(key) or []})
+            groups.append({'name': key, 'points': pts, 'errors': errors_by_key.get(key) or []})
     return {'groups': groups} if groups else None
 
 
