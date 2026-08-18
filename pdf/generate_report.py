@@ -235,8 +235,8 @@ def _rdc_q_rows(plot):
             'type': vtype,
             'count': len(vals) if isinstance(vals, list) else None,
             'r2': scores.get('r2'),
-            'cornilescu_q': scores.get('Cornilescu_Q'),
-            'clore_q': scores.get('Clore_Q'),
+            'cornilescu_q': scores.get('cornilescu_q'),
+            'clore_q': scores.get('clore_q'),
         })
     return rows
 
