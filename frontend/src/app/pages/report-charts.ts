@@ -895,11 +895,11 @@ export function modelViolationChartOption(
 }
 
 /** One RDC (or dihedral) correlation scatter plot: points grouped by category
- * (`comp_id` = RDC vector type). Each point is {x, y, seq_id (hover label)}; each
+ * (`name` = RDC vector type). Each point is {x, y, seq_id (hover label)}; each
  * error array is [x, y, x_low, x_high, y_low, y_high] (absolute). */
 export interface RdcCorrelationPlot {
   groups: {
-    comp_id: string;
+    name: string;
     points: { x: number; y: number; seq_id: string | number }[];
     errors: number[][];
   }[];
@@ -932,7 +932,7 @@ const correlationErrorBarRenderItem = (
  * scatter + one bidirectional error-bar series per RDC vector type, over a
  * common, data-driven square axis range with a y=x reference diagonal. Shared by
  * the summary and download pages. Pair with a panel `marginX` of
- * `56 + legendReserve(groups.map(g => g.comp_id))` and `marginY` 56 so the plot
+ * `56 + legendReserve(groups.map(g => g.name))` and `marginY` 56 so the plot
  * stays square and the legend never overlaps it. */
 export function rdcCorrelationChartOption(plot: RdcCorrelationPlot): object {
   // Common range across both observed (x) and calculated (y) so the plot is a
@@ -945,7 +945,7 @@ export function rdcCorrelationChartOption(plot: RdcCorrelationPlot): object {
   const step = bound.step;
   const min = step > 0 ? Math.floor((lo - pad) / step) * step : lo - pad;
   const max = step > 0 ? Math.ceil((hi + pad) / step) * step : hi + pad;
-  const names = plot.groups.map((g) => g.comp_id);
+  const names = plot.groups.map((g) => g.name);
   const axis = (name: string, nameGap: number) => ({
     type: 'value' as const,
     name,
@@ -990,11 +990,11 @@ export function rdcCorrelationChartOption(plot: RdcCorrelationPlot): object {
       // One scatter series per RDC vector type → categorized legend. Listed first
       // so each gets a consecutive palette colour (and the legend icon).
       ...plot.groups.map((g) => ({
-        name: g.comp_id,
+        name: g.name,
         type: 'scatter',
         z: 2,
-        symbolSize: 6,
-        itemStyle: { opacity: 0.7 },
+        symbolSize: 5,
+        itemStyle: { opacity: 0.8 },
         data: g.points.map((pt) => ({ name: pt.seq_id, value: [pt.x, pt.y] })),
         // y=x reference diagonal, carried by the first series only.
         ...(g === plot.groups[0]
@@ -1012,7 +1012,7 @@ export function rdcCorrelationChartOption(plot: RdcCorrelationPlot): object {
       // Matching error-bar series per vector type, drawn beneath the points.
       // Sharing the name makes the legend toggle show/hide bars with points.
       ...plot.groups.map((g) => ({
-        name: g.comp_id,
+        name: g.name,
         type: 'custom',
         silent: true,
         z: 1,

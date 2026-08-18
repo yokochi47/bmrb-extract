@@ -91,12 +91,12 @@ interface HistogramChart {
   annotations?: { x: number; anomalous: boolean; text: string }[];
 }
 interface DihedralPlot {
-  /** Points grouped by residue type (comp_id); each group is one scatter series
+  /** Points grouped by residue type (name); each group is one scatter series
    * (plus an error-bar series sharing its name, so the legend toggles both).
    * `seq_id` labels the point on hover; each error array is
    * [x, y, x_low, x_high, y_low, y_high] (absolute). */
   groups: {
-    comp_id: string;
+    name: string;
     points: { x: number; y: number; seq_id: string | number }[];
     errors: number[][];
   }[];
@@ -108,7 +108,7 @@ interface DihedralChart {
 }
 /** One RDC-restraint saveframe's observed-vs-calculated correlation scatter,
  * analogous to the dihedral φ/ψ scatter. Reuses DihedralPlot: each group's
- * `comp_id` field carries the RDC vector type, and point x/y are the
+ * `name` field carries the RDC vector type, and point x/y are the
  * observed/calculated RDC (Hz). */
 interface RdcComparisonChart {
   label: string;
@@ -810,7 +810,7 @@ export class Summary implements OnDestroy {
       title: 'Correlation between observed and calculated RDC values',
       option: rdcCorrelationChartOption(d.correlation),
       aspect: 1,
-      marginX: 56 + this.legendReserve(d.correlation.groups.map((g) => g.comp_id)),
+      marginX: 56 + this.legendReserve(d.correlation.groups.map((g) => g.name)),
       marginY: 56,
     }));
   }
@@ -1199,27 +1199,27 @@ export class Summary implements OnDestroy {
         right: 8,
         top: 'middle',
         type: 'plain',
-        data: plot.groups.map((g) => g.comp_id),
+        data: plot.groups.map((g) => g.name),
       },
       grid: { left: 56, right: 76, top: 24, bottom: 24, containLabel: true },
       xAxis: axis(`${xName} (°)`, 28),
       yAxis: axis(`${yName} (°)`, 40),
       series: [
-        // One scatter series per residue type (comp_id) → categorized legend.
+        // One scatter series per residue type (name) → categorized legend.
         // Listed first so each gets a consecutive palette colour and provides the
         // legend icon colour.
         ...plot.groups.map((g) => ({
-          name: g.comp_id,
+          name: g.name,
           type: 'scatter',
           z: 2,
           symbolSize: 6,
           itemStyle: { opacity: 0.7 },
           data: g.points.map((pt) => ({ name: pt.seq_id, value: [pt.x, pt.y] })),
         })),
-        // Matching error-bar series per comp_id, drawn beneath the points. Sharing
-        // the comp_id name makes the legend toggle show/hide bars with the points.
+        // Matching error-bar series per name, drawn beneath the points. Sharing
+        // the name makes the legend toggle show/hide bars with the points.
         ...plot.groups.map((g) => ({
-          name: g.comp_id,
+          name: g.name,
           type: 'custom',
           silent: true,
           z: 1,
