@@ -117,25 +117,25 @@
       <p-card header="File upload requirements for OneDep deposition" styleClass="mb-6">
         <ul class="leading-normal list-disc pl-8 text-base mb-4">
           <li>Coordinate file (PDBx/mmCIF or legacy PDB format)</li>
-          <p class="text-base italic underline">As to conventional separated file deposition</p>
-          <ul class="leading-normal list-disc pl-8 text-base">
-            <li>
-              Assigned chemical shift files (NMR-STAR V3, NEF, other supported formats, or existing
-              BMRB ID)
-            </li>
-            <li>Restraint files (Software-native format)</li>
-            <li>Optionally, spectral peak list files (Software-native format)</li>
-          </ul>
-          or
-          <p class="text-base italic underline">As to combined single file deposition</p>
-          <ul class="leading-normal list-disc pl-8 text-base mb-4">
-            <li>
-              NMR unified data file (NMR-STAR V3 or NEF) containing assigned chemical shifts and
-              restraints
-            </li>
-          </ul>
         </ul>
-        Note
+        <p class="text-base italic underline ml-2">As to conventional separated file deposition</p>
+        <ul class="leading-normal list-disc pl-8 text-base mb-4">
+          <li>
+            Assigned chemical shift files (NMR-STAR V3, NEF, other supported formats, or existing
+            BMRB ID)
+          </li>
+          <li>Restraint files (Software-native format)</li>
+          <li>Optionally, spectral peak list files (Software-native format)</li>
+        </ul>
+        <p class="text-base ml-2 mb-4">or</p>
+        <p class="text-base italic underline ml-2">As to combined single file deposition</p>
+        <ul class="leading-normal list-disc pl-8 text-base mb-4">
+          <li>
+            NMR unified data file (NMR-STAR V3 or NEF) containing assigned chemical shifts and
+            restraints
+          </li>
+        </ul>
+        <p class="text-base italic underline ml-2">Note</p>
         <ul class="leading-normal list-none pl-8 text-base mb-4">
           <li>Coordinate file must be in either PDBx/mmCIF format or legacy PDB format.</li>
           <li>
@@ -165,7 +165,7 @@
           </li>
           <li>Correct assigned chemical shift files (NMR-STAR V3 formats).</li>
         </ul>
-        Note
+        <p class="text-base italic underline ml-2">Note</p>
         <ul class="leading-normal list-none pl-8 text-base mb-4">
           <li>
             Coordinate file should be in PDBx/mmCIF format (highly recommended), the use of legacy
@@ -187,7 +187,9 @@
         <p class="text-base italic underline ml-2">BMRB Only</p>
         <ul class="leading-normal list-disc pl-8 text-base mb-4">
           <li>Assigned chemical shift files (NMR-STAR, NEF, or other supported formats)</li>
-          Optionally
+        </ul>
+        <p class="text-base italic underline ml-2">Optionally</p>
+        <ul class="leading-normal list-disc pl-8 text-base mb-4">
           <li>
             Other data files in NMR-STAR V3 format (e.g. perturbation, relaxation, kinetic,
             thermodynamic parameters)
@@ -212,20 +214,22 @@
       </li>
       <li>All uploaded files should be in plain text and uncompressed.</li>
       <li>
-        Once after pressing <strong>Process selected files</strong>, the system issues a conversion
-        ID, and you will no longer be able to change the selected target deposition system.
+        Once you press <strong>Process selected files</strong>, the system issues a conversion ID,
+        and you will no longer be able to change the selected target deposition system.
       </li>
       <li>
-        Then, you must review the <strong><a routerLink="/summary">Upload summary</a></strong> page
-        carefully as it will tell you whether your data has been uploaded and interpreted correctly.
-        If there are any warnings, you must explicitly acknowledge them.
+        Then, you must review the
+        <strong><a routerLink="/summary" queryParamsHandling="preserve">Upload summary</a></strong>
+        page carefully as it will tell you whether your data has been uploaded and interpreted
+        correctly. If there are any warnings, you must explicitly acknowledge them.
       </li>
       <li>
         In addition, you must acknowledge data conversion statistics and various validation metrics
-        displayed in the <strong><a routerLink="/download">Download</a></strong> page.
+        displayed on the
+        <strong><a routerLink="/download" queryParamsHandling="preserve">Download</a></strong> page.
       </li>
       <li>
-        You can achieve the desired summary and the validation metrics by re-uploading files until
+        You can achieve the desired summary and validation metrics by re-uploading files until the
         actual output file is downloaded.
       </li>
     </ul>

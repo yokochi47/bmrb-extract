@@ -289,7 +289,7 @@ export class Upload implements OnDestroy {
       // Coordinate file should be PDBx/mmCIF, not legacy PDB.
       if (selected.some((r) => r.fileType === 'co-pdb')) {
         recommendations.push(
-          'To preserve consistency between coordinates and NMR data, we strongly recommended uploading coordinate file in PDBx/mmCIF format processed with OneDep.',
+          'To preserve consistency between coordinates and NMR data, we strongly recommend uploading the coordinate file in PDBx/mmCIF format processed with OneDep.',
         );
       }
     }
@@ -432,7 +432,7 @@ export class Upload implements OnDestroy {
   readonly depSystemOptions = [
     {
       label:
-        'OneDep (<span class="italic underline">Conventional seperated</span>: coordinates, assigned chemical shifts, NMR restraints) or (<span class="italic underline">Combined single</span>: coordinates, NMR unified data)',
+        'OneDep (<span class="italic underline">Conventional separated</span>: coordinates, assigned chemical shifts, NMR restraints) or (<span class="italic underline">Combined single</span>: coordinates, NMR unified data)',
       value: TargetDepsys.onedep,
     },
     {
@@ -678,7 +678,7 @@ export class Upload implements OnDestroy {
 
       if (!entryList.some((e) => Number(e) === id)) {
         this.bmrbErrorMessage.set(
-          'BMRB ID does not exist or is not publicly available yet. If you are the legitimated entry author, please ask BMRB annotator for information regarding the entry status.',
+          'BMRB ID does not exist or is not publicly available yet. If you are the legitimate entry author, please ask BMRB annotator for information regarding the entry status.',
         );
         this.pageService.pageState.update((prev) => ({ ...prev, relatedBmrbId: null }));
         return;
