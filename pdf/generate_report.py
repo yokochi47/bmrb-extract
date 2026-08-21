@@ -332,6 +332,8 @@ _RESTRAINT_LABEL_HTML = {
     'long_range': 'Long range (<em>| i - j | ≥ 5</em>)',
     # Preserve the RDC acronym (the capitalize fallback would lowercase it).
     'total_rdc_restraints': 'Total RDC restraints',
+    # The report key itself is misspelled upstream; don't surface that to users.
+    'number_of_restaints_per_residue': 'Number of restraints per residue',
 }
 _DIST_TYPE_LABELS = {
     'ir': 'Intra-residue', 'se': 'Sequential', 'mr': 'Medium range',
@@ -371,13 +373,13 @@ def _restraint_props(rs):
 
 _BOOKKEEPING_DEFS = [
     ('dist_restraint', '6.3', 'Bookkeeping of distance restraints',
-     'There is no distance restraints.', 'distance restraints'),
+     'There are no distance restraints.', 'distance restraints'),
     ('dihed_restraint', '6.4', 'Bookkeeping of dihedral-angle restraints',
-     'There is no dihedral-angle restraints.', 'dihedral-angle restraints'),
+     'There are no dihedral-angle restraints.', 'dihedral-angle restraints'),
     ('rdc_restraint', '6.5', 'Bookkeeping of RDC restraints',
-     'There is no RDC restraints.', 'RDC restraints'),
+     'There are no RDC restraints.', 'RDC restraints'),
     ('spectral_peak', '6.6', 'Bookkeeping of spectral peak lists',
-     'There is no spectral peak lists.', 'spectral peaks'),
+     'There are no spectral peak lists.', 'spectral peaks'),
 ]
 
 

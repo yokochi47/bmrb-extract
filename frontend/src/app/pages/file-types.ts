@@ -62,10 +62,10 @@ export const FILE_TYPE_OPTIONS: readonly FileTypeOption[] = [
     label: 'NMR restraints (SAXS profile containing columns for q, I(q), σ(I))',
     value: 'nm-res-sax',
   },
-  { label: 'NMR restraints (Schröginder/ASL format)', value: 'nm-res-sch' },
+  { label: 'NMR restraints (Schrödinger/ASL format)', value: 'nm-res-sch' },
   { label: 'NMR restraints (SYBYL format)', value: 'nm-res-syb' },
   { label: 'NMR restraints (XPLOR-NIH format)', value: 'nm-res-xpl' },
-  { label: 'NMR restraints (other plane text format)', value: 'nm-res-oth' },
+  { label: 'NMR restraints (other plain text format)', value: 'nm-res-oth' },
   // Topology
   { label: 'Topology (AMBER format)', value: 'nm-aux-amb' },
   { label: 'Topology (CHARMM format)', value: 'nm-aux-cha' },
@@ -87,7 +87,7 @@ export const FILE_TYPE_OPTIONS: readonly FileTypeOption[] = [
   { label: 'Spectral peak list (XWINNMR format)', value: 'nm-pea-xwi' },
   { label: 'Spectral peak list (WSV/TSV with a header)', value: 'nm-pea-bar' },
   {
-    label: 'Spectral peak list (any plane text format, auto format detection)',
+    label: 'Spectral peak list (any plain text format, auto format detection)',
     value: 'nm-pea-any',
   },
   // NMR unified data
