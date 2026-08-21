@@ -206,14 +206,16 @@
 </div>
 
 @if (publicId()) {
-  <!-- data conversion statisticl report -->
+  <!-- data conversion statistical report -->
   <div class="card">
     <div class="font-semibold text-2xl mb-6">Data conversion statistical report</div>
 
     @if (statsAvailable() === null) {
       <p class="text-surface-500 py-2"><i class="pi pi-spin pi-spinner mr-2"></i>Loading…</p>
     } @else if (!statsAvailable()) {
-      <p class="text-surface-500 py-2">Statistical report are not available for this conversion.</p>
+      <p class="text-surface-500 py-2">
+        The statistical report is not available for this conversion.
+      </p>
     } @else {
       <!-- /information/output_statistics/[entry_id, entry_title, entry_authors, submission_date, processed_date, processed_site, file_name, file_type, file_size, md5_checksum, model/* (if not null)] -->
       <p-card header="Provenance information" styleClass="mb-6">
@@ -378,8 +380,8 @@
           <p class="text-base mb-4 mx-4">
             This entry contains <strong>{{ ensembleTotalModels() }}</strong> models. Model
             <strong>{{ ensembleMedoidModel() }}</strong> is the overall representative, medoid model
-            (most similar to other models). The following residues, defined as well-defined defined
-            regions, will be considered in the subsequent validation analysis throuhgout this
+            (most similar to other models). The following residues, identified as clearly defined
+            regions, will be considered in the subsequent validation analysis throughout this
             report.
             @if (ensembleSelectionCriteria()) {
               The authors have identified model
@@ -437,11 +439,11 @@
           @if (hasClusters()) {
             <p class="text-base mt-6 mb-2">Clustering analysis of models in the ensemble</p>
             <p class="text-base mb-4 mx-4">
-              The models can be grouped into <strong>{{ clusteredCount() }}</strong> clusters
+              The models can be grouped into <strong>{{ clusteredCount() }}</strong>
+              {{ singleModelCount() > 0 ? 'clusters, and' : 'clusters.' }}
               @if (singleModelCount() > 0) {
-                , and <strong>{{ singleModelCount() }}</strong> single-model clusters were found
+                <strong>{{ singleModelCount() }}</strong> single-model clusters were found.
               }
-              .
             </p>
             <div class="overflow-x-auto">
               <table class="w-full text-sm border-collapse">
@@ -1104,7 +1106,7 @@
                 <strong>{{ sf.outlierCount }}</strong>
                 chemical shifts. These are statistical measures, and large deviations from the mean
                 do not necessarily imply incorrect assignments. Molecules containing paramagnetic
-                centres or hemes are expected to give rise to anomalous chemical shifts.
+                centers or hemes are expected to give rise to anomalous chemical shifts.
               </p>
               <div class="overflow-x-auto">
                 <table class="w-full text-sm border-collapse mb-4">
@@ -1214,8 +1216,8 @@
               </div>
             } @else {
               <p class="text-surface-500 py-2">
-                There is no unusual chemical shifts meaning that all chemical shift values assigned
-                to standard residues are within their expected ranges.
+                There are no unusual chemical shifts, meaning that all chemical shift values
+                assigned to standard residues are within their expected ranges.
               </p>
             }
 
@@ -1233,9 +1235,9 @@
                 @if (panel.title.startsWith('RCI')) {
                   <p class="text-base mb-2 mx-4">
                     The image below reports random coil index (RCI) values and predicted order
-                    parameters (S²) for the protein chains in the structure. The height of RCI point
-                    gives a probability of a given residue to be disordered, as predicted from the
-                    available backbone chemical shifts and the amino acid sequence. A RCI value
+                    parameters (S²) for the protein chains in the structure. The height of the RCI
+                    point gives a probability of a given residue to be disordered, as predicted from
+                    the available backbone chemical shifts and the amino acid sequence. An RCI value
                     above 0.2 is an indication of significant predicted disorder. An S² value of 1
                     indicates completely restricted or rigid bonds, whereas 0 reflects completely
                     isotropic, unrestricted motion on the picosecond to nanosecond timescale. It is
@@ -1249,11 +1251,11 @@
                     The image below reports predicted NMR RMSD values for the protein chains in the
                     structure. These values are known to correlate with RCI values. The horizontal
                     dotted line indicates the average RMSD value of the principal well-defined
-                    region of the chain. If the RMSD is too low than the dotted line, the models may
-                    be over-converged, or the number of models constituting the ensemble may be too
-                    small. The cyan region indicates residues involed in well-defined cores as
+                    region of the chain. If the RMSD is much lower than the dotted line, the models
+                    may be over-converged, or the number of models constituting the ensemble may be
+                    too small. The cyan region indicates residues involved in well-defined cores as
                     described in the Ensemble composition analysis section. The gray region
-                    indicates residues are not modeled.
+                    indicates residues that are not modeled.
                   </p>
                 }
                 <app-echart [option]="panel.option" [height]="360" />
@@ -1519,11 +1521,11 @@
             categories based on the sequence separation of the atoms involved. Each category is
             further sub-divided into three sub-categories based on the atoms involved. Violations
             less than 0.1 Å are not included in the statistics. Absolute percentage (marked as
-            'Absol.') were calculated with respect to the total number of distance restraints.
-            Inline percentage (marked as 'Inline') were calculated with respect to the number of
-            restraints in a particular restraint category. The violations indicate the total number
-            of restraints violated in at least one model. On the other hand, consistent violations
-            indicate the total number of restranits violated in all models.
+            'Absol.') was calculated with respect to the total number of distance restraints. Inline
+            percentage (marked as 'Inline') was calculated with respect to the number of restraints
+            in a particular restraint category. The violations indicate the total number of
+            restraints violated in at least one model. On the other hand, consistent violations
+            indicate the total number of restraints violated in all models.
           </p>
           <div class="overflow-x-auto">
             <table class="w-full text-sm border-collapse mb-2">
@@ -1730,8 +1732,8 @@
             @if (distModelViolationsChart(); as opt) {
               <p class="text-base mt-2 mb-2">Distance violation statistics for each model</p>
               <p class="text-base mb-2 mx-4">
-                The mean(dot), median(x) and the standard deviation are shown in black with respect
-                to the y-axis on the right.
+                The mean (dot), median (×) and the standard deviation are shown in black with
+                respect to the y-axis on the right.
               </p>
               <app-echart [option]="opt" [height]="440" />
             }
@@ -1745,8 +1747,8 @@
               7.3 Distance violation statistics for the ensemble
             </p>
             <p class="text-base mb-4 mx-2">
-              Violation analysis may find that some restraints are violated in few models and some
-              are violated in most of models. The following table provides this information as
+              Violation analysis may find that some restraints are violated in a few models and some
+              are violated in most of the models. The following table provides this information as
               number of violated restraints for a given fraction of the ensemble. In total,
               <strong>{{ distNonViolated().total }}</strong> (IR:
               <strong>{{ distNonViolated().ir }}</strong
@@ -1843,8 +1845,8 @@
               each restraint sorted by number of violated models and the mean value. Violations less
               than 0.1 Å and cases of single-model violation are not included in the statistics. The
               Key (restraint list ID, restraint ID) is the unique identifier for a given restraint.
-              Rows with same key represent combinatorial or ambiguous restraints and are counted as
-              a single restraint.
+              Rows with the same key represent combinatorial or ambiguous restraints and are counted
+              as a single restraint.
             </p>
             <p-panel [toggleable]="true" [collapsed]="true" styleClass="mb-4">
               <ng-template pTemplate="header">
@@ -1914,8 +1916,8 @@
             <p class="text-base mb-4 mx-2">
               The following table lists the absolute value of the violation for each restraint in
               the ensemble sorted by its value. The Key (restraint list ID, restraint ID) is the
-              unique identifier for a given restraint. Rows with same key represent combinatorial or
-              ambiguous restraints and are counted as a single restraint.
+              unique identifier for a given restraint. Rows with the same key represent
+              combinatorial or ambiguous restraints and are counted as a single restraint.
             </p>
             <p-panel [toggleable]="true" [collapsed]="true" styleClass="mb-4">
               <ng-template pTemplate="header">
@@ -1968,7 +1970,7 @@
             }
           }
         } @else {
-          <p class="text-surface-500 py-2">There is no distance restraints.</p>
+          <p class="text-surface-500 py-2">There are no distance restraints.</p>
         }
       </p-card>
 
@@ -1979,12 +1981,12 @@
           <p class="text-base mb-4 mx-2">
             The following table provides the summary of dihedral-angle violations in different
             dihedral-angle types. Violations less than 1° are not included in the calculation.
-            Absolute percentage (marked as 'Absol.') were calculated with respect to the total
-            number of dihedral-angle restraints. Inline percentage (marked as 'Inline') were
-            calculated with respect to the number of restraints in a particular restraint category.
-            The violations indicate the total number of restraints violated in at least one model.
-            On the other hand, consistent violations indicate the total number of restranits
-            violated in all models.
+            Absolute percentage (marked as 'Absol.') was calculated with respect to the total number
+            of dihedral-angle restraints. Inline percentage (marked as 'Inline') was calculated with
+            respect to the number of restraints in a particular restraint category. The violations
+            indicate the total number of restraints violated in at least one model. On the other
+            hand, consistent violations indicate the total number of restraints violated in all
+            models.
           </p>
           <div class="overflow-x-auto">
             <table class="w-full text-sm border-collapse mb-2">
@@ -2187,10 +2189,10 @@
 
           @if (allViolaratedDihed().length) {
             @if (dihedModelViolationsChart(); as opt) {
-              <p class="text-base mt-2 mb-2">Dihderal-angle violation statistics for each model</p>
+              <p class="text-base mt-2 mb-2">Dihedral-angle violation statistics for each model</p>
               <p class="text-base mb-2 mx-4">
-                The mean(dot), median(x) and the standard deviation are shown in black with respect
-                to the y-axis on the right.
+                The mean (dot), median (×) and the standard deviation are shown in black with
+                respect to the y-axis on the right.
               </p>
               <app-echart [option]="opt" [height]="440" />
             }
@@ -2205,8 +2207,8 @@
             </p>
             <p class="text-base mb-4 mx-2">
               Violation analysis may find that some restraints are violated in very few models and
-              some are violated in most of models. The following table provides this information as
-              number of violated restraints for a given fraction of ensemble. In total,
+              some are violated in most of the models. The following table provides this information
+              as number of violated restraints for a given fraction of the ensemble. In total,
               <strong>{{ dihedNonViolated().total }}</strong>
               @if (dihedNonViolated().perType.length) {
                 (
@@ -2377,7 +2379,7 @@
           <!-- /information/output_statistics/restraint_summary/all_dihed_restraints -->
           @if (allViolaratedDihed().length) {
             <p class="text-base font-medium mt-4 mb-2">
-              8.5 All violated dihedral-angle violations
+              8.5 All violated dihedral-angle restraints
             </p>
             <p class="text-base mb-4 mx-2">
               The following table lists the absolute value of the violation for each restraint in
@@ -2446,7 +2448,7 @@
             }
           }
         } @else {
-          <p class="text-surface-500 py-2">There is no dihedral-angle restraints.</p>
+          <p class="text-surface-500 py-2">There are no dihedral-angle restraints.</p>
         }
       </p-card>
 
@@ -2456,7 +2458,7 @@
           <p class="text-base mb-4 mx-2">
             The following plots and tables show the correlation between observed and calculated
             RDCs, based on molecular alignment tensors predicted using the coordinates from each
-            save frame. A high linear correlation (e.g., r² &gt; 0.9) indicates that the RDCs are
+            saveframe. A high linear correlation (e.g., r² &gt; 0.9) indicates that the RDCs are
             consistent with the coordinates. Conversely, a low correlation (e.g., r² &lt; 0.8)
             suggests that the molecular alignment tensor was not accurately determined; possible
             reasons for this include the presence of RDCs arising from flexible regions, an
@@ -2541,11 +2543,11 @@
           <p class="text-base mb-4 mx-2">
             The following table provides the summary of RDC violations in different RDC vector
             types. Violations less than 1 Hz are not included in the calculation. Absolute
-            percentage (marked as 'Absol.') were calculated with respect to the total number of RDC
-            restraints. Inline percentage (marked as 'Inline') were calculated with respect to the
+            percentage (marked as 'Absol.') was calculated with respect to the total number of RDC
+            restraints. Inline percentage (marked as 'Inline') was calculated with respect to the
             number of restraints in a particular restraint category. The violations indicate the
             total number of restraints violated in at least one model. On the other hand, consistent
-            violations indicate the total number of restranits violated in all models.
+            violations indicate the total number of restraints violated in all models.
           </p>
           <div class="overflow-x-auto">
             <table class="w-full text-sm border-collapse mb-2">
@@ -2751,8 +2753,8 @@
             @if (rdcModelViolationsChart(); as opt) {
               <p class="text-base mt-2 mb-2">RDC violation statistics for each model</p>
               <p class="text-base mb-2 mx-4">
-                The mean(dot), median(x) and the standard deviation are shown in black with respect
-                to the y-axis on the right.
+                The mean (dot), median (×) and the standard deviation are shown in black with
+                respect to the y-axis on the right.
               </p>
               <app-echart [option]="opt" [height]="440" />
             }
@@ -2767,8 +2769,8 @@
             </p>
             <p class="text-base mb-4 mx-2">
               Violation analysis may find that some restraints are violated in very few models and
-              some are violated in most of models. The following table provides this information as
-              number of violated restraints for a given fraction of ensemble. In total,
+              some are violated in most of the models. The following table provides this information
+              as number of violated restraints for a given fraction of the ensemble. In total,
               <strong>{{ rdcNonViolated().total }}</strong>
               @if (rdcNonViolated().perType.length) {
                 (
@@ -2865,8 +2867,8 @@
               each restraint sorted by number of violated models and the mean value. Violations less
               than 1 Hz and cases of single-model violation are not included in the statistics. The
               Key (restraint list ID, restraint ID) is the unique identifier for a given restraint.
-              Rows with same key represent combinatorial or ambiguous restraints and are counted as
-              a single restraint.
+              Rows with the same key represent combinatorial or ambiguous restraints and are counted
+              as a single restraint.
             </p>
             <p-panel [toggleable]="true" [collapsed]="true" styleClass="mb-4">
               <ng-template pTemplate="header">
@@ -2936,8 +2938,8 @@
             <p class="text-base mb-4 mx-2">
               The following table lists the absolute value of the violation for each restraint in
               the ensemble sorted by its value. The Key (restraint list ID, restraint ID) is the
-              unique identifier for a given restraint. Rows with same key represent combinatorial or
-              ambiguous restraints and are counted as a single restraint.
+              unique identifier for a given restraint. Rows with the same key represent
+              combinatorial or ambiguous restraints and are counted as a single restraint.
             </p>
             <p-panel [toggleable]="true" [collapsed]="true" styleClass="mb-4">
               <ng-template pTemplate="header">
@@ -2988,7 +2990,7 @@
             }
           }
         } @else {
-          <p class="text-surface-500 py-2">There is no RDC restraints.</p>
+          <p class="text-surface-500 py-2">There are no RDC restraints.</p>
         }
       </p-card>
     }

@@ -16,7 +16,7 @@
   <p class="text-lg mb-4">
     <strong
       >To use this Service, you must agree to these Terms and Conditions ("Terms") and
-      <a routerLink="/privacy">Privacy Policy</a>.</strong
+      <a routerLink="/privacy" queryParamsHandling="preserve">Privacy Policy</a>.</strong
     >
   </p>
 
@@ -81,8 +81,8 @@
     <li>Data is processed in a <strong>non-public, session-based environment</strong></li>
     <li>The Service does not intentionally disclose user data to third parties</li>
     <li>
-      The system operators access user data when the user requires support through a
-      <strong><a routerLink="/help">Help desk</a></strong> page
+      The system operators may access user data when the user requires support through the
+      <strong><a routerLink="/help" queryParamsHandling="preserve">Help desk</a></strong> page
     </li>
     <li>
       Access is controlled via a <strong>tokenized URL</strong>, and possession of the token grants
@@ -111,7 +111,7 @@
 
   <div class="font-semibold text-xl mb-4">7. Upload File Check</div>
   <p class="text-lg mb-4">
-    Users receive one of three conversion status based on analysis of the uploaded files:
+    Users receive one of three conversion statuses based on analysis of the uploaded files:
   </p>
   <ul class="leading-normal list-disc pl-8 text-lg mb-4">
     <li>
@@ -120,7 +120,7 @@
     </li>
     <li>
       Warning – Minor issues were found during the conversion, but you can access the conversion
-      results by accepting all warnings or try to fix the issues reported before download the
+      results by accepting all warnings or try to fix the issues reported before downloading the
       results
     </li>
     <li>
@@ -142,7 +142,7 @@
     <li>Each session is associated with an <strong>expiration date</strong></li>
     <li>All data (files, logs, metadata) will be deleted after the expiration</li>
     <li>
-      Once users approve the status (OK or Warning) and download the conversion results, The session
+      Once users approve the status (OK or Warning) and download the conversion results, the session
       will become read-only, and users will no longer be able to re-upload files
     </li>
   </ul>
@@ -175,7 +175,10 @@
   </ul>
 
   <div class="font-semibold text-xl mb-4">11. Communication and Sharing</div>
-  <p class="text-lg mb-4">The Service allows users to share session access via email.</p>
+  <p class="text-lg mb-4">
+    The Service allows users to share session access via email. By using this feature, you confirm
+    that:
+  </p>
   <ul class="leading-normal list-disc pl-8 text-lg mb-4">
     <li>You have permission to contact recipients</li>
     <li>You understand that shared links grant access to session data</li>
@@ -198,7 +201,7 @@
 
   <div class="font-semibold text-xl mb-4">14. Limitation of Liability</div>
   <ul class="leading-normal list-disc pl-8 text-lg mb-4">
-    <li>The Service is provided <strong>“as is” without warranties</strong></li>
+    <li>The Service is provided <strong>"as is" without warranties</strong></li>
     <li>
       The system operators are not liable for:
       <ul class="leading-normal list-disc pl-8 text-lg mb-4">

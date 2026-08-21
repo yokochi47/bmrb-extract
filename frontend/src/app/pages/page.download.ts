@@ -506,6 +506,8 @@ const RESTRAINT_LABEL_HTML: Record<string, string> = {
   long_range: 'Long range (<em>| i - j | ≥ 5</em>)',
   // Preserve the RDC acronym (the humanize fallback would lowercase it to "rdc").
   total_rdc_restraints: 'Total RDC restraints',
+  // The report key itself is misspelled upstream; don't surface that to users.
+  number_of_restaints_per_residue: 'Number of restraints per residue',
 };
 
 /** Distance-type codes used in restraint_summary *_dist_types (comma-separated). */
@@ -793,28 +795,28 @@ export class Download {
         key: 'dist_restraint',
         section: '6.3',
         heading: 'Bookkeeping of distance restraints',
-        empty: 'There is no distance restraints.',
+        empty: 'There are no distance restraints.',
         noun: 'distance restraints',
       },
       {
         key: 'dihed_restraint',
         section: '6.4',
         heading: 'Bookkeeping of dihedral-angle restraints',
-        empty: 'There is no dihedral-angle restraints.',
+        empty: 'There are no dihedral-angle restraints.',
         noun: 'dihedral-angle restraints',
       },
       {
         key: 'rdc_restraint',
         section: '6.5',
         heading: 'Bookkeeping of RDC restraints',
-        empty: 'There is no RDC restraints.',
+        empty: 'There are no RDC restraints.',
         noun: 'RDC restraints',
       },
       {
         key: 'spectral_peak',
         section: '6.6',
         heading: 'Bookkeeping of spectral peak lists',
-        empty: 'There is no spectral peak lists.',
+        empty: 'There are no spectral peak lists.',
         noun: 'spectral peaks',
       },
     ];

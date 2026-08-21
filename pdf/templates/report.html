@@ -466,7 +466,7 @@
   <p class="caption">The following table lists the statistically unusual
   <strong>{{ sf.outlier_count }}</strong> chemical shifts. These are statistical measures, and large
   deviations from the mean do not necessarily imply incorrect assignments. Molecules containing
-  paramagnetic centres or hemes are expected to give rise to anomalous chemical shifts.</p>
+  paramagnetic centers or hemes are expected to give rise to anomalous chemical shifts.</p>
   <table>
     <thead><tr>
       <th class="num" style="width:7%">Chain&nbsp;code</th>
@@ -509,9 +509,9 @@
   {%- for c in rci_panels %}
   {%- if c.kind == 'rci' %}
   <p class="caption">The image below reports random coil index (RCI) values and predicted order
-  parameters (S²) for the protein chains in the structure. The height of RCI point gives a
+  parameters (S²) for the protein chains in the structure. The height of the RCI point gives a
   probability of a given residue to be disordered, as predicted from the available backbone chemical
-  shifts and the amino acid sequence. A RCI value above 0.2 is an indication of significant predicted
+  shifts and the amino acid sequence. An RCI value above 0.2 is an indication of significant predicted
   disorder. An S² value of 1 indicates completely restricted or rigid bonds, whereas 0 reflects
   completely isotropic, unrestricted motion on the picosecond to nanosecond timescale. It is known
   that experimentally determined order parameters for backbone N-H vector correlate well with the RCI
@@ -521,10 +521,10 @@
   <p class="caption">The image below reports predicted NMR RMSD values for the protein chains in the
   structure. These values are known to correlate with RCI values. The horizontal dotted line
   indicates the average RMSD value of the principal well-defined region of the chain. If the RMSD is
-  too low than the dotted line, the models may be over-converged, or the number of models
-  constituting the ensemble may be too small. The cyan region indicates residues involed in
+  much lower than the dotted line, the models may be over-converged, or the number of models
+  constituting the ensemble may be too small. The cyan region indicates residues involved in
   well-defined cores as described in the Ensemble composition analysis section. The gray region
-  indicates residues are not modeled.</p>
+  indicates residues that are not modeled.</p>
   {%- endif %}
   {{ chart(c.id, c.title) }}
   {%- endfor %}
@@ -597,7 +597,7 @@
   <h2>7. Distance violation analysis</h2>
 
   {%- if not r.has_dist %}
-  <p class="caption muted">There is no distance restraints.</p>
+  <p class="caption muted">There are no distance restraints.</p>
   {%- endif %}
 
   {%- if r.dist_summary %}
@@ -684,7 +684,7 @@
   <h2>8. Dihedral-angle violation analysis</h2>
 
   {%- if not r.has_dihed %}
-  <p class="caption muted">There is no dihedral-angle restraints.</p>
+  <p class="caption muted">There are no dihedral-angle restraints.</p>
   {%- endif %}
 
   {%- if r.dihed_summary %}
@@ -768,7 +768,7 @@
   {%- if rdc_correlations %}
   <p class="caption">The following plots and tables show the correlation between observed and
   calculated RDCs, based on molecular alignment tensors predicted using the coordinates from each
-  save frame. A high linear correlation (e.g., r² &gt; 0.9) indicates that the RDCs are consistent
+  saveframe. A high linear correlation (e.g., r² &gt; 0.9) indicates that the RDCs are consistent
   with the coordinates. Conversely, a low correlation (e.g., r² &lt; 0.8) suggests that the molecular
   alignment tensor was not accurately determined; possible reasons for this include the presence of
   RDCs arising from flexible regions, an overestimation of scaling factors for unreliable RDC, or the
@@ -798,7 +798,7 @@
   {%- endif %}
 
   {%- if not r.has_rdc %}
-  <p class="caption muted">There is no RDC restraints.</p>
+  <p class="caption muted">There are no RDC restraints.</p>
   {%- endif %}
 
   {%- if r.rdc_summary %}

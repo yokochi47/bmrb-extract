@@ -10,7 +10,7 @@
 }
 
 <div class="card">
-  <div class="test-primary font-semibold text-2xl mb-4">Welcome to bmrb_extract</div>
+  <div class="text-primary font-semibold text-2xl mb-4">Welcome to bmrb_extract</div>
   <p class="text-xl mb-4">
     <strong>bmrb_extract</strong> is an NMR data conversion service that simplifies data deposition
     to PDB (via
@@ -30,58 +30,72 @@
     >) by generating a single NMR data file from various software native formats.
   </p>
   <p class="text-lg mb-4">
-    Please see <strong><a routerLink="/preface">Preface</a></strong> for information about the
-    origin of the service.
+    Please see
+    <strong><a routerLink="/preface" queryParamsHandling="preserve">Preface</a></strong> for
+    information about the origin of the service.
   </p>
 
   <div class="font-semibold text-xl mb-4">Steps for NMR data conversion</div>
   <ul class="leading-normal list-disc pl-8 text-lg mb-4">
     <li>
-      You must read <strong><a routerLink="/terms">Terms and Conditions</a></strong> and
-      <strong><a routerLink="/privacy">Privacy Policy</a></strong> and agree to these policies by
-      clicking <strong><a routerLink="/info" fragment="consentCheck">check-box</a></strong> below
-      before file upload
+      You must read
+      <strong
+        ><a routerLink="/terms" queryParamsHandling="preserve">Terms and Conditions</a></strong
+      >
+      and
+      <strong><a routerLink="/privacy" queryParamsHandling="preserve">Privacy Policy</a></strong>
+      and agree to these policies by clicking the
+      <strong
+        ><a routerLink="/info" queryParamsHandling="preserve" fragment="consentCheck"
+          >check-box</a
+        ></strong
+      >
+      below before file upload
     </li>
     <li>
-      In an <strong><a routerLink="/upload">Upload files</a></strong> page, select target deposition
-      system and upload files, and choose the appropriate format for each
+      On the
+      <strong><a routerLink="/upload" queryParamsHandling="preserve">Upload files</a></strong> page,
+      select the target deposition system and upload files, and choose the appropriate format for
+      each
     </li>
     <li>
-      In case the requirements match, conversion starts when you select "Process selected files"
+      In case the requirements match, conversion starts when you select the "Process selected files"
       button
     </li>
     <li>
-      After analysis of upload files, you can overview conversion status ("OK", "Warning", or
-      "Error") and diagnostic messages on an
-      <strong><a routerLink="/summary">Upload summary</a></strong> page
+      After analysis of the uploaded files, you can review the conversion status ("OK", "Warning",
+      or "Error") and diagnostic messages on the
+      <strong><a routerLink="/summary" queryParamsHandling="preserve">Upload summary</a></strong>
+      page
     </li>
     <li>
       In case of "Warning" status, you must accept all warnings to access the conversion results,
       otherwise you should re-upload corrected files
     </li>
     <li>
-      In a <strong><a routerLink="/download">Download</a></strong
-      >, you can view statistics of the data conversion and access to a zipped conversion results
+      On the <strong><a routerLink="/download" queryParamsHandling="preserve">Download</a></strong>
+      page, you can view statistics of the data conversion and access a zipped conversion results
       file
     </li>
     <li>
       Once you download the conversion results, you will no longer be able to re-upload files
-      (create new session if necessary)
+      (create a new session if necessary)
     </li>
     <li>
-      You will see tokenized URL to review the session (read-only) until scheduled expiry date
+      You will see a tokenized URL to review the session (read-only) until the scheduled expiry date
     </li>
     <li>
-      When you need assistance in data conversion, please contact us only through a
-      <strong><a routerLink="/help">Help desk</a></strong> page, do not send us email directly
+      When you need assistance in data conversion, please contact us only through the
+      <strong><a routerLink="/help" queryParamsHandling="preserve">Help desk</a></strong> page; do
+      not send us email directly
     </li>
-    <li>Your mail address must be verified before using the Help desk</li>
+    <li>Your email address must be verified before using the Help desk</li>
     <li>
-      You can log-in with the verified mail and access to all your previous conversion sessions and
-      conversation with annotators
+      You can log in with the verified email address and access all your previous conversion
+      sessions and conversations with annotators
     </li>
     <li>
-      <i class="pi pi-bell"></i> icon of the top-bar menu lets you know that new message has been
+      The <i class="pi pi-bell"></i> icon in the top bar lets you know that a new message has
       arrived
     </li>
   </ul>
@@ -89,23 +103,21 @@
   <div class="font-semibold text-xl mb-4">Requirements for OneDep deposition</div>
   <ul class="leading-normal list-disc pl-8 text-lg mb-4">
     <li>Coordinate file (PDBx/mmCIF or legacy PDB format)</li>
-    <p class="text-base italic underline">As to conventional separated file deposition</p>
-    <ul class="leading-normal list-disc pl-8 text-lg">
-      <li>
-        Assigned chemical shift files (NMR-STAR V3, NEF, other supported formats, or existing BMRB
-        ID)
-      </li>
-      <li>Restraint files (Software-native format)</li>
-      <li>Optionally, spectral peak list files (Software-native format)</li>
-    </ul>
-    or
-    <p class="text-base italic underline">As to combined single file deposition</p>
-    <ul class="leading-normal list-disc pl-8 text-lg mb-4">
-      <li>
-        NMR unified data file (NMR-STAR V3 or NEF) containing assigned chemical shifts and
-        restraints
-      </li>
-    </ul>
+  </ul>
+  <p class="text-base italic underline ml-4">As to conventional separated file deposition</p>
+  <ul class="leading-normal list-disc pl-8 text-lg mb-4">
+    <li>
+      Assigned chemical shift files (NMR-STAR V3, NEF, other supported formats, or existing BMRB ID)
+    </li>
+    <li>Restraint files (Software-native format)</li>
+    <li>Optionally, spectral peak list files (Software-native format)</li>
+  </ul>
+  <p class="text-lg ml-4 mb-4">or</p>
+  <p class="text-base italic underline ml-4">As to combined single file deposition</p>
+  <ul class="leading-normal list-disc pl-8 text-lg mb-4">
+    <li>
+      NMR unified data file (NMR-STAR V3 or NEF) containing assigned chemical shifts and restraints
+    </li>
   </ul>
   <p class="text-lg mb-4">
     The wwPDB NMR Validation Task Force strongly encourages the submission of spectral peak lists,
@@ -131,7 +143,9 @@
   <p class="text-base italic underline ml-4">BMRB Only</p>
   <ul class="leading-normal list-disc pl-8 text-lg mb-4">
     <li>Assigned chemical shift files (NMR-STAR, NEF, or other supported formats)</li>
-    Optionally
+  </ul>
+  <p class="text-base italic underline ml-4">Optionally</p>
+  <ul class="leading-normal list-disc pl-8 text-lg mb-4">
     <li>
       Other data files in NMR-STAR V3 format (e.g. perturbation, relaxation, kinetic, thermodynamic
       parameters)
