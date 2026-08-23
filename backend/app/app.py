@@ -1391,7 +1391,7 @@ _NMR_SUBTYPE_NAMES = {
     'spectral_peak': 'Spectral peak lists',
     'spectral_peak_alt': 'Spectral peak lists (alt.)',
     'noepk_restraint': 'NOESY peak volume restraints',
-    'plane_restraint': 'Planarity restraints',
+    'plane_restraint': 'Planarity constraints',
     'adist_restraint': 'Anti-distance restraints',
     'jcoup_restraint': 'Scalar J-coupling restraints',
     'rdc_raw_data': 'RDC raw data',
@@ -1423,7 +1423,7 @@ _NMR_SUBTYPE_NAMES = {
     'pang_restraint': 'Paramagnetic orientation restraints',
     'pccr_restraint': 'Paramagnetic cross-correlation rate (CCR) restraints',
     'hbond_restraint': 'Hydrogen bond geometry restraints',
-    'ssbond_restraint': 'Disulfide bond geometry restraints',
+    'ssbond_restraint': 'Disulfide bond geometry constraints',
     'geo_restraint': 'Coordinate geometry restraints',
     'other_restraint': 'Other unclassified data',
 }
