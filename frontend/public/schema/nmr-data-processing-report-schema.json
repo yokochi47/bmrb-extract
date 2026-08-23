@@ -4991,7 +4991,7 @@
               "type": "integer",
               "minimum": 0
             },
-            "number_of_restaints_per_residue": {
+            "number_of_restraints_per_residue": {
               "type": "number",
               "minimum": 0.0
             },
@@ -5133,7 +5133,7 @@
           "required": [
             "total_distance_restraints",
             "number_of_unmapped_restraints",
-            "number_of_restaints_per_residue",
+            "number_of_restraints_per_residue",
             "number_of_long_range_restraints_per_residue"
           ]
         },

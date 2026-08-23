@@ -493,7 +493,7 @@ const RESTRAINT_KEY_ORDER: string[] = [
   'total_dihedral_angle_restraints',
   'total_rdc_restraints',
   'number_of_unmapped_restraints',
-  'number_of_restaints_per_residue',
+  'number_of_restraints_per_residue',
   'number_of_long_range_restraints_per_residue',
 ];
 
@@ -506,8 +506,6 @@ const RESTRAINT_LABEL_HTML: Record<string, string> = {
   long_range: 'Long range (<em>| i - j | ≥ 5</em>)',
   // Preserve the RDC acronym (the humanize fallback would lowercase it to "rdc").
   total_rdc_restraints: 'Total RDC restraints',
-  // The report key itself is misspelled upstream; don't surface that to users.
-  number_of_restaints_per_residue: 'Number of restraints per residue',
 };
 
 /** Distance-type codes used in restraint_summary *_dist_types (comma-separated). */
