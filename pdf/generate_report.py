@@ -323,7 +323,7 @@ _RESTRAINT_KEY_ORDER = [
     'long_range', 'inter-chain', 'hydrogen_bond_restraints', 'disulfide_bond_restraints',
     'diselenide_bond_restraints', 'metal_coordination_restraints',
     'total_dihedral_angle_restraints', 'total_rdc_restraints', 'number_of_unmapped_restraints',
-    'number_of_restaints_per_residue', 'number_of_long_range_restraints_per_residue',
+    'number_of_restraints_per_residue', 'number_of_long_range_restraints_per_residue',
 ]
 _RESTRAINT_LABEL_HTML = {
     'intra-residue': 'Intra-residue (<em>| i - j | = 0</em>)',
@@ -332,8 +332,6 @@ _RESTRAINT_LABEL_HTML = {
     'long_range': 'Long range (<em>| i - j | ≥ 5</em>)',
     # Preserve the RDC acronym (the capitalize fallback would lowercase it).
     'total_rdc_restraints': 'Total RDC restraints',
-    # The report key itself is misspelled upstream; don't surface that to users.
-    'number_of_restaints_per_residue': 'Number of restraints per residue',
 }
 _DIST_TYPE_LABELS = {
     'ir': 'Intra-residue', 'se': 'Sequential', 'mr': 'Medium range',
