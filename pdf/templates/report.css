@@ -139,6 +139,7 @@ tfoot { display: table-footer-group; }
 tr { break-inside: avoid; }
 
 td.num, th.num { text-align: center; }
+.bad { color: #dc2626; }
 td.mono { font-family: 'Lato', monospace; word-break: break-all; }
 
 /* Most-violated tables (7.4 / 8.4): auto layout + smaller no-wrap cells so the
