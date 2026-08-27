@@ -96,7 +96,7 @@ if [[ -n "${ACTION_RUNNER_DIR}" ]] ; then
     (
       cd ${ACTION_RUNNER_DIR}
 
-      printf "\n${SERVICE_HOST}\n\n\n" > .default_self_runnder_config
+      printf "\n${SERVICE_HOST}\n\n\n" > .default_self_runner_config
 
       #
       # Download runner package
@@ -144,10 +144,10 @@ if [[ -n "${ACTION_RUNNER_DIR}" ]] ; then
 
             [[ ! -e ${ACTION_RUNNER_TARBALL} ]] && ln -s ../${ACTION_RUNNER_TARBALL} .
 
-            [[ ! -e run.sh ]] && tar cvf ${ACTION_RUNNER_TARBALL}
+            [[ ! -e run.sh ]] && tar xzf ${ACTION_RUNNER_TARBALL}
 
             if [[ ! -e .runner ]] ; then
-              ./config.sh --url ${ACTION_RUNNER_BASE_REPO}/$rep --token $token < ../.default_self_runner_config && \
+              ./config.sh --url ${ACTION_RUNNER_BASE_REPO}/$repo --token $token < ../.default_self_runner_config && \
                 sudo ./svc.sh install && sudo ./svc.sh start
 
             fi
