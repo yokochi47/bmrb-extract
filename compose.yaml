@@ -98,8 +98,11 @@ services:
       # which is NOT under the mount below — the data (and the conversion_id
       # sequence) would live on the container layer and vanish on recreate.
       PGDATA: /var/lib/postgresql/data/pgdata
-    ports:
-      - "${POSTGRES_PUBLISH}:5432"
+    # Deliberately NOT published to the host. Every service that needs the
+    # database reaches it as postgres:5432 over the internal network; binding a
+    # host port only adds a collision with anything else already on 5432. For a
+    # psql prompt:  docker compose exec postgres psql -U $POSTGRES_USER -d internal
+    # For a GUI client, see "Reaching the internals" in LOCAL_DEPLOYMENT.md.
     volumes:
       - ${POSTGRES_DATA_VOL_DIR}:/var/lib/postgresql/data
     networks: [internal]
@@ -134,6 +137,8 @@ services:
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
+    # Loopback and a high port by default, so it cannot collide with another
+    # Prefect (or anything else) already on 4200. Set PREFECT_PUBLISH in .env.
     ports:
       - "${PREFECT_PUBLISH}:4200"
     volumes:

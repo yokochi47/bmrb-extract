@@ -81,6 +81,45 @@ docker compose ps
 Rebuild only after changing source: `docker compose build nginx` for the
 frontend, `backend` for the API, `prefect-worker` for the flows.
 
+## Reaching the internals
+
+The stack runs on its own private Docker network, `bmrb-extract_internal`.
+Containers find each other by service name — `postgres:5432`, `redis:6379`,
+`backend:8000`, `prefect-server:4200` — and none of that involves the host.
+
+**Host ports are the only thing this stack shares with the rest of the machine**,
+so they are the only place a collision can happen. It claims exactly two:
+
+| Port | Service | Set by |
+| --- | --- | --- |
+| `${HTTP_BIND}:${HTTP_PORT}` → 80 | nginx — the service itself | `HTTP_BIND`, `HTTP_PORT` |
+| `127.0.0.1:14200` → 4200 | Prefect UI | `PREFECT_PUBLISH` |
+
+PostgreSQL and Redis are deliberately not published. Nothing outside the stack
+needs them, and binding 5432 collides with any other PostgreSQL on the machine.
+
+For a database prompt, go in through the container rather than over the network:
+
+```bash
+docker compose exec postgres psql -U bmrb_extract -d internal
+docker compose exec redis redis-cli
+```
+
+For a GUI client that has to speak TCP, forward the port ad hoc without changing
+the stack — attach a throwaway container to the same network and let it publish:
+
+```bash
+docker run --rm -it --network bmrb-extract_internal \
+  -p 127.0.0.1:15432:5432 alpine/socat \
+  tcp-listen:5432,fork,reuseaddr tcp-connect:postgres:5432
+```
+
+Then point the client at `127.0.0.1:15432`. Ctrl-C to remove it again.
+
+If you run several Compose projects on this host, give each a distinct
+`COMPOSE_PROJECT_NAME` — container names, the network and the default volume
+names are all prefixed with it, so nothing else collides.
+
 ## How runtime configuration works
 
 **Backend and flows.** `docker/common/render-site-config.sh` runs `envsubst`
