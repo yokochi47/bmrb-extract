@@ -143,6 +143,8 @@ Shared modules under `src/app/pages/`: `file-types.ts` (the canonical `upload_fi
 
 Auth on the client is `auth.service.ts` (signals for the login state, plus the `/api/auth/*`, `/api/sessions` and `/api/help/*` calls) and `auth.interceptor.ts`, which adds `withCredentials` to every `/api/` request and `X-CSRF-Token` to mutating ones.
 
+Because the mail application opens the magic link in a *new* tab while the session cookie is set origin-wide, `auth-channel.ts` (a `BroadcastChannel` named `bmrbx_auth`) hands the login back: the verify tab announces `login`, the tab still waiting for the link (`AuthService.awaitingMagicLink`) answers `login-ack` and continues to `/sessions`, and the verify tab then tells the user to return to it. All other tabs simply re-read `/api/auth/me`. `logout` is broadcast too. Same browser only — it degrades to today's behavior where `BroadcastChannel` is unavailable.
+
 The upload page queries `https://api.bmrb.io/v2` **directly from the browser** for BMRB-ID validation — that traffic is not proxied through `/api/`, so it depends on that host's availability and CORS.
 
 Site-specific content (branding, URLs, help email) is injected via the symlinked `site.config.ts` (generated from `bmrb.config.ts.template` or `bmrbj.config.ts.template`; the symlink and both generated variants are git-ignored). Besides the branding constants it exports `SERVICE_LEVEL`, `FRONTEND_VERSION`, the validity periods, and `API_URL = '/api/'` — the browser-facing Flask API base path (proxied by nginx). Do not use the Docker-internal `FLASK_API_URL` env var in Angular code.
