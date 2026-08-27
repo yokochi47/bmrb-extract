@@ -33,12 +33,17 @@ outside the stack. None of that runs here.
 | nginx compiled from source with QUIC, needing host `sysctl` tuning | Official `nginx:alpine`, plain HTTP |
 | Let's Encrypt via a `certbot` container | No TLS here — front it with your own reverse proxy |
 | Postgres data in a Docker volume backed by `/var/lib/pg_data_<level>` | A bind mount under `BMRBX_DATA_DIR` |
-| SMTP hardcoded to port 25, no auth, no TLS | `SMTP_HOST`/`PORT`/`USER`/`PASSWORD`/`STARTTLS`/`SSL`, plus `MAIL_BACKEND=log` |
+| SMTP hardcoded to port 25, no auth, no TLS | `SMTP_SERVER`/`PORT`/`USER`/`PASSWORD`/`STARTTLS`/`SSL`, plus `MAIL_BACKEND=log` |
 
 The upstream files are all still there and untouched, so `git pull` /
 `git merge` upstream stays clean. The new compose file is named `compose.yaml`,
 which Docker Compose prefers over the upstream `compose.yml`, so plain
 `docker compose` commands pick it up with no `-f` flag.
+
+**Merging upstream in future: see [MERGING_UPSTREAM.md](MERGING_UPSTREAM.md).**
+Most of what this branch depends on is the *shape* of upstream files it does not
+edit, so a clean merge does not prove the deployment still works. Run
+`./docker/check-upstream-drift.sh` after every merge.
 
 ## Layout
 
