@@ -21,7 +21,18 @@ PDF-report stack are built inside the images.
 
 ```shell
 cp .env.local.template .env
+
+# Run the containers as yourself, and let the worker reach the Docker socket.
+# Required on any shared/NFS filesystem; harmless everywhere else.
+sed -i "s/^HOST_UID=.*/HOST_UID=$(id -u)/;s/^HOST_GID=.*/HOST_GID=$(id -g)/" .env
+sed -i "s/^DOCKER_GID=.*/DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)/" .env
+
 $EDITOR .env          # at minimum: AUTH_SECRET, POSTGRES_PASSWORD, the addresses
+
+# Docker creates bind-mount sources as the daemon, which cannot write to an
+# NFS share exported with root_squash. You can, so do it once yourself.
+mkdir -p data/{postgres,redis,archive,workspace}
+
 docker compose up -d --build
 ```
 
@@ -29,7 +40,11 @@ Then open <http://localhost:8080>.
 
 Building the frontend, rendering the nginx config, creating the databases,
 registering the Prefect deployments and building the PDF-report image all happen
-inside the containers. There is no host-side setup step and nothing needs `sudo`.
+inside the containers. Nothing needs `sudo`.
+
+The `mkdir` is the one step that cannot move inside a container: a bind mount's
+source has to exist before the container starts, and Docker creates it as the
+daemon, which on a root-squashed NFS share has fewer rights than you do.
 
 Every setting lives in `.env` and is re-read at container start, so changing one
 and running `docker compose up -d` applies it.

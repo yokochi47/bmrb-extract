@@ -35,5 +35,10 @@ COPY pdf/render_charts.mjs pdf/generate_report.py pdf/report_data.py ./
 COPY pdf/templates/ ./templates/
 COPY pdf/report_logo.png ./assets/report_logo.png
 
+# The convert_pdf task runs this with `-u <uid>:<gid>` matching the worker, so
+# the uid is arbitrary and has no passwd entry. Point HOME at a writable
+# directory so fontconfig's cache does not land somewhere unwritable.
+ENV HOME=/tmp
+
 # The flow passes explicit file paths; there is no default command.
 ENTRYPOINT ["python3", "generate_report.py"]

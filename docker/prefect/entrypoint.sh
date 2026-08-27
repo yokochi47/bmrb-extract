@@ -7,10 +7,20 @@
 
 set -eu
 
+preflight-storage "${ARCHIVE_BASE_PATH}" "${WORKSPACE_BASE_PATH}"
+
 render-site-config /backend/app/core/site_config.py
 
 git config --global --add safe.directory '*'
-mkdir -p "${ARCHIVE_BASE_PATH}" "${WORKSPACE_BASE_PATH}"
+
+# The conversion tasks reach the host daemon through the mounted socket. As a
+# non-root worker that needs the socket's group (DOCKER_GID in .env); say so
+# here rather than letting the first conversion fail with a bare EACCES.
+if [ -S /var/run/docker.sock ] && ! docker version >/dev/null 2>&1; then
+    echo "WARNING: cannot talk to the Docker daemon as $(id -u):$(id -g)." >&2
+    echo "  Conversions will fail. /var/run/docker.sock is owned by group" >&2
+    echo "  $(stat -c '%g' /var/run/docker.sock 2>/dev/null || echo '?'); set DOCKER_GID to that in .env." >&2
+fi
 
 POOL="${PREFECT_WORK_POOL:-local-pool}"
 

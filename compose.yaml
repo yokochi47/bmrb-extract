@@ -85,8 +85,12 @@ services:
     build:
       context: .
       dockerfile: docker/postgres/Dockerfile
+      args:
+        RUNTIME_UID: ${HOST_UID}
+        RUNTIME_GID: ${HOST_GID}
     image: bmrb-extract-postgres:local
     restart: unless-stopped
+    user: "${HOST_UID}:${HOST_GID}"
     environment:
       TZ: ${TZ}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -115,6 +119,9 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    # No custom image needed: redis-server never looks up its own passwd entry,
+    # so an unknown uid is fine as long as /data is writable by it.
+    user: "${HOST_UID}:${HOST_GID}"
     environment:
       TZ: ${TZ}
     command: redis-server --appendonly yes
@@ -142,7 +149,11 @@ services:
     ports:
       - "${PREFECT_PUBLISH}:4200"
     volumes:
-      - ${PREFECT_DATA_VOL_DIR}:/root/.prefect
+      # Named volume on local disk, not the data tree. This is the server's own
+      # config/cache — the workflow state lives in PostgreSQL — so keeping it
+      # here lets this container stay root even when the data tree cannot be
+      # written by root. Deleting the volume loses nothing.
+      - prefect_home:/root/.prefect
     networks: [internal]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:4200/api/health', timeout=2)"]
@@ -169,13 +180,23 @@ services:
     build:
       context: .
       dockerfile: docker/prefect/Dockerfile
+      args:
+        RUNTIME_UID: ${HOST_UID}
+        RUNTIME_GID: ${HOST_GID}
     image: bmrb-extract-prefect-worker:local
     restart: unless-stopped
+    user: "${HOST_UID}:${HOST_GID}"
+    # /var/run/docker.sock is root:docker 0660, so a non-root worker needs the
+    # socket's group to launch the conversion containers at all.
+    group_add:
+      - "${DOCKER_GID}"
     environment:
       <<: [*site-env, *prefect-env]
       ARCHIVE_VOL_DIR: ${ARCHIVE_VOL_DIR}
       WORKSPACE_VOL_DIR: ${WORKSPACE_VOL_DIR}
       PREFECT_WORK_POOL: local-pool
+      # Container-local scratch. Without this Prefect falls back to ~/.prefect.
+      PREFECT_HOME: /home/app/.prefect
     depends_on:
       prefect-server: {condition: service_healthy}
       postgres: {condition: service_healthy}
@@ -196,8 +217,12 @@ services:
     build:
       context: .
       dockerfile: docker/backend/Dockerfile
+      args:
+        RUNTIME_UID: ${HOST_UID}
+        RUNTIME_GID: ${HOST_GID}
     image: bmrb-extract-backend:local
     restart: unless-stopped
+    user: "${HOST_UID}:${HOST_GID}"
     environment:
       <<: *site-env
       FLASK_ENV: ${FLASK_ENV}
@@ -273,3 +298,8 @@ services:
 networks:
   internal:
     driver: bridge
+
+volumes:
+  # Prefect server scratch (see the prefect-server service). Local disk, so it
+  # is unaffected by the data tree's filesystem and ownership.
+  prefect_home:

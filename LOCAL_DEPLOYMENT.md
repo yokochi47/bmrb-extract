@@ -5,7 +5,18 @@ your own machine: **one compose file, one `.env`, no host-side setup scripts.**
 
 ```bash
 cp .env.local.template .env
-$EDITOR .env                    # at minimum: AUTH_SECRET, POSTGRES_PASSWORD, the addresses
+
+# Run the containers as yourself, and let the worker reach the Docker socket.
+# Required on any shared/NFS filesystem; harmless everywhere else.
+sed -i "s/^HOST_UID=.*/HOST_UID=$(id -u)/;s/^HOST_GID=.*/HOST_GID=$(id -g)/" .env
+sed -i "s/^DOCKER_GID=.*/DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)/" .env
+
+$EDITOR .env          # at minimum: AUTH_SECRET, POSTGRES_PASSWORD, the addresses
+
+# Docker creates bind-mount sources as the daemon, which cannot write to an
+# NFS share exported with root_squash. You can, so do it once yourself.
+mkdir -p data/{postgres,redis,archive,workspace}
+
 docker compose up -d --build
 ```
 
@@ -13,7 +24,11 @@ Then open <http://localhost:8080>.
 
 Everything else — building the frontend, rendering the nginx config, creating
 the databases, registering the Prefect deployments, building the PDF-report
-image — happens inside the containers.
+image — happens inside the containers. Nothing needs `sudo`.
+
+The `mkdir` is the one step that cannot move inside a container: a bind mount's
+source must exist before the container starts, and Docker creates it as the
+daemon rather than as you. See *Running on a shared or NFS filesystem* below.
 
 ## What it changes
 
@@ -80,6 +95,48 @@ docker compose ps
 
 Rebuild only after changing source: `docker compose build nginx` for the
 frontend, `backend` for the API, `prefect-worker` for the flows.
+
+## Running on a shared or NFS filesystem
+
+Containers default to running as root, and an NFS server exporting with the
+usual `root_squash` maps a client's root to `nobody`. Inside a directory you
+own, `nobody` can do nothing — which shows up first as Docker failing to create
+the bind-mount source (`mkdir ...: permission denied`) and later as PostgreSQL
+or a conversion failing to write.
+
+So the containers that touch the data tree run as **you**, set by `HOST_UID` and
+`HOST_GID`:
+
+| Service | Runs as | Why |
+| --- | --- | --- |
+| postgres, redis, backend, prefect-worker | `HOST_UID:HOST_GID` | they write to the data tree |
+| prefect-server, prefect-services | root | no host mounts — the server's scratch dir is a named volume on local disk |
+| nginx | root | no host mounts, and it binds port 80 inside the container |
+
+The images we build create a real account for that uid rather than just being
+handed one, because tools that look up their own passwd entry fail on a uid that
+does not exist — `initdb` most notably. **Changing `HOST_UID`/`HOST_GID` therefore
+needs `docker compose up -d --build`, not just a restart.**
+
+This also fixes the conversion containers. The flows launch maxit-ccd,
+py-wwpdb_utils_nmr and the PDF generator with `-u $(os.getuid())` — whatever the
+worker runs as — so with the worker as you, their output is owned by you too. As
+root it would have littered the archive with root-owned files.
+
+`DOCKER_GID` must be the group owning `/var/run/docker.sock` (`stat -c '%g'
+/var/run/docker.sock`); a non-root worker cannot launch anything without it. The
+worker warns loudly at startup if it cannot reach the daemon.
+
+The backend and worker also refuse to start if their storage is not writable,
+naming the uid they run as and the directory's actual ownership, rather than
+letting it surface later as a confusing error from git or PostgreSQL.
+
+**One caveat on PostgreSQL over NFS.** It works, and is fine for development,
+but the PostgreSQL project advises against it: your mount is NFSv3 with
+`local_lock=all`, so file locks are not seen by the server and nothing prevents
+two hosts from opening the same data directory. For production, point
+`POSTGRES_DATA_VOL_DIR` at local disk and leave the archive and workspace on the
+share, where they get backed up.
 
 ## Reaching the internals
 
