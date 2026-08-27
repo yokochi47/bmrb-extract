@@ -1,8 +1,9 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, tap, timer } from 'rxjs';
+import { Observable, filter, map, race, take, tap, timer } from 'rxjs';
 
 import { API_URL } from '../../site.config';
+import { AuthBroadcast, AuthChannel } from './auth-channel';
 
 /** Current auth state (from GET /api/auth/me or a login/verify response). */
 export interface AuthState {
@@ -58,6 +59,7 @@ export interface Inquiry {
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private http = inject(HttpClient);
+  private channel = inject(AuthChannel);
 
   /** Null until the first /me probe resolves. */
   state = signal<AuthState | null>(null);
@@ -80,10 +82,50 @@ export class AuthService {
   totpRequired = computed(() => !!this.state()?.totp_required);
   totpEnrolled = computed(() => !!this.state()?.totp_enrolled);
 
+  /** True while this tab waits for the emailed sign-in link. It marks the tab as
+   * the one the user started from, so it — and only it — acknowledges the login
+   * announced by the tab the mail application opened. */
+  awaitingMagicLink = signal(false);
+
+  /** Bumped once a login performed in another tab has been picked up here. */
+  loginElsewhere = signal(0);
+
   constructor() {
     this.refresh().subscribe({ error: () => this.state.set({ authenticated: false }) });
     // Poll help-desk notifications for the bell badge (per site).
     timer(60000, 60000).subscribe(() => this.refreshUnread());
+    this.channel.messages.subscribe((m) => this.onBroadcast(m));
+  }
+
+  /** Absorb an auth event from another tab of this browser. */
+  private onBroadcast(m: AuthBroadcast): void {
+    if (m.type === 'logout') {
+      // The cookie is already gone origin-wide; just drop the local state.
+      this.state.set({ authenticated: false });
+      this.unread.set({ count: 0, conversion_ids: [] });
+      return;
+    }
+    if (m.type !== 'login') return;
+    // Acknowledge first, before the round-trip, so the announcing tab does not
+    // time out waiting for us.
+    if (this.awaitingMagicLink()) this.channel.post({ type: 'login-ack' });
+    // The session cookie was set for the whole origin — /me now succeeds here too.
+    this.refresh().subscribe({
+      next: () => this.loginElsewhere.update((v) => v + 1),
+      error: () => undefined,
+    });
+  }
+
+  /** Wait (briefly) for another tab to claim the login this tab just performed.
+   * Emits false once the window elapses with no acknowledgement. */
+  awaitLoginAck(ms: number): Observable<boolean> {
+    return race(
+      this.channel.messages.pipe(
+        filter((m) => m.type === 'login-ack'),
+        map(() => true),
+      ),
+      timer(ms).pipe(map(() => false)),
+    ).pipe(take(1));
   }
 
   refresh(): Observable<AuthState> {
@@ -152,6 +194,8 @@ export class AuthService {
         // The pending claim (if any) was bound to the challenge and resolved
         // server-side on verify; drop the local stash so it isn't reused.
         this.clearPendingClaim();
+        // Tell the tab the user started from — the cookie is now valid there too.
+        this.channel.post({ type: 'login', totp_required: !!s.totp_required });
       }),
     );
   }
@@ -191,9 +235,13 @@ export class AuthService {
   }
 
   verifyTotp(code: string): Observable<AuthState> {
-    return this.http
-      .post<AuthState>(API_URL + 'auth/totp/verify', { code })
-      .pipe(tap(() => this.refresh().subscribe()));
+    return this.http.post<AuthState>(API_URL + 'auth/totp/verify', { code }).pipe(
+      tap(() => {
+        this.refresh().subscribe();
+        // Other tabs gain admin authority at the same moment — let them re-read it.
+        this.channel.post({ type: 'login', totp_required: false });
+      }),
+    );
   }
 
   logout(): Observable<{ ok: boolean }> {
@@ -201,6 +249,7 @@ export class AuthService {
       tap(() => {
         this.state.set({ authenticated: false });
         this.unread.set({ count: 0, conversion_ids: [] });
+        this.channel.post({ type: 'logout' });
       }),
     );
   }

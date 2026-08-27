@@ -1,4 +1,4 @@
-import { Component, effect, inject, signal } from '@angular/core';
+import { Component, OnDestroy, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
@@ -12,7 +12,7 @@ import { AuthService } from './auth.service';
   imports: [FormsModule, ButtonModule, InputTextModule, MessageModule],
   templateUrl: './page.login.html',
 })
-export class Login {
+export class Login implements OnDestroy {
   private auth = inject(AuthService);
   private router = inject(Router);
 
@@ -42,6 +42,20 @@ export class Login {
         this.startEnroll();
       }
     });
+
+    // The emailed link is opened by the mail application in another tab; that tab
+    // announces the login and AuthService has already re-read the state here. Carry
+    // on where the user started, so they only have to switch back to this tab.
+    // Annotators stay put: the template now renders the TOTP step instead.
+    effect(() => {
+      if (this.auth.loginElsewhere() === 0 || !untracked(() => this.sent())) return;
+      if (untracked(() => this.totpRequired())) return;
+      untracked(() => this.router.navigate(['/sessions']));
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.auth.awaitingMagicLink.set(false);
   }
 
   submit() {
@@ -58,10 +72,13 @@ export class Login {
       next: () => {
         this.busy.set(false);
         this.sent.set(true);
+        // This is now the tab waiting for the link.
+        this.auth.awaitingMagicLink.set(true);
       },
       error: () => {
         this.busy.set(false);
         this.sent.set(true);
+        this.auth.awaitingMagicLink.set(true);
       },
     });
   }
