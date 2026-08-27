@@ -56,6 +56,7 @@ pdf/Dockerfile|forked as docker/pdf/Dockerfile
 pdf/build.sh|its staging step is inlined into docker/pdf/Dockerfile
 pdf/package.json|docker/pdf/Dockerfile runs npm ci + bundle-charts against it
 compose.yml|shadowed by compose.yaml
+README.md|rewritten on this branch and pinned with merge=ours, so upstream edits are DISCARDED, not merged
 .env.template|shadowed by .env.local.template
 prefect/flows/prefect.yaml|baked into the worker image; deployments registered by its entrypoint
 prefect/flows/shared/core|symlink target fixes the /flows + /backend/app layout in docker/prefect/Dockerfile
@@ -203,6 +204,22 @@ if [ -n "$stray" ]; then
     note "the link would say https:// on a plain-HTTP instance and drop the port"
 else
     pass "user-facing URLs use SERVICE_BASE_URL"
+fi
+
+# --------------------------------------------------------------------------
+# 7. the one piece of per-clone git configuration this branch needs
+# --------------------------------------------------------------------------
+head_ "merge=ours driver configured for this clone"
+
+if ! grep -qE '^\s*README\.md\s+merge=ours' .gitattributes 2>/dev/null; then
+    warn ".gitattributes no longer pins README.md with merge=ours"
+    note "upstream edits to their README will come back as whole-file conflicts"
+elif [ "$(git config --get merge.ours.driver)" = "true" ]; then
+    pass "merge.ours.driver is set"
+else
+    warn "merge.ours.driver is not set in this clone"
+    note "README.md will conflict on merge instead of keeping this branch's version"
+    note "fix:  git config merge.ours.driver true"
 fi
 
 # --------------------------------------------------------------------------

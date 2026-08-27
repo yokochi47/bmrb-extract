@@ -1,0 +1,23 @@
+# README.md is fully rewritten on this branch: upstream's Install section
+# describes config.sh / setup.sh / start.sh, which this deployment does not use.
+# Without this, every upstream edit to their README (nine so far) would land as a
+# whole-file conflict, since no region of the two versions corresponds.
+#
+# `merge=ours` keeps this branch's version on merge and discards upstream's
+# changes to that file. It is NOT a built-in driver — it requires a one-time
+# setting in every clone:
+#
+#     git config merge.ours.driver true
+#
+# Without that setting git falls back to a normal three-way merge, so a forgotten
+# config shows up as the conflict you would have had anyway, never as a silently
+# wrong result. docker/check-upstream-drift.sh verifies it is configured.
+#
+# Upstream's README is never lost — read it with `git show main:README.md`, and
+# the drift check reports when it changes so you can decide whether anything is
+# worth porting across.
+#
+# Deliberately limited to README.md. The patched source files (app.py, auth.py,
+# the flows) must keep conflicting: those conflicts are how upstream changes to
+# the code this branch modifies get seen.
+README.md merge=ours
