@@ -788,8 +788,10 @@
       <th class="num">Q score (Cornilescu)</th><th class="num">Q score (Clore)</th></tr></thead>
     <tbody>
       {%- for row in c.q_rows %}
-      <tr><td>{{ row.type }}</td><td class="num">{{ row.count }}</td><td class="num">{{ row.r2 }}</td>
-        <td class="num">{{ row.cornilescu_q }}</td><td class="num">{{ row.clore_q }}</td></tr>
+      <tr><td>{{ row.type }}</td><td class="num">{{ row.count if row.count is not none }}</td>
+        <td class="num{% if row.r2 is number and row.r2 < 0.8 %} bad{% endif %}">{{ row.r2 if row.r2 is not none }}</td>
+        <td class="num{% if row.cornilescu_q is number and row.cornilescu_q > 0.3 %} bad{% endif %}">{{ row.cornilescu_q if row.cornilescu_q is not none }}</td>
+        <td class="num{% if row.clore_q is number and row.clore_q > 0.3 %} bad{% endif %}">{{ row.clore_q if row.clore_q is not none }}</td></tr>
       {%- endfor %}
     </tbody>
   </table>

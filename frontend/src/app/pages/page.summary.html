@@ -1499,9 +1499,24 @@
                       <tr class="border-b border-surface-100 dark:border-surface-800">
                         <td class="px-2 py-1 whitespace-nowrap">{{ r.type }}</td>
                         <td class="px-2 py-1 tabular-nums">{{ r.count }}</td>
-                        <td class="px-2 py-1 tabular-nums">{{ r.r2 }}</td>
-                        <td class="px-2 py-1 tabular-nums">{{ r.cornilescu_q }}</td>
-                        <td class="px-2 py-1 tabular-nums">{{ r.clore_q }}</td>
+                        <td
+                          class="px-2 py-1 tabular-nums"
+                          [class.text-red-600]="r.r2 !== null && r.r2 < 0.8"
+                        >
+                          {{ r.r2 }}
+                        </td>
+                        <td
+                          class="px-2 py-1 tabular-nums"
+                          [class.text-red-600]="r.cornilescu_q !== null && r.cornilescu_q > 0.3"
+                        >
+                          {{ r.cornilescu_q }}
+                        </td>
+                        <td
+                          class="px-2 py-1 tabular-nums"
+                          [class.text-red-600]="r.clore_q !== null && r.clore_q > 0.3"
+                        >
+                          {{ r.clore_q }}
+                        </td>
                       </tr>
                     }
                   </tbody>
