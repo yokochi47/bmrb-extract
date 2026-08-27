@@ -25,6 +25,7 @@ import { fileTypeLabel } from './file-types';
 import { MolstarViewer } from './molstar';
 import { EchartComponent } from './echart.component';
 import { rdcCorrelationChartOption } from './report-charts';
+import { memoizeBySource } from './memoize';
 
 /** A selected upload file participating in the latest conversion run. */
 interface UploadFileRow {
@@ -626,7 +627,7 @@ export class Summary implements OnDestroy {
   }
 
   /** Histogram chart panels for one saveframe (0 or 1). */
-  chemShiftHistogramPanels(sf: ChemShiftSaveframe): ChartPanel[] {
+  chemShiftHistogramPanels = memoizeBySource((sf: ChemShiftSaveframe): ChartPanel[] => {
     return sf.histogram.map((h) => ({
       title: 'Normalized assigned chemical shifts (Z-score)',
       // Reversed X-axis (high → low Z-score) to match ordinary NMR spectra, and
@@ -636,15 +637,15 @@ export class Summary implements OnDestroy {
         rangeLabels: true,
       }),
     }));
-  }
+  });
 
   /** RCI / S² / NMR-RMSD per-residue line panels for one saveframe. */
-  rciPanelsOf(sf: ChemShiftSaveframe): ChartPanel[] {
+  rciPanelsOf = memoizeBySource((sf: ChemShiftSaveframe): ChartPanel[] => {
     return sf.rci.map((c, index) => ({
       title: `${c.label} — Entity_assembly_ID: ${c.chain}`,
       option: this.lineOption(c, index % 2 == 0 ? 'RCI / S² values' : 'NMR RMSD (Å)'),
     }));
-  }
+  });
 
   /** Status badge color (OK/Warning/Error → teal/amber/red). */
   statusColor(status: string | null): string {
@@ -663,7 +664,7 @@ export class Summary implements OnDestroy {
   distRestraintSaveframes = computed(() => this.nmrPreview()?.dist_restraint_saveframes ?? []);
 
   /** Per-saveframe distance chart panels (reuse the shared option builders). */
-  distHistogramPanels(sf: DistRestraintSaveframe): ChartPanel[] {
+  distHistogramPanels = memoizeBySource((sf: DistRestraintSaveframe): ChartPanel[] => {
     return sf.histogram.map((h) => ({
       title: 'Distance restraint target values',
       option: this.histogramOption(h, 'Target distance (Å)', 'Number of distance restraints', {
@@ -671,8 +672,8 @@ export class Summary implements OnDestroy {
         yAxisLine: true,
       }),
     }));
-  }
-  distDiscrepancyPanels(sf: DistRestraintSaveframe): ChartPanel[] {
+  });
+  distDiscrepancyPanels = memoizeBySource((sf: DistRestraintSaveframe): ChartPanel[] => {
     return sf.discrepancy.map((h) => ({
       title: 'Discrepancy in redundant distance restraints',
       option: this.histogramOption(
@@ -685,14 +686,14 @@ export class Summary implements OnDestroy {
         },
       ),
     }));
-  }
-  distPerResiduePanels(sf: DistRestraintSaveframe): ChartPanel[] {
+  });
+  distPerResiduePanels = memoizeBySource((sf: DistRestraintSaveframe): ChartPanel[] => {
     return sf.per_residue.map((c) => ({
       title: `Distance restraints per residue — Entity_assembly_ID: ${c.chain}`,
       option: this.perResidueOption(c, 'Number of distance restraints'),
     }));
-  }
-  distContactMapPanels(sf: DistRestraintSaveframe): ChartPanel[] {
+  });
+  distContactMapPanels = memoizeBySource((sf: DistRestraintSaveframe): ChartPanel[] => {
     return sf.contact_maps.map((c) => ({
       title: `Distance restraints contact map — Entity_assembly_ID: ${c.chain}`,
       option: this.contactMapOption(c),
@@ -702,8 +703,8 @@ export class Summary implements OnDestroy {
       marginX: 48 + this.legendReserve(c.series.map((s) => s.name)),
       marginY: 32,
     }));
-  }
-  distAsymContactMapPanels(sf: DistRestraintSaveframe): ChartPanel[] {
+  });
+  distAsymContactMapPanels = memoizeBySource((sf: DistRestraintSaveframe): ChartPanel[] => {
     return sf.asym_contact_maps.map((c) => {
       const xr = c.xmax - c.xmin;
       const yr = c.ymax - c.ymin;
@@ -719,13 +720,13 @@ export class Summary implements OnDestroy {
         marginY: 72,
       };
     });
-  }
+  });
 
   /** Dihedral angle restraints grouped by saveframe (sf_framecode). */
   dihedRestraintSaveframes = computed(() => this.nmrPreview()?.dihed_restraint_saveframes ?? []);
 
   /** Per-saveframe dihedral chart panels (reuse the shared option builders). */
-  dihedScatterPanels(sf: DihedRestraintSaveframe): ChartPanel[] {
+  dihedScatterPanels = memoizeBySource((sf: DihedRestraintSaveframe): ChartPanel[] => {
     const panels: ChartPanel[] = [];
     for (const d of sf.dihedral) {
       if (d.phi_psi)
@@ -743,8 +744,8 @@ export class Summary implements OnDestroy {
         });
     }
     return panels;
-  }
-  dihedHistogramPanels(sf: DihedRestraintSaveframe): ChartPanel[] {
+  });
+  dihedHistogramPanels = memoizeBySource((sf: DihedRestraintSaveframe): ChartPanel[] => {
     return sf.histogram.map((h) => ({
       title: 'Dihedral angle target values',
       option: this.histogramOption(h, 'Angle (°)', 'Number of dihedral angle restraints', {
@@ -752,8 +753,8 @@ export class Summary implements OnDestroy {
         yAxisLine: true,
       }),
     }));
-  }
-  dihedDiscrepancyPanels(sf: DihedRestraintSaveframe): ChartPanel[] {
+  });
+  dihedDiscrepancyPanels = memoizeBySource((sf: DihedRestraintSaveframe): ChartPanel[] => {
     return sf.discrepancy.map((h) => ({
       title: 'Discrepancy in redundant dihedral angle restraints',
       option: this.histogramOption(
@@ -763,19 +764,19 @@ export class Summary implements OnDestroy {
         { rangeLabels: true, yAxisLine: true },
       ),
     }));
-  }
-  dihedPerResiduePanels(sf: DihedRestraintSaveframe): ChartPanel[] {
+  });
+  dihedPerResiduePanels = memoizeBySource((sf: DihedRestraintSaveframe): ChartPanel[] => {
     return sf.per_residue.map((c) => ({
       title: `Dihedral angles per residue — Entity_assembly_ID: ${c.chain}`,
       option: this.lineOption(c, 'Target dihedral angle (°)'),
     }));
-  }
+  });
 
   /** RDC restraints grouped by saveframe (sf_framecode). */
   rdcRestraintSaveframes = computed(() => this.nmrPreview()?.rdc_restraint_saveframes ?? []);
 
   /** Per-saveframe RDC chart panels (reuse the shared option builders). */
-  rdcHistogramPanels(sf: RdcRestraintSaveframe): ChartPanel[] {
+  rdcHistogramPanels = memoizeBySource((sf: RdcRestraintSaveframe): ChartPanel[] => {
     return sf.histogram.map((h) => ({
       title: 'Observed RDC values',
       option: this.histogramOption(h, 'Obs. RDC value (Hz)', 'Number of RDC restraints', {
@@ -783,8 +784,8 @@ export class Summary implements OnDestroy {
         yAxisLine: true,
       }),
     }));
-  }
-  rdcDiscrepancyPanels(sf: RdcRestraintSaveframe): ChartPanel[] {
+  });
+  rdcDiscrepancyPanels = memoizeBySource((sf: RdcRestraintSaveframe): ChartPanel[] => {
     return sf.discrepancy.map((h) => ({
       title: 'Discrepancy in redundant RDC restraints',
       option: this.histogramOption(
@@ -794,14 +795,14 @@ export class Summary implements OnDestroy {
         { rangeLabels: true, yAxisLine: true },
       ),
     }));
-  }
-  rdcPerResiduePanelsOf(sf: RdcRestraintSaveframe): ChartPanel[] {
+  });
+  rdcPerResiduePanelsOf = memoizeBySource((sf: RdcRestraintSaveframe): ChartPanel[] => {
     return sf.per_residue.map((c) => ({
       title: `Observed RDC per residue — Entity_assembly_ID: ${c.chain}`,
       option: this.lineOption(c, 'Obs. RDC value (Hz)'),
     }));
-  }
-  rdcCorrelationPanels(sf: RdcRestraintSaveframe): ChartPanel[] {
+  });
+  rdcCorrelationPanels = memoizeBySource((sf: RdcRestraintSaveframe): ChartPanel[] => {
     return sf.correlation.map((d) => ({
       // Square: observed and calculated RDC share one axis range, so a perfect
       // fit lies on the 45° y=x diagonal — the plot area must stay square. marginX
@@ -813,7 +814,7 @@ export class Summary implements OnDestroy {
       marginX: 56 + this.legendReserve(d.correlation.groups.map((g) => g.name)),
       marginY: 56,
     }));
-  }
+  });
   /** Per-saveframe RDC correlation quality-score tables (r²/Cornilescu-Q/Clore-Q
    * per RDC vector type), shown beneath the correlation scatter. */
   rdcQScoreTables(sf: RdcRestraintSaveframe): RdcQScoreTable[] {

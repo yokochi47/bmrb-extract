@@ -16,6 +16,7 @@ import { AuthService } from './auth.service';
 import { API_URL, HOST_SITE_URL } from '../../site.config';
 import { fileTypeLabel } from './file-types';
 import { EchartComponent } from './echart.component';
+import { memoizeBySource } from './memoize';
 import {
   DIST_CAT_ORDER,
   dihedViolationChart as buildDihedViolationChart,
@@ -727,7 +728,7 @@ export class Download {
 
   /** Per-saveframe RDC correlation scatter panels (shared builder; square with a
    * y=x diagonal, marginX reserving the right-side legend). */
-  rdcCorrelationPanels(sf: RdcRestraintPreviewSaveframe): ChartPanel[] {
+  rdcCorrelationPanels = memoizeBySource((sf: RdcRestraintPreviewSaveframe): ChartPanel[] => {
     return sf.correlation.map((d) => ({
       title: 'Correlation between observed and calculated RDC values',
       option: rdcCorrelationChartOption(d.correlation),
@@ -735,7 +736,7 @@ export class Download {
       marginX: 56 + legendReserve(d.correlation.groups.map((g) => g.name)),
       marginY: 56,
     }));
-  }
+  });
   /** Per-saveframe RDC correlation quality-score tables (r²/Cornilescu-Q/Clore-Q
    * per RDC vector type). */
   rdcQScoreTables(sf: RdcRestraintPreviewSaveframe): RdcQScoreTable[] {

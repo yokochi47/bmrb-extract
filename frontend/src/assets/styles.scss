@@ -23,3 +23,18 @@
 #exportgeometry {
   display: none !important;
 }
+
+/* PrimeNG lays a Panel's body out as `display: grid` with a single implicit
+   `auto` column, and sets only `min-height: 0` on the grid item. An auto track's
+   minimum is its item's min-content width, so anything inside with an explicit
+   pixel width holds the track open and the panel body overflows to the right
+   once the container gets narrower — and because the track never shrinks, the
+   content never reports a smaller size either.
+
+   ECharts sizes its wrapper div and canvas in explicit pixels, so every chart in
+   a Panel did exactly that: widening propagated, narrowing (opening the sidebar)
+   did not. `min-width: 0` lets the track shrink with its container again. */
+.p-panel-content-container,
+.p-panel-content-wrapper {
+  min-width: 0;
+}
