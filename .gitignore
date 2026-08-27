@@ -4,7 +4,6 @@ actions-runner/
 actions-runner*.tar.gz
 misc/
 **/__pycache__/
-prefect/data/.sdk_telemetry/
 certbot/cert/accounts
 certbot/cert/renewal
 certbot/cert/renewal-hooks
@@ -15,6 +14,7 @@ frontend/src/index.html
 frontend/src/site.config.ts
 frontend/src/bmrb.config.ts
 frontend/src/bmrbj.config.ts
+frontend/prettify.sh
 node_modules
 nginx/nginx.conf
 nginx/nginx.conf.template
@@ -24,7 +24,9 @@ postgres/init.seq.template
 postgres/init.sql.template
 backend/app/core/site_config.py
 certbot/certbot.sh
+prefect/data/.sdk_telemetry/
 prefect/data/memo_store.toml
+prefect/flows/hello_prefect_flow.py
 redis/data/dump.rdb
 redis/data/appendonlydir
 # Cross-site exchange credentials — never commit the SSH key / known_hosts.
