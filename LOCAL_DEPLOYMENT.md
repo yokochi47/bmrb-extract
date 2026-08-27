@@ -51,6 +51,7 @@ edit, so a clean merge does not prove the deployment still works. Run
 compose.yaml                          the whole stack
 .env.local.template                   every setting, documented — copy to .env
 .dockerignore                         keeps host-rendered artefacts out of the images
+.gitattributes                        pins README.md with merge=ours (see MERGING_UPSTREAM.md)
 docker/
   common/render-site-config.sh        renders core/site_config.py from the environment
   backend/{Dockerfile,entrypoint.sh}

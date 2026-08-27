@@ -12,6 +12,20 @@ was last reconciled against. It started at `d09b0643`.
 
 ---
 
+## One-time setup, per clone
+
+```bash
+git config merge.ours.driver true
+```
+
+`README.md` is rewritten on this branch and pinned with `merge=ours` in
+`.gitattributes`, so upstream's edits to theirs never land as a conflict. `ours`
+is not a built-in driver — without this setting git silently falls back to a
+normal three-way merge and the README conflicts whole-file. The drift check
+verifies it.
+
+---
+
 ## The merge procedure
 
 ```bash
@@ -85,6 +99,7 @@ watches every one and tells you which changed since the baseline.
 
 | Upstream file | Local counterpart | What to carry over by hand |
 | --- | --- | --- |
+| `README.md` | `README.md` (rewritten, pinned `merge=ours`) | **upstream's edits are discarded, not merged.** The drift check reports when theirs changed; read it with `git show main:README.md` and port anything worth keeping |
 | `compose.yml` | `compose.yaml` | a **new service**, an image tag bump (`postgres:18-alpine`, `redis:7-alpine`, `prefecthq/prefect:3-latest`), a changed healthcheck, a new mount |
 | `.env.template` | `.env.local.template` | new settings the application actually reads. Ignore the Action-runner, Swarm, certbot and nginx-source variables |
 | `nginx/nginx-production.conf.template` | `docker/nginx/bmrb-extract.conf.template` | a new `location`, a new proxy header, a changed body-size or timeout. Deliberately absent here: the `/.well-known/acme-challenge/` block, the HTTPS/QUIC server, file logging + logrotate |
@@ -163,6 +178,7 @@ compose.yaml                          the whole stack
 .dockerignore                         keeps host-rendered artefacts out of the images
 LOCAL_DEPLOYMENT.md                   how to run it
 MERGING_UPSTREAM.md                   this file
+.gitattributes                        pins README.md with merge=ours
 docker/check-upstream-drift.sh        run after every merge
 docker/upstream-baseline              last reconciled upstream commit
 docker/common/render-site-config.sh   renders core/site_config.py from the environment
