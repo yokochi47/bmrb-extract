@@ -1,0 +1,117 @@
+##
+## bmrb-extract server block. Rendered by /docker-entrypoint.d/41-bmrb-extract-conf.sh
+## into /etc/nginx/conf.d/, which the stock nginx.conf includes inside http{}.
+##
+## Only ${SERVICE_HOST}, ${NGINX_CLIENT_MAX_BODY_SIZE}, ${NGINX_LOG_FORMAT} and
+## ${NGINX_PROXY_READ_TIMEOUT} are substituted — nginx's own $variables are
+## passed through untouched.
+##
+
+log_format bmrbx_default
+  '$remote_addr - $remote_user [$time_local] '
+  '"$request_method $uri $server_protocol" $status $body_bytes_sent '
+  '"$http_referer" "$http_user_agent"';
+
+log_format bmrbx_json escape=json '{'
+  '"time": "$time_iso8601", '
+  '"remote_addr": "$remote_addr", '
+  '"method": "$request_method", '
+  '"uri": "$uri", '
+  '"status": "$status", '
+  '"referer": "$http_referer", '
+  '"user_agent": "$http_user_agent"'
+'}';
+
+upstream bmrbx_backend {
+    server backend:8000;
+    keepalive 16;
+}
+
+upstream bmrbx_prefect {
+    server prefect-server:4200;
+}
+
+server {
+    listen 80 default_server;
+    server_name ${SERVICE_HOST};
+
+    # Uploads are large; this must be at least as big as the biggest file the
+    # service is expected to accept.
+    client_max_body_size ${NGINX_CLIENT_MAX_BODY_SIZE};
+
+    # Container-native logging: read with `docker compose logs nginx`. No
+    # logrotate, no cron, no log volume to keep an eye on.
+    access_log /dev/stdout ${NGINX_LOG_FORMAT};
+    error_log  /dev/stderr warn;
+
+    # ---- Container healthcheck ----
+    location = /healthz {
+        access_log off;
+        add_header Content-Type text/plain;
+        return 200 'ok';
+    }
+
+    # ---- Prefect UI (private networks only) ----
+    # Also published directly on the host — see PREFECT_PUBLISH in .env.
+    location /prefect-server {
+        allow 127.0.0.1;
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        deny all;
+
+        proxy_pass http://bmrbx_prefect;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # ---- Flask API ----
+    location /api {
+        add_header Referrer-Policy 'same-origin' always;
+
+        proxy_pass http://bmrbx_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Report parsing and download assembly can take a while on big entries.
+        proxy_connect_timeout 30s;
+        proxy_send_timeout ${NGINX_PROXY_READ_TIMEOUT};
+        proxy_read_timeout ${NGINX_PROXY_READ_TIMEOUT};
+
+        # Stream uploads straight through rather than spooling the whole body.
+        proxy_request_buffering off;
+    }
+
+    # ---- Frontend (Angular, client-side routing) ----
+    location / {
+        add_header Referrer-Policy 'same-origin' always;
+        root /usr/share/nginx/html;
+        index index.html;
+        try_files $uri $uri/ /index.html;
+    }
+
+    # index.html carries the runtime configuration, so it must never be cached.
+    location = /index.html {
+        add_header Referrer-Policy 'same-origin' always;
+        add_header Cache-Control 'no-store, must-revalidate' always;
+        root /usr/share/nginx/html;
+    }
+
+    error_page 401 /401.html;
+    location /401.html {
+        root /usr/share/nginx/html;
+        allow all;
+    }
+
+    error_page 403 /403.html;
+    location /403.html {
+        root /usr/share/nginx/html;
+        allow all;
+    }
+}

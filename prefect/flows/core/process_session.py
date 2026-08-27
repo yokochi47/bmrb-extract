@@ -35,7 +35,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'shared'))
 
 import workspace as ws  # noqa: E402
 import asyncio  # noqa: E402
-import smtplib  # noqa: E402
 from datetime import datetime, timedelta  # noqa: E402
 from email.message import EmailMessage  # noqa: E402
 
@@ -63,7 +62,6 @@ from core.site_config import (  # noqa: E402
     SERVICE_HELP_EMAIL,
     SERVICE_HOST,
     AUTH_SECRET,
-    SMTP_SERVER,
     ARCHIVE_BASE_PATH,
     WORKSPACE_BASE_PATH,
     SUCCESS_VALIDITY_PERIOD_IN_DAYS,
@@ -1139,8 +1137,8 @@ def _send_admin_email(subject: str, content: str) -> str:
         msg['From'] = SERVICE_ADMIN_EMAIL
         msg['To'] = SERVICE_ADMIN_EMAIL
         msg.set_content(content)
-        with smtplib.SMTP(SMTP_SERVER, 25, timeout=30) as smtp:
-            smtp.send_message(msg)
+        from core.local_mail import send_message as _send_message  # noqa: E402
+        _send_message(msg, timeout=30)
         return 'sent'
     except Exception as exc:  # noqa: BLE001
         print(f'admin email FAILED ({exc})')

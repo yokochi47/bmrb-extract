@@ -33,3 +33,7 @@ redis/data/appendonlydir
 secrets/*
 !secrets/.gitkeep
 !secrets/README.md
+
+# Local deployment runtime data (BMRBX_DATA_DIR in .env): postgres, redis,
+# prefect, the upload archive and the conversion workspace.
+data/

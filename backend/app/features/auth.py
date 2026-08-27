@@ -120,7 +120,10 @@ def _now() -> datetime:
 
 def _secure_cookie() -> bool:
     # Secure in production; relaxed in development so it works without HTTPS.
-    return SERVICE_LEVEL == 'production'
+    # Local deployment: AUTH_COOKIE_SECURE overrides this, because a plain-HTTP
+    # instance at any service level must not mark the cookie Secure.
+    from core import site_config as _sc
+    return bool(getattr(_sc, 'AUTH_COOKIE_SECURE', SERVICE_LEVEL == 'production'))
 
 
 async def _rate_ok(key: str, limit: int, window: int) -> bool:
@@ -272,7 +275,11 @@ async def request_login():
         ))
         await db.commit()
 
-    link = f'https://{SERVICE_HOST}/login/verify?c={token}'
+    # Local deployment: the public base URL is configurable (scheme, port),
+    # so the magic link works on a plain-HTTP instance too.
+    from core import site_config as _sc
+    _base = getattr(_sc, 'SERVICE_BASE_URL', f'https://{SERVICE_HOST}')
+    link = f'{_base}/login/verify?c={token}'
     subject = 'bmrb_extract sign-in link'
     content = (
         f'Use the link below to sign in to bmrb_extract. It is valid for '

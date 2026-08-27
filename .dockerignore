@@ -1,0 +1,54 @@
+# Build-context exclusions for the root-context images in docker/.
+#
+# Keeps the context small and, more importantly, keeps host-rendered artefacts
+# out of the images: core/site_config.py and the frontend site config are
+# produced inside the containers at start, and a stale copy from a local
+# ./config.sh run must not shadow them.
+
+.git
+.gitignore
+data/
+misc/
+
+# Secrets and host-rendered configuration.
+.env
+.env.*
+!.env.local.template
+secrets/*
+!secrets/.gitkeep
+!secrets/README.md
+
+# Rendered by the container entrypoints, never copied in.
+backend/app/core/site_config.py
+frontend/src/site.config.ts
+frontend/src/bmrb.config.ts
+frontend/src/bmrbj.config.ts
+frontend/src/index.html
+nginx/nginx.conf
+nginx/nginx.conf.template
+nginx/ssl.conf
+postgres/init.sql
+postgres/init.sql.template
+postgres/reset.sql
+certbot/certbot.sh
+
+# Build output and caches.
+**/__pycache__/
+**/*.pyc
+frontend/node_modules
+frontend/dist
+frontend/.angular
+frontend/out-tsc
+pdf/node_modules
+pdf/vendor
+pdf/src
+pdf/assets
+node_modules
+
+# Upstream host-side deployment machinery, unused by this stack.
+actions-runner/
+actions-runner*.tar.gz
+certbot/cert
+certbot/www
+prefect/data
+redis/data

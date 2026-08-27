@@ -1,0 +1,270 @@
+# bmrb-extract — single-file local deployment.
+#
+#   cp .env.local.template .env && $EDITOR .env
+#   docker compose up -d --build
+#
+# Everything this stack needs is built by `docker compose build` and configured
+# by the container entrypoints from the variables below. There is no host-side
+# render step: no config.sh, no setup.sh, no start.sh, no Docker Swarm, no
+# GitHub Action runners. Change a value in .env, re-run `docker compose up -d`,
+# and it takes effect.
+#
+# Values are pulled in through explicit `environment:` blocks rather than
+# `env_file:` so that `${...}` references inside .env are resolved by Compose
+# before they reach a container.
+#
+# This file deliberately takes precedence over the upstream compose.yml, which
+# is left untouched so it keeps merging cleanly.
+
+# --- shared environment ------------------------------------------------------
+
+# Everything core/site_config.py is rendered from, plus the local-only
+# extensions the entrypoint appends (mail, base URL, cookie policy, images).
+# Consumed by the backend and by the Prefect worker, which import the same
+# module through prefect/flows/shared/core.
+x-site-env: &site-env
+  TZ: ${TZ}
+  SERVICE_NAME: ${SERVICE_NAME}
+  SERVICE_LEVEL: ${SERVICE_LEVEL}
+  SERVICE_DOMAIN: ${SERVICE_DOMAIN}
+  SERVICE_HOST: ${SERVICE_HOST}
+  SERVICE_BASE_URL: ${SERVICE_BASE_URL}
+  SERVICE_ADMIN_EMAIL: ${SERVICE_ADMIN_EMAIL}
+  SERVICE_HELP_EMAIL: ${SERVICE_HELP_EMAIL}
+  SERVICE_ANNOT_EMAILS: ${SERVICE_ANNOT_EMAILS}
+  AUTH_SECRET: ${AUTH_SECRET}
+  AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE}
+  SUCCESS_VALIDITY_PERIOD_IN_DAYS: ${SUCCESS_VALIDITY_PERIOD_IN_DAYS}
+  FAILURE_VALIDITY_PERIOD_IN_DAYS: ${FAILURE_VALIDITY_PERIOD_IN_DAYS}
+  CONV_ID_RANGE_BEGIN: ${CONV_ID_RANGE_BEGIN}
+  CONV_ID_RANGE_END: ${CONV_ID_RANGE_END}
+  SERVICE_DATABASE_URL: ${SERVICE_DATABASE_URL}
+  FLASK_API_URL: ${FLASK_API_URL}
+  ARCHIVE_BASE_PATH: ${ARCHIVE_BASE_PATH}
+  WORKSPACE_BASE_PATH: ${WORKSPACE_BASE_PATH}
+  MAIL_BACKEND: ${MAIL_BACKEND}
+  SMTP_SERVER: ${SMTP_SERVER}
+  SMTP_PORT: ${SMTP_PORT}
+  SMTP_USER: ${SMTP_USER}
+  SMTP_PASSWORD: ${SMTP_PASSWORD}
+  SMTP_STARTTLS: ${SMTP_STARTTLS}
+  SMTP_SSL: ${SMTP_SSL}
+  SMTP_FROM: ${SMTP_FROM}
+  MAXIT_CCD_IMAGE: ${MAXIT_CCD_IMAGE}
+  UTILS_NMR_IMAGE: ${UTILS_NMR_IMAGE}
+  PDF_REPORT_IMAGE: ${PDF_REPORT_IMAGE}
+  MAXIT_MEMORY_LIMIT: ${MAXIT_MEMORY_LIMIT}
+  BMRB_ENTRY_DIR_URL: ${BMRB_ENTRY_DIR_URL}
+  PEER_HOST: ${PEER_HOST}
+  PEER_DOMAIN: ${PEER_DOMAIN}
+  PEER_SSH_USER: ${PEER_SSH_USER}
+  PEER_SSH_PORT: ${PEER_SSH_PORT}
+  PEER_SSH_KEY: ${PEER_SSH_KEY}
+  PEER_KNOWN_HOSTS: ${PEER_KNOWN_HOSTS}
+  PEER_PSQL: ${PEER_PSQL}
+  PEER_ARCHIVE_DIR: ${PEER_ARCHIVE_DIR}
+  PEER_WORKSPACE_DIR: ${PEER_WORKSPACE_DIR}
+
+x-prefect-env: &prefect-env
+  PREFECT_SERVER_API_HOST: ${PREFECT_SERVER_API_HOST}
+  PREFECT_MESSAGING_BROKER: ${PREFECT_MESSAGING_BROKER}
+  PREFECT_MESSAGING_CACHE: ${PREFECT_MESSAGING_CACHE}
+  PREFECT_REDIS_MESSAGING_HOST: ${PREFECT_REDIS_MESSAGING_HOST}
+  PREFECT_REDIS_MESSAGING_PORT: ${PREFECT_REDIS_MESSAGING_PORT}
+  PREFECT_REDIS_MESSAGING_DB: ${PREFECT_REDIS_MESSAGING_DB}
+  PREFECT_LOGGING_LEVEL: ${PREFECT_LOGGING_LEVEL}
+  PREFECT_SERVER_UI_API_URL: ${PREFECT_SERVER_UI_API_URL}
+  PREFECT_API_URL: ${PREFECT_API_URL}
+  PREFECT_API_DATABASE_CONNECTION_URL: ${PREFECT_API_DATABASE_CONNECTION_URL}
+
+# --- services ----------------------------------------------------------------
+
+services:
+
+  postgres:
+    build:
+      context: .
+      dockerfile: docker/postgres/Dockerfile
+    image: bmrb-extract-postgres:local
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_SERVICE_DB: ${POSTGRES_SERVICE_DB}
+      POSTGRES_PREFECT_DB: ${POSTGRES_PREFECT_DB}
+      SERVICE_DOMAIN: ${SERVICE_DOMAIN}
+      # The postgres:18 image defaults PGDATA to /var/lib/postgresql/18/docker,
+      # which is NOT under the mount below — the data (and the conversion_id
+      # sequence) would live on the container layer and vanish on recreate.
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "${POSTGRES_PUBLISH}:5432"
+    volumes:
+      - ${POSTGRES_DATA_VOL_DIR}:/var/lib/postgresql/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+    command: redis-server --appendonly yes
+    volumes:
+      - ${REDIS_DATA_VOL_DIR}:/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+
+  prefect-server:
+    image: prefecthq/prefect:3-latest
+    restart: unless-stopped
+    environment:
+      <<: *prefect-env
+      TZ: ${TZ}
+    command: prefect server start --no-services
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    ports:
+      - "${PREFECT_PUBLISH}:4200"
+    volumes:
+      - ${PREFECT_DATA_VOL_DIR}:/root/.prefect
+    networks: [internal]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:4200/api/health', timeout=2)"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 60s
+
+  prefect-services:
+    image: prefecthq/prefect:3-latest
+    restart: unless-stopped
+    environment:
+      <<: *prefect-env
+      TZ: ${TZ}
+    command: prefect server services start
+    depends_on:
+      prefect-server: {condition: service_healthy}
+    networks: [internal]
+
+  # Runs the flows AND registers their deployments on start (the job upstream's
+  # start.sh does from the host). The flows shell out to `docker run` on the
+  # host daemon, so ARCHIVE_VOL_DIR / WORKSPACE_VOL_DIR are the HOST paths.
+  prefect-worker:
+    build:
+      context: .
+      dockerfile: docker/prefect/Dockerfile
+    image: bmrb-extract-prefect-worker:local
+    restart: unless-stopped
+    environment:
+      <<: [*site-env, *prefect-env]
+      ARCHIVE_VOL_DIR: ${ARCHIVE_VOL_DIR}
+      WORKSPACE_VOL_DIR: ${WORKSPACE_VOL_DIR}
+      PREFECT_WORK_POOL: local-pool
+    depends_on:
+      prefect-server: {condition: service_healthy}
+      postgres: {condition: service_healthy}
+      # The pdf-report image must exist before convert_pdf runs `docker run`.
+      pdf-report: {condition: service_completed_successfully}
+    volumes:
+      - ${ARCHIVE_VOL_DIR}:${ARCHIVE_BASE_PATH}
+      - ${WORKSPACE_VOL_DIR}:${WORKSPACE_BASE_PATH}
+      # Cross-site exchange credentials (peer SSH key + known_hosts). Inert
+      # while PEER_HOST is empty; the directory always exists.
+      - ./secrets:/secrets
+      # The conversion tasks run maxit-ccd / py-wwpdb_utils_nmr / the PDF
+      # generator as sibling containers on the host daemon.
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks: [internal]
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    image: bmrb-extract-backend:local
+    restart: unless-stopped
+    environment:
+      <<: *site-env
+      FLASK_ENV: ${FLASK_ENV}
+      GUNICORN_CMD_ARGS: ${GUNICORN_CMD_ARGS}
+      AUTH_REDIS_HOST: ${AUTH_REDIS_HOST}
+      AUTH_REDIS_PORT: ${AUTH_REDIS_PORT}
+      AUTH_REDIS_DB: ${AUTH_REDIS_DB}
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      prefect-server: {condition: service_healthy}
+    volumes:
+      - ${ARCHIVE_VOL_DIR}:${ARCHIVE_BASE_PATH}
+      - ${WORKSPACE_VOL_DIR}:${WORKSPACE_BASE_PATH}
+    expose: ["8000"]
+    networks: [internal]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+  # Serves the Angular bundle (compiled into this image) and proxies /api.
+  # The site-specific values are substituted into the built bundle by the
+  # entrypoint on every start, so branding and URLs are restart-configurable.
+  nginx:
+    build:
+      context: .
+      dockerfile: docker/nginx/Dockerfile
+    image: bmrb-extract-nginx:local
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+      SERVICE_HOST: ${SERVICE_HOST}
+      SERVICE_LEVEL: ${SERVICE_LEVEL}
+      SERVICE_HELP_EMAIL: ${SERVICE_HELP_EMAIL}
+      SUCCESS_VALIDITY_PERIOD_IN_DAYS: ${SUCCESS_VALIDITY_PERIOD_IN_DAYS}
+      FAILURE_VALIDITY_PERIOD_IN_DAYS: ${FAILURE_VALIDITY_PERIOD_IN_DAYS}
+      HOST_SITE_NAME: ${HOST_SITE_NAME}
+      HOST_SITE_LOGO: ${HOST_SITE_LOGO}
+      HOST_SITE_URL: ${HOST_SITE_URL}
+      HOST_SITE_FAVICON: ${HOST_SITE_FAVICON}
+      PAGE_TITLE: ${PAGE_TITLE}
+      ONEDEP_URL: ${ONEDEP_URL}
+      BMRBDEP_URL: ${BMRBDEP_URL}
+      NGINX_CLIENT_MAX_BODY_SIZE: ${NGINX_CLIENT_MAX_BODY_SIZE}
+      NGINX_LOG_FORMAT: ${NGINX_LOG_FORMAT}
+      NGINX_PROXY_READ_TIMEOUT: ${NGINX_PROXY_READ_TIMEOUT}
+    depends_on:
+      backend: {condition: service_healthy}
+    ports:
+      - "${HTTP_BIND}:${HTTP_PORT}:80"
+    networks: [internal]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Not a long-running service: this exists so `docker compose` builds and tags
+  # the PDF-report image on the host daemon, where the convert_pdf task's
+  # `docker run` can find it. The container starts, exits 0, and stays down.
+  pdf-report:
+    build:
+      context: .
+      dockerfile: docker/pdf/Dockerfile
+    image: ${PDF_REPORT_IMAGE}
+    entrypoint: ["true"]
+    restart: "no"
+    networks: [internal]
+
+networks:
+  internal:
+    driver: bridge

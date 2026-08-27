@@ -4,7 +4,6 @@ import io
 import json
 import os
 import re
-import smtplib
 import traceback
 import zipfile
 from datetime import datetime, timedelta, timezone
@@ -44,7 +43,6 @@ from core.site_config import (
     SERVICE_DATABASE_URL,
     SERVICE_HELP_EMAIL,
     SERVICE_HOST,
-    SMTP_SERVER,
     WORKSPACE_BASE_PATH,
 )
 
@@ -740,8 +738,11 @@ def _send_email(to_address: str, subject: str, content: str) -> str:
         msg['To'] = to_address
         msg['Reply-To'] = SERVICE_HELP_EMAIL
         msg.set_content(content)
-        with smtplib.SMTP(SMTP_SERVER, 25, timeout=15) as smtp:
-            smtp.send_message(msg)
+        # Local deployment: route through core.local_mail so the SMTP host,
+        # port, TLS mode and credentials come from .env (and MAIL_BACKEND=log
+        # can bypass delivery entirely).
+        from core.local_mail import send_message as _send_message
+        _send_message(msg, timeout=15)
         return DeliveryStatusCode.sent.value
     except Exception as exc:  # noqa: BLE001
         app.logger.error('resume-url email to %s failed: %s', to_address, exc)
@@ -785,7 +786,9 @@ async def send_resume_url():
         if conversion_id is None:
             return {'error': 'session not yet processed'}, 409
 
-        resume_url = f'https://{SERVICE_HOST}/info?token={token}'
+        from core import site_config as _sc
+        _base = getattr(_sc, 'SERVICE_BASE_URL', f'https://{SERVICE_HOST}')
+        resume_url = f'{_base}/info?token={token}'
         subject = f'Resume your NMR data conversion session (C_{conversion_id})'
         content = (
             f'You can resume or review your NMR data conversion session '

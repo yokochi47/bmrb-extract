@@ -22,7 +22,6 @@ prefect/flows/shared/core -> backend/app/core) like process_session.py.
 
 import os
 import shutil
-import smtplib
 import sys
 import traceback
 from datetime import datetime
@@ -56,7 +55,6 @@ from core.site_config import (  # noqa: E402
     SERVICE_ADMIN_EMAIL,
     SERVICE_HOST,
     SERVICE_DATABASE_URL,
-    SMTP_SERVER,
     WORKSPACE_BASE_PATH,
 )
 
@@ -73,8 +71,8 @@ def _send_admin_email(subject: str, content: str) -> str:
         msg['From'] = SERVICE_ADMIN_EMAIL
         msg['To'] = SERVICE_ADMIN_EMAIL
         msg.set_content(content)
-        with smtplib.SMTP(SMTP_SERVER, 25, timeout=30) as smtp:
-            smtp.send_message(msg)
+        from core.local_mail import send_message as _send_message  # noqa: E402
+        _send_message(msg, timeout=30)
         return 'sent'
     except Exception as exc:  # noqa: BLE001
         print(f'admin email FAILED ({exc})')

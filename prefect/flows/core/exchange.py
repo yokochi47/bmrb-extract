@@ -29,7 +29,6 @@ attempts raises a single alert). Mirrors the standalone-module + own-async-engin
 import json
 import os
 import shlex
-import smtplib
 import subprocess
 import sys
 import traceback
@@ -58,7 +57,6 @@ from core.site_config import (  # noqa: E402
     SERVICE_DATABASE_URL,
     SERVICE_DOMAIN,
     SERVICE_HOST,
-    SMTP_SERVER,
     WORKSPACE_BASE_PATH,
 )
 
@@ -96,8 +94,8 @@ def _send_admin_email(subject: str, content: str) -> str:
         msg['From'] = SERVICE_ADMIN_EMAIL
         msg['To'] = SERVICE_ADMIN_EMAIL
         msg.set_content(content)
-        with smtplib.SMTP(SMTP_SERVER, 25, timeout=30) as smtp:
-            smtp.send_message(msg)
+        from core.local_mail import send_message as _send_message  # noqa: E402
+        _send_message(msg, timeout=30)
         return 'sent'
     except Exception as exc:  # noqa: BLE001
         print(f'exchange: admin email FAILED ({exc})')
