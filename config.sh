@@ -413,3 +413,16 @@ envsubst < backend/app/core/site_config.py.template > backend/app/core/site_conf
 
 check_file backend/app/core/site_config.py
 
+#
+# systemd unit (installed by ./install_systemd.sh)
+#
+export SERVICE_DIR="${PWD}"
+export SERVICE_USER="${USER}"
+
+envsubst < systemd/bmrb-extract.service.template > systemd/bmrb-extract.service
+
+check_file systemd/bmrb-extract.service
+
+envsubst < systemd/bmrb-extract.sudoers.template > systemd/bmrb-extract.sudoers
+
+check_file systemd/bmrb-extract.sudoers

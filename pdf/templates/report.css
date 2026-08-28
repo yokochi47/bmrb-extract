@@ -139,8 +139,9 @@ tfoot { display: table-footer-group; }
 tr { break-inside: avoid; }
 
 td.num, th.num { text-align: center; }
-.bad { color: #dc2626; }
 td.mono { font-family: 'Lato', monospace; word-break: break-all; }
+.warn { color: #dc2626; }
+
 
 /* Most-violated tables (7.4 / 8.4): auto layout + smaller no-wrap cells so the
    long atom-key values (e.g. A:62:VAL:HG11) each stay on a single line. */

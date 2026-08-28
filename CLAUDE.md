@@ -19,6 +19,7 @@ The full user-facing flow — consent → upload → process → summary/validat
 ./reload_wfe.sh   # rebuild frontend + nginx only (for frontend development)
 ./pdf/build.sh    # (re)build the PDF-report generator image (bmrb-extract-pdf-report:local); run after editing pdf/ — setup.sh runs it on a clean install
 ./reset_db.sh     # drop and re-initialize the databases
+./install_systemd.sh  # one-time: install + enable bmrb-extract.service (runs setup.sh && start.sh at boot, stop.sh at shutdown)
 ```
 
 ### Frontend (Angular 21)
@@ -75,6 +76,7 @@ Two bind-mounted trees, kept deliberately separate so a conversion (which may ed
 - `certbot/certbot.sh`
 - `frontend/src/index.html` and `frontend/src/site.config.ts` — symlinked to site-specific variants
 - `backend/app/core/site_config.py`
+- `systemd/bmrb-extract.service` and `systemd/bmrb-extract.sudoers` — the boot/shutdown unit and its scoped sudoers fragment, installed to `/etc` by `./install_systemd.sh` (`systemd/99-bmrb-extract.sysctl.conf` is static, not generated)
 
 **Never edit generated files directly.** Edit their `.template` counterpart and re-run `./config.sh`.
 
