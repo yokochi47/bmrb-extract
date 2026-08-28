@@ -54,15 +54,10 @@ export class AppConsentDialogs {
   }
 
   onExpiredDialogOk(): void {
-    this.pageService.tokenValidation.set(null);
-    this.pageService.pageState.update((prev) => ({
-      ...prev,
-      expiredSession: false,
-      tokenBase: null,
-      conversionId: null,
-      consentedTo: false,
-      firstConsent: true,
-    }));
+    // Drop the expired session entirely — the user starts over from a clean
+    // Instructions page (resetSession also clears the results/ownership fields
+    // an in-place update used to leave behind).
+    this.pageService.resetSession();
     this.router.navigate(['/info']);
   }
 }

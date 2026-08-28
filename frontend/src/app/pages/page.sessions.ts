@@ -7,6 +7,7 @@ import { MessageModule } from 'primeng/message';
 import { TagModule } from 'primeng/tag';
 
 import { AuthService, SessionRow } from './auth.service';
+import { PageService } from './page.service';
 
 /** Lists the signed-in user's sessions; annotators can toggle to every session
  * (opened via the audited token_admin). Each row reopens the session by putting
@@ -18,6 +19,7 @@ import { AuthService, SessionRow } from './auth.service';
 })
 export class Sessions {
   private auth = inject(AuthService);
+  private pageService = inject(PageService);
   private router = inject(Router);
 
   isAdmin = this.auth.isAdmin;
@@ -65,10 +67,22 @@ export class Sessions {
     return row.token ?? row.token_admin ?? '';
   }
 
-  /** Reopen a session by putting its token in the URL (existing pages restore it). */
+  /** Reopen a session by putting its token in the URL (existing pages restore it).
+   * tokenValidation caches a single verdict with no key, so it must be dropped
+   * here or tokenGuard would judge this token by the previously opened one's. */
   open(row: SessionRow): void {
     const token = this.openToken(row);
-    if (token) this.router.navigate(['/info'], { queryParams: { token } });
+    if (!token) return;
+    this.pageService.tokenValidation.set(null);
+    this.router.navigate(['/info'], { queryParams: { token } });
+  }
+
+  /** Leave the session held in memory and start a fresh one. Nothing is deleted —
+   * the current session stays in this list; the new one is created (and owned by
+   * the user) once they agree to the policies on the Instructions page. */
+  newSession(): void {
+    this.pageService.resetSession();
+    this.router.navigate(['/info'], { fragment: 'consentCheck' });
   }
 
   shortDate(iso: string | null): string {
