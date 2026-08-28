@@ -41,21 +41,10 @@ export interface PageState {
   sessionStatus: string | null;
 }
 
-@Injectable({
-  providedIn: 'root',
-})
-export class PageService {
-  /** Set to true by tokenGuard to trigger the consent-required dialog in AppLayout. */
-  consentRequired = signal(false);
-
-  /** Non-null when starting a session (POST /api/new_consent) failed, so the
-   * consent page can prompt the user to retry instead of silently unchecking. */
-  consentError = signal<string | null>(null);
-
-  /** Cached result of the most recent token DB validation. null = not yet checked. */
-  tokenValidation = signal<'valid' | 'expired' | 'invalid' | null>(null);
-
-  pageState = signal<PageState>({
+/** The state of a session-less page: no token, nothing consented to yet. Shared
+ * by the initial signal value and by resetSession(), so the two cannot drift. */
+function initialPageState(): PageState {
+  return {
     firstConsent: true,
     consentedTo: false,
     targetDepsys: TargetDepsys.onedep,
@@ -73,7 +62,24 @@ export class PageService {
     owned: false,
     claimable: false,
     sessionStatus: null,
-  });
+  };
+}
+
+@Injectable({
+  providedIn: 'root',
+})
+export class PageService {
+  /** Set to true by tokenGuard to trigger the consent-required dialog in AppLayout. */
+  consentRequired = signal(false);
+
+  /** Non-null when starting a session (POST /api/new_consent) failed, so the
+   * consent page can prompt the user to retry instead of silently unchecking. */
+  consentError = signal<string | null>(null);
+
+  /** Cached result of the most recent token DB validation. null = not yet checked. */
+  tokenValidation = signal<'valid' | 'expired' | 'invalid' | null>(null);
+
+  pageState = signal<PageState>(initialPageState());
 
   /** Single source of truth for "the run did not complete" — a conversion task
    * failed/aborted or a blocking NMR report; the backend sets session.status =
@@ -183,6 +189,21 @@ export class PageService {
           this.tokenValidation.set('invalid');
         },
       });
+  }
+
+  /** Abandon the session held in memory so the next consent creates a fresh one.
+   * The session itself is untouched server-side — a logged-in user reopens it from
+   * "My sessions"; an anonymous user still holds its tokenized URL. Clearing
+   * `loadedToken` and `tokenValidation` matters as much as clearing `tokenBase`:
+   * tokenGuard re-attaches a lingering token to any protected route, and its fast
+   * path would otherwise judge the next token by the previous one's verdict. */
+  resetSession(): void {
+    this.tokenValidation.set(null);
+    this.consentRequired.set(false);
+    this.consentError.set(null);
+    this.loadedToken = null;
+    this.auth.clearPendingClaim();
+    this.pageState.set(initialPageState());
   }
 
   /** Mark the current session as adopted into the logged-in user's account
