@@ -1,0 +1,29 @@
+[Unit]
+Description=bmrb_extract NMR data conversion service (${SERVICE_HOST})
+Documentation=https://github.com/yokochi47/bmrb-extract
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Keeps the unit "active (exited)" after setup.sh/start.sh return. Required so
+# ExecStop= fires at shutdown, and so the deferred subshell start.sh forks
+# (`( sleep 120 ; docker compose down frontend ) &`) is not reaped with the
+# control group the moment ExecStart returns.
+RemainAfterExit=yes
+User=${SERVICE_USER}
+WorkingDirectory=${SERVICE_DIR}
+# Two ExecStart= lines are `setup.sh && start.sh`: Type=oneshot runs them in
+# order and aborts the rest if one exits non-zero.
+ExecStart=${SERVICE_DIR}/setup.sh
+ExecStart=${SERVICE_DIR}/start.sh
+ExecStop=${SERVICE_DIR}/stop.sh
+# setup.sh rebuilds the Docker images on every run; the default 90 s would kill
+# it mid-build.
+TimeoutStartSec=infinity
+TimeoutStopSec=600
+SyslogIdentifier=bmrb-extract
+
+[Install]
+WantedBy=multi-user.target

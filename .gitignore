@@ -24,6 +24,8 @@ postgres/init.seq.template
 postgres/init.sql.template
 backend/app/core/site_config.py
 certbot/certbot.sh
+systemd/bmrb-extract.service
+systemd/bmrb-extract.sudoers
 prefect/data/.sdk_telemetry/
 prefect/data/memo_store.toml
 prefect/flows/hello_prefect_flow.py
