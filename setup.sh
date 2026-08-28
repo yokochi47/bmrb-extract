@@ -166,7 +166,7 @@ fi
 #
 # Enable Docker Swarm for rolling update
 #
-docker system info | grep Swarm | grep active > /dev/null || docker swarm init
+docker system info | grep Swarm | grep active > /dev/null 2>&1 || docker swarm init
 
 echo
 echo "<<< Docker system info >>>"
@@ -214,7 +214,7 @@ for repo in "${ACTION_RUNNER_REPOS[@]}" ; do
       ;;
   esac
 
-  docker service ps $repo > /dev/null || \
+  docker service ps $repo > /dev/null 2>&1 || \
     (docker service create -q --replicas 3 --name $repo --update-delay 20s \
       --mount type=bind,source=${ARCHIVE_VOL_DIR},target=${ARCHIVE_BASE_PATH} \
       --mount type=bind,source=${WORKSPACE_VOL_DIR},target=${WORKSPACE_BASE_PATH} \
