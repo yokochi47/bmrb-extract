@@ -21,8 +21,10 @@
             <p-overlayBadge [value]="unreadCount().toString()" severity="danger">
               <i class="pi pi-bell"></i>
             </p-overlayBadge>
-          } @else {
+          } @else if (authenticated()) {
             <i class="pi pi-bell"></i>
+          } @else {
+            <i class="pi pi-bell-slash"></i>
           }
           <span>Messages</span>
         </button>
