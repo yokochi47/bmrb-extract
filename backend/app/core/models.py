@@ -306,8 +306,10 @@ class LoginChallenge(Base):
     created_at = sa.Column(sa.TIMESTAMP(), server_default=func.now())
     expires_at = sa.Column(sa.TIMESTAMP(), nullable=False)
     consumed_at = sa.Column(sa.TIMESTAMP())
-    attempts = sa.Column(sa.Integer(), nullable=False, server_default='0')
+    attempts = sa.Column(sa.Integer(), nullable=False, server_default='0')  # wrong-code guesses
     claim_token = sa.Column(sa.Text())  # session.token to adopt on verify (pending claim)
+    pending_id = sa.Column(sa.Text(), unique=True)  # handle held by the device that asked for the mail
+    code_hash = sa.Column(sa.Text())  # HMAC of the emailed code, keyed by AUTH_SECRET and pending_id
 
 
 class AuthSession(Base):

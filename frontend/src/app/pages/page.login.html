@@ -64,7 +64,9 @@
     </div>
   } @else {
     @if (!sent()) {
-      <p class="mb-3">Enter your email address and we'll send you a single-use sign-in link.</p>
+      <p class="mb-3">
+        Enter your email address and we'll email you a single-use sign-in link and code.
+      </p>
       <div class="flex gap-2 items-center">
         <input
           pInputText
@@ -76,7 +78,7 @@
           (ngModelChange)="emailInput.set($event)"
           (keyup.enter)="submit()"
         />
-        <p-button label="Send link" icon="pi pi-envelope" (click)="submit()" [disabled]="busy()" />
+        <p-button label="Send email" icon="pi pi-envelope" (click)="submit()" [disabled]="busy()" />
       </div>
       <p class="text-sm text-surface-500 mt-3">
         Login lets you revisit your past sessions and contact our annotators via the Help desk. You
@@ -84,9 +86,40 @@
       </p>
     } @else {
       <p-message severity="info" styleClass="w-full" [closable]="false">
-        If that address can sign in, a login link has been sent. Please check your email — the link
-        is valid for a short time and can be used once.
+        If that address can sign in, a sign-in email has been sent. It contains a
+        <strong>link</strong> — use it if you read your mail on this computer — and a
+        <strong>6-digit code</strong>. If you read your mail on a phone or another computer, type
+        the code here instead. Both expire shortly and can be used once.
       </p-message>
+
+      @if (pendingLogin()) {
+        <div class="flex flex-wrap gap-3 items-center mt-4">
+          <p-inputOtp
+            [length]="6"
+            [integerOnly]="true"
+            [ngModel]="loginCode()"
+            (ngModelChange)="loginCode.set($event)"
+            (keyup.enter)="submitCode()"
+          />
+          <p-button
+            label="Sign in"
+            icon="pi pi-sign-in"
+            (click)="submitCode()"
+            [disabled]="codeBusy()"
+          />
+        </div>
+        @if (codeError()) {
+          <p-message severity="error" styleClass="w-full mt-3" [closable]="false">{{
+            codeError()
+          }}</p-message>
+        }
+      }
+
+      <div class="flex flex-wrap gap-4 mt-4">
+        <p-button label="Resend email" [link]="true" (click)="resend()" [disabled]="busy()" />
+        <p-button label="Use a different address" [link]="true" (click)="useAnotherAddress()" />
+        <p-button label="I signed in elsewhere — refresh" [link]="true" (click)="refreshState()" />
+      </div>
     }
   }
 </div>
