@@ -8,7 +8,11 @@
 
 \c ${POSTGRES_SERVICE_DB};
 
-DROP TABLE IF EXISTS workflow, communication, notification, output_file, upload_file, session CASCADE;
+-- The auth tables are listed too: init-service.sql.template uses CREATE TABLE IF
+-- NOT EXISTS, so leaving them in place would silently skip any column added to
+-- them and a development reset would not match a fresh install.
+DROP TABLE IF EXISTS workflow, communication, notification, output_file, upload_file, session,
+  admin_access_audit, auth_session, login_challenge, app_user CASCADE;
 DROP TYPE IF EXISTS wf_status_code, wf_task_code, delivery_status_code,
   output_file_type, upload_file_type, target_depsys_code,
-  session_status_code, processing_site_code CASCADE;
+  session_status_code, processing_site_code, user_role_code CASCADE;

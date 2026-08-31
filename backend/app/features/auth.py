@@ -52,7 +52,9 @@ from core.site_config import (
 auth_bp = Blueprint('auth', __name__)
 
 # --- tunables ---------------------------------------------------------------- #
-LOGIN_LINK_TTL = timedelta(minutes=15)      # magic-link validity
+LOGIN_LINK_TTL = timedelta(minutes=15)      # magic-link / login-code validity
+LOGIN_CODE_DIGITS = 6                       # emailed code, typed on the requesting device
+LOGIN_CODE_MAX_ATTEMPTS = 5                 # wrong guesses per challenge, then it is burnt
 SESSION_IDLE = timedelta(hours=8)           # inactivity timeout
 SESSION_ABSOLUTE = timedelta(days=7)        # hard cap regardless of activity
 COOKIE_NAME = 'bmrbx_auth'
@@ -62,9 +64,16 @@ TOTP_ISSUER = 'bmrb_extract'
 RL_REQUEST_LOGIN_IP = (20, 3600)
 RL_REQUEST_LOGIN_EMAIL = (5, 3600)
 RL_VERIFY_IP = (30, 3600)
+# Kept separate from RL_VERIFY_IP: request.remote_addr is the nginx container IP
+# (no ProxyFix, no X-Forwarded-For), so every per-IP limit here is really a global
+# throttle, and a typed code costs several attempts per login. This is a crude
+# flood guard only -- the real control is LOGIN_CODE_MAX_ATTEMPTS per challenge.
+RL_VERIFY_CODE_IP = (60, 3600)
 RL_TOTP_SESSION = (8, 900)                  # TOTP attempts per login session
 
 _EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+# Shape of a pending handle, validated before it reaches a query.
+_PENDING_ID_RE = re.compile(r'^[A-Za-z0-9_-]{16,64}$')
 
 # Annotator allowlist (normalized).
 ANNOT_EMAILS = {e.strip().lower() for e in (SERVICE_ANNOT_EMAILS or '').split(',') if e.strip()}
@@ -108,6 +117,24 @@ def _decrypt(ciphertext: str) -> str:
 
 def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+def _new_login_code() -> str:
+    """Uniform one-time code for the cross-device login path. randbelow avoids the
+    modulo bias of randrange-on-a-power-of-ten, and the zero pad keeps leading
+    zeros so every code is exactly LOGIN_CODE_DIGITS long."""
+    return f'{secrets.randbelow(10 ** LOGIN_CODE_DIGITS):0{LOGIN_CODE_DIGITS}d}'
+
+
+def _hash_code(pending_id: str, code: str) -> str:
+    """Keyed hash of an emailed login code, bound to its pending handle.
+
+    HMAC rather than the bare SHA-256 used for token_hash: a 6-digit code has only
+    10**6 preimages, so a plain digest in a database dump would be reversible by
+    inspection. Mixing in the handle also stops one digest being replayed against
+    a different pending login."""
+    return hmac.new(AUTH_SECRET.encode(), f'{pending_id}:{code}'.encode(),
+                    hashlib.sha256).hexdigest()
 
 
 def _norm_email(email: str) -> str:
@@ -246,15 +273,32 @@ async def authorize_session(db, session_row, auth_session, user, action='access'
 
 @auth_bp.route('/api/auth/request_login', methods=['POST'])
 async def request_login():
-    """Email a single-use magic link. Always returns a generic 200 (no account
-    enumeration). Rate-limited per IP and per email."""
+    """Email a single-use sign-in link *and* a single-use code, and hand the caller
+    an opaque pending handle for the code.
+
+    The two credentials back one challenge row, for the common case where the files
+    live on a workstation but the mail is read on a phone: clicking the link signs
+    in the device that opened the mail, while typing the code signs in the device
+    that asked for it. Whichever is spent first consumes the challenge.
+
+    Always returns a generic 200 (no account enumeration). Rate-limited per IP and
+    per email."""
     body = request.get_json(silent=True) or {}
     email = _norm_email(body.get('email'))
     # Optional session the requester wants adopted once they authenticate — carried
     # with the challenge so it survives the login round-trip (even a magic link
     # opened on another device). Only acted on at verify, for an unowned session.
     claim_token = (body.get('claim_token') or '').strip() or None
-    generic = {'ok': True, 'message': 'If that address can sign in, a login link has been sent.'}
+    # Minted before any branch below and returned unconditionally — for a malformed
+    # address and a rate-limited request too — so the response still says nothing
+    # about the address.
+    pending_id = secrets.token_urlsafe(24)
+    generic = {
+        'ok': True,
+        'message': 'If that address can sign in, a login link has been sent.',
+        'pending_id': pending_id,
+        'expires_in': int(LOGIN_LINK_TTL.total_seconds()),
+    }
 
     if not _EMAIL_RE.match(email):
         return generic, 200  # never reveal validity
@@ -265,19 +309,39 @@ async def request_login():
         return generic, 200
 
     token = secrets.token_urlsafe(32)
+    code = _new_login_code()
     async with _session_factory() as db:
+        now = _now()
+        # Supersede any still-live challenge for this address, so at most one
+        # link/code pair is ever valid per account. Bounds online guessing, and
+        # makes "Resend" mean "replace" rather than "add another guessable code".
+        await db.execute(update(LoginChallenge).where(
+            LoginChallenge.email == email,
+            LoginChallenge.consumed_at.is_(None),
+            LoginChallenge.expires_at > now,
+        ).values(consumed_at=now))
         await db.execute(LoginChallenge.__table__.insert().values(
             email=email, token_hash=_hash_token(token), purpose='login',
-            expires_at=_now() + LOGIN_LINK_TTL, claim_token=claim_token,
+            expires_at=now + LOGIN_LINK_TTL, claim_token=claim_token,
+            pending_id=pending_id, code_hash=_hash_code(pending_id, code),
         ))
         await db.commit()
 
-    link = f'https://{SERVICE_HOST}/login/verify?c={token}'
-    subject = 'bmrb_extract sign-in link'
+    # The handle rides along in the link so the landing page can tell the browser
+    # that asked for it from a browser that merely opened the mail (see verify()).
+    link = f'https://{SERVICE_HOST}/login/verify?c={token}&p={pending_id}'
+    minutes = int(LOGIN_LINK_TTL.total_seconds() // 60)
+    subject = 'bmrb_extract sign-in code'
     content = (
-        f'Use the link below to sign in to bmrb_extract. It is valid for '
-        f'{int(LOGIN_LINK_TTL.total_seconds() // 60)} minutes and can be used once.\n\n'
-        f'{link}\n\n'
+        'Signing in to bmrb_extract.\n\n'
+        'READING THIS ON YOUR PHONE OR ANOTHER COMPUTER?\n'
+        'Type this code into the browser tab where you started signing in:\n\n'
+        f'    {code}\n\n'
+        'READING THIS ON THE COMPUTER YOU STARTED FROM?\n'
+        'Just open this link:\n\n'
+        f'    {link}\n\n'
+        f'The code and the link are both valid for {minutes} minutes and can be used\n'
+        'once — using either one immediately cancels the other.\n\n'
         'If you did not request this, you can ignore this email.'
     )
     if _send_email is not None:
@@ -285,16 +349,98 @@ async def request_login():
     return generic, 200
 
 
+async def _establish_login(db, ch, now):
+    """Consume a login challenge and establish the login session behind it.
+
+    Shared by the two ways a challenge can be spent — the emailed link
+    (/api/auth/verify) and the emailed code (/api/auth/verify_code) — so a
+    cross-device login is indistinguishable from a same-device one, right down to
+    totp_ok=False for annotators.
+
+    Stamps consumed_at (single-use: this is what makes the link and the code two
+    credentials over ONE challenge), resolves or creates the user and re-syncs
+    their role, mints a brand-new auth_session (anti-fixation), and adopts
+    ch.claim_token if it still points at an unowned session.
+
+    Returns (sid, payload) on success, or (None, (body, status)) when the login
+    must be refused — the caller returns that second element unchanged.
+    """
+    # Single-use: consume immediately.
+    await db.execute(update(LoginChallenge).where(LoginChallenge.id == ch.id)
+                     .values(consumed_at=now))
+
+    email = _norm_email(ch.email)
+    user = (
+        await db.execute(select(AppUser).where(AppUser.email == email))
+    ).scalar_one_or_none()
+    role = 'annotator' if email in ANNOT_EMAILS else 'user'
+    if user is None:
+        await db.execute(AppUser.__table__.insert().values(email=email, role=role))
+        user = (
+            await db.execute(select(AppUser).where(AppUser.email == email))
+        ).scalar_one()
+    else:
+        # Keep the role in sync with the current allowlist.
+        if user.role != role:
+            await db.execute(update(AppUser).where(AppUser.id == user.id).values(role=role))
+            user.role = role
+        if user.disabled:
+            await db.commit()
+            return None, ({'error': 'account disabled'}, 403)
+    await db.execute(update(AppUser).where(AppUser.id == user.id).values(last_login_at=now))
+
+    # Fresh login session (anti-fixation: brand-new id). Users are fully
+    # authenticated immediately; annotators require the TOTP step next.
+    sid = secrets.token_urlsafe(32)
+    csrf = secrets.token_urlsafe(32)
+    await db.execute(AuthSession.__table__.insert().values(
+        id=sid, user_id=user.id, csrf_token=csrf,
+        totp_ok=(role != 'annotator'),
+        absolute_expiry=now + SESSION_ABSOLUTE,
+        client_ip=request.remote_addr, user_agent=request.headers.get('User-Agent', ''),
+    ))
+
+    # Adopt the session the requester bound to this challenge (they held its
+    # token when requesting the link). Survives the login round-trip / a link
+    # opened on another device. Only an unowned, non-expired session is claimed.
+    claimed_session = False
+    if ch.claim_token:
+        s = (
+            await db.execute(select(Session).where(Session.token == ch.claim_token))
+        ).scalar_one_or_none()
+        if (s is not None and s.user_id is None
+                and s.status != 'expired' and s.token_expiry >= now):
+            await db.execute(update(Session).where(Session.token == ch.claim_token)
+                             .values(user_id=user.id))
+            claimed_session = True
+    await db.commit()
+
+    return sid, {
+        'authenticated': True,
+        'email': email,
+        'role': role,
+        'csrf_token': csrf,
+        'totp_required': role == 'annotator',
+        'totp_enrolled': bool(user.totp_enrolled),
+        'claimed_session': claimed_session,
+    }
+
+
 @auth_bp.route('/api/auth/verify', methods=['POST'])
 async def verify():
     """Consume a magic-link token, create/find the user, and issue a login session
-    cookie. Annotators still need TOTP before admin authority (totp_ok stays False)."""
+    cookie. Annotators still need TOTP before admin authority (totp_ok stays False).
+
+    Body: { c, cross_device? }. The landing page sets cross_device when it is not
+    the browser that asked for the link (see request_login for the handle it
+    matches on)."""
     ip = request.remote_addr or 'unknown'
     if not await _rate_ok(f'auth:rl:verifyip:{ip}', *RL_VERIFY_IP):
         return {'error': 'too many attempts, please retry later'}, 429
 
     body = request.get_json(silent=True) or {}
     token = body.get('c') or request.args.get('c') or ''
+    cross_device = bool(body.get('cross_device'))
     if not token:
         return {'error': 'invalid or expired link'}, 400
     token_hash = _hash_token(token)
@@ -312,66 +458,93 @@ async def verify():
         ).scalar_one_or_none()
         if ch is None:
             return {'error': 'invalid or expired link'}, 400
-        # Single-use: consume immediately.
-        await db.execute(update(LoginChallenge).where(LoginChallenge.id == ch.id)
-                         .values(consumed_at=now))
+        # An annotator's second factor belongs on the device they started from, so
+        # a login may not be completed on a device that merely opened the mail.
+        # Decided from ANNOT_EMAILS — no DB lookup, and it works for an annotator
+        # who has never logged in. The challenge is deliberately left unconsumed so
+        # the emailed code still works where the user is actually sitting.
+        if cross_device and _norm_email(ch.email) in ANNOT_EMAILS:
+            return {'error': 'annotator_must_use_code'}, 403
+        sid, payload = await _establish_login(db, ch, now)
+        if sid is None:
+            return payload
+    resp = jsonify(payload)
+    _set_cookie(resp, sid)
+    return resp
 
-        email = _norm_email(ch.email)
-        user = (
-            await db.execute(select(AppUser).where(AppUser.email == email))
-        ).scalar_one_or_none()
-        role = 'annotator' if email in ANNOT_EMAILS else 'user'
-        if user is None:
-            await db.execute(AppUser.__table__.insert().values(email=email, role=role))
-            user = (
-                await db.execute(select(AppUser).where(AppUser.email == email))
-            ).scalar_one()
-        else:
-            # Keep the role in sync with the current allowlist.
-            if user.role != role:
-                await db.execute(update(AppUser).where(AppUser.id == user.id).values(role=role))
-                user.role = role
-            if user.disabled:
-                await db.commit()
-                return {'error': 'account disabled'}, 403
-        await db.execute(update(AppUser).where(AppUser.id == user.id).values(last_login_at=now))
 
-        # Fresh login session (anti-fixation: brand-new id). Users are fully
-        # authenticated immediately; annotators require the TOTP step next.
-        sid = secrets.token_urlsafe(32)
-        csrf = secrets.token_urlsafe(32)
-        await db.execute(AuthSession.__table__.insert().values(
-            id=sid, user_id=user.id, csrf_token=csrf,
-            totp_ok=(role != 'annotator'),
-            absolute_expiry=now + SESSION_ABSOLUTE,
-            client_ip=request.remote_addr, user_agent=request.headers.get('User-Agent', ''),
-        ))
+@auth_bp.route('/api/auth/verify_code', methods=['POST'])
+async def verify_code():
+    """Consume the emailed code and issue the session cookie on THIS response.
 
-        # Adopt the session the requester bound to this challenge (they held its
-        # token when requesting the link). Survives the login round-trip / a link
-        # opened on another device. Only an unowned, non-expired session is claimed.
-        claimed_session = False
-        if ch.claim_token:
-            s = (
-                await db.execute(select(Session).where(Session.token == ch.claim_token))
-            ).scalar_one_or_none()
-            if (s is not None and s.user_id is None
-                    and s.status != 'expired' and s.token_expiry >= now):
-                await db.execute(update(Session).where(Session.token == ch.claim_token)
-                                 .values(user_id=user.id))
-                claimed_session = True
+    The cross-device path: the mail is read on a phone, but the cookie is minted
+    for the workstation that asked for it — which is also what puts an annotator's
+    TOTP prompt on the workstation rather than the phone.
+
+    Body: { pending_id, code }. Every failure returns the same generic 400, so
+    nothing distinguishes a bad handle from a bad code from a burnt one. The
+    attempt cap in particular must not answer 429: a rate-limit response keyed to a
+    handle would confirm the handle exists.
+
+    Guessing budget: LOGIN_CODE_MAX_ATTEMPTS per challenge, and
+    RL_REQUEST_LOGIN_EMAIL caps challenges at 5/hour/email, so at most ~25 guesses
+    per hour against 10**LOGIN_CODE_DIGITS, on a code that dies in LOGIN_LINK_TTL.
+    """
+    invalid = ({'error': 'invalid or expired code'}, 400)
+    ip = request.remote_addr or 'unknown'
+    if not await _rate_ok(f'auth:rl:verifycodeip:{ip}', *RL_VERIFY_CODE_IP):
+        return {'error': 'too many attempts, please retry later'}, 429
+
+    body = request.get_json(silent=True) or {}
+    pending_id = (body.get('pending_id') or '').strip()
+    code = re.sub(r'\D', '', body.get('code') or '')  # tolerate '123 456'
+    if not _PENDING_ID_RE.match(pending_id) or len(code) != LOGIN_CODE_DIGITS:
+        return invalid
+
+    async with _session_factory() as db:
+        now = _now()
+        # Count the attempt atomically BEFORE comparing, so a race or an abandoned
+        # request still burns a try.
+        row = (
+            await db.execute(
+                update(LoginChallenge)
+                .where(
+                    LoginChallenge.pending_id == pending_id,
+                    LoginChallenge.consumed_at.is_(None),
+                    LoginChallenge.expires_at > now,
+                )
+                .values(attempts=LoginChallenge.attempts + 1)
+                .returning(LoginChallenge.id, LoginChallenge.attempts,
+                           LoginChallenge.code_hash)
+            )
+        ).first()
         await db.commit()
+        if row is None:
+            return invalid
+        challenge_id, attempts, code_hash = row
+        if attempts > LOGIN_CODE_MAX_ATTEMPTS:
+            # Burn the challenge outright — the emailed link dies with it.
+            await db.execute(update(LoginChallenge).where(LoginChallenge.id == challenge_id)
+                             .values(consumed_at=now))
+            await db.commit()
+            return invalid
+        if not hmac.compare_digest(code_hash or '', _hash_code(pending_id, code)):
+            return invalid
 
-        totp_required = role == 'annotator'
-        payload = {
-            'authenticated': True,
-            'email': email,
-            'role': role,
-            'csrf_token': csrf,
-            'totp_required': totp_required,
-            'totp_enrolled': bool(user.totp_enrolled),
-            'claimed_session': claimed_session,
-        }
+        ch = (
+            await db.execute(
+                select(LoginChallenge).where(
+                    LoginChallenge.id == challenge_id,
+                    LoginChallenge.consumed_at.is_(None),
+                    LoginChallenge.expires_at > now,
+                )
+            )
+        ).scalar_one_or_none()
+        if ch is None:  # link spent, or the challenge expired mid-flight
+            return invalid
+        sid, payload = await _establish_login(db, ch, now)
+        if sid is None:
+            return payload
     resp = jsonify(payload)
     _set_cookie(resp, sid)
     return resp

@@ -12,6 +12,9 @@ Runs nightly (02:00 local site time; see prefect.yaml). For each session whose
   * purges the session's child rows (upload_file / output_file / workflow /
     notification / communication), keeping the session row marked `expired` so
     the conversion id (C_<id>) stays on record for support history,
+  * purges spent authentication rows (expired login challenges, and login
+    sessions past their absolute expiry or revoked long ago) — neither table has
+    any other reaper, and both grow by a row per sign-in attempt,
   * emails the admin a single summary of the run, including any per-session
     errors (e.g. permission failures). A flow-wide error is also emailed and
     re-raised so Prefect records the run as failed.
@@ -25,7 +28,7 @@ import shutil
 import smtplib
 import sys
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
 from email.message import EmailMessage
 from pathlib import Path
 
@@ -38,12 +41,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'shared'))
 
 import asyncio  # noqa: E402
 
-from sqlalchemy import delete, func, select, update  # noqa: E402
+from sqlalchemy import and_, delete, func, or_, select, update  # noqa: E402
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine  # noqa: E402
 from sqlalchemy.pool import NullPool  # noqa: E402
 
 from core.models import (  # noqa: E402
+    AuthSession,
     Communication,
+    LoginChallenge,
     Notification,
     OutputFile,
     Session,
@@ -116,6 +121,7 @@ async def cleanup_expired(archive_base=ARCHIVE_BASE_PATH, workspace_base=WORKSPA
     expired = []
     errors = []
     bytes_freed = 0
+    purged = {'login_challenges': 0, 'auth_sessions': 0}
     try:
         async with async_sessionmaker(engine, expire_on_commit=False)() as db:
             rows = (
@@ -176,10 +182,49 @@ async def cleanup_expired(archive_base=ARCHIVE_BASE_PATH, workspace_base=WORKSPA
             except Exception as exc:  # noqa: BLE001
                 errors.append({'label': label, 'error': str(exc)})
                 print(f'cleanup: FAILED {label}: {exc}')
+        # Spent auth rows are unrelated to any one session, so a failure here is
+        # recorded but must not abort the retention run.
+        try:
+            purged = await _purge_login_state(engine)
+        except Exception as exc:  # noqa: BLE001
+            errors.append({'label': 'login state', 'error': str(exc)})
+            print(f'cleanup: FAILED login-state purge: {exc}')
     finally:
         await engine.dispose()
 
-    return {'expired': expired, 'errors': errors, 'bytes_freed': bytes_freed}
+    return {'expired': expired, 'errors': errors, 'bytes_freed': bytes_freed, 'purged': purged}
+
+
+async def _purge_login_state(engine):
+    """Delete spent authentication rows.
+
+    login_challenge grows by one row per sign-in attempt and auth_session keeps
+    every logged-out or expired login; nothing else prunes either. Both are pure
+    garbage once past their TTL. The one-day grace absorbs any skew between the
+    naive local timestamps the auth module writes and the database's now()."""
+    grace = timedelta(days=1)
+    async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+        challenges = (
+            await db.execute(
+                delete(LoginChallenge).where(LoginChallenge.expires_at < func.now() - grace)
+            )
+        ).rowcount
+        logins = (
+            await db.execute(
+                delete(AuthSession).where(
+                    or_(
+                        AuthSession.absolute_expiry < func.now() - grace,
+                        and_(
+                            AuthSession.revoked.is_(True),
+                            AuthSession.last_seen_at < func.now() - grace,
+                        ),
+                    )
+                )
+            )
+        ).rowcount
+        await db.commit()
+    print(f'cleanup: purged {challenges} login challenge(s), {logins} login session(s)')
+    return {'login_challenges': challenges, 'auth_sessions': logins}
 
 
 def _email_summary(summary):
@@ -196,6 +241,8 @@ def _email_summary(summary):
         f'Time       : {datetime.now().isoformat(timespec="seconds")}',
         f'Expired    : {len(expired)} session(s)',
         f'Disk freed : {_human_bytes(summary["bytes_freed"])}',
+        f'Challenges : {summary["purged"]["login_challenges"]} purged',
+        f'Logins     : {summary["purged"]["auth_sessions"]} purged',
         f'Errors     : {len(errors)}',
         '',
     ]

@@ -8,10 +8,14 @@
 
 \c internal;
 
-DROP TABLE IF EXISTS workflow, communication, notification, output_file, upload_file, session CASCADE;
+-- The auth tables are listed too: init-service.sql.template uses CREATE TABLE IF
+-- NOT EXISTS, so leaving them in place would silently skip any column added to
+-- them and a development reset would not match a fresh install.
+DROP TABLE IF EXISTS workflow, communication, notification, output_file, upload_file, session,
+  admin_access_audit, auth_session, login_challenge, app_user CASCADE;
 DROP TYPE IF EXISTS wf_status_code, wf_task_code, delivery_status_code,
   output_file_type, upload_file_type, target_depsys_code,
-  session_status_code, processing_site_code CASCADE;
+  session_status_code, processing_site_code, user_role_code CASCADE;
 
 DROP TYPE IF EXISTS processing_site_code;
 CREATE TYPE processing_site_code AS ENUM ('bmrb.io', 'pdbj.org');
@@ -266,8 +270,10 @@ CREATE TABLE IF NOT EXISTS workflow (
 );
 
 --
--- Passwordless login challenges (emailed magic link). Only a hash of the token
--- is stored; single-use and short-lived.
+-- Passwordless login challenges (emailed sign-in mail). One row backs BOTH
+-- credentials the mail carries -- the magic link and the typed code -- so
+-- spending either one consumes the challenge and kills the other. Only hashes
+-- are stored; single-use and short-lived.
 --
 
 CREATE TABLE IF NOT EXISTS login_challenge (
@@ -278,10 +284,23 @@ CREATE TABLE IF NOT EXISTS login_challenge (
     created_at      TIMESTAMP DEFAULT now(),
     expires_at      TIMESTAMP NOT NULL,
     consumed_at     TIMESTAMP,
-    attempts        INT NOT NULL DEFAULT 0,
-    claim_token     TEXT                                -- session.token to adopt on verify (carries a
+    attempts        INT NOT NULL DEFAULT 0,             -- wrong-code guesses against pending_id
+    claim_token     TEXT,                               -- session.token to adopt on verify (carries a
                                                         -- pending claim across the login round-trip)
+    pending_id      TEXT UNIQUE,                        -- opaque handle handed back to the device that
+                                                        -- asked for the mail; the code is only ever
+                                                        -- checked against it
+    code_hash       TEXT                                -- HMAC-SHA256(AUTH_SECRET, '<pending_id>:<code>').
+                                                        -- Keyed, unlike token_hash: a 6-digit code has
+                                                        -- only 10**6 preimages, so a plain digest would
+                                                        -- be reversible by inspection.
 );
+
+-- The login flow's lookup paths: the emailed link (token_hash) and the nightly
+-- retention purge (expires_at). Every /api/auth/verify* attempt hits this table,
+-- and pending_id is covered by the UNIQUE constraint above.
+CREATE INDEX IF NOT EXISTS login_challenge_token_hash_idx ON login_challenge (token_hash);
+CREATE INDEX IF NOT EXISTS login_challenge_expires_at_idx ON login_challenge (expires_at);
 
 --
 -- Server-side authenticated sessions. The opaque id is stored in an httpOnly,
