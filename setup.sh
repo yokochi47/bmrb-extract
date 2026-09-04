@@ -233,6 +233,38 @@ echo
 
 docker volume ls
 
+#
+# Verify frontend version before deploy
+#
+frontend_version=$(grep -m1 '"version"' frontend/package.json \
+  | sed -E 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
+FRONTEND_VERSION=$(grep -m1 'FRONTEND_VERSION' frontend/src/site.config.ts \
+  | sed -E "s/.*=[[:space:]]'([^']+)'.*/\1/")
+
+if [[ ${FRONTEND_VERSION} != ${frontend_version} ]] ; then
+
+  export FRONTEND_VERSION=${frontend_version}
+
+  if [[ ${SERVICE_DOMAIN} = "bmrb.io" ]] ; then
+
+    ( cd frontend/src
+      rm -f index.html site.config.ts
+      ln -s index.bmrb.html index.html
+      envsubst < bmrb.config.ts.template > bmrb.config.ts
+      ln -s bmrb.config.ts site.config.ts )
+
+  elif [[ "${SERVICE_DOMAIN}" = "pdbj.org" ]] ; then
+
+    ( cd frontend/src
+      rm -f index.html site.config.ts
+      ln -s index.bmrbj.html index.html
+      envsubst < bmrbj.config.ts.template > bmrbj.config.ts
+      ln -s bmrbj.config.ts site.config.ts )
+
+  fi
+
+fi
+
 BUILD_OPTION=
 if [[ $# -ge 1 ]] ; then
  BUILD_OPTION=$1
