@@ -732,11 +732,18 @@ async def verify_email():
 
 def _send_email(to_address: str, subject: str, content: str) -> str:
     """Send a plain-text email via the internal relay (port 25, best-effort).
-    Returns the DeliveryStatusCode value ('sent' or 'failed')."""
+    Returns the DeliveryStatusCode value ('sent' or 'failed').
+
+    Every caller of this helper writes to a user or to the help desk, so the
+    sender is the monitored help mailbox, never the operations mailbox
+    (SERVICE_ADMIN_EMAIL) — a general user must never see that address, nor
+    reply into it. Admin-only alerts are sent by the Prefect flows instead,
+    which keep their own admin-to-admin mailer. Reply-To is redundant with
+    From now, but survives a relay that rewrites the envelope sender."""
     try:
         msg = EmailMessage()
         msg['Subject'] = subject
-        msg['From'] = SERVICE_ADMIN_EMAIL
+        msg['From'] = SERVICE_HELP_EMAIL
         msg['To'] = to_address
         msg['Reply-To'] = SERVICE_HELP_EMAIL
         msg.set_content(content)
