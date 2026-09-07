@@ -53,6 +53,7 @@ from core.models import (  # noqa: E402
     WfStatusCode,
     WfTaskCode,
 )
+import core.site_config as cfg  # noqa: E402
 from core.site_config import (  # noqa: E402
     MAXIT_CCD_IMAGE,
     MAXIT_MEMORY_LIMIT,
@@ -69,6 +70,10 @@ from core.site_config import (  # noqa: E402
     SUCCESS_VALIDITY_PERIOD_IN_DAYS,
     FAILURE_VALIDITY_PERIOD_IN_DAYS,
 )
+
+# Optional peer-site admin address for failure alerts, read defensively so the
+# flow imports even before config.sh has re-rendered site_config.py with it.
+PEER_ADMIN_EMAIL = getattr(cfg, 'PEER_ADMIN_EMAIL', '') or ''
 
 
 @task(name='issue-conversion', retries=1)
@@ -1130,14 +1135,21 @@ def nmr_data_conversion(
     return ok, attempt_nef
 
 
-def _send_admin_email(subject: str, content: str) -> str:
+def _send_admin_email(subject: str, content: str, include_peer: bool = False) -> str:
     """Send a plain-text email to the site admin (best-effort; plain internal
-    relay on port 25). Returns 'sent' or 'failed'."""
+    relay on port 25). Returns 'sent' or 'failed'.
+
+    `include_peer` also addresses the peer site's admin (PEER_ADMIN_EMAIL, when
+    configured) so a failure here is visible at the other site; routine mail
+    leaves it False and stays site-local."""
     try:
+        to = [SERVICE_ADMIN_EMAIL]
+        if include_peer and PEER_ADMIN_EMAIL and PEER_ADMIN_EMAIL != SERVICE_ADMIN_EMAIL:
+            to.append(PEER_ADMIN_EMAIL)
         msg = EmailMessage()
         msg['Subject'] = subject
         msg['From'] = SERVICE_ADMIN_EMAIL
-        msg['To'] = SERVICE_ADMIN_EMAIL
+        msg['To'] = ', '.join(to)
         msg.set_content(content)
         with smtplib.SMTP(SMTP_SERVER, 25, timeout=30) as smtp:
             smtp.send_message(msg)
@@ -1199,7 +1211,7 @@ async def _notify_admin_failure(
             f'Log           : {log_path or "(none)"}\n'
             f'Time          : {datetime.now().isoformat(timespec="seconds")}\n'
         )
-        delivery_status = _send_admin_email(subject, content)
+        delivery_status = _send_admin_email(subject, content, include_peer=True)
         await _record_notification(conversion_id, subject, content, delivery_status)
         print(f'[{conversion_id}] failure notification for {task.value} (delivery={delivery_status})')
     except Exception as exc:  # noqa: BLE001

@@ -56,6 +56,7 @@ from core.models import (  # noqa: E402
     UploadFile,
     Workflow,
 )
+import core.site_config as cfg  # noqa: E402
 from core.site_config import (  # noqa: E402
     ARCHIVE_BASE_PATH,
     SERVICE_ADMIN_EMAIL,
@@ -65,18 +66,26 @@ from core.site_config import (  # noqa: E402
     WORKSPACE_BASE_PATH,
 )
 
+# Optional peer-site admin address for failure alerts, read defensively so the
+# flow imports even before config.sh has re-rendered site_config.py with it.
+PEER_ADMIN_EMAIL = getattr(cfg, 'PEER_ADMIN_EMAIL', '') or ''
 
-def _send_admin_email(subject: str, content: str) -> str:
+
+def _send_admin_email(subject: str, content: str, include_peer: bool = False) -> str:
     """Send a plain-text email to the site admin (best-effort; plain internal
-    relay on port 25). Returns 'sent' or 'failed'. Mirrors the helper of the
-    same name in process_session.py — flow modules are loaded standalone (the
-    shared `core.*` package holds only the ORM/config), so it is duplicated
-    here rather than cross-imported."""
+    relay on port 25), and with `include_peer` to the peer site's admin as well
+    (PEER_ADMIN_EMAIL, when configured). Returns 'sent' or 'failed'. Mirrors the
+    helper of the same name in process_session.py — flow modules are loaded
+    standalone (the shared `core.*` package holds only the ORM/config), so it is
+    duplicated here rather than cross-imported."""
     try:
+        to = [SERVICE_ADMIN_EMAIL]
+        if include_peer and PEER_ADMIN_EMAIL and PEER_ADMIN_EMAIL != SERVICE_ADMIN_EMAIL:
+            to.append(PEER_ADMIN_EMAIL)
         msg = EmailMessage()
         msg['Subject'] = subject
         msg['From'] = SERVICE_ADMIN_EMAIL
-        msg['To'] = SERVICE_ADMIN_EMAIL
+        msg['To'] = ', '.join(to)
         msg.set_content(content)
         with smtplib.SMTP(SMTP_SERVER, 25, timeout=30) as smtp:
             smtp.send_message(msg)
@@ -277,7 +286,7 @@ def cleanup_sessions_flow(
             f'Time: {datetime.now().isoformat(timespec="seconds")}\n\n'
             f'{traceback.format_exc()}'
         )
-        _send_admin_email(subject, content)
+        _send_admin_email(subject, content, include_peer=True)
         raise
     _email_summary(summary)
     return summary

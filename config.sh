@@ -140,6 +140,14 @@ if [[ -z "${PEER_HOST:-}" ]] ; then
   read PEER_HOST
 fi
 
+# PEER_ADMIN_EMAIL is independent of PEER_HOST: failure alerts are addressed to
+# both admins as soon as it is set, even while the exchange flow stays disabled.
+# Left unvalidated on purpose -- empty is a valid answer.
+if [[ -z "${PEER_ADMIN_EMAIL:-}" ]] ; then
+  echo "Enter peer site administrator e-mail address for failure alerts (leave empty to disable):"
+  read PEER_ADMIN_EMAIL
+fi
+
 email_regex='^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\n$'
 email_list_regex='^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:\s*,\s*[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})*\n?$'
 
@@ -290,6 +298,7 @@ export SERVICE_ANNOT_EMAILS=${SERVICE_ANNOT_EMAILS}
 # Cross-site data exchange (peer production server; empty PEER_HOST disables it)
 export PEER_HOST=${PEER_HOST}
 export PEER_DOMAIN=${PEER_DOMAIN}
+export PEER_ADMIN_EMAIL=${PEER_ADMIN_EMAIL}
 
 # Nginx
 NGINX_LOG_FORMAT=${NGINX_LOG_FORMAT}
