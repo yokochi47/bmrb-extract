@@ -66,6 +66,7 @@ from core.site_config import (  # noqa: E402
 # has re-rendered site_config.py with the PEER_* constants) --------------------
 PEER_HOST = getattr(cfg, 'PEER_HOST', '') or ''
 PEER_DOMAIN = getattr(cfg, 'PEER_DOMAIN', '') or ''
+PEER_ADMIN_EMAIL = getattr(cfg, 'PEER_ADMIN_EMAIL', '') or ''
 PEER_SSH_USER = getattr(cfg, 'PEER_SSH_USER', '') or 'bmrbxchg'
 PEER_SSH_PORT = str(getattr(cfg, 'PEER_SSH_PORT', '') or '22')
 PEER_SSH_KEY = getattr(cfg, 'PEER_SSH_KEY', '') or '/secrets/peer_ssh_key'
@@ -86,15 +87,19 @@ def _peer_domain() -> str:
     return {'bmrb.io': 'pdbj.org', 'pdbj.org': 'bmrb.io'}.get(SERVICE_DOMAIN, '')
 
 
-def _send_admin_email(subject: str, content: str) -> str:
-    """Plain-text email to the site admin (best-effort; internal relay, port 25).
+def _send_admin_email(subject: str, content: str, include_peer: bool = False) -> str:
+    """Plain-text email to the site admin (best-effort; internal relay, port 25),
+    plus the peer site's admin when `include_peer` and PEER_ADMIN_EMAIL is set.
     Duplicated from cleanup.py / process_session.py — flow modules load standalone.
     """
     try:
+        to = [SERVICE_ADMIN_EMAIL]
+        if include_peer and PEER_ADMIN_EMAIL and PEER_ADMIN_EMAIL != SERVICE_ADMIN_EMAIL:
+            to.append(PEER_ADMIN_EMAIL)
         msg = EmailMessage()
         msg['Subject'] = subject
         msg['From'] = SERVICE_ADMIN_EMAIL
-        msg['To'] = SERVICE_ADMIN_EMAIL
+        msg['To'] = ', '.join(to)
         msg.set_content(content)
         with smtplib.SMTP(SMTP_SERVER, 25, timeout=30) as smtp:
             smtp.send_message(msg)
@@ -404,6 +409,7 @@ def _record_and_maybe_alert(ok: bool, summary: dict) -> None:
                 f'Last success: {since}\n'
                 f'Time        : {now.isoformat(timespec="seconds")}\n\n'
                 f'Latest detail:\n{summary.get("error") or summary}\n',
+                include_peer=True,
             )
             st['alert_date'] = today
     _save_state(st)

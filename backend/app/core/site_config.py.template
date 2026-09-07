@@ -42,6 +42,12 @@ WORKSPACE_BASE_PATH = '${WORKSPACE_BASE_PATH}'
 # command the peer SSH account runs to read its own 'internal' DB (SQL on stdin).
 PEER_HOST = '${PEER_HOST}'
 PEER_DOMAIN = '${PEER_DOMAIN}'
+# Optional: peer site's administrator address. Failure alerts (a workflow task
+# marked failed, the cleanup flow dying, the exchange failing for a day) are
+# addressed to both admins so an outage at one site is visible at the other;
+# routine mail (new conversion, nightly cleanup summary) stays site-local.
+# Empty = local admin only. Independent of PEER_HOST.
+PEER_ADMIN_EMAIL = '${PEER_ADMIN_EMAIL}'
 PEER_SSH_USER = '${PEER_SSH_USER}'
 PEER_SSH_PORT = '${PEER_SSH_PORT}'
 PEER_SSH_KEY = '${PEER_SSH_KEY}'
