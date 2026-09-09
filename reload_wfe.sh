@@ -12,7 +12,7 @@ FRONTEND_VERSION=$(grep -m1 'FRONTEND_VERSION' frontend/src/site.config.ts \
 
 if [[ ${FRONTEND_VERSION} != ${frontend_version} ]] ; then
 
-  export FRONTEND_VERSION=${frontend_version}
+  source .env
 
   if [[ ${SERVICE_DOMAIN} = "bmrb.io" ]] ; then
 

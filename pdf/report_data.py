@@ -321,7 +321,20 @@ def rci_charts(chem_shift_list, auth=False):
             if not seq:
                 continue
             cats = [f"{comp[i] if i < len(comp) else ''} {seq[i]}".strip() for i in range(len(seq))]
-            bands = _struct_conf_bands(rci.get('struct_conf'))
+            sc_bands = _struct_conf_bands(rci.get('struct_conf'))
+            dom_bands = _domain_bands(rci.get('domain_id'))
+            if sc_bands:
+                # Secondary structure is annotated: keep it and add only the
+                # unmodeled stretches (a residue absent from the coordinates has
+                # no secondary structure, so the two never overlap). Unmodeled
+                # first, so the more specific band paints on top.
+                bands = [b for b in dom_bands if b['type'] == 'unmodeled'] + sc_bands
+            else:
+                # The model file carries no _struct_conf / _struct_sheet_range
+                # (a pre-annotation OneDep coordinate file, or a nucleic-acid
+                # entry): fall back to the well-defined cores and unmodeled
+                # stretches, so the plot is banded like the NMR-RMSD one.
+                bands = dom_bands
             chain = rci.get(chain_key)
             order = [
                 {'name': nm, 'data': rci[k]}
@@ -339,7 +352,7 @@ def rci_charts(chem_shift_list, auth=False):
                 ymax = max(max(rmsd_vals), 3.0) if rmsd_vals else 3.0
                 charts.append({'chain': chain, 'label': 'NMR RMSD (Å)', 'sf': sf, 'categories': cats,
                                'series': [{'name': 'NMR RMSD', 'data': rmsd}],
-                               'bands': _domain_bands(rci.get('domain_id')),
+                               'bands': dom_bands,
                                'ymin': 0, 'ymax': ymax,
                                'threshold': round(thr, 2) if isinstance(thr, (int, float)) else None})
     return charts
