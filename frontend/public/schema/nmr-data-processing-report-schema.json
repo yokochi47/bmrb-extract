@@ -4906,6 +4906,9 @@
                 "$ref": "#/definitions/output_stats_chem_shift_unmapped"
               },
               {
+                "$ref": "#/definitions/output_stats_chem_shift_unmodeled"
+              },
+              {
                 "$ref": "#/definitions/output_stats_chem_shift_histogram"
               },
               {
@@ -5716,6 +5719,11 @@
           "type": "integer",
           "minimum": 0
         },
+        "number_of_mapped_to_unmodel": {
+          "description": "Total number of mapped item to unmodeled region (chemical shifts, restraints, spectral peaks).",
+          "type": "integer",
+          "minimum": 0
+        },
         "number_of_unmapped_to_model": {
           "description": "Total number of unmapped item to model (chemical shifts, restraints, spectral peaks).",
           "type": "integer",
@@ -6000,6 +6008,25 @@
       "type": "object",
       "properties": {
         "chemical_shift_unmapped": {
+          "type": "array",
+          "items": {
+            "allOf": [
+              {
+                "$ref": "#/definitions/output_stats_chem_shift_error_base"
+              },
+              {
+                "$ref": "#/definitions/output_stats_chem_shift_unmapped_details"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "output_stats_chem_shift_unmodeled": {
+      "description": "Template for unmodeled chemical shifts of output statistics.",
+      "type": "object",
+      "properties": {
+        "chemical_shift_unmodeled": {
           "type": "array",
           "items": {
             "allOf": [

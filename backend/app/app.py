@@ -2902,8 +2902,8 @@ _ALL_VIOLATION_KEYS = (
 _CHEM_SHIFT_STATS_KEYS = (
     'original_file_name', 'list_id', 'sf_framecode',
     'number_of_parsed', 'number_of_mapped_to_model', 'number_of_unmapped_to_model',
-    'number_of_unparsed_with_error', 'number_of_parsed_with_warning',
-    'number_of_outliers',
+    'number_of_mapped_to_unmodel', 'number_of_unparsed_with_error',
+    'number_of_parsed_with_warning', 'number_of_outliers',
 )
 
 # Common bookkeeping columns shared by the restraint / spectral-peak subtypes
@@ -2945,10 +2945,12 @@ def _bookkeeping_by_sf(report):
         pairs = [
             (f'Number of parsed {noun}', item.get('number_of_parsed')),
             (f'Number of {noun} mapped to model', item.get('number_of_mapped_to_model')),
-            (f'Number of {noun} unmapped to model', item.get('number_of_unmapped_to_model')),
-            (f'Number of unparsed {noun} with error', item.get('number_of_unparsed_with_error')),
-            (f'Number of parsed {noun} with warning', item.get('number_of_parsed_with_warning')),
+            (f'Number of {noun} mapped with errors', item.get('number_of_unmapped_to_model')),
+            (f'Number of unparsed {noun} with errors', item.get('number_of_unparsed_with_error')),
+            (f'Number of parsed {noun} with warnings', item.get('number_of_parsed_with_warning')),
         ]
+        if noun == 'shifts':
+            pairs.append(('Number of shifts mapped with warnings', item.get('number_of_mapped_to_unmodel')))
         if outliers:
             pairs.append(('Number of chemical shift outliers', item.get('number_of_outliers')))
         return [{'label': lbl, 'value': v} for lbl, v in pairs if v is not None]
@@ -2970,7 +2972,7 @@ def _bookkeeping_by_sf(report):
 
 
 # Per-shift columns kept for each unmapped assigned chemical shift
-# (output_statistics.chem_shift[].chemical_shift_unmapped) — shown in a collapsible
+# (output_statistics.chem_shift[].chemical_shift_(unmapped | unmodeled)) — shown in a collapsible
 # table when a saveframe has unmapped shifts.
 _CHEM_SHIFT_UNMAPPED_KEYS = (
     'auth_chain_id', 'auth_seq_id', 'ins_code', 'comp_id', 'atom_id',
@@ -3193,6 +3195,13 @@ async def get_output_statistics():
                 row['chemical_shift_unmapped'] = [
                     {k: u[k] for k in _CHEM_SHIFT_UNMAPPED_KEYS if k in u}
                     for u in unmapped if isinstance(u, dict)
+                ]
+            # Unmodeled assigned shifts (rendered as a collapsible table when > 0).
+            unmodeled = item.get('chemical_shift_unmodeled')
+            if isinstance(unmodeled, list) and unmodeled:
+                row['chemical_shift_unmodeled'] = [
+                    {k: u[k] for k in _CHEM_SHIFT_UNMAPPED_KEYS if k in u}
+                    for u in unmodeled if isinstance(u, dict)
                 ]
             # Chemical shift outliers (rendered as a collapsible table when > 0).
             outlier = item.get('chemical_shift_outlier')

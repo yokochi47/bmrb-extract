@@ -211,10 +211,7 @@ export class AuthService {
     if (token) this.claimSession(token).subscribe({ error: () => undefined });
   }
 
-  requestLogin(
-    email: string,
-    claimToken?: string | null,
-  ): Observable<LoginRequested> {
+  requestLogin(email: string, claimToken?: string | null): Observable<LoginRequested> {
     const body: { email: string; claim_token?: string } = { email };
     if (claimToken) body.claim_token = claimToken;
     return this.http.post<LoginRequested>(API_URL + 'auth/request_login', body).pipe(

@@ -233,10 +233,13 @@ interface StatChemShiftSaveframe {
   number_of_parsed?: number;
   number_of_mapped_to_model?: number;
   number_of_unmapped_to_model?: number;
+  number_of_mapped_to_unmodel?: number;
   number_of_unparsed_with_error?: number;
   number_of_parsed_with_warning?: number;
   number_of_outliers?: number;
   chemical_shift_unmapped?: StatChemShiftUnmapped[];
+  /** Unmodeled shifts share the unmapped column shape (value/error/ambig_code). */
+  chemical_shift_unmodeled?: StatChemShiftUnmapped[];
   chemical_shift_outlier?: StatChemShiftOutlier[];
   chemical_shift_unparsed?: StatChemShiftUnparsed[];
   /** Duplicated shifts share the unmapped column shape (value/error/ambig_code). */
@@ -831,9 +834,9 @@ export class Download {
         rows: [
           this.kv(`Number of parsed ${d.noun}`, s.number_of_parsed),
           this.kv(`Number of ${d.noun} mapped to model`, s.number_of_mapped_to_model),
-          this.kv(`Number of ${d.noun} unmapped to model`, s.number_of_unmapped_to_model),
-          this.kv(`Number of unparsed ${d.noun} with error`, s.number_of_unparsed_with_error),
-          this.kv(`Number of parsed ${d.noun} with warning`, s.number_of_parsed_with_warning),
+          this.kv(`Number of ${d.noun} with mapping errors`, s.number_of_unmapped_to_model),
+          this.kv(`Number of unparsed ${d.noun} with errors`, s.number_of_unparsed_with_error),
+          this.kv(`Number of parsed ${d.noun} with warnings`, s.number_of_parsed_with_warning),
         ].filter((r): r is KVRow => r !== null),
         atomNameMapping: s.atom_name_mapping ?? [],
       })),
@@ -1008,6 +1011,8 @@ export class Download {
       rows: KVRow[];
       unmapped: StatChemShiftUnmapped[];
       unmappedCount: number;
+      unmodeled: StatChemShiftUnmapped[];
+      unmodeledCount: number;
       showInsCode: boolean;
       outlier: StatChemShiftOutlier[];
       outlierCount: number;
@@ -1027,6 +1032,7 @@ export class Download {
   >(() =>
     (this.statistics()?.chem_shift ?? []).map((s) => {
       const unmapped = s.chemical_shift_unmapped ?? [];
+      const unmodeled = s.chemical_shift_unmodeled ?? [];
       const outlier = s.chemical_shift_outlier ?? [];
       const unparsed = s.chemical_shift_unparsed ?? [];
       const duplicated = s.chemical_shift_duplicated ?? [];
@@ -1051,13 +1057,16 @@ export class Download {
         rows: [
           this.kv('Number of parsed shifts', s.number_of_parsed),
           this.kv('Number of shifts mapped to model', s.number_of_mapped_to_model),
-          this.kv('Number of shifts unmapped to model', s.number_of_unmapped_to_model),
-          this.kv('Number of unparsed shifts with error', s.number_of_unparsed_with_error),
-          this.kv('Number of parsed shifts with warning', s.number_of_parsed_with_warning),
+          this.kv('Number of shifts with mapping errors', s.number_of_unmapped_to_model),
+          this.kv('Number of shifts with mapping warnings', s.number_of_mapped_to_unmodel),
+          this.kv('Number of unparsed shifts with errors', s.number_of_unparsed_with_error),
+          this.kv('Number of parsed shifts with warnings', s.number_of_parsed_with_warning),
           this.kv('Number of chemical shift outliers', s.number_of_outliers),
         ].filter((r): r is KVRow => r !== null),
         unmapped,
         unmappedCount: s.number_of_unmapped_to_model ?? unmapped.length,
+        unmodeled,
+        unmodeledCount: s.number_of_mapped_to_unmodel ?? unmodeled.length,
         // Hide the Ins code column when no row carries an insertion code.
         showInsCode: hasInsCode(unmapped),
         outlier,
