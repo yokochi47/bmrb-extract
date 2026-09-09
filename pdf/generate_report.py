@@ -83,6 +83,29 @@ def restraint_type_label(value) -> str:
     return s[:1].upper() + s[1:]
 
 
+def fold_one_letter_seq(seq, residues_per_line=60, block=10, max_chars=110):
+    """Fold a polymer one-letter code sequence into space-separated blocks of
+    `block` residues (mirrors the frontend foldOneLetterSeq in page.download.ts
+    — keep the two in step).
+
+    A residue is a single character or a parenthesized code such as (DC5), so a
+    nucleic-acid sequence never breaks inside the parentheses. Wide residues
+    would push a `residues_per_line`-long line past the 178 mm content box, so
+    the number of blocks per line is reduced to stay within `max_chars`."""
+    if not seq:
+        return seq
+    residues = re.findall(r'\([^)]*\)|\S', str(seq).strip())
+    if not residues:
+        return ''
+    blocks = [''.join(residues[i:i + block])
+              for i in range(0, len(residues), block)]
+    widest = max(len(r) for r in residues)
+    per_line = max(1, min(residues_per_line // block,
+                          (max_chars + 1) // (block * widest + 1)))
+    return '\n'.join(' '.join(blocks[i:i + per_line])
+                      for i in range(0, len(blocks), per_line))
+
+
 def output_statistics(report: dict) -> dict:
     return (report.get('information', {}) or {}).get('output_statistics', {}) or {}
 
@@ -812,6 +835,7 @@ def main() -> int:
     env.filters['restraint_type_label'] = restraint_type_label
     env.filters['pct1'] = lambda v: '' if v is None else f'{v:.1f}'
     env.filters['yesno'] = lambda v: None if v is None else ('Yes' if v else 'No')
+    env.filters['seq_fold'] = fold_one_letter_seq
     env.filters['formatsize'] = _format_size
     import report_data as _rd
     env.filters['input_type_label'] = _rd.input_file_type_label

@@ -140,6 +140,18 @@ tr { break-inside: avoid; }
 
 td.num, th.num { text-align: center; }
 td.mono { font-family: 'Lato', monospace; word-break: break-all; }
+
+/* Section 3 one-letter code sequences: the seq_fold filter has already folded
+   them into space-separated blocks of 10 residues, so pre-wrap breaks a still
+   too-wide line at a block boundary; overflow-wrap is the last-resort guard
+   against running off the page as the unfolded sequence used to. */
+pre.seq {
+  font-family: monospace;
+  font-size: 7.5pt;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 0 0 2mm;
+}
 .warn { color: #dc2626; }
 
 

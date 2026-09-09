@@ -288,6 +288,35 @@ interface CompletenessView {
   overallTarget: number | null;
   stereo: { assigned: number; target: number } | null;
 }
+/** Fold a polymer one-letter code sequence into space-separated blocks of 10
+ * residues, 60 residues per line (mirrors fold_one_letter_seq in
+ * pdf/generate_report.py, so section 3 reads the same on screen and in the PDF
+ * report — keep the two in step).
+ *
+ * A residue is a single character or a parenthesized code such as (DC5), so a
+ * nucleic-acid sequence never breaks inside the parentheses. Wide residues
+ * would push a 60-residue line past the PDF's content box, so the blocks per
+ * line are reduced to stay within maxChars characters. */
+function foldOneLetterSeq(seq: string, residuesPerLine = 60, block = 10, maxChars = 110): string {
+  if (!seq) return seq;
+  const residues = seq.trim().match(/\([^)]*\)|[^\s]/g);
+  if (!residues) return '';
+  const blocks: string[] = [];
+  for (let i = 0; i < residues.length; i += block) {
+    blocks.push(residues.slice(i, i + block).join(''));
+  }
+  const widest = residues.reduce((w, r) => Math.max(w, r.length), 1);
+  const perLine = Math.max(
+    1,
+    Math.min(Math.floor(residuesPerLine / block), Math.floor((maxChars + 1) / (block * widest + 1))),
+  );
+  const lines: string[] = [];
+  for (let i = 0; i < blocks.length; i += perLine) {
+    lines.push(blocks.slice(i, i + perLine).join(' '));
+  }
+  return lines.join('\n');
+}
+
 /** Assignment categories shown as table rows, in display order (schema spellings). */
 const COMPLETENESS_ROWS: { key: keyof StatCompletenessRegion; label: string }[] = [
   { key: 'completeness_of_backbone_assignments', label: 'Backbone' },
@@ -941,7 +970,10 @@ export class Download {
   entitySequences = computed<{ entity_id?: number; seq: string }[]>(() =>
     this.entityRows()
       .filter((e) => !!e.polymer_seq_one_letter_code)
-      .map((e) => ({ entity_id: e.entity_id, seq: e.polymer_seq_one_letter_code as string })),
+      .map((e) => ({
+        entity_id: e.entity_id,
+        seq: foldOneLetterSeq(e.polymer_seq_one_letter_code as string),
+      })),
   );
   /** Software used in the conversion (table). */
   softwareRows = computed<StatSoftware[]>(() => this.statistics()?.software ?? []);
