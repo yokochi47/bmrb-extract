@@ -233,10 +233,13 @@ interface StatChemShiftSaveframe {
   number_of_parsed?: number;
   number_of_mapped_to_model?: number;
   number_of_unmapped_to_model?: number;
+  number_of_mapped_to_unmodel?: number;
   number_of_unparsed_with_error?: number;
   number_of_parsed_with_warning?: number;
   number_of_outliers?: number;
   chemical_shift_unmapped?: StatChemShiftUnmapped[];
+  /** Unmodeled shifts share the unmapped column shape (value/error/ambig_code). */
+  chemical_shift_unmodeled?: StatChemShiftUnmapped[];
   chemical_shift_outlier?: StatChemShiftOutlier[];
   chemical_shift_unparsed?: StatChemShiftUnparsed[];
   /** Duplicated shifts share the unmapped column shape (value/error/ambig_code). */
@@ -285,6 +288,35 @@ interface CompletenessView {
   overallTarget: number | null;
   stereo: { assigned: number; target: number } | null;
 }
+/** Fold a polymer one-letter code sequence into space-separated blocks of 10
+ * residues, 60 residues per line (mirrors fold_one_letter_seq in
+ * pdf/generate_report.py, so section 3 reads the same on screen and in the PDF
+ * report — keep the two in step).
+ *
+ * A residue is a single character or a parenthesized code such as (DC5), so a
+ * nucleic-acid sequence never breaks inside the parentheses. Wide residues
+ * would push a 60-residue line past the PDF's content box, so the blocks per
+ * line are reduced to stay within maxChars characters. */
+function foldOneLetterSeq(seq: string, residuesPerLine = 60, block = 10, maxChars = 110): string {
+  if (!seq) return seq;
+  const residues = seq.trim().match(/\([^)]*\)|[^\s]/g);
+  if (!residues) return '';
+  const blocks: string[] = [];
+  for (let i = 0; i < residues.length; i += block) {
+    blocks.push(residues.slice(i, i + block).join(''));
+  }
+  const widest = residues.reduce((w, r) => Math.max(w, r.length), 1);
+  const perLine = Math.max(
+    1,
+    Math.min(Math.floor(residuesPerLine / block), Math.floor((maxChars + 1) / (block * widest + 1))),
+  );
+  const lines: string[] = [];
+  for (let i = 0; i < blocks.length; i += perLine) {
+    lines.push(blocks.slice(i, i + perLine).join(' '));
+  }
+  return lines.join('\n');
+}
+
 /** Assignment categories shown as table rows, in display order (schema spellings). */
 const COMPLETENESS_ROWS: { key: keyof StatCompletenessRegion; label: string }[] = [
   { key: 'completeness_of_backbone_assignments', label: 'Backbone' },
@@ -831,9 +863,9 @@ export class Download {
         rows: [
           this.kv(`Number of parsed ${d.noun}`, s.number_of_parsed),
           this.kv(`Number of ${d.noun} mapped to model`, s.number_of_mapped_to_model),
-          this.kv(`Number of ${d.noun} unmapped to model`, s.number_of_unmapped_to_model),
-          this.kv(`Number of unparsed ${d.noun} with error`, s.number_of_unparsed_with_error),
-          this.kv(`Number of parsed ${d.noun} with warning`, s.number_of_parsed_with_warning),
+          this.kv(`Number of ${d.noun} with mapping errors`, s.number_of_unmapped_to_model),
+          this.kv(`Number of unparsed ${d.noun} with errors`, s.number_of_unparsed_with_error),
+          this.kv(`Number of parsed ${d.noun} with warnings`, s.number_of_parsed_with_warning),
         ].filter((r): r is KVRow => r !== null),
         atomNameMapping: s.atom_name_mapping ?? [],
       })),
@@ -938,7 +970,10 @@ export class Download {
   entitySequences = computed<{ entity_id?: number; seq: string }[]>(() =>
     this.entityRows()
       .filter((e) => !!e.polymer_seq_one_letter_code)
-      .map((e) => ({ entity_id: e.entity_id, seq: e.polymer_seq_one_letter_code as string })),
+      .map((e) => ({
+        entity_id: e.entity_id,
+        seq: foldOneLetterSeq(e.polymer_seq_one_letter_code as string),
+      })),
   );
   /** Software used in the conversion (table). */
   softwareRows = computed<StatSoftware[]>(() => this.statistics()?.software ?? []);
@@ -1008,6 +1043,8 @@ export class Download {
       rows: KVRow[];
       unmapped: StatChemShiftUnmapped[];
       unmappedCount: number;
+      unmodeled: StatChemShiftUnmapped[];
+      unmodeledCount: number;
       showInsCode: boolean;
       outlier: StatChemShiftOutlier[];
       outlierCount: number;
@@ -1027,6 +1064,7 @@ export class Download {
   >(() =>
     (this.statistics()?.chem_shift ?? []).map((s) => {
       const unmapped = s.chemical_shift_unmapped ?? [];
+      const unmodeled = s.chemical_shift_unmodeled ?? [];
       const outlier = s.chemical_shift_outlier ?? [];
       const unparsed = s.chemical_shift_unparsed ?? [];
       const duplicated = s.chemical_shift_duplicated ?? [];
@@ -1051,13 +1089,16 @@ export class Download {
         rows: [
           this.kv('Number of parsed shifts', s.number_of_parsed),
           this.kv('Number of shifts mapped to model', s.number_of_mapped_to_model),
-          this.kv('Number of shifts unmapped to model', s.number_of_unmapped_to_model),
-          this.kv('Number of unparsed shifts with error', s.number_of_unparsed_with_error),
-          this.kv('Number of parsed shifts with warning', s.number_of_parsed_with_warning),
+          this.kv('Number of shifts with mapping errors', s.number_of_unmapped_to_model),
+          this.kv('Number of shifts with mapping warnings', s.number_of_mapped_to_unmodel),
+          this.kv('Number of unparsed shifts with errors', s.number_of_unparsed_with_error),
+          this.kv('Number of parsed shifts with warnings', s.number_of_parsed_with_warning),
           this.kv('Number of chemical shift outliers', s.number_of_outliers),
         ].filter((r): r is KVRow => r !== null),
         unmapped,
         unmappedCount: s.number_of_unmapped_to_model ?? unmapped.length,
+        unmodeled,
+        unmodeledCount: s.number_of_mapped_to_unmodel ?? unmodeled.length,
         // Hide the Ins code column when no row carries an insertion code.
         showInsCode: hasInsCode(unmapped),
         outlier,

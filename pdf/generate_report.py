@@ -83,6 +83,29 @@ def restraint_type_label(value) -> str:
     return s[:1].upper() + s[1:]
 
 
+def fold_one_letter_seq(seq, residues_per_line=60, block=10, max_chars=110):
+    """Fold a polymer one-letter code sequence into space-separated blocks of
+    `block` residues (mirrors the frontend foldOneLetterSeq in page.download.ts
+    — keep the two in step).
+
+    A residue is a single character or a parenthesized code such as (DC5), so a
+    nucleic-acid sequence never breaks inside the parentheses. Wide residues
+    would push a `residues_per_line`-long line past the 178 mm content box, so
+    the number of blocks per line is reduced to stay within `max_chars`."""
+    if not seq:
+        return seq
+    residues = re.findall(r'\([^)]*\)|\S', str(seq).strip())
+    if not residues:
+        return ''
+    blocks = [''.join(residues[i:i + block])
+              for i in range(0, len(residues), block)]
+    widest = max(len(r) for r in residues)
+    per_line = max(1, min(residues_per_line // block,
+                          (max_chars + 1) // (block * widest + 1)))
+    return '\n'.join(' '.join(blocks[i:i + per_line])
+                      for i in range(0, len(blocks), per_line))
+
+
 def output_statistics(report: dict) -> dict:
     return (report.get('information', {}) or {}).get('output_statistics', {}) or {}
 
@@ -470,9 +493,9 @@ def build_restraint_sections(stats: dict) -> dict:
                 'rows': [
                     (f'Number of parsed {noun}', it.get('number_of_parsed')),
                     (f'Number of {noun} mapped to model', it.get('number_of_mapped_to_model')),
-                    (f'Number of {noun} unmapped to model', it.get('number_of_unmapped_to_model')),
-                    (f'Number of unparsed {noun} with error', it.get('number_of_unparsed_with_error')),
-                    (f'Number of parsed {noun} with warning', it.get('number_of_parsed_with_warning')),
+                    (f'Number of {noun} mapped with errors', it.get('number_of_unmapped_to_model')),
+                    (f'Number of unparsed {noun} with errors', it.get('number_of_unparsed_with_error')),
+                    (f'Number of parsed {noun} with warnings', it.get('number_of_parsed_with_warning')),
                 ],
                 'atom_mapping': rd.atom_name_mapping(it),
             })
@@ -595,7 +618,7 @@ def _split_notice_css(doc) -> str:
 def build_chem_shift_sections(stats: dict, sf_charts: dict) -> list:
     """Full Section 5 content, one entry per chemical-shift saveframe: bookkeeping
     counts, atom-name-mapping history, completeness pivots, the statistically
-    unusual (outlier) shifts, and the unmapped/unparsed/duplicated shift tables,
+    unusual (outlier) shifts, and the unmapped/unmodeled/unparsed/duplicated shift tables,
     plus the saveframe's chart ids. Mirrors the download page's chemShiftSaveframes."""
     import report_data as rd
 
@@ -607,6 +630,7 @@ def build_chem_shift_sections(stats: dict, sf_charts: dict) -> list:
         lid = st.get('list_id')
         outlier = st.get('chemical_shift_outlier') or []
         unmapped = st.get('chemical_shift_unmapped') or []
+        unmodeled = st.get('chemical_shift_unmodeled') or []
         unparsed = st.get('chemical_shift_unparsed') or []
         duplicated = st.get('chemical_shift_duplicated') or []
         completeness = []
@@ -624,9 +648,10 @@ def build_chem_shift_sections(stats: dict, sf_charts: dict) -> list:
             'bookkeeping': [
                 ('Number of parsed shifts', st.get('number_of_parsed')),
                 ('Number of shifts mapped to model', st.get('number_of_mapped_to_model')),
-                ('Number of shifts unmapped to model', st.get('number_of_unmapped_to_model')),
-                ('Number of unparsed shifts with error', st.get('number_of_unparsed_with_error')),
-                ('Number of parsed shifts with warning', st.get('number_of_parsed_with_warning')),
+                ('Number of shifts mapped with errors', st.get('number_of_unmapped_to_model')),
+                ('Number of shifts mapped with warnings', st.get('number_of_mapped_to_unmodel')),
+                ('Number of unparsed shifts with errors', st.get('number_of_unparsed_with_error')),
+                ('Number of parsed shifts with warnings', st.get('number_of_parsed_with_warning')),
                 ('Number of chemical shift outliers', st.get('number_of_outliers')),
             ],
             'atom_mapping': rd.atom_name_mapping(st),
@@ -639,6 +664,11 @@ def build_chem_shift_sections(stats: dict, sf_charts: dict) -> list:
             'unmapped_count': (
                 st.get('number_of_unmapped_to_model')
                 if st.get('number_of_unmapped_to_model') is not None else len(unmapped)
+            ),
+            'unmodeled': unmodeled,
+            'unmodeled_count': (
+                st.get('number_of_mapped_to_unmodel')
+                if st.get('number_of_mapped_to_unmodel') is not None else len(unmodeled)
             ),
             'show_unmapped_ins': has_ins(unmapped),
             'unparsed': unparsed,
@@ -805,6 +835,7 @@ def main() -> int:
     env.filters['restraint_type_label'] = restraint_type_label
     env.filters['pct1'] = lambda v: '' if v is None else f'{v:.1f}'
     env.filters['yesno'] = lambda v: None if v is None else ('Yes' if v else 'No')
+    env.filters['seq_fold'] = fold_one_letter_seq
     env.filters['formatsize'] = _format_size
     import report_data as _rd
     env.filters['input_type_label'] = _rd.input_file_type_label

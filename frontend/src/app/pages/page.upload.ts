@@ -535,6 +535,8 @@ export class Upload implements OnDestroy {
       lower.endsWith('nmr_data.cif')
     )
       value = 'nm-uni-str';
+    else if (lower.includes('_model') && lower.includes('.cif.')) value = 'co-cif';
+    else if (lower.includes('_model') && lower.includes('.pdb.')) value = 'co-pdb';
     else if (lower.includes('_cs') && lower.includes('.str.')) value = 'nm-shi';
     else if (lower.includes('_mr') && lower.includes('.amber.')) value = 'nm-res-amb';
     else if (lower.includes('_mr') && lower.includes('.aria.')) value = 'nm-res-ari';
