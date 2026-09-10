@@ -14,6 +14,11 @@ if [[ ${FRONTEND_VERSION} != ${frontend_version} ]] ; then
 
   source .env
 
+  # Must be exported: envsubst is a separate process and .env does not carry
+  # FRONTEND_VERSION, so without this the templates render an empty version
+  # (mirrors setup.sh).
+  export FRONTEND_VERSION=${frontend_version}
+
   if [[ ${SERVICE_DOMAIN} = "bmrb.io" ]] ; then
 
     ( cd frontend/src
