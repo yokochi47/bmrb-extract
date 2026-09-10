@@ -24,7 +24,11 @@ import { API_URL } from '../../site.config';
 import { fileTypeLabel } from './file-types';
 import { MolstarViewer } from './molstar';
 import { EchartComponent } from './echart.component';
-import { rdcCorrelationChartOption } from './report-charts';
+import {
+  rdcCorrelationChartOption,
+  rdcCorrelationLegendNames,
+  type RdcCorrelationPlot,
+} from './report-charts';
 import { memoizeBySource } from './memoize';
 
 /** A selected upload file participating in the latest conversion run. */
@@ -108,18 +112,19 @@ interface DihedralChart {
   chi1_chi2?: DihedralPlot;
 }
 /** One RDC-restraint saveframe's observed-vs-calculated correlation scatter,
- * analogous to the dihedral φ/ψ scatter. Reuses DihedralPlot: each group's
- * `name` field carries the RDC vector type, and point x/y are the
- * observed/calculated RDC (Hz). */
+ * analogous to the dihedral φ/ψ scatter. Uses the shared RdcCorrelationPlot:
+ * each group's `name` field carries the RDC vector type, point x/y are the
+ * observed/calculated RDC (Hz), and `violations` marks the flagged subset. */
 interface RdcComparisonChart {
   label: string;
-  correlation: DihedralPlot;
+  correlation: RdcCorrelationPlot;
 }
-/** One RDC correlation quality-score row: r²/Cornilescu-Q/Clore-Q per RDC vector
- * type, with the number of observations of that type (`count`). */
+/** One RDC correlation quality-score row: Pearson r/r²/Cornilescu-Q/Clore-Q per
+ * RDC vector type, with the number of observations of that type (`count`). */
 interface RdcQScoreRow {
   type: string;
   count: number | null;
+  r: number | null;
   r2: number | null;
   cornilescu_q: number | null;
   clore_q: number | null;
@@ -811,12 +816,12 @@ export class Summary implements OnDestroy {
       title: 'Correlation between observed and calculated RDC values',
       option: rdcCorrelationChartOption(d.correlation),
       aspect: 1,
-      marginX: 56 + this.legendReserve(d.correlation.groups.map((g) => g.name)),
+      marginX: 56 + this.legendReserve(rdcCorrelationLegendNames(d.correlation)),
       marginY: 56,
     }));
   });
-  /** Per-saveframe RDC correlation quality-score tables (r²/Cornilescu-Q/Clore-Q
-   * per RDC vector type), shown beneath the correlation scatter. */
+  /** Per-saveframe RDC correlation quality-score tables (Pearson r/r²/Cornilescu-Q
+   * /Clore-Q per RDC vector type), shown beneath the correlation scatter. */
   rdcQScoreTables(sf: RdcRestraintSaveframe): RdcQScoreTable[] {
     return sf.q_scores;
   }

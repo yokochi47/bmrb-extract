@@ -777,7 +777,7 @@
                   },
                   "number_of_monomers": {
                     "type": "integer",
-                    "minimum": 4
+                    "minimum": 2
                   },
                   "percent_of_core": {
                     "type": "number",
@@ -947,7 +947,7 @@
         },
         "number_of_monomers": {
           "type": "integer",
-          "minimum": 4
+          "minimum": 2
         },
         "number_of_gaps": {
           "type": "integer",
@@ -3822,6 +3822,9 @@
             "errors": {
               "$ref": "#/definitions/rdc_plot_errors"
             },
+            "violations": {
+              "$ref": "#/definitions/rdc_plot_values"
+            },
             "q_scores": {
               "$ref": "#/definitions/rdc_plot_q_scores"
             }
@@ -4085,8 +4088,14 @@
         "^[1A-Za-z_]+$": {
           "type": "object",
           "properties": {
+            "r": {
+              "descritopn": "Pearson product-moment correlation coefficient between observed and calculated RDC values.",
+              "type": "number",
+              "minimum": -1.0,
+              "maximum": 1.0
+            },
             "r2": {
-              "descritopn": "Linear correlation coefficients between observed and calculated RDC values: 1.0 - sum( (Dexp - Dcalc)^2 ) / sum( (Dexp - <Dexp>)^2 ), where Dexp is observed RDC value, Dcalc is calculated RDC value, and <Dexp> is mean value of observed RDCs.",
+              "descritopn": "Linear correlation coefficient between observed and calculated RDC values: 1.0 - sum( (Dexp - Dcalc)^2 ) / sum( (Dexp - <Dexp>)^2 ), where Dexp is observed RDC value, Dcalc is calculated RDC value, and <Dexp> is mean value of observed RDCs.",
               "type": "number",
               "minimum": 0.0,
               "maximum": 1.0
@@ -5578,6 +5587,10 @@
           "type": "string",
           "minLength": 1
         },
+        "rdc_type": {
+          "type": "string",
+          "minLength": 1
+        },
         "total_violated_models": {
           "type": "integer",
           "minimum": 2
@@ -5666,6 +5679,10 @@
           "minLength": 1
         },
         "dihedral_angle_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rdc_type": {
           "type": "string",
           "minLength": 1
         },

@@ -1459,7 +1459,8 @@
             </div>
           }
 
-          <!-- RDC correlation quality scores (r²/Cornilescu-Q/Clore-Q per vector type) -->
+          <!-- RDC correlation quality scores (Pearson r/r²/Cornilescu-Q/Clore-Q per
+               vector type) -->
           @for (t of rdcQScoreTables(sf); track $index) {
             <div class="mb-6">
               <div class="font-medium mb-1">RDC correlation quality scores</div>
@@ -1480,6 +1481,11 @@
                       <th
                         class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
                       >
+                        r
+                      </th>
+                      <th
+                        class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                      >
                         r²
                       </th>
                       <th
@@ -1495,27 +1501,33 @@
                     </tr>
                   </thead>
                   <tbody>
-                    @for (r of t.rows; track $index) {
+                    @for (row of t.rows; track $index) {
                       <tr class="border-b border-surface-100 dark:border-surface-800">
-                        <td class="px-2 py-1 whitespace-nowrap">{{ r.type }}</td>
-                        <td class="px-2 py-1 tabular-nums">{{ r.count }}</td>
+                        <td class="px-2 py-1 whitespace-nowrap">{{ row.type }}</td>
+                        <td class="px-2 py-1 tabular-nums">{{ row.count }}</td>
                         <td
                           class="px-2 py-1 tabular-nums"
-                          [class.text-red-600]="r.r2 !== null && r.r2 < 0.8"
+                          [class.text-red-600]="row.r !== null && row.r < 0.9"
                         >
-                          {{ r.r2 }}
+                          {{ row.r }}
                         </td>
                         <td
                           class="px-2 py-1 tabular-nums"
-                          [class.text-red-600]="r.cornilescu_q !== null && r.cornilescu_q > 0.3"
+                          [class.text-red-600]="row.r2 !== null && row.r2 < 0.8"
                         >
-                          {{ r.cornilescu_q }}
+                          {{ row.r2 }}
                         </td>
                         <td
                           class="px-2 py-1 tabular-nums"
-                          [class.text-red-600]="r.clore_q !== null && r.clore_q > 0.3"
+                          [class.text-red-600]="row.cornilescu_q !== null && row.cornilescu_q > 0.3"
                         >
-                          {{ r.clore_q }}
+                          {{ row.cornilescu_q }}
+                        </td>
+                        <td
+                          class="px-2 py-1 tabular-nums"
+                          [class.text-red-600]="row.clore_q !== null && row.clore_q > 0.3"
+                        >
+                          {{ row.clore_q }}
                         </td>
                       </tr>
                     }

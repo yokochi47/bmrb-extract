@@ -1582,7 +1582,7 @@ def _histogram_chart(stat_list, inverse=False, annotate=_histogram_annotations):
     return charts
 
 
-def _scatter_plot(plot, trim_label=True):
+def _scatter_plot(plot, trim_label=True, with_violations=False):
     """Normalize a {values, errors} plot into {groups:[{name, points:[{x,y,
     seq_id}], errors:[[...]]}]}. `values`/`errors` are keyed by group name —
     comp_id for the dihedral φ/ψ & χ1/χ2 scatter, RDC vector type for the RDC
@@ -1592,18 +1592,29 @@ def _scatter_plot(plot, trim_label=True):
     trimmed to `chain:seq:` for the dihedral scatter (trim_label) or kept whole
     for the RDC correlation, whose label is the full RDC vector (chain:seq:comp:
     atoms). Error arrays are [x, y, x_low, x_high, y_low, y_high] (absolute).
+    `with_violations` (RDC only — the dihedral plots carry no such key) adds each
+    group's `violations`: the subset of its points, in the same [x, y, label]
+    shape, that the converter flagged as a significant error.
     Returns None when the plot is empty."""
     if not isinstance(plot, dict) or not plot.get('values'):
         return None
     errors_by_key = plot.get('errors') or {}
+    viols_by_key = (plot.get('violations') or {}) if with_violations else {}
+
+    def points(vals):
+        return [{'x': p[0], 'y': p[1],
+                 'seq_id': ':'.join(p[2].split(':')[:2]) + ':' if trim_label else p[2]}
+                for p in vals or [] if len(p) >= 3]
+
     groups = []
     for key, vals in plot['values'].items():
-        pts = [{'x': p[0], 'y': p[1],
-                'seq_id': ':'.join(p[2].split(':')[:2]) + ':' if trim_label else p[2]}
-               for p in vals if len(p) >= 3]
+        pts = points(vals)
         if pts:
-            groups.append({'name': key, 'points': pts,
-                           'errors': errors_by_key.get(key) or []})
+            group = {'name': key, 'points': pts,
+                     'errors': errors_by_key.get(key) or []}
+            if with_violations:
+                group['violations'] = points(viols_by_key.get(key))
+            groups.append(group)
     if not groups:
         return None
     return {'groups': groups}
@@ -1629,21 +1640,23 @@ def _dihedral_charts(stat_list):
 def _rdc_correlation_charts(stat_list):
     """Build [{label, correlation}] observed-vs-calculated scatter+error data from
     an rdc_restraint stats list. Each correlation_plot → groups keyed by RDC vector
-    type (see _scatter_plot); x/y are the observed/calculated RDC (Hz)."""
+    type (see _scatter_plot); x/y are the observed/calculated RDC (Hz). Each group
+    also carries the flagged `violations` subset, ringed in the chart."""
     charts = []
     for st in stat_list or []:
-        correlation = _scatter_plot(st.get('correlation_plot'), trim_label=False)
+        correlation = _scatter_plot(st.get('correlation_plot'), trim_label=False,
+                                    with_violations=True)
         if correlation:
             charts.append({'label': st.get('sf_framecode', ''), 'correlation': correlation})
     return charts
 
 
 def _rdc_q_scores(stat_list):
-    """Build [{label, rows:[{type, count, r2, cornilescu_q, clore_q}]}] RDC
-    correlation quality-score tables from an rdc_restraint stats list. The
-    correlation_plot's q_scores holds r²/Cornilescu-Q/Clore-Q per RDC vector type;
-    `count` is the number of observations of that type (its correlation_plot
-    values list length)."""
+    """Build [{label, rows:[{type, count, r, r2, cornilescu_q, clore_q}]}]
+    RDC correlation quality-score tables from an rdc_restraint stats list. The
+    correlation_plot's q_scores holds Pearson-r/r²/Cornilescu-Q/Clore-Q per RDC
+    vector type; `count` is the number of observations of that type (its
+    correlation_plot values list length)."""
     tables = []
     for st in stat_list or []:
         plot = st.get('correlation_plot')
@@ -1661,6 +1674,7 @@ def _rdc_q_scores(stat_list):
             rows.append({
                 'type': vtype,
                 'count': len(vals) if isinstance(vals, list) else None,
+                'r': scores.get('r'),
                 'r2': scores.get('r2'),
                 'cornilescu_q': scores.get('cornilescu_q'),
                 'clore_q': scores.get('clore_q'),
@@ -2894,18 +2908,19 @@ _DIST_VIOLATION_SUMMARY_KEYS = (
 )
 
 # Columns kept for each most-violated restraint (restraint_summary.
-# most_violated_{dist,dihed}_restraints); the per-model violated_model_id list
-# and min/max are dropped.
+# most_violated_{dist,dihed,rdc}_restraints); the per-model violated_model_id list
+# and min/max are dropped. rdc_type is the RDC vector type — older converter
+# releases smuggled it through distance_type / dihedral_angle_name instead.
 _MOST_VIOLATED_KEYS = (
-    'restraint_key', 'distance_type', 'dihedral_angle_name',
+    'restraint_key', 'distance_type', 'dihedral_angle_name', 'rdc_type',
     'atom_key_1', 'atom_key_2', 'atom_key_3', 'atom_key_4',
     'total_violated_models', 'mean_violation', 'std_violation', 'median_violation',
 )
 
 # Columns kept for each per-model violation entry (restraint_summary.
-# all_{dist,dihed}_violations).
+# all_{dist,dihed,rdc}_violations); see _MOST_VIOLATED_KEYS on rdc_type.
 _ALL_VIOLATION_KEYS = (
-    'restraint_key', 'distance_type', 'dihedral_angle_name',
+    'restraint_key', 'distance_type', 'dihedral_angle_name', 'rdc_type',
     'atom_key_1', 'atom_key_2', 'atom_key_3', 'atom_key_4',
     'model_id', 'violation',
 )

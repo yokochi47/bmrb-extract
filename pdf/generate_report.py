@@ -69,16 +69,36 @@ def _format_size(b):
     return f'{b / (1024 ** i):.1f} {units[i]}'
 
 
+# Canonical RDC vector-type codes (upstream getRdcCode, or a verbatim RDC
+# saveframe Details field); mirrors RDC_TYPES in report-charts.ts. The converter
+# reports them as-is in rdc_type, but lower-cased in the violation-summary
+# restraint_type and in the <type>_viol_count column keys, so the lookup below is
+# case-insensitive.
+RDC_TYPES = ('RDC_HNC', 'RDC_NH', 'RDC_CN_i_1', 'RDC_CAHA', 'RDC_HNHA', 'RDC_HNHA_i_1',
+             'RDC_CAC', 'RDC_CAN', 'RDC_HH', 'RDC_CC', 'RDC_other')
+_RDC_TYPE_BY_LOWER = {t.lower(): t for t in RDC_TYPES}
+
+
 def restraint_type_label(value) -> str:
     """Display label for a violation-summary restraint_type (mirrors the TS
     restraintTypeLabel): a "<abbr>; <sub-type>" becomes an indented lower-case
-    sub-type; a top-level type is capitalized with underscores as spaces."""
+    sub-type; a top-level type is capitalized with underscores as spaces. RDC
+    vector types are the exception — they are codes, not prose, so they keep their
+    canonical spelling (RDC_NH, never 'Rdc nh'); see RDC_TYPES."""
     if not value:
         return ''
     value = str(value)
     semi = value.find(';')
     if semi >= 0:
         return '  ' + value[semi + 1:].replace('_', ' ').lstrip()
+    rdc = _RDC_TYPE_BY_LOWER.get(value.lower())
+    if rdc:
+        return rdc
+    # A non-standard type (a free-text RDC saveframe Details field) still reads as
+    # an RDC code; only its tail's original case is lost when the source
+    # lower-cased it.
+    if value[:4].lower() == 'rdc_':
+        return 'RDC_' + value[4:]
     s = value.replace('_', ' ').lower()
     return s[:1].upper() + s[1:]
 
@@ -229,22 +249,31 @@ def build_chart_inputs(stats: dict, ensemble: dict) -> list:
 
 def _rdc_correlation_plot(plot):
     """Normalize an RDC correlation_plot into {groups:[{name, points:[{x,y,
-    seq_id}], errors:[[...]]}]} for rdcCorrelationChartOption (mirrors the backend
-    _scatter_plot with trim_label=False — seq_id keeps the full RDC vector)."""
+    seq_id}], errors:[[...]], violations:[{x,y,seq_id}]}]} for
+    rdcCorrelationChartOption (mirrors the backend _scatter_plot with
+    trim_label=False, with_violations=True — seq_id keeps the full RDC vector, and
+    violations is the flagged subset of points, ringed in the chart)."""
     if not isinstance(plot, dict) or not plot.get('values'):
         return None
     errors_by_key = plot.get('errors') or {}
+    viols_by_key = plot.get('violations') or {}
+
+    def points(vals):
+        return [{'x': p[0], 'y': p[1], 'seq_id': p[2]} for p in vals or [] if len(p) >= 3]
+
     groups = []
     for key, vals in plot['values'].items():
-        pts = [{'x': p[0], 'y': p[1], 'seq_id': p[2]} for p in vals if len(p) >= 3]
+        pts = points(vals)
         if pts:
-            groups.append({'name': key, 'points': pts, 'errors': errors_by_key.get(key) or []})
+            groups.append({'name': key, 'points': pts,
+                           'errors': errors_by_key.get(key) or [],
+                           'violations': points(viols_by_key.get(key))})
     return {'groups': groups} if groups else None
 
 
 def _rdc_q_rows(plot):
-    """Quality-score rows [{type, count, r2, cornilescu_q, clore_q}] from a
-    correlation_plot's q_scores (mirrors the backend _rdc_q_scores)."""
+    """Quality-score rows [{type, count, r, r2, cornilescu_q, clore_q}] from
+    a correlation_plot's q_scores (mirrors the backend _rdc_q_scores)."""
     q_scores = plot.get('q_scores') if isinstance(plot, dict) else None
     if not isinstance(q_scores, dict) or not q_scores:
         return []
@@ -257,6 +286,7 @@ def _rdc_q_rows(plot):
         rows.append({
             'type': vtype,
             'count': len(vals) if isinstance(vals, list) else None,
+            'r': scores.get('r'),
             'r2': scores.get('r2'),
             'cornilescu_q': scores.get('cornilescu_q'),
             'clore_q': scores.get('clore_q'),
@@ -421,7 +451,7 @@ def _dihed_table_cols(rows):
 
 def _rdc_table_cols(rows):
     """Dynamic RDC vector-type columns: types sorted, total last (mirrors
-    rdcModelViolations). Labels use restraint_type_label (e.g. 'Rdc other')."""
+    rdcModelViolations). Labels use restraint_type_label (e.g. 'RDC_other')."""
     seen = set()
     for r in rows or []:
         for k in (r or {}):
@@ -433,16 +463,18 @@ def _rdc_table_cols(rows):
 
 
 def _rdc_most_violated(rows):
-    """Normalise RDC most-violated / all-violation rows: the shared schema's only
-    type slots are distance_type / dihedral_angle_name, so surface whichever the
-    converter populated (the RDC vector type) in distance_type — the shared table
+    """Normalise RDC most-violated / all-violation rows: the converter reports
+    the RDC vector type in its own rdc_type slot, while older releases smuggled it
+    through the shared schema's distance_type / dihedral_angle_name. Surface
+    whichever is populated in distance_type — the shared table
     (type_key='distance_type') and mean-violation histogram categorise by it."""
     out = []
     for r in rows or []:
         if not isinstance(r, dict):
             continue
         r = dict(r)
-        r['distance_type'] = r.get('distance_type') or r.get('dihedral_angle_name')
+        r['distance_type'] = (r.get('rdc_type') or r.get('distance_type')
+                              or r.get('dihedral_angle_name'))
         out.append(r)
     return out
 
