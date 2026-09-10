@@ -83,12 +83,36 @@ const VIOL_DECAL = {
 
 /** Color for the per-model mean/median markers and mean±SD error bars. */
 const MARK_COLOR = '#000000';
+/** Color for anomalous / violated data: the Z-score outlier markLines and the
+ * RDC correlation plot's violation rings. */
+const VIOLATION_COLOR = '#dc2626';
 /** Plus glyph in a 10×10 box; drawn with symbolRotate:45 to render as an "×"
  * (shared by the chart symbol and the tooltip marker so they match). */
 const MEDIAN_PATH = 'M3,0 L7,0 L7,3 L10,3 L10,7 L7,7 L7,10 L3,10 L3,7 L0,7 L0,3 L3,3 Z';
 const MEDIAN_SYMBOL = `path://${MEDIAN_PATH}`;
 
 const LEGEND_CAP = 160;
+
+/** Canonical RDC vector-type codes (upstream getRdcCode, or a verbatim RDC
+ * saveframe Details field). The converter reports them as-is in `rdc_type`, but
+ * lower-cased in the violation-summary `restraint_type` and in the
+ * `<type>_viol_count` column keys — so restraintTypeLabel matches
+ * case-insensitively and restores the canonical spelling instead of title-casing
+ * it into "Rdc nh". */
+const RDC_TYPES = [
+  'RDC_HNC',
+  'RDC_NH',
+  'RDC_CN_i_1',
+  'RDC_CAHA',
+  'RDC_HNHA',
+  'RDC_HNHA_i_1',
+  'RDC_CAC',
+  'RDC_CAN',
+  'RDC_HH',
+  'RDC_CC',
+  'RDC_other',
+];
+const RDC_TYPE_BY_LOWER = new Map(RDC_TYPES.map((t) => [t.toLowerCase(), t]));
 
 /* ---------------------------------------------------------------- helpers --- */
 
@@ -101,7 +125,9 @@ export function legendReserve(names: string[]): number {
 /** Display label for a violation-summary restraint_type: underscores become
  * spaces; a leading abbreviation prefix ("ir;", "lr;", "total;", …) becomes a
  * two-space (non-breaking) indent and stays lower-case; top-level types have
- * their first character capitalized. */
+ * their first character capitalized. RDC vector types are the exception — they
+ * are codes, not prose, so they keep their canonical spelling (RDC_NH, never
+ * "Rdc nh"); see RDC_TYPES. */
 export function restraintTypeLabel(type: string | undefined): string {
   if (!type) return '';
   const semi = type.indexOf(';');
@@ -115,6 +141,11 @@ export function restraintTypeLabel(type: string | undefined): string {
         .trimStart()
     );
   }
+  const rdc = RDC_TYPE_BY_LOWER.get(type.toLowerCase());
+  if (rdc) return rdc;
+  // A non-standard type (a free-text RDC saveframe Details field) still reads as
+  // an RDC code; only its tail's original case is lost when the source lower-cased it.
+  if (/^rdc_/i.test(type)) return 'RDC_' + type.slice(4);
   const s = type.replace(/_/g, ' ').toLowerCase();
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
@@ -299,7 +330,7 @@ export function histogramOption(
         symbol: 'none',
         data: ann.map((a) => ({
           xAxis: a.x,
-          lineStyle: { color: a.anomalous ? '#dc2626' : '#475569', type: 'dashed', width: 1 },
+          lineStyle: { color: a.anomalous ? VIOLATION_COLOR : '#475569', type: 'dashed', width: 1 },
           label: {
             show: true,
             formatter: a.text,
@@ -308,7 +339,7 @@ export function histogramOption(
             align: 'left',
             verticalAlign: 'bottom',
             fontSize: 9,
-            color: a.anomalous ? '#dc2626' : '#475569',
+            color: a.anomalous ? VIOLATION_COLOR : '#475569',
           },
         })),
       }
@@ -896,13 +927,28 @@ export function modelViolationChartOption(
 
 /** One RDC (or dihedral) correlation scatter plot: points grouped by category
  * (`name` = RDC vector type). Each point is {x, y, seq_id (hover label)}; each
- * error array is [x, y, x_low, x_high, y_low, y_high] (absolute). */
+ * error array is [x, y, x_low, x_high, y_low, y_high] (absolute). `violations`
+ * (RDC only) is the subset of `points` the converter flagged as a significant
+ * error — the observed RDC falls outside the calculated range plus a tolerance. */
 export interface RdcCorrelationPlot {
   groups: {
     name: string;
     points: { x: number; y: number; seq_id: string | number }[];
     errors: number[][];
+    violations?: { x: number; y: number; seq_id: string | number }[];
   }[];
+}
+
+/** Legend entry name for the RDC correlation plot's violation overlay. */
+const VIOLATION_SERIES = 'Violation';
+
+/** Legend entries of an RDC correlation plot: one per RDC vector type, plus the
+ * violation overlay when the plot has any. Callers sizing the panel must feed
+ * this — not the bare group names — to `legendReserve`, so the reserved right
+ * margin matches what `rdcCorrelationChartOption` actually draws. */
+export function rdcCorrelationLegendNames(plot: RdcCorrelationPlot): string[] {
+  const names = plot.groups.map((g) => g.name);
+  return plot.groups.some((g) => g.violations?.length) ? [...names, VIOLATION_SERIES] : names;
 }
 
 /** renderItem for a bidirectional (cross) error bar: a horizontal segment
@@ -937,7 +983,11 @@ const correlationErrorBarRenderItem = (
 export function rdcCorrelationChartOption(plot: RdcCorrelationPlot): object {
   // Common range across both observed (x) and calculated (y) so the plot is a
   // true square and a perfect fit lies on the 45° diagonal.
-  const vals = plot.groups.flatMap((g) => g.points.flatMap((p) => [p.x, p.y]));
+  // Violations are a subset of points upstream, but scan them too so the plot
+  // stays correct if that ever stops holding.
+  const vals = plot.groups.flatMap((g) =>
+    [...g.points, ...(g.violations ?? [])].flatMap((p) => [p.x, p.y]),
+  );
   const lo = vals.length ? Math.min(...vals) : 0;
   const hi = vals.length ? Math.max(...vals) : 1;
   const pad = (hi - lo) * 0.05 || 1;
@@ -945,7 +995,9 @@ export function rdcCorrelationChartOption(plot: RdcCorrelationPlot): object {
   const step = bound.step;
   const min = step > 0 ? Math.floor((lo - pad) / step) * step : lo - pad;
   const max = step > 0 ? Math.ceil((hi + pad) / step) * step : hi + pad;
-  const names = plot.groups.map((g) => g.name);
+  const names = rdcCorrelationLegendNames(plot);
+  // Every flagged point across all vector types, drawn as one overlay series.
+  const violations = plot.groups.flatMap((g) => g.violations ?? []);
   const axis = (name: string, nameGap: number) => ({
     type: 'value' as const,
     name,
@@ -971,9 +1023,10 @@ export function rdcCorrelationChartOption(plot: RdcCorrelationPlot): object {
           ? `${p.data.name} ${p.seriesName}<br/>Obs.: ${p.data.value[0]} Hz<br/>Calc.: ${p.data.value[1]} Hz`
           : '',
     },
-    // RDC-vector-type legend on the right, sized to the longest label and reserved
-    // via grid.right (+ marginX on the panel) so it never overlaps the plot. Data
-    // excludes the invisible error series (shares each type's name).
+    // RDC-vector-type legend (plus the violation overlay) on the right, sized to
+    // the longest label and reserved via grid.right (+ marginX on the panel) so it
+    // never overlaps the plot. Data excludes the invisible error series (shares
+    // each type's name).
     legend: {
       orient: 'vertical',
       right: 8,
@@ -1020,6 +1073,26 @@ export function rdcCorrelationChartOption(plot: RdcCorrelationPlot): object {
         encode: { x: 0, y: 1 },
         renderItem: correlationErrorBarRenderItem,
       })),
+      // Violated points, ringed rather than filled so each keeps its vector-type
+      // colour underneath. Appended last so the per-type palette assignment above
+      // is untouched; its own colour is explicit, not from the palette.
+      ...(violations.length
+        ? [
+            {
+              name: VIOLATION_SERIES,
+              type: 'scatter',
+              z: 3,
+              symbol: 'circle',
+              symbolSize: 10,
+              itemStyle: {
+                color: 'transparent',
+                borderColor: VIOLATION_COLOR,
+                borderWidth: 1.5,
+              },
+              data: violations.map((pt) => ({ name: pt.seq_id, value: [pt.x, pt.y] })),
+            },
+          ]
+        : []),
     ],
   };
 }

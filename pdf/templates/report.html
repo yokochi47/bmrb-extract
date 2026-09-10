@@ -770,14 +770,17 @@
   {%- if rdc_correlations %}
   <p class="caption">The following plots and tables show the correlation between observed and
   calculated RDCs, based on molecular alignment tensors predicted using the coordinates from each
-  saveframe. A high linear correlation (e.g., r² &gt; 0.9) indicates that the RDCs are consistent
-  with the coordinates. Conversely, a low correlation (e.g., r² &lt; 0.8) suggests that the molecular
-  alignment tensor was not accurately determined; possible reasons for this include the presence of
-  RDCs arising from flexible regions, an overestimation of scaling factors for unreliable RDC, or the
-  molecule inherently adopting multiple conformations. A lower Q score (e.g. Q &lt; 0.2) indicates a
-  better structural fit, whereas a high Q score (e.g. Q &gt; 0.3) suggests significant structural
-  errors or incorrect stereochemical configurations. 'Q score (Clore)' is preferable in case of a
-  limited RDC sampling over all possible orientations.</p>
+  saveframe. 'r' is the Pearson product-moment correlation coefficient between the observed and
+  calculated RDCs (a value below 0.9 is flagged). A high linear correlation (e.g., r² &gt; 0.9)
+  indicates that the RDCs are consistent with the coordinates. Conversely, a low correlation (e.g., r²
+  &lt; 0.8) suggests that the molecular alignment tensor was not accurately determined; possible
+  reasons for this include the presence of RDCs arising from flexible regions, an overestimation of
+  scaling factors for unreliable RDC, or the molecule inherently adopting multiple conformations. A
+  lower Q score (e.g. Q &lt; 0.2) indicates a better structural fit, whereas a high Q score (e.g. Q
+  &gt; 0.3) suggests significant structural errors or incorrect stereochemical configurations. 'Q
+  score (Clore)' is preferable in case of a limited RDC sampling over all possible orientations. In
+  the correlation plot, points ringed in red are significant errors: the observed RDC falls outside
+  the range calculated from the coordinates.</p>
   {%- for c in rdc_correlations %}
   <h3>{{ c.sf_framecode }}</h3>
   {%- if c.chart_id and charts.get(c.chart_id) %}
@@ -786,11 +789,13 @@
   {%- if c.q_rows %}
   <p class="caption">RDC correlation quality scores per RDC vector type.</p>
   <table>
-    <thead><tr><th>Restraint type</th><th class="num">Count</th><th class="num">r²</th>
+    <thead><tr><th>Restraint type</th><th class="num">Count</th><th class="num">r</th>
+      <th class="num">r²</th>
       <th class="num">Q score (Cornilescu)</th><th class="num">Q score (Clore)</th></tr></thead>
     <tbody>
       {%- for row in c.q_rows %}
       <tr><td>{{ row.type }}</td><td class="num">{{ row.count if row.count is not none }}</td>
+        <td class="num{% if row.r is number and row.r < 0.9 %} warn{% endif %}">{{ row.r if row.r is not none }}</td>
         <td class="num{% if row.r2 is number and row.r2 < 0.8 %} warn{% endif %}">{{ row.r2 if row.r2 is not none }}</td>
         <td class="num{% if row.cornilescu_q is number and row.cornilescu_q > 0.3 %} warn{% endif %}">{{ row.cornilescu_q if row.cornilescu_q is not none }}</td>
         <td class="num{% if row.clore_q is number and row.clore_q > 0.3 %} warn{% endif %}">{{ row.clore_q if row.clore_q is not none }}</td></tr>

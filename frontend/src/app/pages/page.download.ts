@@ -32,6 +32,7 @@ import {
   stackedValueHistogram,
   violationEnsembleStackChart,
   legendReserve,
+  rdcCorrelationLegendNames,
   type RdcCorrelationPlot,
 } from './report-charts';
 
@@ -447,6 +448,8 @@ interface MostViolatedRow {
   restraint_key?: string;
   distance_type?: string;
   dihedral_angle_name?: string;
+  /** RDC vector type (RDC rows only). */
+  rdc_type?: string;
   atom_key_1?: string;
   atom_key_2?: string;
   atom_key_3?: string;
@@ -456,11 +459,13 @@ interface MostViolatedRow {
   std_violation?: number | null;
   median_violation?: number | null;
 }
-/** One per-model violation entry (restraint_summary.all_{dist,dihed}_violations). */
+/** One per-model violation entry (restraint_summary.all_{dist,dihed,rdc}_violations). */
 interface AllViolationRow {
   restraint_key?: string;
   distance_type?: string;
   dihedral_angle_name?: string;
+  /** RDC vector type (RDC rows only). */
+  rdc_type?: string;
   atom_key_1?: string;
   atom_key_2?: string;
   atom_key_3?: string;
@@ -483,6 +488,7 @@ interface RdcCorrelationChart {
 interface RdcQScoreRow {
   type: string;
   count: number | null;
+  r: number | null;
   r2: number | null;
   cornilescu_q: number | null;
   clore_q: number | null;
@@ -765,12 +771,12 @@ export class Download {
       title: 'Correlation between observed and calculated RDC values',
       option: rdcCorrelationChartOption(d.correlation),
       aspect: 1,
-      marginX: 56 + legendReserve(d.correlation.groups.map((g) => g.name)),
+      marginX: 56 + legendReserve(rdcCorrelationLegendNames(d.correlation)),
       marginY: 56,
     }));
   });
-  /** Per-saveframe RDC correlation quality-score tables (r²/Cornilescu-Q/Clore-Q
-   * per RDC vector type). */
+  /** Per-saveframe RDC correlation quality-score tables (Pearson r/r²/Cornilescu-Q
+   * /Clore-Q per RDC vector type). */
   rdcQScoreTables(sf: RdcRestraintPreviewSaveframe): RdcQScoreTable[] {
     return sf.q_scores;
   }
@@ -1474,13 +1480,14 @@ export class Download {
     const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
     const v = rs?.['most_violated_rdc_restraints'];
     if (!Array.isArray(v)) return [];
-    // RDC reuses the shared most-violated schema, whose only type slots are
-    // distance_type / dihedral_angle_name; surface whichever the converter
-    // populated (the RDC vector type) in distance_type so the table's Type column
-    // and the mean-violation histogram categorise by it.
+    // The converter reports the RDC vector type in its own rdc_type slot; older
+    // releases smuggled it through the shared most-violated schema's
+    // distance_type / dihedral_angle_name. Surface whichever is populated in
+    // distance_type so the table's Type column and the mean-violation histogram
+    // categorise by it.
     return (v as MostViolatedRow[]).map((r) => ({
       ...r,
-      distance_type: r.distance_type || r.dihedral_angle_name,
+      distance_type: r.rdc_type || r.distance_type || r.dihedral_angle_name,
     }));
   });
 
@@ -1515,12 +1522,13 @@ export class Download {
     const rs = this.statistics()?.restraint_summary as Record<string, unknown> | undefined;
     const v = rs?.['all_rdc_violations'];
     if (!Array.isArray(v)) return [];
-    // RDC reuses the shared all-violation schema (type slots distance_type /
-    // dihedral_angle_name only); surface whichever holds the vector type in
-    // distance_type so the Type column and histogram categorise by it.
+    // As for mostViolaratedRdc: prefer the converter's own rdc_type, falling back
+    // to the shared all-violation schema's distance_type / dihedral_angle_name,
+    // and surface it in distance_type so the Type column and histogram
+    // categorise by it.
     return (v as AllViolationRow[]).map((r) => ({
       ...r,
-      distance_type: r.distance_type || r.dihedral_angle_name,
+      distance_type: r.rdc_type || r.distance_type || r.dihedral_angle_name,
     }));
   });
 
