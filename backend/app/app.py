@@ -19,6 +19,11 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from core.filenames import (
+    UnsafeFileName,
+    stored_basename,
+    validate_upload_name,
+)
 from core.models import (
     Communication,
     DeliveryStatusCode,
@@ -3422,7 +3427,14 @@ async def upload():
     if not all([token, f]):
         return {'error': 'token and file are required'}, 400
 
-    original_name = f.filename or 'unnamed'
+    # The browser-supplied name is attacker-controlled and arrives verbatim
+    # (separators, '..' and NUL bytes included). Reject the dangerous shapes here,
+    # at the one place it enters the service, rather than relying on the
+    # '<ordinal>_' prefix below to keep them from escaping the session directory.
+    try:
+        original_name = validate_upload_name(f.filename)
+    except UnsafeFileName as exc:
+        return {'error': f'invalid file name: {exc}'}, 400
 
     async with async_session_factory() as db:
         result = await db.execute(select(Session).where(Session.token == token))
@@ -3447,7 +3459,7 @@ async def upload():
         # Build archive path
         session_dir = Path(ARCHIVE_BASE_PATH) / str(token)
         session_dir.mkdir(parents=True, exist_ok=True)
-        stored_path = str(session_dir / f'{ordinal}_{original_name}')
+        stored_path = str(session_dir / stored_basename(ordinal, original_name))
 
         # Save file and initialise git repo (idempotent)
         f.save(stored_path)
@@ -3687,7 +3699,7 @@ async def process():
                 select(func.max(UploadFile.ordinal)).where(UploadFile.token == token)
             )
             ordinal = (result.scalar_one_or_none() or 0) + 1
-            stored_path = str(session_dir / f'{ordinal}_{bmrb_name}')
+            stored_path = str(session_dir / stored_basename(ordinal, bmrb_name))
             Path(stored_path).write_bytes(content)
             _open_repo(session_dir)
             bmrb_row = UploadFile(
@@ -3743,6 +3755,10 @@ async def process():
                 {
                     'ordinal': f.ordinal,
                     'original_name': f.original_name,
+                    # The basename to use on disk. Two selected files may share an
+                    # original_name, so the flow must copy under this (prefixed)
+                    # name or the second would overwrite the first in input/.
+                    'input_name': stored_basename(f.ordinal, f.original_name),
                     'stored_path': f.stored_path,
                     'file_type': f.file_type,
                     'selected': f.selected,
