@@ -68,7 +68,7 @@ Two bind-mounted trees, kept deliberately separate so a conversion (which may ed
 `prefect/flows/core/workspace.py` defines this scheme, and `backend/app/app.py` mirrors it. **Keep the two in sync.**
 
 ### Template / Configuration System
-`config.sh` is the single source of truth for configuration. It reads `.env.template`, prompts for site-specific values, and uses `envsubst` to generate:
+`config.sh` is the single source of truth for configuration. It reads `.env.template`, prompts for site-specific values (including the cross-site-exchange ones: `PEER_HOST`, `PEER_ADMIN_EMAIL`, and — only when `PEER_HOST` is non-empty — `PEER_SSH_USER` and `PEER_PSQL`, which describe the *peer* side and so differ per site), and uses `envsubst` to generate:
 - `.env` — environment variables for all Docker services
 - `nginx/nginx.conf` — from `nginx/nginx-{production,development}.conf.template`
 - `nginx/ssl.conf`

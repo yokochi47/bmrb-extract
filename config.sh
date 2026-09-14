@@ -140,6 +140,27 @@ if [[ -z "${PEER_HOST:-}" ]] ; then
   read PEER_HOST
 fi
 
+# PEER_SSH_USER / PEER_PSQL describe the *peer* side and so differ per site: the
+# account this site logs into, and the command that account runs there to read
+# the peer's 'internal' DB (the exchange SQL is piped to it on stdin). Only
+# asked when the exchange is enabled; both fall back to the documented default.
+if [[ -n "${PEER_HOST}" ]] ; then
+
+  if [[ -z "${PEER_SSH_USER:-}" ]] ; then
+    echo "Enter peer site SSH account for cross-site data exchange [bmrbxchg]:"
+    read PEER_SSH_USER
+  fi
+
+  if [[ -z "${PEER_PSQL:-}" ]] ; then
+    echo "Enter command the peer SSH account runs to read its 'internal' database [psql -d internal]:"
+    read PEER_PSQL
+  fi
+
+fi
+
+PEER_SSH_USER=${PEER_SSH_USER:-bmrbxchg}
+PEER_PSQL=${PEER_PSQL:-psql -d internal}
+
 # PEER_ADMIN_EMAIL is independent of PEER_HOST: failure alerts are addressed to
 # both admins as soon as it is set, even while the exchange flow stays disabled.
 # Left unvalidated on purpose -- empty is a valid answer.
@@ -299,6 +320,8 @@ export SERVICE_ANNOT_EMAILS=${SERVICE_ANNOT_EMAILS}
 export PEER_HOST=${PEER_HOST}
 export PEER_DOMAIN=${PEER_DOMAIN}
 export PEER_ADMIN_EMAIL=${PEER_ADMIN_EMAIL}
+export PEER_SSH_USER=${PEER_SSH_USER}
+export PEER_PSQL="${PEER_PSQL}"
 
 # Nginx
 NGINX_LOG_FORMAT=${NGINX_LOG_FORMAT}
