@@ -16,6 +16,7 @@ conversions — which may edit input files in place — never touch the archive.
 """
 
 import hashlib
+import html
 import json
 import os
 import re
@@ -34,6 +35,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'shared'))
 
 import workspace as ws  # noqa: E402
+from core.filenames import stored_basename  # noqa: E402
 import asyncio  # noqa: E402
 import smtplib  # noqa: E402
 from datetime import datetime, timedelta  # noqa: E402
@@ -76,6 +78,25 @@ from core.site_config import (  # noqa: E402
 PEER_ADMIN_EMAIL = getattr(cfg, 'PEER_ADMIN_EMAIL', '') or ''
 
 
+def _input_name(f: dict) -> str:
+    """Basename of one manifest file inside the run's input/ directory.
+
+    Two selected uploads may share an original_name (upload_file is keyed by
+    (token, ordinal) and nothing constrains the name), so input/ is populated
+    under the ordinal-prefixed basename the archive already uses. original_name
+    stays the depositor-facing label and is what the reports show.
+
+    Manifests written before 'input_name' existed are still re-runnable: fall
+    back to reconstructing it, or to the archived basename.
+    """
+    name = f.get('input_name')
+    if name:
+        return name
+    if f.get('ordinal') is not None:
+        return stored_basename(f['ordinal'], f['original_name'])
+    return Path(f['stored_path']).name
+
+
 @task(name='issue-conversion', retries=1)
 def issue_conversion(
     token: str,
@@ -102,7 +123,7 @@ def issue_conversion(
 
     copied = []
     for f in manifest['files']:
-        dst = dst_dir / f['original_name']
+        dst = dst_dir / _input_name(f)
         shutil.copy2(f['stored_path'], dst)
         copied.append(str(dst))
 
@@ -336,7 +357,7 @@ def coordinate_conversion(
     # (PDB input with -o 8 is rejected as a CIF syntax error and yields no output.)
     o_flag = 1 if coord['file_type'] == 'co-pdb' else 8
 
-    in_path = ws.input_dir(conversion_id, run_number, workspace_base) / coord['original_name']
+    in_path = ws.input_dir(conversion_id, run_number, workspace_base) / _input_name(coord)
     out_path = ws.output_dir(conversion_id, run_number, workspace_base) / f'C_{conversion_id}_model.cif'
     log_path = ws.log_dir(conversion_id, run_number, workspace_base) / f'C_{conversion_id}_model-check.log'
 
@@ -763,13 +784,15 @@ def _analyze_report(report_path: Path, onedep_combined: bool, conversion_id: int
                     'Sorry for the inconvenience, please contact us via the "Help Desk" page '
                     f'or the email address {SERVICE_HELP_EMAIL}, making sure to include your '
                     f'conversion ID: C_{conversion_id}.<ul>'
-                    + ''.join(f'<li>Internal error: {msg}</li>' for msg in items)
+                    # Report text is derived from user-supplied file content and
+                    # file names; escape it, as the API side does in _nmr_describe().
+                    + ''.join(f'<li>Internal error: {html.escape(str(msg))}</li>' for msg in items)
                     + '</ul>'
                 )
             else:
                 title = etype[0].upper() + etype[1:].replace('_', ' ')
                 lis = ''.join(
-                    f"<li>{title}: {msg['description']}</li>"
+                    f"<li>{title}: {html.escape(str(msg['description']))}</li>"
                     for msg in items if isinstance(msg, dict) and 'description' in msg
                 )
                 if lis:
@@ -1002,14 +1025,14 @@ def nmr_data_conversion(
 
     def _cs_dict_list(shift_files):
         return [
-            {'file_name': str(in_dir / f['original_name']), 'file_type': 'nmr-star',
+            {'file_name': str(in_dir / _input_name(f)), 'file_type': 'nmr-star',
              'original_file_name': f['original_name']}
             for f in shift_files
         ]
 
     def _dict_list(file_list, *, file_type=None):
         return [
-            {'file_name': str(in_dir / f['original_name']),
+            {'file_name': str(in_dir / _input_name(f)),
              'file_type': file_type or f['file_type'],
              'original_file_name': f['original_name']}
             for f in file_list
@@ -1029,10 +1052,10 @@ def nmr_data_conversion(
         for f in files:
             ft = f['file_type']
             if ft in ('nm-uni-str', 'nm-shi'):
-                cs_list.append({'file_name': str(in_dir / f['original_name']),
+                cs_list.append({'file_name': str(in_dir / _input_name(f)),
                                 'file_type': 'nmr-star', 'original_file_name': f['original_name']})
             elif ft == 'nm-uni-nef':
-                cs_list.append({'file_name': str(in_dir / f['original_name']),
+                cs_list.append({'file_name': str(in_dir / _input_name(f)),
                                 'file_type': 'nef', 'original_file_name': f['original_name']})
         atypical_cs_list = _dict_list(cs_variant_files)  # nm-shi-* and nm-csp-* kept as-is
         atypical_restraint_list = _dict_list(
@@ -1068,7 +1091,7 @@ def nmr_data_conversion(
             ))
             return False, False
         driver_text = _nmr_replace_cs_driver_script(
-            src=str(in_dir / uni['original_name']), cif=str(model_cif),
+            src=str(in_dir / _input_name(uni)), cif=str(model_cif),
             cs_list=_cs_dict_list(cs_files), replace_log=str(replace_log),
             consist_log=str(nmr_log), out_str=str(out_str), entry_id=entry_id,
             work_dir=str(work_d), cache_dir=str(cache_d),
@@ -1081,7 +1104,7 @@ def nmr_data_conversion(
         report_path = consist_log  # first task (consistency-check) report
         next_src = work_d / f'C_{conversion_id}_nmr-data-next.{"nef" if is_nef else "str"}'
         driver_text = _nmr_driver_script(
-            is_nef=is_nef, src=str(in_dir / uni['original_name']), cif=str(model_cif),
+            is_nef=is_nef, src=str(in_dir / _input_name(uni)), cif=str(model_cif),
             consist_log=str(consist_log), deposit_log=str(deposit_log),
             out_str=str(out_str), next_src=str(next_src), entry_id=entry_id,
             work_dir=str(work_d), cache_dir=str(cache_d),
@@ -1095,8 +1118,9 @@ def nmr_data_conversion(
         atypical_list, restraint_list = [], []
         for f in aux_files:
             name = f['original_name']
-            entry = {'file_name': str(in_dir / name), 'original_file_name': name}
-            if f['file_type'] == 'nm-res-oth' and _looks_like_nmr_star(in_dir / name):
+            disk = in_dir / _input_name(f)
+            entry = {'file_name': str(disk), 'original_file_name': name}
+            if f['file_type'] == 'nm-res-oth' and _looks_like_nmr_star(disk):
                 restraint_list.append({**entry, 'file_type': 'nmr-star'})
             else:
                 atypical_list.append({**entry, 'file_type': f['file_type']})

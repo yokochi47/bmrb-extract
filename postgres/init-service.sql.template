@@ -125,6 +125,8 @@ CREATE TABLE IF NOT EXISTS upload_file (
 
     original_name   TEXT NOT NULL,
     stored_path     TEXT NOT NULL,  -- if user uploads different files with the same name, the save paths for those files must be different.
+                                    -- Hence the '<ordinal>_<original_name>' basename (core/filenames.py: stored_basename), which the
+                                    -- per-run workspace copy must reuse too, or the second file would overwrite the first in input/.
 
     file_size       BIGINT,
     checksum        TEXT,

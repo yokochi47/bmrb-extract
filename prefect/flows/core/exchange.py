@@ -51,6 +51,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine  # no
 from sqlalchemy.pool import NullPool  # noqa: E402
 
 import core.site_config as cfg  # noqa: E402
+from core.filenames import sanitize_upload_name  # noqa: E402
 from core.models import OutputFile, Session, UploadFile, Workflow  # noqa: E402
 from core.site_config import (  # noqa: E402
     ARCHIVE_BASE_PATH,
@@ -238,7 +239,11 @@ def _upload_values(row):
     return {
         'token': _s(row['token']), 'ordinal': _i(row['ordinal']),
         'conversion_id': _i(row['conversion_id']), 'run_number': _i(row['run_number']),
-        'original_name': _s(row['original_name']), 'stored_path': _s(row['stored_path']),
+        # Rows arrive straight from the peer's database, so they never passed
+        # through this site's upload validation. Coerce the name to a safe path
+        # component: process_session builds input/ paths from it.
+        'original_name': sanitize_upload_name(_s(row['original_name'])),
+        'stored_path': _s(row['stored_path']),
         'file_size': _i(row['file_size']), 'checksum': _s(row['checksum']),
         'file_type': _s(row['file_type']), 'selected': _b(row['selected']),
         'source': _s(row['source']), 'uploaded_at': _ts(row['uploaded_at']),
