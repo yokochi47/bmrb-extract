@@ -44,8 +44,12 @@ services:
     # PGDATA at a subdirectory inside the persistent volume so data survives.
     environment:
       PGDATA: /var/lib/postgresql/data/pgdata
+    # Bound to loopback: every service reaches postgres by its service name on
+    # the internal network, so the published port is only for host-local tools
+    # (e.g. the read-only psql the peer site's exchange account runs over SSH).
+    # Publishing on 0.0.0.0 would expose the DB to the internet.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     networks:
       - internal
     volumes:
