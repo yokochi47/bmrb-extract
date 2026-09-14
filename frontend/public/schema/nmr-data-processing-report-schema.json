@@ -172,7 +172,7 @@
               "minimum": 1
             },
             "rdc_raw_data": {
-              "description": "The number of lists associated with residual dipolar coupling (RDC) experimetal data.",
+              "description": "The number of lists associated with residual dipolar coupling (RDC) experimental data.",
               "type": "integer",
               "minimum": 1
             },
@@ -242,7 +242,7 @@
               "minimum": 1
             },
             "coupling_constant_data": {
-              "description": "The number of lists associated with coupling consntat raw data.",
+              "description": "The number of lists associated with coupling constant raw data.",
               "type": "integer",
               "minimum": 1
             },
@@ -347,7 +347,7 @@
               "minimum": 1
             },
             "spectral_peak_alt": {
-              "description": "The number of saveframes associated with NMR-STAR cannonical spectral peak list.",
+              "description": "The number of saveframes associated with NMR-STAR canonical spectral peak list.",
               "type": "integer",
               "minimum": 1
             },
@@ -455,7 +455,7 @@
               }
             },
             "auto_relax_restraint": {
-              "description": "The array provides the polymer sequences in data loops for auto-relaxtion (inc. PRE) restraints.",
+              "description": "The array provides the polymer sequences in data loops for auto-relaxation (inc. PRE) restraints.",
               "type": "array",
               "items": {
                 "$ref": "#/definitions/polymer_sequence_in_loop"
@@ -1242,39 +1242,39 @@
       "type": "object",
       "properties": {
         "ca_chem_shift_1": {
-          "description": "CA chemical shift value of the 1st Cystein residue.",
+          "description": "CA chemical shift value of the 1st Cysteine residue.",
           "type": [
             "number",
             "null"
           ]
         },
         "cb_chem_shift_1": {
-          "description": "CB chemical shift value of the 1st Cystein residue.",
+          "description": "CB chemical shift value of the 1st Cysteine residue.",
           "type": [
             "number",
             "null"
           ]
         },
         "ca_chem_shift_2": {
-          "description": "CA chemical shift value of the 2nd Cystein residue.",
+          "description": "CA chemical shift value of the 2nd Cysteine residue.",
           "type": [
             "number",
             "null"
           ]
         },
         "cb_chem_shift_2": {
-          "description": "CB chemical shift value of the 2nd Cystein residue.",
+          "description": "CB chemical shift value of the 2nd Cysteine residue.",
           "type": [
             "number",
             "null"
           ]
         },
         "redox_state_pred_1": {
-          "description": "Redox state prediction of the 1st Cystein residue from given chemical shifts.",
+          "description": "Redox state prediction of the 1st Cysteine residue from given chemical shifts.",
           "type": "string"
         },
         "redox_state_pred_2": {
-          "description": "Redox state prediction of the 2nd Cystein residue from given chemical shifts.",
+          "description": "Redox state prediction of the 2nd Cysteine residue from given chemical shifts.",
           "type": "string"
         }
       }
@@ -1772,7 +1772,7 @@
       "additionalProperties": false
     },
     "info_of_exptl_data": {
-      "description": "Template for base information of eperimental data.",
+      "description": "Template for base information of experimental data.",
       "type": "object",
       "properties": {
         "list_id": {
@@ -1825,7 +1825,7 @@
           "minLength": 1
         },
         "length": {
-          "description": "Lendth of chain ID.",
+          "description": "Length of chain ID.",
           "type": "integer",
           "minLength": 1
         },
@@ -2461,11 +2461,11 @@
                 "minLength": 1
               },
               "in_disulfide_bond": {
-                "description": "Whether thiol group of the CYS is involved in disulfide boud.",
+                "description": "Whether thiol group of the CYS is involved in disulfide bond.",
                 "type": "boolean"
               },
               "in_other_bond": {
-                "description": "Whether thiol group of the CYS is involved in other boud.",
+                "description": "Whether thiol group of the CYS is involved in other bond.",
                 "type": "boolean"
               }
             },
@@ -2663,25 +2663,25 @@
                       "minLength": 1
                     },
                     "gauche-": {
-                      "description": "Population of gauche(-) rotermeric state in the ensemble.",
+                      "description": "Population of gauche(-) rotameric state in the ensemble.",
                       "type": "number",
                       "minimum": 0.0,
                       "maximum": 1.0
                     },
                     "trans": {
-                      "description": "Population of trans rotermeric state in the ensemble.",
+                      "description": "Population of trans rotameric state in the ensemble.",
                       "type": "number",
                       "minimum": 0.0,
                       "maximum": 1.0
                     },
                     "gauche+": {
-                      "description": "Population of gauche(+) rotermeric state in the ensemble.",
+                      "description": "Population of gauche(+) rotameric state in the ensemble.",
                       "type": "number",
                       "minimum": 0.0,
                       "maximum": 1.0
                     },
                     "unknown": {
-                      "description": "Population of unknown rotermeric state in the ensemble.",
+                      "description": "Population of unknown rotameric state in the ensemble.",
                       "type": "number",
                       "minimum": 0.0,
                       "maximum": 1.0
@@ -2801,7 +2801,7 @@
           }
         },
         "atom_name_mapping": {
-          "description": "Atom name mapping information from author-provided names to cannonical names during data conversion.",
+          "description": "Atom name mapping information from author-provided names to canonical names during data conversion.",
           "type": [
             "array",
             "null"
@@ -3372,7 +3372,7 @@
           ]
         },
         "histogram_of_discrepancy": {
-          "description": "Template for histogram of distance restraints having descrepancy.",
+          "description": "Template for histogram of distance restraints having discrepancy.",
           "type": "object",
           "properties": {
             "range_of_values": {
@@ -3408,7 +3408,7 @@
           ]
         },
         "atom_name_mapping": {
-          "description": "Atom name mapping information from author-provided names to cannonical names during data conversion.",
+          "description": "Atom name mapping information from author-provided names to canonical names during data conversion.",
           "type": [
             "array",
             "null"
@@ -3557,7 +3557,7 @@
           ]
         },
         "histogram_of_discrepancy": {
-          "description": "Template for histogram of dihedral angle restraints having descrepancy.",
+          "description": "Template for histogram of dihedral angle restraints having discrepancy.",
           "type": "object",
           "properties": {
             "range_of_values": {
@@ -3593,7 +3593,7 @@
           ]
         },
         "atom_name_mapping": {
-          "description": "Atom name mapping information from author-provided names to cannonical names during data conversion.",
+          "description": "Atom name mapping information from author-provided names to canonical names during data conversion.",
           "type": [
             "array",
             "null"
@@ -3696,7 +3696,7 @@
         "^[A-Z]{3}$": {
           "type": "array",
           "items": {
-            "description": "The first/second items correspond to each dihedral angle, the rest items corespond to error bar for each dihedral angle.",
+            "description": "The first/second items correspond to each dihedral angle, the rest items correspond to error bar for each dihedral angle.",
             "type": "array",
             "items": [
               {
@@ -3865,7 +3865,7 @@
           ]
         },
         "histogram_of_discrepancy": {
-          "description": "Template for histogram of RDC restraints having descrepancy.",
+          "description": "Template for histogram of RDC restraints having discrepancy.",
           "type": "object",
           "properties": {
             "range_of_values": {
@@ -3901,7 +3901,7 @@
           ]
         },
         "atom_name_mapping": {
-          "description": "Atom name mapping information from author-provided names to cannonical names during data conversion.",
+          "description": "Atom name mapping information from author-provided names to canonical names during data conversion.",
           "type": [
             "array",
             "null"
@@ -4053,7 +4053,7 @@
         "^[1A-Za-z_]+$": {
           "type": "array",
           "items": {
-            "description": "The first/second items correspond to observed and calculated RDC, respectively, the rest items corespond to error bar for observed and calculated RDC.",
+            "description": "The first/second items correspond to observed and calculated RDC, respectively, the rest items correspond to error bar for observed and calculated RDC.",
             "type": "array",
             "items": [
               {
@@ -4170,7 +4170,7 @@
           ]
         },
         "atom_name_mapping": {
-          "description": "Atom name mapping information from author-provided names to cannonical names during data conversion.",
+          "description": "Atom name mapping information from author-provided names to canonical names during data conversion.",
           "type": [
             "array",
             "null"
@@ -4183,7 +4183,7 @@
       }
     },
     "spectral_dim": {
-      "description": "Template for sepctral dimension.",
+      "description": "Template for spectral dimension.",
       "type": "object",
       "properties": {
         "id": {
@@ -4318,7 +4318,7 @@
       ]
     },
     "atom_name_mapping": {
-      "description": "Template for atom name mapping information from author-provided names to cannonical names during data conversion.",
+      "description": "Template for atom name mapping information from author-provided names to canonical names during data conversion.",
       "type": "object",
       "properties": {
         "comp_id": {
@@ -4492,7 +4492,7 @@
       }
     },
     "chain_assignment": {
-      "description": "Template for chain assignemnt between NMR data and the coordinates.",
+      "description": "Template for chain assignment between NMR data and the coordinates.",
       "type": "object",
       "properties": {
         "ref_chain_id": {
@@ -4955,14 +4955,6 @@
               "type": "integer",
               "minimum": 0
             },
-            "long_range": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "inter-chain": {
-              "type": "integer",
-              "minimum": 0
-            },
             "hydrogen_bond_restraints": {
               "type": "integer",
               "minimum": 0
@@ -5205,7 +5197,7 @@
           "minimum": 1
         },
         "entity_assembly_name": {
-          "description": "Systemtic name for each component in the entity_assembly.",
+          "description": "Systematic name for each component in the entity_assembly.",
           "type": "string",
           "minLength": 1
         },
@@ -5215,12 +5207,12 @@
           "minimum": 1
         },
         "entity_label": {
-          "description": "Systemtic label for each entity in the entry.",
+          "description": "Systematic label for each entity in the entry.",
           "type": "string",
           "minLength": 1
         },
         "chaid_id": {
-          "description": "Systemtic chain name in the entry. (i.e. label_asym_id in the coordinates)",
+          "description": "Systematic chain name in the entry. (i.e. label_asym_id in the coordinates)",
           "type": "string"
         },
         "auth_chaid_id": {
@@ -5908,7 +5900,7 @@
       ]
     },
     "output_stats_chem_shift_outlier_details": {
-      "description": "Template for detailes of chemical shift outlier in output statistics.",
+      "description": "Template for details of chemical shift outlier in output statistics.",
       "type": "object",
       "properties": {
         "value": {
@@ -6537,7 +6529,7 @@
           }
         },
         "sequence_alignments": {
-          "description": "The object provides sequence alignments of data loops in the input source file and sequence alignement between different input sources.",
+          "description": "The object provides sequence alignments of data loops in the input source file and sequence alignment between different input sources.",
           "type": "object",
           "properties": {
             "model_poly_seq_vs_coordinate": {
@@ -6728,7 +6720,7 @@
               }
             },
             "nmr_poly_seq_vs_spectral_peak_alt": {
-              "description": "The object provides sequence alignment between the representative sequence of the NMR data and sequence in data loops for assigned spectral peak lists written in NMR-STAR cannonical catgories, for example '_Peak', '_Peak_general_char', '_Peak_char', and '_Assigned_peak_chem_shift'.",
+              "description": "The object provides sequence alignment between the representative sequence of the NMR data and sequence in data loops for assigned spectral peak lists written in NMR-STAR canonical categories, for example '_Peak', '_Peak_general_char', '_Peak_char', and '_Assigned_peak_chem_shift'.",
               "type": [
                 "array",
                 "null"
@@ -6881,7 +6873,7 @@
               }
             },
             "nmr_poly_seq_vs_auto_relax_restraint": {
-              "description": "The object provides sequence alignment between the representative sequence of the NMR data and sequence in data loops for auto-relaxtion (inc. PRE) restraints.",
+              "description": "The object provides sequence alignment between the representative sequence of the NMR data and sequence in data loops for auto-relaxation (inc. PRE) restraints.",
               "type": [
                 "array",
                 "null"
@@ -7034,7 +7026,7 @@
               }
             },
             "nmr_poly_seq_vs_fchiral_restraint": {
-              "description": "The object provides sequence alignment between the representative sequence of the NMR data and sequence in data loops for floating chiral stereo assigments.",
+              "description": "The object provides sequence alignment between the representative sequence of the NMR data and sequence in data loops for floating chiral stereo assignments.",
               "type": [
                 "array",
                 "null"
@@ -7147,11 +7139,11 @@
       ]
     },
     "error": {
-      "description": "The object provides error messages with diagnostic information. If there is a error, wwPDB OneDep file upload failes.",
+      "description": "The object provides error messages with diagnostic information. If there is a error, OneDep/bmrb_extract file upload fails.",
       "$ref": "#/definitions/error"
     },
     "warning": {
-      "description": "The object provides warning messages with diagnostic information. Even with the warning, wwPDB OneDep file upload will succeed.",
+      "description": "The object provides warning messages with diagnostic information. Even with the warnings, OneDep/bmrb_extract file upload succeeds",
       "$ref": "#/definitions/warning"
     },
     "corrected_warning": {
