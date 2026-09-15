@@ -1,6 +1,6 @@
 """Cross-site data exchange (Osaka <-> UConn).
 
-The two production sites (bmrb-extract.bmrb.io / bmrb-extract.pdbj.org) run as
+The two production sites (extract.bmrb.io / bmrb-extract.pdbj.org) run as
 independent deployments with disjoint conversion-id ranges. To let annotators at
 one site troubleshoot conversions that ran on the other, this flow — scheduled
 every 6 hours (see prefect.yaml) — PULLS the *peer* site's valid sessions (those

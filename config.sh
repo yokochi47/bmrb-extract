@@ -80,6 +80,51 @@ set_conv_id_range() {
 
 }
 
+# SERVICE_SUBDOMAIN is the host part of SERVICE_HOST and may differ per service
+# level: UConn serves production on extract.bmrb.io and development on
+# dev.extract.bmrb.io, while Osaka uses bmrb-extract for both. Both values are
+# remembered in .env, so toggling the service level with ./config.sh switches the
+# hostname without re-asking; each is prompted once, defaulted per site below.
+set_service_subdomain() {
+
+  if [[ "${SERVICE_DOMAIN}" = "bmrb.io" ]] ; then
+
+    if [[ "${SERVICE_LEVEL}" = "development" ]] ; then
+      SERVICE_SUBDOMAIN_DEFAULT=dev.extract
+    else
+      SERVICE_SUBDOMAIN_DEFAULT=extract
+    fi
+
+  else
+
+    SERVICE_SUBDOMAIN_DEFAULT=bmrb-extract
+
+  fi
+
+  if [[ "${SERVICE_LEVEL}" = "development" ]] ; then
+
+    if [[ -z "${SERVICE_SUBDOMAIN_DEVELOPMENT:-}" ]] ; then
+      echo "Enter service subdomain for development [${SERVICE_SUBDOMAIN_DEFAULT}]:"
+      read ans
+      SERVICE_SUBDOMAIN_DEVELOPMENT=${ans:-${SERVICE_SUBDOMAIN_DEFAULT}}
+    fi
+
+    SERVICE_SUBDOMAIN=${SERVICE_SUBDOMAIN_DEVELOPMENT}
+
+  else
+
+    if [[ -z "${SERVICE_SUBDOMAIN_PRODUCTION:-}" ]] ; then
+      echo "Enter service subdomain for production [${SERVICE_SUBDOMAIN_DEFAULT}]:"
+      read ans
+      SERVICE_SUBDOMAIN_PRODUCTION=${ans:-${SERVICE_SUBDOMAIN_DEFAULT}}
+    fi
+
+    SERVICE_SUBDOMAIN=${SERVICE_SUBDOMAIN_PRODUCTION}
+
+  fi
+
+}
+
 echo "The current service level is \"${SERVICE_LEVEL}\"."
 
 if [[ "${SERVICE_LEVEL}" != "${NGINX_SERVICE_LEVEL}" ]] ; then
@@ -122,6 +167,8 @@ else
   CONV_ID_RANGE_END=9000000
   TZ=`date +%Z`
 fi
+
+set_service_subdomain
 
 # Cross-site data exchange: PEER_DOMAIN is the OTHER production domain (the
 # processing_site whose sessions this site imports). PEER_HOST (the peer's
@@ -169,8 +216,8 @@ if [[ -z "${PEER_ADMIN_EMAIL:-}" ]] ; then
   read PEER_ADMIN_EMAIL
 fi
 
-email_regex='^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\n$'
-email_list_regex='^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:\s*,\s*[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})*\n?$'
+email_regex='^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+email_list_regex='^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}([[:space:]]*,[[:space:]]*[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})*$'
 
 if [[ -z "${SERVICE_ADMIN_EMAIL}" ]] ; then
 
@@ -178,7 +225,7 @@ if [[ -z "${SERVICE_ADMIN_EMAIL}" ]] ; then
 
   read ans
 
-  if [[ "${ans}" =~ $email_regex ]] ; then
+  if ! [[ "${ans}" =~ $email_regex ]] ; then
     echo "Error: ${ans} is not valid."
     exit 1
   fi
@@ -193,7 +240,7 @@ if [[ -z "${SERVICE_ANNOT_EMAILS}" ]] ; then
 
   read ans
 
-  if [[ "${ans}" =~ $email_list_regex ]] ; then
+  if ! [[ "${ans}" =~ $email_list_regex ]] ; then
     echo "Error: ${ans} is not valid."
     exit 1
   fi
@@ -202,7 +249,7 @@ if [[ -z "${SERVICE_ANNOT_EMAILS}" ]] ; then
 
 else
 
- if [[ "${SERVICE_ANNOT_EMAILS}" =~ $email_list_regex ]] ; then
+ if ! [[ "${SERVICE_ANNOT_EMAILS}" =~ $email_list_regex ]] ; then
     echo "Error: ${SERVICE_ANNOT_EMAILS} is not valid."
     exit 1
  fi
@@ -234,11 +281,7 @@ if [[ -z "${POSTGRES_PASSWORD}" ]] ; then
 
   case "${ans}" in
     *[[:space:]]*)
-      echo "Error: ${ans} contains whitespace characters."
-      exit 1
-      ;;
-    *[\t]*)
-      echo "Error: ${ans} contains a tab character."
+      echo "Error: ${ans} contains whitespace characters (space, tab, etc.)."
       exit 1
       ;;
     *)
@@ -248,7 +291,7 @@ if [[ -z "${POSTGRES_PASSWORD}" ]] ; then
 
 fi
 
-token_regex='^[0-9A-Z]{29}\n$'
+token_regex='^[0-9A-Z]{29}$'
 
 if [[ -z "${MAXIT_CCD_SELF_RUNNER_TOKEN}" ]] ; then
 
@@ -257,7 +300,7 @@ if [[ -z "${MAXIT_CCD_SELF_RUNNER_TOKEN}" ]] ; then
 
   read ans
 
-  if [[ "${ans}" =~ $token_regex ]] ; then
+  if ! [[ "${ans}" =~ $token_regex ]] ; then
     echo "Error: ${ans} is not valid."
     exit 1
   fi
@@ -272,7 +315,7 @@ if [[ -z "${UTILS_NMR_SELF_RUNNER_TOKEN}" ]] ; then
 
   read ans
 
-  if [[ "${ans}" =~ $token_regex ]] ; then
+  if ! [[ "${ans}" =~ $token_regex ]] ; then
     echo "Error: ${ans} is not valid."
     exit 1
   fi
@@ -311,15 +354,18 @@ export TZ=${TZ}
 # Standalone NMR data conversion service
 export SERVICE_LEVEL=${SERVICE_LEVEL}
 export SERVICE_DOMAIN=${SERVICE_DOMAIN}
+export SERVICE_SUBDOMAIN_PRODUCTION=${SERVICE_SUBDOMAIN_PRODUCTION}
+export SERVICE_SUBDOMAIN_DEVELOPMENT=${SERVICE_SUBDOMAIN_DEVELOPMENT}
+export SERVICE_SUBDOMAIN=${SERVICE_SUBDOMAIN}
 export SERVICE_HOST=${SERVICE_SUBDOMAIN}.${SERVICE_DOMAIN}
 export SERVICE_ADMIN_EMAIL=${SERVICE_ADMIN_EMAIL}
 export SERVICE_HELP_EMAIL=${SERVICE_HELP_EMAIL}
-export SERVICE_ANNOT_EMAILS=${SERVICE_ANNOT_EMAILS}
+export SERVICE_ANNOT_EMAILS="${SERVICE_ANNOT_EMAILS}"
 
 # Cross-site data exchange (peer production server; empty PEER_HOST disables it)
 export PEER_HOST=${PEER_HOST}
 export PEER_DOMAIN=${PEER_DOMAIN}
-export PEER_ADMIN_EMAIL=${PEER_ADMIN_EMAIL}
+export PEER_ADMIN_EMAIL="${PEER_ADMIN_EMAIL}"
 export PEER_SSH_USER=${PEER_SSH_USER}
 export PEER_PSQL="${PEER_PSQL}"
 

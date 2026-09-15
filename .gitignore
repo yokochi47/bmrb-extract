@@ -22,6 +22,8 @@ nginx/ssl.conf
 postgres/init.sql
 postgres/init.seq.template
 postgres/init.sql.template
+postgres/reset.sql
+postgres/reset.sql.tmp.template
 backend/app/core/site_config.py
 certbot/certbot.sh
 systemd/bmrb-extract.service
