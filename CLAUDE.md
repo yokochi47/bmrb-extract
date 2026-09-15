@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-**bmrb_extract** is an NMR data conversion service that converts software-native NMR formats into a single file for deposition to PDB (via OneDep) and BMRB (via BMRBdep). It is deployed at two production sites: `bmrb-extract.bmrb.io` (UConn, US/Eastern) and `bmrb-extract.pdbj.org` (Osaka, Asia/Tokyo).
+**bmrb_extract** is an NMR data conversion service that converts software-native NMR formats into a single file for deposition to PDB (via OneDep) and BMRB (via BMRBdep). It is deployed at two production sites: `extract.bmrb.io` (UConn, US/Eastern) and `bmrb-extract.pdbj.org` (Osaka, Asia/Tokyo).
 
 The full user-facing flow — consent → upload → process → summary/validation → approve → download, plus passwordless login, "my sessions" and a help desk — is implemented. The one piece written but **not yet enabled in production** is cross-site data exchange (see *Prefect flows* below): the code is complete but no-ops until `PEER_HOST` is configured.
 
@@ -80,6 +80,8 @@ Two bind-mounted trees, kept deliberately separate so a conversion (which may ed
 - `systemd/bmrb-extract.service` and `systemd/bmrb-extract.sudoers` — the boot/shutdown unit and its scoped sudoers fragment, installed to `/etc` by `./install_systemd.sh` (`systemd/99-bmrb-extract.sysctl.conf` is static, not generated)
 
 **Never edit generated files directly.** Edit their `.template` counterpart and re-run `./config.sh`.
+
+**Hostname vs. site identity.** `SERVICE_DOMAIN` is the *site identity*, not just a DNS domain: it is the `processing_site_code` enum value, the peer-site map, and the frontend-variant selector, so it stays `bmrb.io` / `pdbj.org`. The hostname is the separate `SERVICE_HOST` = `${SERVICE_SUBDOMAIN}.${SERVICE_DOMAIN}`, and the subdomain is kept **per service level** — UConn serves production on `extract.bmrb.io` and development on `dev.extract.bmrb.io`, while Osaka uses `bmrb-extract` for both. `config.sh`'s `set_service_subdomain()` holds the per-site defaults and prompts only for the level being configured; `.env` remembers both (`SERVICE_SUBDOMAIN_PRODUCTION` / `SERVICE_SUBDOMAIN_DEVELOPMENT`), so switching level re-runs the resolution without re-asking. Everything downstream (nginx `server_name` and log dir, the Let's Encrypt lineage in `ssl.conf` + `certbot.sh`, the systemd unit, `site_config.py`, and the mailed magic/resume links) derives from `SERVICE_HOST`, so a new hostname needs only DNS plus its own certificate.
 
 **Schema changes on live sites.** There is no migration mechanism: `postgres/init.sql` is mounted at `/docker-entrypoint-initdb.d/` and so runs **only on a fresh volume**. After changing `postgres/init-service.sql.template`, re-run `./config.sh` (which covers fresh installs) and apply the equivalent idempotent DDL by hand at each production site:
 

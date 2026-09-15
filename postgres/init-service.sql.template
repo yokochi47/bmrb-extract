@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS session (
 
     -- The actual 'Conversion ID' will be generated from a prefix 'C_' and conversion_id.
     -- For instance,
-    -- UConn production server (bmrb-extract.bmrb.io) : C_1xxxxxx
+    -- UConn production server (extract.bmrb.io)      : C_1xxxxxx
     -- Osaka production server (bmrb-extract.pdbj.org): C_2xxxxxx
     -- Anonymous development server                   : C_8xxxxxx
     conversion_id       INT CHECK ( conversion_id >= 1000000 and conversion_id < 9000000 ) UNIQUE,
