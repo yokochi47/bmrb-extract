@@ -35,3 +35,4 @@ redis/data/appendonlydir
 secrets/*
 !secrets/.gitkeep
 !secrets/README.md
+!secrets/provision_bmrbxchg.sh
