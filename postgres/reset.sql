@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS session (
 
     -- The actual 'Conversion ID' will be generated from a prefix 'C_' and conversion_id.
     -- For instance,
-    -- UConn production server (bmrb-extract.bmrb.io) : C_1xxxxxx
+    -- UConn production server (extract.bmrb.io)      : C_1xxxxxx
     -- Osaka production server (bmrb-extract.pdbj.org): C_2xxxxxx
     -- Anonymous development server                   : C_8xxxxxx
     conversion_id       INT CHECK ( conversion_id >= 1000000 and conversion_id < 9000000 ) UNIQUE,
@@ -143,6 +143,8 @@ CREATE TABLE IF NOT EXISTS upload_file (
 
     original_name   TEXT NOT NULL,
     stored_path     TEXT NOT NULL,  -- if user uploads different files with the same name, the save paths for those files must be different.
+                                    -- Hence the '<ordinal>_<original_name>' basename (core/filenames.py: stored_basename), which the
+                                    -- per-run workspace copy must reuse too, or the second file would overwrite the first in input/.
 
     file_size       BIGINT,
     checksum        TEXT,
