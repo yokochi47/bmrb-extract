@@ -20,6 +20,7 @@ The full user-facing flow — consent → upload → process → summary/validat
 ./pdf/build.sh    # (re)build the PDF-report generator image (bmrb-extract-pdf-report:local); run after editing pdf/ — setup.sh runs it on a clean install
 ./reset_db.sh     # drop and re-initialize the databases
 ./install_systemd.sh  # one-time: install + enable bmrb-extract.service (runs setup.sh && start.sh at boot, stop.sh at shutdown)
+sudo bash secrets/provision_bmrbxchg.sh  # one-time per site: create the unprivileged peer-exchange account + its read-only DB role (idempotent; re-run after ./reset_db.sh — see secrets/README.md)
 ```
 
 ### Frontend (Angular 21)
