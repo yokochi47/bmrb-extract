@@ -555,6 +555,8 @@ export class Upload implements OnDestroy {
     else if (lower.includes('_nmr-peaks') && lower.includes('.dat.')) value = 'nm-pea-any';
     // XEASY .prot carries topology (OneDep) or chemical shifts (elsewhere).
     if (ext === 'prot') value = target === TargetDepsys.onedep ? 'nm-aux-xea' : 'nm-shi-xea';
+    // bmrbdep and '.str' extension indicates 'nm-shi'.
+    if (ext === 'str' && target === TargetDepsys.bmrbdep) value = 'nm-shi';
     if (!value) return null;
     return this.DEPSYS_FILE_TYPES[target](value) ? value : null;
   }

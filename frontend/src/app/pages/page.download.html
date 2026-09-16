@@ -693,8 +693,13 @@
           <p class="text-base mb-4 mx-4">
             The following table shows overall chemical shift statistics as aggregates over all
             chemical shift saveframe(s) in the NMR data file, flags any issues found when parsing
-            (e.g. format compliance) or mapping (matching the structure) the chemical shift data,
-            and reports the completeness of assignment.
+            (e.g. format compliance) or mapping
+            @if (hasModel()) {
+              (matching the model)
+            } @else {
+              (matching the molecular assembly)
+            }
+            the chemical shift data, and reports the completeness of assignment.
           </p>
           <div class="overflow-x-auto">
             <table class="w-full text-sm border-collapse">
@@ -734,7 +739,12 @@
         @if (chemShiftSaveframes().length) {
           <p class="text-base mb-4 mx-4">
             The following section presents statistical information regarding the analysis and
-            model-mapping for each chemical shift saveframe within the NMR data file.
+            @if (hasModel()) {
+              model-mapping
+            } @else {
+              entity-mapping
+            }
+            for each chemical shift saveframe within the NMR data file.
           </p>
           @for (sf of chemShiftSaveframes(); track $index) {
             <div class="text-lg mt-4 mb-2 break-all">{{ sf.title }}</div>
@@ -918,7 +928,13 @@
                 <ng-template pTemplate="header">
                   <span class="font-medium">
                     The following <strong>{{ sf.unmappedCount }}</strong> assigned chemical shifts
-                    were not mapped to the molecules present in the coordinate file.
+                    were not mapped to the molecules present in the
+                    @if (hasModel()) {
+                      coordinate
+                    } @else {
+                      NMR data
+                    }
+                    file.
                   </span>
                 </ng-template>
                 <div class="overflow-x-auto">
@@ -997,7 +1013,13 @@
                 <ng-template pTemplate="header">
                   <span class="font-medium">
                     The following <strong>{{ sf.unmodeledCount }}</strong> assigned chemical shifts
-                    were mapped to the unmodeled residues in the coordinate file.
+                    were mapped to the unmodeled residues in the
+                    @if (hasModel()) {
+                      coordinate
+                    } @else {
+                      NMR data
+                    }
+                    file.
                   </span>
                 </ng-template>
                 <div class="overflow-x-auto">
@@ -1071,7 +1093,9 @@
               </p-panel>
             }
 
-            <p class="text-base font-medium mb-2">5.{{ sf.listId }}.1 Atom name mapping history</p>
+            <p class="text-base font-medium mt-2 mb-2">
+              5.{{ sf.listId }}.1 Atom name mapping history
+            </p>
             @if (sf.atomNameMapping.length) {
               <p class="text-base mb-4 mx-2">
                 The table below shows how the system interpreted author-defined atom names (e.g.
@@ -1119,7 +1143,7 @@
               </p>
             }
 
-            <p class="text-base font-medium mb-2">
+            <p class="text-base font-medium mt-2 mb-2">
               5.{{ sf.listId }}.2 Completeness of resonance assignments
             </p>
             <!-- Completeness of resonance assignment (well-defined regions / full structure) -->
@@ -1176,7 +1200,7 @@
               </div>
             }
 
-            <p class="text-base font-medium mb-2">
+            <p class="text-base font-medium mt-2 mb-2">
               5.{{ sf.listId }}.3 Statistically unusual chemical shifts
             </p>
             @if (sf.outlierCount > 0 && sf.outlier.length) {
@@ -1314,28 +1338,39 @@
                 @if (panel.title.startsWith('RCI')) {
                   <p class="text-base mb-2 mx-4">
                     The image below reports random coil index (RCI) values and predicted order
-                    parameters (S²) for the protein chains in the structure. The height of the RCI
-                    point gives a probability of a given residue to be disordered, as predicted from
-                    the available backbone chemical shifts and the amino acid sequence. An RCI value
-                    above 0.2 is an indication of significant predicted disorder. An S² value of 1
-                    indicates completely restricted or rigid bonds, whereas 0 reflects completely
-                    isotropic, unrestricted motion on the picosecond to nanosecond timescale. It is
-                    known that experimentally determined order parameters for backbone N-H vector
-                    correlate well with the RCI values. The color of the region indicates whether
-                    the residue forms secondary structure (helix: light coral; sheet: sky blue). The
-                    gray region indicates residues that are not modeled. When the coordinate file
-                    carries no secondary-structure annotation, the cyan region indicates residues
-                    involved in well-defined cores instead, as in the NMR RMSD plot.
+                    parameters (S²) for the protein chains in the
+                    @if (hasModel()) {
+                      model
+                    } @else {
+                      molecular assembly
+                    }
+                    . The height of the RCI point gives a probability of a given residue to be
+                    disordered, as predicted from the available backbone chemical shifts and the
+                    amino acid sequence. An RCI value above 0.2 is an indication of significant
+                    predicted disorder. An S² value of 1 indicates completely restricted or rigid
+                    bonds, whereas 0 reflects completely isotropic, unrestricted motion on the
+                    picosecond to nanosecond timescale. It is known that experimentally determined
+                    order parameters for backbone N-H vector correlate well with the RCI values. The
+                    color of the region indicates whether the residue forms secondary structure
+                    (helix: light coral; sheet: sky blue). The gray region indicates residues that
+                    are not modeled. When the coordinate file carries no secondary structure
+                    annotation, the cyan region indicates residues involved in well-defined cores
+                    instead, as in the NMR RMSD plot.
                   </p>
                 }
                 @if (panel.title.startsWith('NMR RMSD')) {
                   <p class="text-base mb-2 mx-4">
                     The image below reports predicted NMR RMSD values for the protein chains in the
-                    structure. These values are known to correlate with RCI values. The horizontal
-                    dotted line indicates the average RMSD value of the principal well-defined
-                    region of the chain. If the RMSD is much lower than the dotted line, the models
-                    may be over-converged, or the number of models constituting the ensemble may be
-                    too small. The cyan region indicates residues involved in well-defined cores as
+                    @if (hasModel()) {
+                      model
+                    } @else {
+                      molecular assembly
+                    }
+                    . These values are known to correlate with RCI values. The horizontal dotted
+                    line indicates the average RMSD value of the principal well-defined region of
+                    the chain. If the RMSD is much lower than the dotted line, the models may be
+                    over-converged, or the number of models constituting the ensemble may be too
+                    small. The cyan region indicates residues involved in well-defined cores as
                     described in the Ensemble composition analysis section. The gray region
                     indicates residues that are not modeled.
                   </p>
@@ -1516,80 +1551,86 @@
           }
         } @else {
           <p class="text-surface-500 py-2">
-            NMR restraint validation is not available for this conversion.
+            @if (hasModel()) {
+              NMR restraint validation is not available for this conversion.
+            } @else {
+              The entry contains neither model nor any restraints.
+            }
           </p>
         }
 
-        @for (g of restraintBookkeepingGroups(); track g.section) {
-          <p class="text-lg mt-6 mb-2">{{ g.section }} {{ g.heading }}</p>
-          @if (g.saveframes.length) {
-            @for (sf of g.saveframes; track $index) {
-              <div class="text-base font-medium mt-4 mb-2 break-all">
-                {{ g.section }}.{{ sf.listId }} Bookkeeping — {{ sf.title }}
-              </div>
-              <div class="overflow-x-auto">
-                <table class="w-full text-sm border-collapse">
-                  <tbody>
-                    @for (p of sf.rows; track $index) {
-                      <tr class="border-b border-surface-100 dark:border-surface-800">
-                        <td class="px-2 py-1 font-medium align-top w-96">{{ p.label }}</td>
-                        <td class="px-2 py-1 break-all">{{ p.value }}</td>
-                      </tr>
-                    }
-                  </tbody>
-                </table>
-              </div>
-
-              @if (sf.mappedToModel !== 0) {
-                <p class="text-base font-medium mt-4 mb-2">
-                  {{ g.section }}.{{ sf.listId }}.1 Atom name mapping history
-                </p>
-                @if (sf.atomNameMapping.length) {
-                  <p class="text-base mb-4 mx-2">
-                    Author-defined atom names standardized against the CCD. Unusual mappings are
-                    shown in red — verify they are correct.
-                  </p>
-                  <div class="overflow-x-auto">
-                    <table class="w-full text-sm border-collapse mb-4">
-                      <thead>
-                        <tr>
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                          >
-                            Comp ID
-                          </th>
-                          <th
-                            class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
-                          >
-                            Mapping history (Author-defined atom name → Atom names in NMR data)
-                          </th>
+        @if (restraintProps().length) {
+          @for (g of restraintBookkeepingGroups(); track g.section) {
+            <p class="text-lg mt-6 mb-2">{{ g.section }} {{ g.heading }}</p>
+            @if (g.saveframes.length) {
+              @for (sf of g.saveframes; track $index) {
+                <div class="text-base font-medium mt-4 mb-2 break-all">
+                  {{ g.section }}.{{ sf.listId }} Bookkeeping — {{ sf.title }}
+                </div>
+                <div class="overflow-x-auto">
+                  <table class="w-full text-sm border-collapse">
+                    <tbody>
+                      @for (p of sf.rows; track $index) {
+                        <tr class="border-b border-surface-100 dark:border-surface-800">
+                          <td class="px-2 py-1 font-medium align-top w-96">{{ p.label }}</td>
+                          <td class="px-2 py-1 break-all">{{ p.value }}</td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        @for (m of sf.atomNameMapping; track $index) {
-                          <tr class="border-b border-surface-100 dark:border-surface-800">
-                            <td class="px-2 py-1 align-top">{{ m.comp_id }}</td>
-                            <td class="px-2 py-1 font-mono">
-                              @for (h of m.history; track $index) {
-                                <span [class.text-red-600]="h.unusual"
-                                  >{{ h.name }} → {{ h.atoms }}</span
-                                >{{ $last ? '' : '; ' }}
-                              }
-                            </td>
-                          </tr>
-                        }
-                      </tbody>
-                    </table>
-                  </div>
-                } @else {
-                  <p class="text-surface-500 py-2">
-                    The atom names defined by the author conformed to the CCD.
+                      }
+                    </tbody>
+                  </table>
+                </div>
+
+                @if (sf.mappedToModel !== 0) {
+                  <p class="text-base font-medium mt-4 mb-2">
+                    {{ g.section }}.{{ sf.listId }}.1 Atom name mapping history
                   </p>
+                  @if (sf.atomNameMapping.length) {
+                    <p class="text-base mb-4 mx-2">
+                      Author-defined atom names standardized against the CCD. Unusual mappings are
+                      shown in red — verify they are correct.
+                    </p>
+                    <div class="overflow-x-auto">
+                      <table class="w-full text-sm border-collapse mb-4">
+                        <thead>
+                          <tr>
+                            <th
+                              class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                            >
+                              Comp ID
+                            </th>
+                            <th
+                              class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                            >
+                              Mapping history (Author-defined atom name → Atom names in NMR data)
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          @for (m of sf.atomNameMapping; track $index) {
+                            <tr class="border-b border-surface-100 dark:border-surface-800">
+                              <td class="px-2 py-1 align-top">{{ m.comp_id }}</td>
+                              <td class="px-2 py-1 font-mono">
+                                @for (h of m.history; track $index) {
+                                  <span [class.text-red-600]="h.unusual"
+                                    >{{ h.name }} → {{ h.atoms }}</span
+                                  >{{ $last ? '' : '; ' }}
+                                }
+                              </td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                  } @else {
+                    <p class="text-surface-500 py-2">
+                      The atom names defined by the author conformed to the CCD.
+                    </p>
+                  }
                 }
               }
+            } @else {
+              <p class="text-surface-500 py-2">{{ g.emptyText }}</p>
             }
-          } @else {
-            <p class="text-surface-500 py-2">{{ g.emptyText }}</p>
           }
         }
       </p-card>
