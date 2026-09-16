@@ -122,8 +122,7 @@ def fold_one_letter_seq(seq, residues_per_line=60, block=10, max_chars=110):
     widest = max(len(r) for r in residues)
     per_line = max(1, min(residues_per_line // block,
                           (max_chars + 1) // (block * widest + 1)))
-    return '\n'.join(' '.join(blocks[i:i + per_line])
-                      for i in range(0, len(blocks), per_line))
+    return '\n'.join(' '.join(blocks[i:i + per_line]) for i in range(0, len(blocks), per_line))
 
 
 def output_statistics(report: dict) -> dict:
@@ -328,7 +327,7 @@ def build_rdc_correlation(report: dict) -> tuple[list, list]:
     return specs, correlations
 
 
-def build_chem_shift_charts(stats: dict) -> tuple[list, dict]:
+def build_chem_shift_charts(stats: dict, has_model: bool) -> tuple[list, dict]:
     """Section 5 charts: per chemical-shift saveframe, the Z-score histogram(s)
     and the RCI/S² + NMR-RMSD per-residue line plots. Returns (chart specs,
     {list_id: [{id, title}]}) — the latter tells the template which charts belong
@@ -336,6 +335,7 @@ def build_chem_shift_charts(stats: dict) -> tuple[list, dict]:
     inputs, then the shared histogramOption / lineOption builders render them."""
     import report_data as rd
 
+    chain_name = 'Auth_asym_ID' if has_model else 'Entity_assembly_ID'
     specs: list = []
     by_sf: dict = {}
     for st in stats.get('chem_shift', []) or []:
@@ -357,7 +357,7 @@ def build_chem_shift_charts(stats: dict) -> tuple[list, dict]:
                           'width': 720, 'height': 360})
             kind = 'rci' if str(c.get('label', '')).startswith('RCI') else 'nmr'
             entries.append({'id': cid, 'kind': kind,
-                            'title': f"{c.get('label')} — Auth_asym_ID: {c.get('chain')}"})
+                            'title': f"{c.get('label')} — {chain_name}: {c.get('chain')}"})
         by_sf[lid] = entries
     return specs, by_sf
 
@@ -647,7 +647,7 @@ def _split_notice_css(doc) -> str:
     return '\n'.join(rules)
 
 
-def build_chem_shift_sections(stats: dict, sf_charts: dict) -> list:
+def build_chem_shift_sections(stats: dict, sf_charts: dict, has_model: bool) -> list:
     """Full Section 5 content, one entry per chemical-shift saveframe: bookkeeping
     counts, atom-name-mapping history, completeness pivots, the statistically
     unusual (outlier) shifts, and the unmapped/unmodeled/unparsed/duplicated shift tables,
@@ -656,6 +656,8 @@ def build_chem_shift_sections(stats: dict, sf_charts: dict) -> list:
 
     def has_ins(rows):
         return any((r or {}).get('ins_code') not in (None, '') for r in rows)
+
+    cs_asm_name = 'full structure' if has_model else 'molecular assembly'
 
     sections = []
     for st in stats.get('chem_shift', []) or []:
@@ -668,18 +670,19 @@ def build_chem_shift_sections(stats: dict, sf_charts: dict) -> list:
         completeness = []
         for phrase, region in (
             ('well-defined regions of the structure', st.get('completeness_in_well_defined_region')),
-            ('full structure', st.get('completeness_in_full_length_region')),
+            (cs_asm_name, st.get('completeness_in_full_length_region')),
         ):
             view = rd.completeness_view(region)
             if view:
                 completeness.append({'phrase': phrase, 'view': view})
+        map_target = 'model' if has_model else 'assembly'
         sections.append({
             'list_id': lid,
             'sf_framecode': st.get('sf_framecode'),
             'original_file_name': st.get('original_file_name'),
             'bookkeeping': [
                 ('Number of parsed shifts', st.get('number_of_parsed')),
-                ('Number of shifts mapped to model', st.get('number_of_mapped_to_model')),
+                (f'Number of shifts mapped to {map_target}', st.get('number_of_mapped_to_model')),
                 ('Number of shifts mapped with errors', st.get('number_of_unmapped_to_model')),
                 ('Number of shifts mapped with warnings', st.get('number_of_mapped_to_unmodel')),
                 ('Number of unparsed shifts with errors', st.get('number_of_unparsed_with_error')),
@@ -837,8 +840,10 @@ def main() -> int:
     stats = output_statistics(report)
     ensemble = ensemble_composition(report)
 
+    has_model = stats.get('model') is not None
+
     specs = build_chart_inputs(stats, ensemble)
-    cs_specs, cs_by_sf = build_chem_shift_charts(stats)
+    cs_specs, cs_by_sf = build_chem_shift_charts(stats, has_model)
     specs += cs_specs
     corr_specs, rdc_correlations = build_rdc_correlation(report)
     specs += corr_specs
@@ -846,7 +851,11 @@ def main() -> int:
 
     ctx = build_context(stats, ensemble, provenance, charts,
                         report_timestamp_utc(report_path))
-    ctx['chem_shift_sections'] = build_chem_shift_sections(stats, cs_by_sf)
+    ctx['chem_shift_sections'] = build_chem_shift_sections(stats, cs_by_sf, has_model)
+    if has_model:
+        ctx['has_model'] = True
+    ctx['cs_map_name'] = 'model-mapping' if has_model else 'entity-mapping'
+    ctx['cs_asm_name'] = 'model' if has_model else 'molecular assembly'
     ctx['r'] = build_restraint_sections(stats)
     ctx['rdc_correlations'] = rdc_correlations
     icon_path = ASSETS_DIR / 'report_logo.png'

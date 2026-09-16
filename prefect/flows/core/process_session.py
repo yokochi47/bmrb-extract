@@ -238,7 +238,7 @@ async def _update_session_status(token: str, status: SessionStatusCode) -> None:
 
 # Converted result files produced in the run's output/ dir, mapped to their
 # output_file_type. The converted coordinate (pdbx) exists only for OneDep /
-# repl_cs (bmrbdep has none); the NEF is optional (NEF-release step). Names
+# repl_cs (bmrbdep is optional); the NEF is optional (NEF-release step). Names
 # mirror coordinate_conversion / nmr_data_conversion / _generate_nef_release.
 _OUTPUT_FILE_SPECS = (
     ('C_{cid}_model.cif', 'pdbx'),
@@ -608,15 +608,15 @@ def _nmr_replace_cs_driver_script(
 
 
 def _nmr_bmrbdep_driver_script(
-    *, cs_list: list, atypical_cs_list: list, atypical_restraint_list: list,
+    *, cs_list: list, atypical_cs_list: list, atypical_restraint_list: list, cif: str,
     merge_log: str, consist_log: str, out_str: str, entry_id: str,
     work_dir: str, cache_dir: str,
 ) -> str:
     """Driver for BMRBdep (BMRB-only) deposition: merge chemical shifts (NMR-STAR
     nm-uni-str/nm-shi and NEF nm-uni-nef in chem_shift_file_path_list, plus any
     nm-shi-* variants in atypical_chem_shift_file_path_list) and optional topology
-    (nm-aux-* in atypical_restraint_file_path_list) into one NMR-STAR. No
-    coordinates.
+    (nm-aux-* in atypical_restraint_file_path_list) into one NMR-STAR where
+    coordinate file is optional.
     2 step ops: nmr-cs-mr-merge and nmr-str-consistency-check.
     Similar input params as repl_cs case (except for coordinates) with conversion_server=True."""
     common_inputs = (
@@ -639,11 +639,16 @@ def _nmr_bmrbdep_driver_script(
         "u.addInput(name='atypical_restraint_file_path_list', value=ATYPICAL_R, type='file_dict_list')\n"
         if atypical_restraint_list else ""
     )
+    cif_input = (
+        "u.addInput(name='coordinate_file_path', value=CIF, type='file')\n"
+        if cif else ""
+    )
     return (
         "from nmr.NmrDpUtility import NmrDpUtility\n"
         f"CS_LIST = {cs_list!r}\n"
         f"ATYPICAL_CS = {atypical_cs_list!r}\n"
         f"ATYPICAL_R = {atypical_restraint_list!r}\n"
+        f"CIF = {cif!r}\n"
         f"MERGE_LOG = {merge_log!r}\n"
         f"CONS_LOG = {consist_log!r}\n"
         f"OUT_STR = {out_str!r}\n"
@@ -654,6 +659,7 @@ def _nmr_bmrbdep_driver_script(
         "u.addInput(name='chem_shift_file_path_list', value=CS_LIST, type='file_dict_list')\n"
         f"{atypical_cs_input}"
         f"{atypical_r_input}"
+        f"{cif_input}"
         f"{common_inputs}"
         # conversion_server mode derives entry_id = C_<conversion_id> from this
         # (the conversion_id matches CNV_ID_PAT ^C_[1-9]\\d{6}$ as C_<id>).
@@ -664,6 +670,7 @@ def _nmr_bmrbdep_driver_script(
         "# Step 2: consistency check\n"
         "u.setWorkspace(WORK_DIR, CACHE_DIR)\n"
         "u.setSource(OUT_STR)\n"
+        f"{cif_input}"
         f"{common_inputs}"
         "u.addInput(name='report_file_path', value=MERGE_LOG, type='file')\n"
         "u.setLog(CONS_LOG)\n"
@@ -977,7 +984,7 @@ def nmr_data_conversion(
     - repl_cs: replace the assigned chemical shifts in the OneDep-processed
       NMR-STAR unified data file (nm-uni-str, setSource) with the correct nm-shi
       files -> single op nmr-str-replace-cs.
-    - bmrbdep (BMRB-only, no coordinates): merge chemical shifts (nm-uni-*,
+    - bmrbdep (BMRB-only, coordinate file is optional): merge chemical shifts (nm-uni-*,
       nm-shi, nm-shi-*) and optional topology (nm-aux-*) -> single op
       nmr-cs-mr-merge with conversion_server=True.
 
@@ -1045,8 +1052,8 @@ def nmr_data_conversion(
     onedep_combined = (target == 'onedep' and uni is not None) or target == 'repl_cs'
 
     if target == 'bmrbdep':
-        # BMRB-only: merge chemical shifts (+ optional topology) into NMR-STAR with
-        # no coordinates. 2 step ops: nmr-cs-mr-merge + nmr-str-consistency-check with conversion_server=True.
+        # BMRB-only: merge chemical shifts (+ optional topology) into NMR-STAR where coordinate file is optional.
+        # 2 step ops: nmr-cs-mr-merge + nmr-str-consistency-check with conversion_server=True.
         merge_log = log_d / f'C_{conversion_id}_nmr-data-str_bmrb_only.json'
         nmr_log = log_d / f'C_{conversion_id}_nmr-data-str_consist.json'
         report_path = merge_log  # first task report
@@ -1073,6 +1080,7 @@ def nmr_data_conversion(
         driver_text = _nmr_bmrbdep_driver_script(
             cs_list=cs_list, atypical_cs_list=atypical_cs_list,
             atypical_restraint_list=atypical_restraint_list,
+            cif=str(model_cif) if model_cif.exists() else None,
             merge_log=str(merge_log), consist_log=str(nmr_log), out_str=str(out_str),
             entry_id=entry_id, work_dir=str(work_d), cache_dir=str(cache_d),
         )

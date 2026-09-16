@@ -802,6 +802,9 @@ export class Download {
   /** A NEF file was produced — else the table shows the NEF-unavailable note. */
   hasNef = computed(() => this.files().some((f) => f.file_type === 'nef'));
 
+  /** Coordinate file was produced. */
+  hasModel = computed(() => this.files().some((f) => f.file_type === 'pdbx'));
+
   /** Conversion statistics subtree (GET /api/output_statistics); null until
    * loaded or when the report has no output_statistics. */
   statistics = signal<OutputStatistics | null>(null);
@@ -1079,6 +1082,9 @@ export class Download {
       const duplicated = s.chemical_shift_duplicated ?? [];
       const hasInsCode = (rows: { ins_code?: string | null }[]) =>
         rows.some((r) => r.ins_code != null && r.ins_code !== '');
+      const full_asm_name = this.hasModel() ? 'full structure' : 'molecular assembly';
+      const map_target = this.hasModel() ? 'model' : 'assembly';
+      const chain_name = this.hasModel() ? 'Auth_asym_ID' : 'Entity_assembly_ID';
       // Completeness pivot tables: well-defined regions and the full structure.
       const completeness = (
         [
@@ -1086,7 +1092,7 @@ export class Download {
             phrase: 'well-defined regions of the structure',
             region: s.completeness_in_well_defined_region,
           },
-          { phrase: 'full structure', region: s.completeness_in_full_length_region },
+          { phrase: full_asm_name, region: s.completeness_in_full_length_region },
         ] as const
       ).flatMap(({ phrase, region }) => {
         const view = buildCompletenessView(region);
@@ -1097,7 +1103,7 @@ export class Download {
         listId: `${s.list_id}`,
         rows: [
           this.kv('Number of parsed shifts', s.number_of_parsed),
-          this.kv('Number of shifts mapped to model', s.number_of_mapped_to_model),
+          this.kv(`Number of shifts mapped to ${map_target}`, s.number_of_mapped_to_model),
           this.kv('Number of shifts with mapping errors', s.number_of_unmapped_to_model),
           this.kv('Number of shifts with mapping warnings', s.number_of_mapped_to_unmodel),
           this.kv('Number of unparsed shifts with errors', s.number_of_unparsed_with_error),
@@ -1134,7 +1140,7 @@ export class Download {
         })),
         // RCI/S² and NMR-RMSD per-residue plots (chain = Auth_asym_ID).
         rciPanels: (s.rci ?? []).map((c, index) => ({
-          title: `${c.label} — Auth_asym_ID: ${c.chain}`,
+          title: `${c.label} — ${chain_name}: ${c.chain}`,
           option: lineOption(c, index % 2 == 0 ? 'RCI / S² values' : 'NMR RMSD (Å)'),
         })),
       };
