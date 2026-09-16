@@ -497,11 +497,14 @@ export class Summary implements OnDestroy {
    * the user (i.e. was downloaded from BMRB). */
   showSource = computed(() => this.files().some((f) => f.source !== 'user'));
 
+  /** Coordinate file was produced. */
+  hasCif = computed(() => this.files().some((f) => f.file_type === 'pdbx'));
+
   /** The coordinate preview is shown only for targets that produce a converted
    * coordinate file (onedep / repl_cs); bmrbdep has none. */
   showViewer = computed(() => {
     const t = this.pageService.pageState().targetDepsys;
-    return t === TargetDepsys.onedep || t === TargetDepsys.repl_cs;
+    return t === TargetDepsys.onedep || t === TargetDepsys.repl_cs || this.hasCif;
   });
 
   /** Set when the Mol* preview could not be loaded (e.g. no coordinate yet). */

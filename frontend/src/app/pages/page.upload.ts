@@ -253,13 +253,11 @@ export class Upload implements OnDestroy {
     // 3. Coordinate file: OneDep and Replacing-CS require exactly one active
     //    (selected) coordinate file (co-cif or co-pdb).
     const target = this.state().targetDepsys;
-    if (target === TargetDepsys.onedep || target === TargetDepsys.repl_cs) {
-      const coordCount = selected.filter((r) => r.fileType?.startsWith('co-')).length;
-      if (coordCount === 0) {
-        errors.push('Please provide/select one coordinate file.');
-      } else if (coordCount > 1) {
-        errors.push('Please select one coordinate file only.');
-      }
+    const coordCount = selected.filter((r) => r.fileType?.startsWith('co-')).length;
+    if (coordCount === 0 && (target === TargetDepsys.onedep || target === TargetDepsys.repl_cs)) {
+      errors.push('Please provide/select one coordinate file.');
+    } else if (coordCount > 1) {
+      errors.push('Please select one coordinate file only.');
     }
 
     // 4. NMR unified data: at most one active (selected) nm-uni-* file is allowed.
@@ -303,7 +301,9 @@ export class Upload implements OnDestroy {
       if (shiftCount === 0) {
         warnings.push('Please upload at least one assigned chemical shift file.');
       }
-      const topoCount = selected.filter((r) => r.fileType?.startsWith('nm-aux-')).length;
+      const topoCount = selected.filter(
+        (r) => r.fileType?.startsWith('co-') || r.fileType?.startsWith('nm-aux-'),
+      ).length;
       if (topoCount > 1) {
         errors.push('Please select only one topology file.');
       }
@@ -455,7 +455,7 @@ export class Upload implements OnDestroy {
    * prefix match). Keep in sync with the file upload requirements cards.
    * - onedep : co-*, nm-uni-*, nm-shi, nm-pea-*, nm-res-*, nm-aux-*
    * - repl_cs: co-*, nm-uni-str, nm-shi
-   * - bmrbdep: nm-uni-*, nm-shi, nm-shi-*, nm-aux-* (except nm-aux-xea)
+   * - bmrbdep: nm-uni-*, nm-shi, nm-shi-*, nm-aux-* (except nm-aux-xea), co-* (optional)
    *
    * The XEASY .prot file carries both topology and chemical shifts, so
    * nm-aux-xea and nm-shi-xea are the same file. To avoid a redundant menu
@@ -476,7 +476,8 @@ export class Upload implements OnDestroy {
       v.startsWith('nm-uni-') ||
       v.startsWith('nm-shi') ||
       v.startsWith('nm-csp-') ||
-      (v.startsWith('nm-aux-') && v !== 'nm-aux-xea'),
+      (v.startsWith('nm-aux-') && v !== 'nm-aux-xea') ||
+      v.startsWith('co-'),
   };
 
   /**
