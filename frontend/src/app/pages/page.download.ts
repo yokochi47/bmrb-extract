@@ -309,7 +309,10 @@ function foldOneLetterSeq(seq: string, residuesPerLine = 60, block = 10, maxChar
   const widest = residues.reduce((w, r) => Math.max(w, r.length), 1);
   const perLine = Math.max(
     1,
-    Math.min(Math.floor(residuesPerLine / block), Math.floor((maxChars + 1) / (block * widest + 1))),
+    Math.min(
+      Math.floor(residuesPerLine / block),
+      Math.floor((maxChars + 1) / (block * widest + 1)),
+    ),
   );
   const lines: string[] = [];
   for (let i = 0; i < blocks.length; i += perLine) {
