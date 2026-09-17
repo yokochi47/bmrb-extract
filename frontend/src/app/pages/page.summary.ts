@@ -417,8 +417,20 @@ interface EnsembleRegion {
   medoid_rmsd?: number;
   range_of_seq_id?: string;
 }
+/** One cluster of the ensemble cluster analysis (cluster_id === -1 collects the
+ * models that fell into no cluster, i.e. the single-model clusters). */
+interface EnsembleCluster {
+  cluster_id?: number;
+  model_ids?: number[];
+  centroid_model_id?: number;
+  mean_rmsd?: number;
+}
 interface EnsembleComposition {
+  total_models?: number;
+  representative_model_id?: number;
+  selection_criteria?: string | null;
   well_defined_region?: EnsembleRegion[];
+  cluster_analysis?: EnsembleCluster[];
 }
 /** A titled chemical-shift-prediction table. */
 interface PredictionTable {
@@ -535,6 +547,34 @@ export class Summary implements OnDestroy {
   /** Coordinate ensemble well-defined regions (shown under the coordinate preview). */
   ensembleRegions = computed<EnsembleRegion[]>(
     () => this.nmrPreview()?.ensemble_composition?.well_defined_region ?? [],
+  );
+
+  /** Total model count in the ensemble (caption). */
+  ensembleTotalModels = computed(
+    () => this.nmrPreview()?.ensemble_composition?.total_models ?? null,
+  );
+  /** Medoid model id of the representative (first) well-defined region (caption). */
+  ensembleMedoidModel = computed(() => this.ensembleRegions()[0]?.medoid_model_id ?? null);
+  /** Author-provided representative model id and its selection criterion (caption,
+   * shown only when a selection criterion was provided). */
+  ensembleRepresentativeModel = computed(
+    () => this.nmrPreview()?.ensemble_composition?.representative_model_id ?? null,
+  );
+  ensembleSelectionCriteria = computed(
+    () => this.nmrPreview()?.ensemble_composition?.selection_criteria ?? null,
+  );
+
+  /** Cluster-analysis rows (cluster_id === -1 marks the single-model clusters). */
+  ensembleClusters = computed<EnsembleCluster[]>(
+    () => this.nmrPreview()?.ensemble_composition?.cluster_analysis ?? [],
+  );
+  /** Number of genuine (multi-model) clusters, i.e. excluding cluster_id === -1. */
+  clusteredCount = computed(
+    () => this.ensembleClusters().filter((c) => c.cluster_id !== -1).length,
+  );
+  /** Count of single-model clusters = size of the cluster_id === -1 model list. */
+  singleModelCount = computed(
+    () => this.ensembleClusters().find((c) => c.cluster_id === -1)?.model_ids?.length ?? 0,
   );
 
   /** Per-saveframe bookkeeping rows keyed by sf_framecode (transplanted table). */
