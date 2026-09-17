@@ -1093,7 +1093,7 @@
               </p-panel>
             }
 
-            <p class="text-base font-medium mt-2 mb-2">
+            <p class="text-base font-medium mt-4 mb-2">
               5.{{ sf.listId }}.1 Atom name mapping history
             </p>
             @if (sf.atomNameMapping.length) {
@@ -1330,7 +1330,7 @@
             }
 
             @if (sf.rciPanels.length) {
-              <p class="text-base font-medium mb-2">
+              <p class="text-base font-medium mt-2 mb-2">
                 5.{{ sf.listId }}.4 Random Coil Index (RCI) plots
               </p>
               @for (panel of sf.rciPanels; track $index) {
@@ -1552,7 +1552,7 @@
         } @else {
           <p class="text-surface-500 py-2">
             @if (hasModel()) {
-              NMR restraint validation is not available for this conversion.
+              There is no conformationally restricting restraints.
             } @else {
               The entry contains neither model nor any restraints.
             }

@@ -541,7 +541,7 @@
 {#- ===================================================== 6. Restraint analysis -#}
 <section class="report-section">
   <h2>6. NMR restraint analysis</h2>
-  {%- if has_model %}
+  {%- if r.restraint_available %}
   <h3>6.1 Conformationally restricting restraints</h3>
   <p class="caption">The following table provides the summary of experimentally observed NMR restraints
   in different categories. Restraints are classified into different categories based on the sequence
@@ -552,6 +552,8 @@
     <tr><td class="k">{{ p.label | safe }}</td><td>{{ p.value }}</td></tr>
     {%- endfor %}
   </table>
+  {%- elif has_model %}
+  <p class="caption">There is no conformationally restricting restraints.</p>
   {%- else %}
   <p class="caption">The entry contains neither model nor any restraints.</p>
   {%- endif %}
@@ -579,7 +581,7 @@
   {%- endif %}
   {%- endif %}
 
-  {%- if has_model %}
+  {%- if r.restraint_available %}
   {%- for g in r.bookkeeping_groups %}
   <h3>{{ g.section }} {{ g.heading }}</h3>
   {%- if g.saveframes %}
