@@ -848,7 +848,15 @@
                     <th
                       class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                     >
-                      Coordinates
+                      @if (
+                        hasModel() ||
+                        pt.title === 'Histidine tautomeric state' ||
+                        pt.title === 'Ile/Leu/Val rotameric state'
+                      ) {
+                        Coordinates
+                      } @else {
+                        Assembly
+                      }
                     </th>
                     <th
                       class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"

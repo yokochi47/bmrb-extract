@@ -2975,10 +2975,16 @@ def _bookkeeping_by_sf(report):
     if not isinstance(stats, dict):
         return {}
 
+    has_model = any(
+        isinstance(src, dict) and src.get('file_type') == 'pdbx'
+        for src in report.get('information', {}).get('input_sources') or []
+    )
+    map_target = 'model' if has_model else 'assembly'
+
     def rows_for(item, noun, outliers=False):
         pairs = [
             (f'Number of parsed {noun}', item.get('number_of_parsed')),
-            (f'Number of {noun} mapped to model', item.get('number_of_mapped_to_model')),
+            (f'Number of {noun} mapped to {map_target}', item.get('number_of_mapped_to_model')),
             (f'Number of {noun} mapped with errors', item.get('number_of_unmapped_to_model')),
             (f'Number of unparsed {noun} with errors', item.get('number_of_unparsed_with_error')),
             (f'Number of parsed {noun} with warnings', item.get('number_of_parsed_with_warning')),
