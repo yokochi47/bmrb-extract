@@ -24,6 +24,19 @@
   display: none !important;
 }
 
+/* Mol*'s expand/fullscreen control only sets `position: fixed; inset: 0` on its
+   content root; upstream deliberately leaves the z-index unset (see the
+   commented-out `this.root.style.zIndex` in mol-plugin/layout.ts). A fixed box
+   with `z-index: auto` paints alongside every other positioned `z-index: auto`
+   box in tree order, so PrimeNG's `.p-checkbox` and `.p-button` (both
+   `position: relative`) further down the summary page — and the app chrome at
+   z-index 997-999 — punched through the expanded viewer. Lift it above the app
+   shell but keep it below PrimeNG's modal layer (1100) so the consent/expiry
+   dialogs can still surface. */
+.msp-plugin .msp-layout-expanded {
+  z-index: 1000;
+}
+
 /* PrimeNG lays a Panel's body out as `display: grid` with a single implicit
    `auto` column, and sets only `min-height: 0` on the grid item. An auto track's
    minimum is its item's min-content width, so anything inside with an explicit
