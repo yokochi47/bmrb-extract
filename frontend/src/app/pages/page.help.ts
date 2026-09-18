@@ -9,12 +9,19 @@ import { MessageModule } from 'primeng/message';
 import { DividerModule } from 'primeng/divider';
 import { TagModule } from 'primeng/tag';
 
-import { AuthService, Inquiry, SessionRow } from './auth.service';
+import { AuthService, Inquiry, SessionRow, ThreadState } from './auth.service';
 
 interface Thread {
   conversion_id: number;
   public_id: string;
   messages: Inquiry[];
+  /** The newest message is an annotator reply (derived from `messages`, so it
+   * flips as soon as a reply is reloaded -- no wait for the unread poll). */
+  answered: boolean;
+  /** An annotator marked this thread resolved and no newer inquiry reopened it. */
+  resolved: boolean;
+  /** Handled either way, so it belongs in the 'Addressed' group. */
+  addressed: boolean;
 }
 
 /** Help desk (Terms #5): signed-in users file inquiries about one of their
@@ -67,19 +74,44 @@ export class Help {
 
   // --- annotator side ---
   inquiries = signal<Inquiry[]>([]);
+  /** Per-thread handling state from the server, keyed by conversion_id. */
+  states = signal<Record<number, ThreadState>>({});
   replies = signal<Record<number, string>>({});
+  /** Which group the two switch buttons are showing. */
+  group = signal<'open' | 'addressed'>('open');
+  resolving = signal<number | null>(null);
   threads = computed<Thread[]>(() => {
+    const states = this.states();
     const byId = new Map<number, Thread>();
     for (const m of this.inquiries()) {
       let t = byId.get(m.conversion_id);
       if (!t) {
-        t = { conversion_id: m.conversion_id, public_id: m.public_id, messages: [] };
+        t = {
+          conversion_id: m.conversion_id,
+          public_id: m.public_id,
+          messages: [],
+          answered: false,
+          resolved: !!states[m.conversion_id]?.resolved,
+          addressed: false,
+        };
         byId.set(m.conversion_id, t);
       }
       t.messages.push(m);
     }
+    // Messages arrive ordinal-ascending, so the last one is the newest.
+    for (const t of byId.values()) {
+      t.answered = !!t.messages[t.messages.length - 1]?.from_admin;
+      t.addressed = t.answered || t.resolved;
+    }
     return [...byId.values()];
   });
+  /** Inquiries nobody has replied to or closed -- the annotator's work queue. */
+  openThreads = computed(() => this.threads().filter((t) => !t.addressed));
+  /** Replied to, or explicitly marked resolved by an annotator. */
+  addressedThreads = computed(() => this.threads().filter((t) => t.addressed));
+  visibleThreads = computed(() =>
+    this.group() === 'open' ? this.openThreads() : this.addressedThreads(),
+  );
 
   constructor() {
     if (this.auth.isAdmin()) {
@@ -99,6 +131,7 @@ export class Help {
     this.auth.getInquiries().subscribe({
       next: (r) => {
         this.inquiries.set(r.inquiries);
+        this.states.set(Object.fromEntries((r.threads ?? []).map((t) => [t.conversion_id, t])));
         this.loading.set(false);
       },
       error: () => this.loading.set(false),
@@ -198,6 +231,22 @@ export class Help {
         // Replying handles the inquiry on this site — clear the badge.
         this.auth.refreshUnread();
       },
+    });
+  }
+
+  /** Mark a thread resolved without replying, or reopen a closed one. Resolving
+   * takes it out of the work queue and the badge; a newer user inquiry would
+   * reopen it server-side regardless. */
+  toggleResolved(cid: number, resolved: boolean) {
+    if (this.resolving() !== null) return;
+    this.resolving.set(cid);
+    this.auth.postResolve(cid, resolved).subscribe({
+      next: () => {
+        this.resolving.set(null);
+        this.loadInquiries();
+        this.auth.refreshUnread();
+      },
+      error: () => this.resolving.set(null),
     });
   }
 }

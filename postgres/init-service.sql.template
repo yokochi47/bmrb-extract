@@ -78,7 +78,8 @@ CREATE TABLE IF NOT EXISTS session (
     exchanged           BOOLEAN DEFAULT FALSE,  -- wheather data exchange among production servers completes.
     downloaded          BOOLEAN DEFAULT FALSE,  -- wheather user downloads the conversion results.
 
-    help_user_seen_at   TIMESTAMP               -- when the owner last viewed the help-desk thread (drives the new-reply badge)
+    help_user_seen_at   TIMESTAMP,              -- when the owner last viewed the help-desk thread (drives the new-reply badge)
+    help_resolved_at    TIMESTAMP               -- when an annotator marked the help-desk thread resolved; NULL = never, and a user inquiry newer than this stamp reopens it
 );
 
 DROP TYPE IF EXISTS upload_file_type;

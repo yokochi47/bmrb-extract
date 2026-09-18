@@ -779,7 +779,62 @@ async def help_inquiries():
             )
         ).scalars().all()
         items = [_message_view(r) for r in rows]
-        return {'inquiries': items}, 200
+        # Per-thread addressed/resolved state, so the annotator page can split the
+        # list into 'Needs reply' / 'Addressed' without a second round trip.
+        states = await _help_thread_states(db)
+        threads = [{'conversion_id': cid, 'public_id': f'C_{cid}', **st}
+                   for cid, st in sorted(states.items(), reverse=True)]
+        return {'inquiries': items, 'threads': threads}, 200
+
+
+async def _help_thread_states(db):
+    """Per-conversation help-desk state for the annotator views.
+
+    'answered' is true while the newest message in the thread is an annotator
+    reply; 'resolved' is true while session.help_resolved_at is no older than the
+    newest user inquiry, so a fresh inquiry reopens a thread that was closed
+    without a reply. A thread is addressed -- out of the annotator queue -- when
+    either holds. Both /api/help/inquiries and /api/help/unread derive from this
+    helper so the 'Needs reply' group and the topbar badge can never disagree.
+
+    Returns {conversion_id: {answered, resolved, resolved_at}}."""
+    rows = (
+        await db.execute(
+            select(
+                Communication.conversion_id,
+                Communication.ordinal,
+                Communication.from_admin,
+                Communication.sent_at,
+            ).where(Communication.is_help_desk.is_(True))
+        )
+    ).all()
+    latest = {}     # conversion_id -> (max ordinal, from_admin of that row)
+    last_user = {}  # conversion_id -> sent_at of the newest user inquiry
+    for cid, ordi, from_admin, sent_at in rows:
+        if cid not in latest or ordi > latest[cid][0]:
+            latest[cid] = (ordi, from_admin)
+        if not from_admin and sent_at is not None and (
+                cid not in last_user or sent_at > last_user[cid]):
+            last_user[cid] = sent_at
+    if not latest:
+        return {}
+    marks = dict(
+        (
+            await db.execute(
+                select(Session.conversion_id, Session.help_resolved_at)
+                .where(Session.conversion_id.in_(latest.keys()))
+            )
+        ).all()
+    )
+    states = {}
+    for cid, (_, from_admin) in latest.items():
+        at, asked = marks.get(cid), last_user.get(cid)
+        states[cid] = {
+            'answered': bool(from_admin),
+            'resolved': at is not None and (asked is None or at >= asked),
+            'resolved_at': at.isoformat() if at else None,
+        }
+    return states
 
 
 def _message_view(r):
@@ -838,7 +893,8 @@ async def help_unread():
     """Notification state for the bell badge + row highlighting (per site).
 
     - annotator: sessions whose latest help-desk message is a user inquiry with no
-      reply after it (awaiting a reply on this site).
+      reply after it and which no annotator has marked resolved (awaiting a reply
+      on this site); i.e. exactly the 'Needs reply' group of the help-desk page.
     - user: own sessions with an annotator reply newer than help_user_seen_at.
 
     Returns {count, conversion_ids}. Anonymous callers get zeros (no error)."""
@@ -848,20 +904,9 @@ async def help_unread():
             return {'count': 0, 'conversion_ids': []}, 200
 
         if is_admin(auth_session, user):
-            rows = (
-                await db.execute(
-                    select(
-                        Communication.conversion_id,
-                        Communication.ordinal,
-                        Communication.from_admin,
-                    ).where(Communication.is_help_desk.is_(True))
-                )
-            ).all()
-            latest = {}  # conversion_id -> (max ordinal, from_admin of that row)
-            for cid, ordi, from_admin in rows:
-                if cid not in latest or ordi > latest[cid][0]:
-                    latest[cid] = (ordi, from_admin)
-            ids = sorted(cid for cid, (_, from_admin) in latest.items() if not from_admin)
+            states = await _help_thread_states(db)
+            ids = sorted(cid for cid, st in states.items()
+                         if not st['answered'] and not st['resolved'])
             return {'count': len(ids), 'conversion_ids': ids}, 200
 
         # Regular user: own sessions with an unseen annotator reply.
@@ -926,3 +971,33 @@ async def help_reply():
         _send_email(recipient, f'[bmrb_extract] {subject}',
                     f'{content}\n\n(Regarding C_{conversion_id})')
     return {'ok': True}, 200
+
+
+@auth_bp.route('/api/help/resolve', methods=['POST'])
+async def help_resolve():
+    """Annotator marks a help-desk thread resolved, or reopens it.
+
+    Resolving only stamps session.help_resolved_at: a user inquiry sent after that
+    stamp outranks the mark (see _help_thread_states), so closing a thread can
+    never bury a fresh question. Posting resolved=false clears the stamp."""
+    async with _session_factory() as db:
+        auth_session, user = await current_auth(db)
+        if not is_admin(auth_session, user):
+            return {'error': 'not authorized'}, 403
+        if not csrf_valid(auth_session):
+            return {'error': 'invalid CSRF token'}, 403
+        body = request.get_json(silent=True) or {}
+        conversion_id = body.get('conversion_id')
+        resolved = bool(body.get('resolved', True))
+        if not conversion_id:
+            return {'error': 'conversion_id is required'}, 400
+        result = await db.execute(
+            update(Session).where(Session.conversion_id == conversion_id)
+            .values(help_resolved_at=_now() if resolved else None))
+        if result.rowcount == 0:
+            return {'error': 'session not found'}, 404
+        await record_admin_access(
+            db, user, None,
+            f'help_{"resolve" if resolved else "reopen"}:C_{conversion_id}')
+        await db.commit()
+    return {'ok': True, 'resolved': resolved}, 200

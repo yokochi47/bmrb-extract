@@ -192,7 +192,8 @@ class Session(Base):
     approved = sa.Column(sa.Boolean(), server_default='FALSE')
     exchanged = sa.Column(sa.Boolean(), server_default='FALSE')
     downloaded = sa.Column(sa.Boolean(), server_default='FALSE')
-    help_user_seen_at = sa.Column(sa.TIMESTAMP())
+    help_user_seen_at = sa.Column(sa.TIMESTAMP())  # owner last viewed the help-desk thread
+    help_resolved_at = sa.Column(sa.TIMESTAMP())  # annotator marked the help-desk thread resolved
 
 
 class UploadFile(Base):

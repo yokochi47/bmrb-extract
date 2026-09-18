@@ -77,6 +77,18 @@ export interface Inquiry {
   from_admin?: boolean;
 }
 
+/** Per-thread handling state for the annotator help-desk view
+ * (GET /api/help/inquiries). A thread is addressed when either flag is set. */
+export interface ThreadState {
+  conversion_id: number;
+  public_id: string;
+  /** The newest message in the thread is an annotator reply. */
+  answered: boolean;
+  /** An annotator marked the thread resolved, and no newer inquiry reopened it. */
+  resolved: boolean;
+  resolved_at: string | null;
+}
+
 /**
  * Client for the passwordless-login + annotator/help-desk API. Holds the auth
  * state as signals; the CSRF token is read by authInterceptor for mutating
@@ -358,8 +370,10 @@ export class AuthService {
     return this.http.post<{ ok: boolean }>(API_URL + 'help/inquiry', { token, subject, content });
   }
 
-  getInquiries(): Observable<{ inquiries: Inquiry[] }> {
-    return this.http.get<{ inquiries: Inquiry[] }>(API_URL + 'help/inquiries');
+  getInquiries(): Observable<{ inquiries: Inquiry[]; threads: ThreadState[] }> {
+    return this.http.get<{ inquiries: Inquiry[]; threads: ThreadState[] }>(
+      API_URL + 'help/inquiries',
+    );
   }
 
   /** The message thread (own inquiries + annotator replies) for one of the
@@ -372,6 +386,14 @@ export class AuthService {
     return this.http.post<{ ok: boolean }>(API_URL + 'help/reply', {
       conversion_id: conversionId,
       content,
+    });
+  }
+
+  /** Annotator: mark a help-desk thread resolved (or reopen it). */
+  postResolve(conversionId: number, resolved: boolean): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(API_URL + 'help/resolve', {
+      conversion_id: conversionId,
+      resolved,
     });
   }
 }
