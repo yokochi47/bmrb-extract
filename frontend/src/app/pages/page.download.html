@@ -400,22 +400,22 @@
                     Well-defined core
                   </th>
                   <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
                   >
                     Residue range (total)
                   </th>
                   <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
                   >
                     Percent of core (%)
                   </th>
                   <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
                   >
                     Backbone RMSD (Å)
                   </th>
                   <th
-                    class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                    class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
                   >
                     Medoid model
                   </th>
@@ -424,13 +424,19 @@
               <tbody>
                 @for (d of ensembleRegions(); track $index) {
                   <tr class="border-b border-surface-100 dark:border-surface-800">
-                    <td class="px-2 py-1">{{ d.domain_id }}</td>
-                    <td class="px-2 py-1 whitespace-nowrap">
+                    <td class="px-2 py-1 whitespace-nowrap text-left">{{ d.domain_id }}</td>
+                    <td class="px-2 py-1 whitespace-nowrap text-center">
                       {{ d.range_of_seq_id }} ({{ d.number_of_monomers }})
                     </td>
-                    <td class="px-2 py-1 tabular-nums">{{ d.percent_of_core }}</td>
-                    <td class="px-2 py-1 tabular-nums">{{ d.medoid_rmsd?.toFixed(2) }}</td>
-                    <td class="px-2 py-1 tabular-nums">{{ d.medoid_model_id }}</td>
+                    <td class="px-2 py-1 tabular-nums whitespace-nowrap text-center">
+                      {{ d.percent_of_core?.toFixed(1) }}
+                    </td>
+                    <td class="px-2 py-1 tabular-nums whitespace-nowrap text-center">
+                      {{ d.medoid_rmsd?.toFixed(2) }}
+                    </td>
+                    <td class="px-2 py-1 tabular-nums whitespace-nowrap text-center">
+                      {{ d.medoid_model_id }}
+                    </td>
                   </tr>
                 }
               </tbody>
@@ -455,12 +461,12 @@
                       Cluster number
                     </th>
                     <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700"
+                      class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700"
                     >
                       Models (centroid model)
                     </th>
                     <th
-                      class="text-left px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap"
+                      class="text-center px-2 py-1 border-b border-surface-200 dark:border-surface-700 whitespace-nowrap text-center"
                     >
                       Mean RMSD in a cluster (Å)
                     </th>
@@ -470,14 +476,20 @@
                   @for (c of ensembleClusters(); track $index) {
                     <tr class="border-b border-surface-100 dark:border-surface-800">
                       @if (c.cluster_id !== -1) {
-                        <td class="px-2 py-1">{{ c.cluster_id }}</td>
-                        <td class="px-2 py-1 break-all">
+                        <td class="px-2 py-1 whitespace-nowrap text-left">{{ c.cluster_id }}</td>
+                        <td class="px-2 py-1 break-all text-center">
                           {{ c.model_ids?.join(', ') }} ({{ c.centroid_model_id }})
                         </td>
-                        <td class="px-2 py-1 tabular-nums">{{ c.mean_rmsd?.toFixed(2) }}</td>
+                        <td class="px-2 py-1 tabular-nums whitespace-nowrap text-center">
+                          {{ c.mean_rmsd?.toFixed(2) }}
+                        </td>
                       } @else {
-                        <td class="px-2 py-1 whitespace-nowrap">Single-model clusters</td>
-                        <td class="px-2 py-1 break-all">{{ c.model_ids?.join(', ') }}</td>
+                        <td class="px-2 py-1 whitespace-nowrap text-left">
+                          Single-model clusters
+                        </td>
+                        <td class="px-2 py-1 break-all text-center">
+                          {{ c.model_ids?.join(', ') }}
+                        </td>
                         <td class="px-2 py-1"></td>
                       }
                     </tr>
