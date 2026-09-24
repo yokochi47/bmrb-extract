@@ -245,6 +245,7 @@
   <p-button
     label="Choose files"
     icon="pi pi-upload"
+    size="large"
     [disabled]="isLocked()"
     (click)="fileInput.click()"
   />
@@ -403,6 +404,7 @@
       <p-button
         label="Process selected files"
         icon="pi pi-cog"
+        size="large"
         severity="success"
         [loading]="submitting()"
         [disabled]="!canProcess() || submitting() || requiresFileOp()"

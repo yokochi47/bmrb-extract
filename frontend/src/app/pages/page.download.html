@@ -194,6 +194,7 @@
     <p-button
       label="Download {{ zipName() }}"
       icon="pi pi-download"
+      size="large"
       severity="success"
       [disabled]="runFailed() || !approved() || nefGenerating() || pdfGenerating()"
       (click)="download()"

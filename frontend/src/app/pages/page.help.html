@@ -70,15 +70,17 @@
           ></textarea>
         </div>
         <div class="flex justify-end mt-2">
-          <p-button label="Reply" icon="pi pi-send" (click)="submitReply(t.conversion_id)" />
-          <p-button
-            [label]="t.resolved ? 'Reopen' : 'Mark resolved'"
-            [icon]="t.resolved ? 'pi pi-replay' : 'pi pi-check'"
-            severity="secondary"
-            text
-            [disabled]="resolving() !== null"
-            (click)="toggleResolved(t.conversion_id, !t.resolved)"
-          />
+          <div class="flex gap-2">
+            <p-button label="Reply" icon="pi pi-send" (click)="submitReply(t.conversion_id)" />
+            <p-button
+              [label]="t.resolved ? 'Reopen' : 'Mark resolved'"
+              [icon]="t.resolved ? 'pi pi-replay' : 'pi pi-check'"
+              severity="secondary"
+              [disabled]="resolving() !== null"
+              [outlined]="true"
+              (click)="toggleResolved(t.conversion_id, !t.resolved)"
+            />
+          </div>
         </div>
       </div>
     }
