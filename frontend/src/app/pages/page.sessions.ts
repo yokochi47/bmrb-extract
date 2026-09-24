@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { TitleCasePipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { TableModule } from 'primeng/table';
@@ -29,6 +29,9 @@ export class Sessions {
   scope = signal<string>('own');
   loading = signal(true);
   error = signal<string | null>(null);
+  /** Rows per page; the paginator only appears once the list exceeds one page. */
+  readonly pageSize = 50;
+  paginate = computed(() => this.rows().length > this.pageSize);
 
   constructor() {
     this.load(false);

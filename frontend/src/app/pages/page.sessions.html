@@ -37,7 +37,14 @@
   } @else if (!rows().length) {
     <p class="text-surface-500">No sessions found.</p>
   } @else {
-    <p-table [value]="rows()" styleClass="p-datatable-sm">
+    <p-table
+      [value]="rows()"
+      styleClass="p-datatable-sm"
+      [paginator]="paginate()"
+      [rows]="pageSize"
+      [showCurrentPageReport]="true"
+      currentPageReportTemplate="{first}–{last} of {totalRecords}"
+    >
       <ng-template pTemplate="header">
         <tr>
           <th>Conversion ID</th>
