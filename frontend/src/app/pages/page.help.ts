@@ -10,6 +10,7 @@ import { DividerModule } from 'primeng/divider';
 import { TagModule } from 'primeng/tag';
 
 import { AuthService, Inquiry, SessionRow, ThreadState } from './auth.service';
+import { PageService } from './page.service';
 
 interface Thread {
   conversion_id: number;
@@ -43,6 +44,7 @@ interface Thread {
 })
 export class Help {
   private auth = inject(AuthService);
+  private pageService = inject(PageService);
 
   isAdmin = this.auth.isAdmin;
   /** Conversion IDs needing attention (user: new reply; admin: awaiting reply). */
@@ -121,6 +123,16 @@ export class Help {
         next: (r) => {
           this.ownSessions.set(r.sessions.filter((s) => s.conversion_id != null && s.token));
           this.loading.set(false);
+          // Coming from a session page: preselect that session (the user can
+          // still pick another). Ineligible sessions are simply not listed.
+          const current = this.pageService.pageState().tokenBase;
+          if (
+            current &&
+            !this.selectedToken() &&
+            this.ownSessions().some((s) => s.token === current)
+          ) {
+            this.onSelectSession(current);
+          }
         },
         error: () => this.loading.set(false),
       });
