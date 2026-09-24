@@ -5,7 +5,7 @@
       <p-button
         label="New session"
         icon="pi pi-plus"
-        size="small"
+        size="large"
         severity="success"
         (onClick)="newSession()"
       />
@@ -15,14 +15,14 @@
         <p-button
           label="My sessions"
           icon="pi pi-history"
-          size="small"
+          size="large"
           [outlined]="scope() !== 'own'"
           (click)="load(false)"
         />
         <p-button
           label="All sessions"
           icon="pi pi-users"
-          size="small"
+          size="large"
           [outlined]="scope() !== 'all'"
           (click)="load(true)"
         />
@@ -74,13 +74,7 @@
           <td class="tabular-nums">{{ shortDate(r.created_at) }}</td>
           <td class="tabular-nums">{{ shortDate(r.token_expiry) }}</td>
           <td>
-            <p-button
-              label="Open"
-              icon="pi pi-arrow-right"
-              iconPos="right"
-              size="small"
-              (onClick)="open(r)"
-            />
+            <p-button label="Open" icon="pi pi-arrow-right" iconPos="right" (onClick)="open(r)" />
           </td>
         </tr>
       </ng-template>

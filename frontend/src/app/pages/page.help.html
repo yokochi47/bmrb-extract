@@ -11,14 +11,14 @@
         <p-button
           label="Needs reply ({{ openThreads().length }})"
           icon="pi pi-inbox"
-          size="small"
+          size="large"
           [outlined]="group() !== 'open'"
           (click)="group.set('open')"
         />
         <p-button
           label="Addressed ({{ addressedThreads().length }})"
           icon="pi pi-check-circle"
-          size="small"
+          size="large"
           [outlined]="group() !== 'addressed'"
           (click)="group.set('addressed')"
         />
@@ -62,19 +62,18 @@
         <div class="flex gap-2 items-start mt-2">
           <textarea
             pTextarea
-            rows="2"
+            rows="4"
             placeholder="Reply…"
             class="flex-1 text-sm"
             [ngModel]="replies()[t.conversion_id] || ''"
             (ngModelChange)="setReply(t.conversion_id, $event)"
           ></textarea>
-          <p-button label="Reply" size="small" (click)="submitReply(t.conversion_id)" />
         </div>
         <div class="flex justify-end mt-2">
+          <p-button label="Reply" icon="pi pi-send" (click)="submitReply(t.conversion_id)" />
           <p-button
             [label]="t.resolved ? 'Reopen' : 'Mark resolved'"
             [icon]="t.resolved ? 'pi pi-replay' : 'pi pi-check'"
-            size="small"
             severity="secondary"
             text
             [disabled]="resolving() !== null"

@@ -6,16 +6,18 @@
       Signed in as <strong>{{ email() }}</strong> ({{ role() }}).
     </p-message>
     <div class="flex flex-wrap gap-2">
-      <p-button label="My sessions" icon="pi pi-list" (onClick)="goTo('/sessions')" />
+      <p-button label="My sessions" icon="pi pi-list" size="large" (onClick)="goTo('/sessions')" />
       <p-button
         label="Help desk"
         icon="pi pi-question-circle"
+        size="large"
         severity="secondary"
         (onClick)="goTo('/help')"
       />
       <p-button
         label="Sign out"
         icon="pi pi-sign-out"
+        size="large"
         severity="secondary"
         [outlined]="true"
         (click)="logout()"

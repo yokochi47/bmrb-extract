@@ -30,7 +30,7 @@ export class Sessions {
   loading = signal(true);
   error = signal<string | null>(null);
   /** Rows per page; the paginator only appears once the list exceeds one page. */
-  readonly pageSize = 50;
+  readonly pageSize = 25;
   paginate = computed(() => this.rows().length > this.pageSize);
 
   constructor() {
