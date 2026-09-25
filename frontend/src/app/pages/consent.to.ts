@@ -1,4 +1,5 @@
 import { Component, computed, inject } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { CheckboxModule } from 'primeng/checkbox';
@@ -8,7 +9,7 @@ import { PageService } from './page.service';
 
 @Component({
   selector: 'app-consent-to',
-  imports: [FormsModule, CheckboxModule, ButtonModule],
+  imports: [RouterLink, FormsModule, CheckboxModule, ButtonModule],
   templateUrl: './consent.to.html',
   // Glow the consent checkbox until it is ticked (paused for users who prefer
   // reduced motion). Matches the summary page's acknowledgment checkboxes.
