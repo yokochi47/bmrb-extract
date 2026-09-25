@@ -1,13 +1,15 @@
 import { Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { CheckboxModule } from 'primeng/checkbox';
+import { ButtonModule } from 'primeng/button';
 
 import { PageService } from './page.service';
 
 @Component({
   selector: 'app-consent-to',
-  imports: [RouterLink, FormsModule, CheckboxModule],
+  imports: [RouterLink, FormsModule, CheckboxModule, ButtonModule],
   templateUrl: './consent.to.html',
   // Glow the consent checkbox until it is ticked (paused for users who prefer
   // reduced motion). Matches the summary page's acknowledgment checkboxes.
@@ -35,7 +37,8 @@ import { PageService } from './page.service';
   ],
 })
 export class ConsentTo {
-  pageService = inject(PageService);
+  private pageService = inject(PageService);
+  private router = inject(Router);
 
   consentedTo = computed(() => this.pageService.pageState().consentedTo);
 
@@ -50,5 +53,11 @@ export class ConsentTo {
 
   onChange() {
     this.pageService.setConsent(!this.consentedTo());
+  }
+
+  /** Navigate to the upload page once user consented to Terms. */
+  proceedToUpload(): void {
+    if (!this.consentedTo()) return;
+    this.router.navigate(['/upload'], { queryParamsHandling: 'preserve' });
   }
 }

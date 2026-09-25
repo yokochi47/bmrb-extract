@@ -22,5 +22,13 @@
     <p class="text-red-600 font-medium" role="alert">
       <i class="pi pi-times-circle mr-2"></i>{{ consentError() }}
     </p>
+  } @else if (consentedTo()) {
+    <p-button
+      label="Proceed to file upload"
+      icon="pi pi-upload"
+      size="large"
+      severity="success"
+      (click)="proceedToUpload()"
+    />
   }
 </div>
