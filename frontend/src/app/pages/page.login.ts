@@ -60,8 +60,12 @@ export class Login implements OnDestroy {
     // announces the login and AuthService has already re-read the state here. Carry
     // on where the user started, so they only have to switch back to this tab.
     // Annotators stay put: the template now renders the TOTP step instead.
+    // Only a login picked up while this page is open counts — the counter outlives
+    // the component, so a stale non-zero value must not bounce a signed-in user
+    // opening "Account" straight on to /sessions.
+    const loginsAtOpen = this.auth.loginElsewhere();
     effect(() => {
-      if (this.auth.loginElsewhere() === 0 || !untracked(() => this.sent())) return;
+      if (this.auth.loginElsewhere() === loginsAtOpen || !untracked(() => this.sent())) return;
       if (untracked(() => this.totpRequired())) return;
       untracked(() => this.router.navigate(['/sessions']));
     });

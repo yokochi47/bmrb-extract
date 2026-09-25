@@ -156,7 +156,16 @@ export class AuthService {
     if (this.awaitingMagicLink()) this.channel.post({ type: 'login-ack' });
     // The session cookie was set for the whole origin — /me now succeeds here too.
     this.refresh().subscribe({
-      next: () => this.loginElsewhere.update((v) => v + 1),
+      next: (s) => {
+        if (s?.authenticated) {
+          // The other tab spent the challenge and removed the stash from storage;
+          // drop this tab's in-memory copy too, or a later visit to /login would
+          // reopen the dead code form.
+          this.clearPendingLogin();
+          this.awaitingMagicLink.set(false);
+        }
+        this.loginElsewhere.update((v) => v + 1);
+      },
       error: () => undefined,
     });
   }
