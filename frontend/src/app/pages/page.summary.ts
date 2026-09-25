@@ -1103,6 +1103,7 @@ export class Summary implements OnDestroy {
       next: (res) => {
         this.nmrPreview.set(res);
         this.nmrPreviewAvailable.set(res.available);
+        this.expandedSf.set(new Set());
       },
       error: (err) => {
         console.error('Failed to load NMR preview', err);
@@ -1702,6 +1703,64 @@ export class Summary implements OnDestroy {
 
   nestedRows(m: ValidationMetric): NestedRow[] {
     return m.rows as NestedRow[];
+  }
+
+  /** Saveframe panel expansion state, keyed `<kind>:<sf_framecode>` (kind is one
+   * of cs/dist/dihed/rdc/peak, as framecodes may repeat across categories). */
+  private expandedSf = signal<Set<string>>(new Set());
+
+  /** Every saveframe panel key, paired with whether its status needs attention. */
+  private sfEntries = computed(() => {
+    const entries = (kind: string, sfs: { sf_framecode: string; status: string | null }[]) =>
+      sfs.map((sf) => ({
+        key: `${kind}:${sf.sf_framecode}`,
+        issue: sf.status === 'Error' || sf.status === 'Warning',
+      }));
+    return [
+      ...entries('cs', this.chemShiftSaveframes()),
+      ...entries('dist', this.distRestraintSaveframes()),
+      ...entries('dihed', this.dihedRestraintSaveframes()),
+      ...entries('rdc', this.rdcRestraintSaveframes()),
+      ...entries('peak', this.spectralPeakSaveframes()),
+    ];
+  });
+
+  sfCount = computed(() => this.sfEntries().length);
+  private issueSfKeys = computed(() => this.sfEntries().filter((e) => e.issue).map((e) => e.key));
+  hasIssueSf = computed(() => this.issueSfKeys().length > 0);
+  allSfExpanded = computed(() => this.sfEntries().every((e) => this.expandedSf().has(e.key)));
+  noSfExpanded = computed(() => this.sfEntries().every((e) => !this.expandedSf().has(e.key)));
+  /** Exactly the problem saveframes are open (so "Expand issues" would be a no-op). */
+  onlyIssueSfExpanded = computed(() =>
+    this.sfEntries().every((e) => this.expandedSf().has(e.key) === e.issue),
+  );
+
+  isSfExpanded(key: string): boolean {
+    return this.expandedSf().has(key);
+  }
+
+  /** Keeps the state in step with a panel's own header toggle. */
+  setSfCollapsed(key: string, collapsed: boolean | undefined): void {
+    const next = new Set(this.expandedSf());
+    if (collapsed) {
+      next.delete(key);
+    } else {
+      next.add(key);
+    }
+    this.expandedSf.set(next);
+  }
+
+  expandAllSf(): void {
+    this.expandedSf.set(new Set(this.sfEntries().map((e) => e.key)));
+  }
+
+  collapseAllSf(): void {
+    this.expandedSf.set(new Set());
+  }
+
+  /** Open only the saveframes whose status is Error or Warning. */
+  expandIssueSf(): void {
+    this.expandedSf.set(new Set(this.issueSfKeys()));
   }
 
   /** Per-plane atom-row expansion state (only the planes metric is nested). */
