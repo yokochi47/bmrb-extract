@@ -1279,4 +1279,10 @@ export class Upload implements OnDestroy {
         return 'pi pi-clock text-surface-300';
     }
   }
+
+  /** Navigate to the summary page once user processed upload files. */
+  proceedToSummary(): void {
+    if (!this.progressDone()) return;
+    this.router.navigate(['/summary'], { queryParamsHandling: 'preserve' });
+  }
 }

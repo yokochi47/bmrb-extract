@@ -545,6 +545,12 @@
 
   <ng-template pTemplate="footer">
     @if (progressDone()) {
+      <p-button
+        label="Proceed to upload summary"
+        icon="pi pi-check-square"
+        severity="success"
+        (click)="proceedToSummary()"
+      />
       <p-button label="Close" (click)="closeProgress()" />
     } @else {
       <span class="text-sm text-surface-500"
