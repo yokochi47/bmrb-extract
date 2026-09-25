@@ -27,7 +27,7 @@ from datetime import datetime, timedelta
 
 import pyotp
 import qrcode
-import redis.asyncio as aioredis
+import redis
 from cryptography.fernet import Fernet, InvalidToken
 from flask import Blueprint, jsonify, request
 from io import BytesIO
@@ -90,11 +90,17 @@ def init_auth(app, session_factory, send_email):
     global _session_factory, _send_email, _redis
     _session_factory = session_factory
     _send_email = send_email
-    _redis = aioredis.Redis(
+    # Synchronous on purpose: Flask runs each async view in a fresh event loop,
+    # and an asyncio client's pooled connections stay bound to the loop that
+    # opened them ("Event loop is closed" on the next request). The calls are a
+    # sub-millisecond round-trip to the local Redis, so blocking is harmless.
+    _redis = redis.Redis(
         host=os.environ.get('AUTH_REDIS_HOST', 'redis'),
         port=int(os.environ.get('AUTH_REDIS_PORT', '6379')),
         db=int(os.environ.get('AUTH_REDIS_DB', '1')),
         decode_responses=True,
+        socket_connect_timeout=1,
+        socket_timeout=1,
     )
     app.register_blueprint(auth_bp)
 
@@ -152,13 +158,18 @@ def _secure_cookie() -> bool:
 
 async def _rate_ok(key: str, limit: int, window: int) -> bool:
     """Redis fixed-window counter. Fails OPEN if Redis is unavailable (single-use
-    short-TTL tokens + TOTP remain the primary controls)."""
+    short-TTL tokens + TOTP remain the primary controls).
+
+    INCR and EXPIRE go in one MULTI/EXEC, and EXPIRE NX arms the window on
+    whichever call finds the key without a TTL — so a counter can never be left
+    immortal (which would lock the limit shut for good)."""
     if _redis is None:
         return True
     try:
-        n = await _redis.incr(key)
-        if n == 1:
-            await _redis.expire(key, window)
+        pipe = _redis.pipeline(transaction=True)
+        pipe.incr(key)
+        pipe.expire(key, window, nx=True)
+        n, _ = pipe.execute()
         return n <= limit
     except Exception:  # noqa: BLE001 — availability over strictness
         return True
