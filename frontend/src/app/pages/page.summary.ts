@@ -1726,7 +1726,11 @@ export class Summary implements OnDestroy {
   });
 
   sfCount = computed(() => this.sfEntries().length);
-  private issueSfKeys = computed(() => this.sfEntries().filter((e) => e.issue).map((e) => e.key));
+  private issueSfKeys = computed(() =>
+    this.sfEntries()
+      .filter((e) => e.issue)
+      .map((e) => e.key),
+  );
   hasIssueSf = computed(() => this.issueSfKeys().length > 0);
   allSfExpanded = computed(() => this.sfEntries().every((e) => this.expandedSf().has(e.key)));
   noSfExpanded = computed(() => this.sfEntries().every((e) => !this.expandedSf().has(e.key)));

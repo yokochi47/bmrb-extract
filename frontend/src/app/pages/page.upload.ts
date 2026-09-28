@@ -12,6 +12,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { RouterLink } from '@angular/router';
 import { Router } from '@angular/router';
 import { firstValueFrom, Subscription, timer, TimeoutError } from 'rxjs';
 import { switchMap, timeout } from 'rxjs/operators';
@@ -75,6 +76,7 @@ interface ProgressTask {
   imports: [
     CommonModule,
     FormsModule,
+    RouterLink,
     ButtonModule,
     CardModule,
     CheckboxModule,
