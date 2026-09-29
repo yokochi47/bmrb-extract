@@ -48,15 +48,20 @@
     }
     @if (totpEnrolled() || qr()) {
       <div class="flex gap-2 items-center mt-2">
-        <input
-          pInputText
-          inputmode="numeric"
-          autocomplete="one-time-code"
-          placeholder="123456"
+        <p-inputOtp
+          [length]="6"
+          [integerOnly]="true"
           [ngModel]="codeInput()"
           (ngModelChange)="codeInput.set($event)"
+          (keyup.enter)="submitTotp()"
         />
-        <p-button label="Verify" (click)="submitTotp()" [disabled]="totpBusy()" />
+        <p-button
+          label="Verify"
+          icon="pi pi-sign-in"
+          severity="success"
+          (click)="submitTotp()"
+          [disabled]="totpBusy()"
+        />
       </div>
     }
     @if (totpError()) {
