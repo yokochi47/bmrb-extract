@@ -216,6 +216,8 @@ for repo in "${ACTION_RUNNER_REPOS[@]}" ; do
 
   docker service ps $repo > /dev/null 2>&1 || \
     (docker service create -q --replicas 3 --name $repo --update-delay 20s \
+      --restart-condition on-failure --restart-max-attempts 3 \
+      --update-failure-action continue \
       --mount type=bind,source=${ARCHIVE_VOL_DIR},target=${ARCHIVE_BASE_PATH} \
       --mount type=bind,source=${WORKSPACE_VOL_DIR},target=${WORKSPACE_BASE_PATH} \
       $container_image &)
