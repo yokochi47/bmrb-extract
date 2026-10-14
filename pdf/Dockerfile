@@ -2,7 +2,7 @@
 # Node + ECharts (server-side SVG chart rendering). Invoked by the prefect
 # convert_pdf task via `docker run` to turn the last NMR data-processing JSON
 # report into C_<id>_report.pdf.
-FROM node:20-bookworm-slim
+FROM node:24-bookworm-slim
 
 # WeasyPrint runtime libs (pango/cairo/gdk-pixbuf/harfbuzz), the Lato font used by
 # the web report, and Python 3. fonts-lato matches the on-screen report typeface.
