@@ -549,6 +549,7 @@
         label="Proceed to upload summary"
         icon="pi pi-check-square"
         severity="success"
+        [disabled]="previousStatus() !== 'success'"
         (click)="proceedToSummary()"
       />
       <p-button label="Close" (click)="closeProgress()" />
