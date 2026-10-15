@@ -10,7 +10,7 @@
   </p>
 
   @if (processed()) {
-    @if (runFailed()) {
+    @if (runFailed() || hasBlockingError()) {
       <p-card styleClass="mb-6 border-l-4 border-red-500">
         <span class="text-red-600 font-medium">
           <i class="pi pi-times-circle mr-2"></i>The conversion failed to complete — an error
