@@ -5,6 +5,8 @@ actions-runner*.tar.gz
 misc/
 **/__pycache__/
 certbot/cert/accounts
+certbot/cert/archive
+certbot/cert/live
 certbot/cert/renewal
 certbot/cert/renewal-hooks
 frontend/.angular
