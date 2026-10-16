@@ -115,11 +115,9 @@
   @switch (state().targetDepsys) {
     @case (TargetDepsys.onedep) {
       <p-card header="File upload requirements for OneDep deposition" styleClass="mb-6">
-        <ul class="leading-normal list-disc pl-8 text-base mb-4">
+        <p class="text-base italic underline ml-2">Conventional separated file deposition</p>
+        <ul class="leading-normal list-disc pl-8 text-base mb-2 ml-4">
           <li>Coordinate file (PDBx/mmCIF or legacy PDB format)</li>
-        </ul>
-        <p class="text-base italic underline ml-2">As to conventional separated file deposition</p>
-        <ul class="leading-normal list-disc pl-8 text-base mb-4">
           <li>
             Assigned chemical shift files (NMR-STAR V3, NEF, or existing BMRB ID)
             @if (showSetupSection()) {
@@ -132,9 +130,10 @@
           <li>Restraint files (Software-native format)</li>
           <li>Optionally, spectral peak list files (Software-native format)</li>
         </ul>
-        <p class="text-base ml-2 mb-4">or</p>
-        <p class="text-base italic underline ml-2">As to combined single file deposition</p>
-        <ul class="leading-normal list-disc pl-8 text-base mb-4">
+        <p class="text-base ml-4 mb-2">or</p>
+        <p class="text-base italic underline ml-2">Combined single file deposition</p>
+        <ul class="leading-normal list-disc pl-8 text-base mb-4 ml-4">
+          <li>Coordinate file (PDBx/mmCIF or legacy PDB format)</li>
           <li>
             NMR unified data file (NMR-STAR V3 or NEF) containing assigned chemical shifts and
             restraints
@@ -162,7 +161,7 @@
     @case (TargetDepsys.repl_cs) {
       <p-card header="File upload requirements for ongoing OneDep deposition" styleClass="mb-6">
         <p class="text-base italic underline ml-2">Replacing assigned chemical shifts</p>
-        <ul class="leading-normal list-disc pl-8 text-base mb-4">
+        <ul class="leading-normal list-disc pl-8 text-base mb-4 ml-4">
           <li>Coordinate file processed by OneDep (PDBx/mmCIF)</li>
           <li>
             NMR unified data file processed by OneDep (NMR-STAR V3) containing assigned chemical
@@ -190,11 +189,11 @@
     @case (TargetDepsys.bmrbdep) {
       <p-card header="File upload requirements for BMRBdep deposition" styleClass="mb-6">
         <p class="text-base italic underline ml-2">BMRB Only</p>
-        <ul class="leading-normal list-disc pl-8 text-base mb-4">
+        <ul class="leading-normal list-disc pl-8 text-base mb-4 ml-4">
           <li>Assigned chemical shift files (NMR-STAR, NEF, or other supported formats)</li>
         </ul>
-        <p class="text-base italic underline ml-2">Optionally</p>
-        <ul class="leading-normal list-disc pl-8 text-base mb-4">
+        <p class="text-base italic underline ml-8">Optionally</p>
+        <ul class="leading-normal list-disc pl-8 text-base mb-4 ml-4">
           <li>
             Other data files in NMR-STAR V3 format (e.g. perturbation, relaxation, kinetic,
             thermodynamic parameters)
