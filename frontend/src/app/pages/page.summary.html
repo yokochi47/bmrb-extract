@@ -1,15 +1,15 @@
 <div class="card">
   <div class="font-semibold text-2xl mb-6">Upload summary</div>
 
-  <p class="text-xl mb-4">
-    This page contains a summary of the uploaded data.
-    <strong
-      >Please check that the data content here is correct before proceeding and upload corrected
-      files if required.</strong
-    >
-  </p>
-
   @if (processed()) {
+    <p class="text-xl mb-4">
+      This page contains a summary of the uploaded data.
+      <strong
+        >Please check that the data content here is correct before proceeding and upload corrected
+        files if required.</strong
+      >
+    </p>
+
     @if (runFailed() || hasBlockingError()) {
       <p-card styleClass="mb-6 border-l-4 border-red-500">
         <span class="text-red-600 font-medium">
@@ -83,7 +83,7 @@
     </p-table>
   </p-card>
 
-  @if (showViewer()) {
+  @if (processed() && showViewer()) {
     <p-card header="Coordinate preview" styleClass="mb-6">
       <p class="text-base mb-4">
         A 3D view of the converted coordinate file. Drag to rotate, scroll to zoom; use the expand
