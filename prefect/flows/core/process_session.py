@@ -631,6 +631,11 @@ def _nmr_bmrbdep_driver_script(
         "u.addInput(name='dep_sys_name', value='bmrbdep', type='param')\n"
         f"u.addOutput(name='entry_id', value={entry_id!r}, type='param')\n"
     )
+    cs_input = (
+        "u.addInput(name='chem_shift_file_path_list', value=CS_LIST, type='file_dict_list')\n"
+        if len(cs_list) > 0 else
+        "u.addInput(name='permit_missing_cs_file', value=True, type='param')\n"
+    )
     atypical_cs_input = (
         "u.addInput(name='atypical_chem_shift_file_path_list', value=ATYPICAL_CS, type='file_dict_list')\n"
         if atypical_cs_list else ""
@@ -656,7 +661,7 @@ def _nmr_bmrbdep_driver_script(
         f"CACHE_DIR = {cache_dir!r}\n"
         "u = NmrDpUtility()\n"
         "u.setWorkspace(WORK_DIR, CACHE_DIR)\n"
-        "u.addInput(name='chem_shift_file_path_list', value=CS_LIST, type='file_dict_list')\n"
+        f"{cs_input}"
         f"{atypical_cs_input}"
         f"{atypical_r_input}"
         f"{cif_input}"
