@@ -1844,7 +1844,7 @@
   <p-card header="Validation for NMR data" styleClass="mb-6">
     @if (nmrAvailable() === null) {
       <p class="text-surface-500 py-2"><i class="pi pi-spin pi-spinner mr-2"></i>Loading…</p>
-    } @else if (!nmrAvailable()) {
+    } @else if (!nmrAvailable() || runFailed()) {
       <p class="text-surface-500 py-2">NMR data validation is not available for this conversion.</p>
     } @else if (!hasNmrIssues()) {
       <p class="py-2 text-green-600 font-medium">
