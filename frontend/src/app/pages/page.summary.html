@@ -1846,7 +1846,7 @@
       <p class="text-surface-500 py-2"><i class="pi pi-spin pi-spinner mr-2"></i>Loading…</p>
     } @else if (!nmrAvailable()) {
       <p class="text-surface-500 py-2">NMR data validation is not available for this conversion.</p>
-    } @else if (!hasNmrIssues()) {
+    } @else if (!hasNmrIssues() && !runFailed()) {
       <p class="py-2 text-green-600 font-medium">
         <i class="pi pi-check-circle mr-2"></i>NMR data is valid.
       </p>
