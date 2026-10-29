@@ -320,8 +320,10 @@ def build_rdc_correlation(report: dict) -> tuple[list, list]:
                 # so the plot area — width minus the left axis + right legend — is
                 # ~square, keeping the y=x diagonal near 45°.
                 cid = f'rdc_corr_{len(specs)}'
+                # Violated points are labelled with their RDC vector (no tooltip in a PDF).
                 specs.append({'id': cid, 'builder': 'rdcCorrelationChartOption',
-                              'args': [scatter], 'width': 600, 'height': 480})
+                              'args': [scatter, {'violationLabels': True}],
+                              'width': 600, 'height': 480})
                 entry['chart_id'] = cid
             correlations.append(entry)
     return specs, correlations
