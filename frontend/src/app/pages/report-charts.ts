@@ -86,6 +86,9 @@ const MARK_COLOR = '#000000';
 /** Color for anomalous / violated data: the Z-score outlier markLines and the
  * RDC correlation plot's violation rings. */
 const VIOLATION_COLOR = '#dc2626';
+/** Text color for point labels printed on the static PDF charts — ECharts'
+ * default label color is too faint on white. */
+const POINT_LABEL_COLOR = '#1e293b';
 /** Plus glyph in a 10×10 box; drawn with symbolRotate:45 to render as an "×"
  * (shared by the chart symbol and the tooltip marker so they match). */
 const MEDIAN_PATH = 'M3,0 L7,0 L7,3 L10,3 L10,7 L7,7 L7,10 L3,10 L3,7 L0,7 L0,3 L3,3 Z';
@@ -262,10 +265,27 @@ const errorBarRenderItem = (
 
 /** PCA scatter (PC1 vs PC2) — one series per cluster (cluster_id === -1 →
  * 'Single-model'); each point carries its cluster and model in the tooltip.
- * Null when no cluster reports principal components. */
+ * `modelLabels` additionally prints the model ID above each marker, for the
+ * static PDF where no tooltip is available. Null when no cluster reports
+ * principal components. */
 export function pcaChartOption(
   clusters: PcaCluster[],
+  opts: { modelLabels?: boolean } = {},
 ): { option: object; marginX: number; marginY: number } | null {
+  const { modelLabels = false } = opts;
+  const label = modelLabels
+    ? {
+        label: {
+          show: true,
+          position: 'top',
+          distance: 2,
+          fontSize: 9,
+          color: POINT_LABEL_COLOR,
+          opacity: 1,
+          formatter: (p: { value?: number[] }) => String(p.value?.[2] ?? ''),
+        },
+      }
+    : {};
   const series = clusters
     .map((c) => {
       const pcs = c.principal_components ?? [];
@@ -275,6 +295,7 @@ export function pcaChartOption(
         name,
         type: 'scatter',
         symbolSize: 10,
+        ...label,
         data: pcs.map((p) => ({ value: [p.pc1, p.pc2, p.model_id] })),
       };
     })
@@ -979,8 +1000,14 @@ const correlationErrorBarRenderItem = (
  * common, data-driven square axis range with a y=x reference diagonal. Shared by
  * the summary and download pages. Pair with a panel `marginX` of
  * `56 + legendReserve(groups.map(g => g.name))` and `marginY` 56 so the plot
- * stays square and the legend never overlaps it. */
-export function rdcCorrelationChartOption(plot: RdcCorrelationPlot): object {
+ * stays square and the legend never overlaps it. `violationLabels` additionally
+ * prints the RDC vector beside each violated point, for the static PDF where no
+ * tooltip is available. */
+export function rdcCorrelationChartOption(
+  plot: RdcCorrelationPlot,
+  opts: { violationLabels?: boolean } = {},
+): object {
+  const { violationLabels = false } = opts;
   // Common range across both observed (x) and calculated (y) so the plot is a
   // true square and a perfect fit lies on the 45° diagonal.
   // Violations are a subset of points upstream, but scan them too so the plot
@@ -1089,6 +1116,19 @@ export function rdcCorrelationChartOption(plot: RdcCorrelationPlot): object {
                 borderColor: VIOLATION_COLOR,
                 borderWidth: 1.5,
               },
+              ...(violationLabels
+                ? {
+                    label: {
+                      show: true,
+                      position: 'right',
+                      distance: 4,
+                      fontSize: 9,
+                      color: POINT_LABEL_COLOR,
+                      opacity: 1,
+                      formatter: (p: { name?: string }) => p.name ?? '',
+                    },
+                  }
+                : {}),
               data: violations.map((pt) => ({ name: pt.seq_id, value: [pt.x, pt.y] })),
             },
           ]
