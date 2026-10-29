@@ -13,7 +13,7 @@
  *   [
  *     { "id": "dist_violation", "builder": "distViolationChart",
  *       "args": [ <rows> ], "width": 680, "height": 420 },
- *     { "id": "ens_pca", "builder": "pcaChartOption", "args": [ <clusters> ] },
+ *     { "id": "ens_pca", "builder": "pcaChartOption", "args": [ <clusters>, { "modelLabels": true } ] },
  *     ...
  *   ]
  * `builder` is an exported function name from report-charts; `args` is the exact

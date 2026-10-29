@@ -262,10 +262,28 @@ const errorBarRenderItem = (
 
 /** PCA scatter (PC1 vs PC2) — one series per cluster (cluster_id === -1 →
  * 'Single-model'); each point carries its cluster and model in the tooltip.
- * Null when no cluster reports principal components. */
+ * `modelLabels` additionally prints the model ID above each marker, for the
+ * static PDF where no tooltip is available. Null when no cluster reports
+ * principal components. */
 export function pcaChartOption(
   clusters: PcaCluster[],
+  opts: { modelLabels?: boolean } = {},
 ): { option: object; marginX: number; marginY: number } | null {
+  const { modelLabels = false } = opts;
+  const label = modelLabels
+    ? {
+        label: {
+          show: true,
+          position: 'top',
+          distance: 2,
+          fontSize: 9,
+          // Explicit dark text: ECharts' default label color is too faint on white.
+          color: '#1e293b',
+          opacity: 1,
+          formatter: (p: { value?: number[] }) => String(p.value?.[2] ?? ''),
+        },
+      }
+    : {};
   const series = clusters
     .map((c) => {
       const pcs = c.principal_components ?? [];
@@ -275,6 +293,7 @@ export function pcaChartOption(
         name,
         type: 'scatter',
         symbolSize: 10,
+        ...label,
         data: pcs.map((p) => ({ value: [p.pc1, p.pc2, p.model_id] })),
       };
     })

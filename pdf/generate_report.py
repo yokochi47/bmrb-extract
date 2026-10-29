@@ -176,10 +176,10 @@ def build_chart_inputs(stats: dict, ensemble: dict) -> list:
     rs = stats.get('restraint_summary', {}) or {}
     specs = []
 
-    # 1. Ensemble PCA scatter.
+    # 1. Ensemble PCA scatter (model IDs labelled — the PDF has no tooltip).
     clusters = ensemble.get('cluster_analysis', []) or []
     specs.append({'id': 'ens_pca', 'builder': 'pcaChartOption',
-                  'args': [clusters], 'width': 560, 'height': 460})
+                  'args': [clusters, {'modelLabels': True}], 'width': 560, 'height': 460})
 
     # 7.1 / 8.1 distribution of restraints & violations.
     specs.append({'id': 'dist_violation', 'builder': 'distViolationChart',
