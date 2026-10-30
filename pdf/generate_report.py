@@ -329,6 +329,46 @@ def build_rdc_correlation(report: dict) -> tuple[list, list]:
     return specs, correlations
 
 
+def build_rdc_per_residue(report: dict, stats: dict, has_model: bool) -> tuple[list, list]:
+    """Observed-RDC-per-residue line charts per RDC-restraint saveframe, from
+    stats_of_exptl_data (mirrors the download page's section-9 preamble). The
+    source keys chains by Entity_assembly_ID; with a model they are relabelled to
+    Auth_asym_ID via assembly.entity_assembly, like the rest of the report.
+    Returns (chart_specs, [{sf_framecode, charts: [{id, title}]}])."""
+    import report_data as rd
+
+    auth_chain = {}
+    if has_model:
+        for ea in (stats.get('assembly') or {}).get('entity_assembly') or []:
+            if isinstance(ea, dict) and ea.get('entity_assembly_id') is not None and ea.get('auth_chain_id'):
+                auth_chain[str(ea['entity_assembly_id'])] = ea['auth_chain_id']
+
+    info = report.get('information', {}) or {}
+    specs, sections = [], []
+    for src in info.get('input_sources') or []:
+        if not isinstance(src, dict):
+            continue
+        stats = src.get('stats_of_exptl_data')
+        if not isinstance(stats, dict):
+            continue
+        for st in stats.get('rdc_restraint') or []:
+            if not isinstance(st, dict):
+                continue
+            entries = []
+            for c in rd.per_residue_value_charts([st]):
+                cid = f'rdc_res_{len(specs)}'
+                specs.append({'id': cid, 'builder': 'lineOption',
+                              'args': [c, 'Obs. RDC value (Hz)', {'staticMode': True}],
+                              'width': 720, 'height': 360})
+                auth = auth_chain.get(str(c.get('chain')))
+                title = (f'Observed RDC per residue — Auth_asym_ID: {auth}' if auth
+                         else f"Observed RDC per residue — Entity_assembly_ID: {c.get('chain')}")
+                entries.append({'id': cid, 'title': title})
+            if entries:
+                sections.append({'sf_framecode': st.get('sf_framecode', ''), 'charts': entries})
+    return specs, sections
+
+
 def build_chem_shift_charts(stats: dict, has_model: bool) -> tuple[list, dict]:
     """Section 5 charts: per chemical-shift saveframe, the Z-score histogram(s)
     and the RCI/S² + NMR-RMSD per-residue line plots. Returns (chart specs,
@@ -847,6 +887,8 @@ def main() -> int:
     specs = build_chart_inputs(stats, ensemble)
     cs_specs, cs_by_sf = build_chem_shift_charts(stats, has_model)
     specs += cs_specs
+    res_specs, rdc_per_residue = build_rdc_per_residue(report, stats, has_model)
+    specs += res_specs
     corr_specs, rdc_correlations = build_rdc_correlation(report)
     specs += corr_specs
     charts = render_charts(specs, work_dir)
@@ -859,6 +901,7 @@ def main() -> int:
     ctx['cs_map_name'] = 'model-mapping' if has_model else 'entity-mapping'
     ctx['cs_asm_name'] = 'model' if has_model else 'molecular assembly'
     ctx['r'] = build_restraint_sections(stats)
+    ctx['rdc_per_residue'] = rdc_per_residue
     ctx['rdc_correlations'] = rdc_correlations
     icon_path = ASSETS_DIR / 'report_logo.png'
     if icon_path.is_file():

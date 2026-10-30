@@ -779,6 +779,19 @@
 <section class="report-section">
   <h2>9. RDC violation analysis</h2>
 
+  {%- if rdc_per_residue %}
+  <p class="caption">The following plots show the observed RDC values (Hz) per residue for each
+  RDC-restraint saveframe and chain, drawn as one line per RDC vector type. Gaps in a line mark
+  residues without an observed RDC of that type. Shaded bands along the residue axis indicate
+  secondary structure elements (helix, strand) of the coordinates.</p>
+  {%- for s in rdc_per_residue %}
+  <h3>{{ s.sf_framecode }}</h3>
+  {%- for c in s.charts %}
+  {{ chart(c.id, c.title) }}
+  {%- endfor %}
+  {%- endfor %}
+  {%- endif %}
+
   {%- if rdc_correlations %}
   <p class="caption">The following plots and tables show the correlation between observed and
   calculated RDCs, based on molecular alignment tensors predicted using the coordinates from each
