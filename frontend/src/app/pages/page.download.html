@@ -2587,8 +2587,28 @@
       </p-card>
 
       <p-card header="9. RDC violation analysis" styleClass="mb-6">
-        <!-- Observed-vs-calculated RDC correlation (nmr_preview) — per saveframe -->
+        <!-- RDC preview (nmr_preview): observed RDC per residue, then the observed-vs-calculated
+             correlation — per saveframe -->
         @if (rdcRestraintSaveframes().length) {
+          <!-- Observed RDC per residue (nmr_preview) — per saveframe -->
+          @if (rdcPerResidue().length) {
+            <p class="text-base mb-4 mx-2">
+              The following plots show the observed RDC values (Hz) per residue for each
+              RDC-restraint saveframe and chain, drawn as one line per RDC vector type. Gaps in a
+              line mark residues without an observed RDC of that type. Shaded bands along the
+              residue axis indicate secondary structure elements (helix, strand) of the coordinates.
+            </p>
+            @for (s of rdcPerResidue(); track s.sf_framecode) {
+              <p class="text-base font-medium mt-4 mb-2">{{ s.sf_framecode }}</p>
+              @for (p of s.panels; track $index) {
+                <div class="mb-6">
+                  <div class="font-medium mb-1 mx-2">{{ p.title }}</div>
+                  <app-echart [option]="p.option" [height]="360" />
+                </div>
+              }
+            }
+          }
+
           <p class="text-base mb-4 mx-2">
             The following plots and tables show the correlation between observed and calculated
             RDCs, based on molecular alignment tensors predicted using the coordinates from each

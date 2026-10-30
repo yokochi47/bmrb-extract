@@ -477,10 +477,11 @@ interface AllViolationRow {
   violation?: number;
 }
 
-// ── RDC correlation preview (subset of GET /api/nmr_preview) ────────────────────
-// The observed-vs-calculated RDC correlation scatter + Q-score tables live in the
-// nmr_preview report (not output_statistics); the download page fetches just the
-// RDC saveframes it needs to mirror the summary page's "9.1" content.
+// ── RDC per-residue / correlation preview (subset of GET /api/nmr_preview) ──────
+// The observed-RDC-per-residue line charts and the observed-vs-calculated RDC
+// correlation scatter + Q-score tables live in the nmr_preview report (not
+// output_statistics); the download page fetches just the RDC saveframes it needs
+// to mirror the summary page's content in its section-9 preamble.
 /** One RDC-restraint saveframe's observed-vs-calculated correlation scatter
  * (`name` = RDC vector type; point x/y are observed/calculated RDC in Hz). */
 interface RdcCorrelationChart {
@@ -503,6 +504,7 @@ interface RdcQScoreTable {
 /** The RDC-restraint saveframe fields the download page consumes. */
 interface RdcRestraintPreviewSaveframe {
   sf_framecode: string;
+  per_residue: PerResidueLine[];
   correlation: RdcCorrelationChart[];
   q_scores: RdcQScoreTable[];
 }
@@ -767,6 +769,33 @@ export class Download {
     });
   }
 
+  /** Per-saveframe observed-RDC-per-residue line panels (shared lineOption). The
+   * source keys chains by Entity_assembly_ID; with a model they are relabelled to
+   * Auth_asym_ID via assembly.entity_assembly, like the rest of this report. A
+   * computed (not memoizeBySource) since it also depends on the statistics. */
+  rdcPerResidue = computed<{ sf_framecode: string; panels: ChartPanel[] }[]>(() => {
+    const authChain = new Map<string, string>();
+    if (this.hasModel()) {
+      for (const ea of this.entityAssemblyRows()) {
+        if (ea.entity_assembly_id != null && ea.auth_chain_id)
+          authChain.set(String(ea.entity_assembly_id), ea.auth_chain_id);
+      }
+    }
+    return this.rdcRestraintSaveframes()
+      .map((sf) => ({
+        sf_framecode: sf.sf_framecode,
+        panels: (sf.per_residue ?? []).map((c) => {
+          const auth = authChain.get(String(c.chain));
+          return {
+            title: auth
+              ? `Observed RDC per residue — Auth_asym_ID: ${auth}`
+              : `Observed RDC per residue — Entity_assembly_ID: ${c.chain}`,
+            option: lineOption(c, 'Obs. RDC value (Hz)'),
+          };
+        }),
+      }))
+      .filter((s) => s.panels.length > 0);
+  });
   /** Per-saveframe RDC correlation scatter panels (shared builder; square with a
    * y=x diagonal, marginX reserving the right-side legend). */
   rdcCorrelationPanels = memoizeBySource((sf: RdcRestraintPreviewSaveframe): ChartPanel[] => {

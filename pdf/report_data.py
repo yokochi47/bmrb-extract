@@ -307,6 +307,45 @@ def atom_name_mapping(st):
     return out
 
 
+# constraints_per_residue keys that are residue coordinates, not value series.
+_PER_RESIDUE_SKIP = {'chain_id', 'seq_id', 'comp_id', 'struct_conf'}
+
+
+def _value_label(key):
+    """Per-residue value-series label: 'H-N_bond_vectors' → 'H-N bond vectors'
+    (mirrors the backend _angle_label)."""
+    base = key.replace('_angle_constraints', '').replace('_constraints', '')
+    return base.replace('_', ' ')
+
+
+def per_residue_value_charts(stat_list, ymin=None, ymax=None):
+    """Per-chain per-residue VALUE line charts (e.g. observed RDC) from
+    `constraints_per_residue`; None values are kept (line gaps). Mirrors the
+    backend _per_residue_value_charts (summary page / download page §9)."""
+    charts = []
+    for st in stat_list or []:
+        for pr in st.get('constraints_per_residue') or []:
+            seq = pr.get('seq_id') or []
+            comp = pr.get('comp_id') or []
+            if not seq:
+                continue
+            cats = [f"{comp[i] if i < len(comp) else ''} {seq[i]}".strip() for i in range(len(seq))]
+            series = [
+                {'name': _value_label(k), 'data': v}
+                for k, v in pr.items()
+                if k not in _PER_RESIDUE_SKIP and isinstance(v, list)
+                and any(x is not None for x in v)
+            ]
+            if series:
+                charts.append({
+                    'chain': pr.get('chain_id'), 'label': st.get('sf_framecode', ''),
+                    'categories': cats, 'series': series,
+                    'bands': _struct_conf_bands(pr.get('struct_conf')),
+                    'ymin': ymin, 'ymax': ymax, 'threshold': None,
+                })
+    return charts
+
+
 def rci_charts(chem_shift_list, auth=False):
     """RCI/S² (0–1) and NMR-RMSD (Å, with well-defined-region threshold)
     per-residue line charts from `random_coil_index`. auth=True keys residues by
