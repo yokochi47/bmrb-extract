@@ -21,3 +21,11 @@ SELECT enumlabel FROM pg_enum
  WHERE enumtypid = 'upload_file_type'::regtype AND enumlabel LIKE 'nm-%-vie'
  ORDER BY enumsortorder;
 SQL
+
+docker exec -i bmrb-extract-postgres \
+  psql -v ON_ERROR_STOP=1 -U "${POSTGRES_USER}" -d "${POSTGRES_SERVICE_DB}" <<'SQL'
+ALTER TYPE upload_file_type ADD VALUE IF NOT EXISTS 'nm-shi-dia' BEFORE 'nm-shi-gar';
+SELECT enumlabel FROM pg_enum
+ WHERE enumtypid = 'upload_file_type'::regtype AND enumlabel LIKE 'nm-%-dia'
+ ORDER BY enumsortorder;
+SQL
