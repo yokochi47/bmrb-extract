@@ -15,6 +15,7 @@ export const FILE_TYPE_OPTIONS: readonly FileTypeOption[] = [
   // Assigned chemical shifts
   { label: 'Assigned chemical shifts (NMR-STAR V3 or NEF)', value: 'nm-shi' },
   { label: 'Assigned chemical shifts (ARIA format)', value: 'nm-shi-ari' },
+  { label: 'Assigned chemical shifts (DIANA format)', value: 'nm-shi-dia' },
   { label: 'Assigned chemical shifts (GARRET format)', value: 'nm-shi-gar' },
   { label: 'Assigned chemical shifts (NMRPIPE format)', value: 'nm-shi-npi' },
   { label: 'Assigned chemical shifts (OLIVIA format)', value: 'nm-shi-oli' },
@@ -54,7 +55,7 @@ export const FILE_TYPE_OPTIONS: readonly FileTypeOption[] = [
   { label: 'NMR restraints (BIOSYM format, incl. INSIGHT-II)', value: 'nm-res-bio' },
   { label: 'NMR restraints (CHARMM format)', value: 'nm-res-cha' },
   { label: 'NMR restraints (CNS format)', value: 'nm-res-cns' },
-  { label: 'NMR restraints (CYANA format)', value: 'nm-res-cya' },
+  { label: 'NMR restraints (CYANA/DIANA format)', value: 'nm-res-cya' },
   { label: 'NMR restraints (CYANA NOA format, aka. noe assignment)', value: 'nm-res-noa' },
   { label: 'NMR restraints (DYNAMO/PALES/TALOS format)', value: 'nm-res-dyn' },
   { label: 'NMR restraints (GROMACS format)', value: 'nm-res-gro' },
