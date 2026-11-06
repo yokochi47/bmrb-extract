@@ -111,6 +111,7 @@ class UploadFileType(str, Enum):
     nm_shi = 'nm-shi'
     nm_shi_ari = 'nm-shi-ari'
     nm_shi_bar = 'nm-shi-bar'
+    nm_shi_dia = 'nm-shi-dia'
     nm_shi_gar = 'nm-shi-gar'
     nm_shi_npi = 'nm-shi-npi'
     nm_shi_oli = 'nm-shi-oli'
