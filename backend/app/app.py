@@ -1249,14 +1249,16 @@ def _nmr_loc(item, model_file_name):
 
 def _nmr_describe(item, is_error):
     """Description cell HTML: optional Subtotal label + description; for errors wrap a
-    trailing '[Syntax error]…' in <pre> (port of nmr_dp_report_handle_syntax_error)."""
+    trailing '[Syntax error…' in <pre> (port of nmr_dp_report_handle_syntax_error)."""
     parts = ''
     subtotal = item.get('subtotal')
     if isinstance(subtotal, int) and subtotal > 1:
         parts += f'<b>Subtotal:</b> {subtotal}<br />'
     desc = str(item.get('description', ''))
-    if is_error and 'Syntax error' in desc:
-        idx = desc.index('[Syntax error]')
+    # The marker may carry a qualifier, e.g. '[Syntax error as a TOPSPIN spectral
+    # peak list file]', so match the bracketed prefix only.
+    idx = desc.find('[Syntax error') if is_error else -1
+    if idx >= 0:
         parts += html.escape(desc[:idx]) + '<pre>' + html.escape(desc[idx:]) + '</pre>'
     else:
         parts += html.escape(desc)
