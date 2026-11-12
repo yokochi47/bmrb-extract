@@ -486,7 +486,8 @@ export class Upload implements OnDestroy {
    * File-name hints used to pre-populate the file-type select on upload, so a
    * recognised extension picks a sensible default and the user only has to
    * confirm. Keys are lower-cased extensions. The XEASY '.prot' file is
-   * resolved per target in guessFileType() (topology vs chemical shifts), and
+   * resolved per target in guessFileType() (topology vs chemical shifts), as are
+   * '.str' and '.pdb' under bmrbdep ('nm-shi' / 'nm-aux-pdb'), and
    * every guess is gated through DEPSYS_FILE_TYPES so a type that the current
    * deposition system does not accept is dropped (row left unselected).
    */
@@ -559,6 +560,8 @@ export class Upload implements OnDestroy {
     if (ext === 'prot') value = target === TargetDepsys.onedep ? 'nm-aux-xea' : 'nm-shi-xea';
     // bmrbdep and '.str' extension indicates 'nm-shi'.
     if (ext === 'str' && target === TargetDepsys.bmrbdep) value = 'nm-shi';
+    // bmrbdep and '.pdb' extension indicates topology ('nm-aux-pdb'), not coordinates.
+    if (ext === 'pdb' && target === TargetDepsys.bmrbdep) value = 'nm-aux-pdb';
     if (!value) return null;
     return this.DEPSYS_FILE_TYPES[target](value) ? value : null;
   }
