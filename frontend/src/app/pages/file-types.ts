@@ -22,7 +22,6 @@ export const FILE_TYPE_OPTIONS: readonly FileTypeOption[] = [
   { label: 'Assigned chemical shifts (PIPP format)', value: 'nm-shi-pip' },
   { label: 'Assigned chemical shifts (PPM/CAMRA format)', value: 'nm-shi-ppm' },
   { label: 'Assigned chemical shifts (NMR-STAR V2, seq+cs loop)', value: 'nm-shi-st2' },
-  { label: 'Assigned chemical shifts (NMRVIEW format)', value: 'nm-shi-vie' },
   { label: 'Assigned chemical shifts (XEASY format, aka. prot)', value: 'nm-shi-xea' },
   {
     label:
@@ -37,7 +36,6 @@ export const FILE_TYPE_OPTIONS: readonly FileTypeOption[] = [
   { label: 'Perturbed chemical shifts (PIPP format)', value: 'nm-csp-pip' },
   { label: 'Perturbed chemical shifts (PPM/CAMRA format)', value: 'nm-csp-ppm' },
   { label: 'Perturbed chemical shifts (NMR-STAR V2 format, seq+cs loop)', value: 'nm-csp-st2' },
-  { label: 'Perturbed chemical shifts (NMRVIEW format)', value: 'nm-csp-vie' },
   { label: 'Perturbed chemical shifts (XEASY format, aka. prot)', value: 'nm-csp-xea' },
   {
     label:
