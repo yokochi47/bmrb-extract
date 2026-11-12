@@ -1080,6 +1080,15 @@ export class Upload implements OnDestroy {
   // ── Processing progress dialog ───────────────────────────────────────────────
   processing = signal(false);
   progressTasks = signal<ProgressTask[]>([]);
+  /** Tasks shown in the dialog. BMRBdep treats the coordinate file as optional; without
+   * one the flow skips coordinate conversion (no log), so its row is hidden there. */
+  visibleProgressTasks = computed<ProgressTask[]>(() => {
+    const tasks = this.progressTasks();
+    const hideModel =
+      this.state().targetDepsys === TargetDepsys.bmrbdep &&
+      !this.rows().some((r) => r.selected && r.fileType?.startsWith('co-'));
+    return hideModel ? tasks.filter((t) => t.task !== 'convert_model') : tasks;
+  });
   progressDone = signal(false);
   /** Dialog state: in-flight while running, then the finished run's outcome — the
    * same dialog is reused to review a completed run, so title/caption must follow. */
