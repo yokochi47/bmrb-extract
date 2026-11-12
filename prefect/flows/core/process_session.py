@@ -517,6 +517,8 @@ def _nmr_merge_driver_script(
         if restraint_list else ""
     )
     return (
+        "import os\n"
+        "import sys\n"
         "from nmr.NmrDpUtility import NmrDpUtility\n"
         f"CIF = {cif!r}\n"
         f"CS_LIST = {cs_list!r}\n"
@@ -540,6 +542,12 @@ def _nmr_merge_driver_script(
         "u.setDestination(MERGED_STR)\n"
         "u.setVerbose(True)\n"
         "u.op('nmr-cs-mr-merge')\n"
+        # A blocking merge error leaves no merged NMR-STAR; the merge report already
+        # carries the user-facing errors, so skip the deposit instead of letting
+        # setSource() raise.
+        "if not (os.path.isfile(MERGED_STR) and os.path.getsize(MERGED_STR) > 0):\n"
+        "    print('nmr-cs-mr-merge produced no NMR-STAR output; skipping nmr-str2str-deposit')\n"
+        "    sys.exit(0)\n"
         "# Step 2: deposit the merged NMR-STAR (same as the combined str case)\n"
         "u.setWorkspace(WORK_DIR, CACHE_DIR)\n"
         "u.setSource(MERGED_STR)\n"
@@ -577,6 +585,8 @@ def _nmr_replace_cs_driver_script(
         f"u.addOutput(name='entry_id', value={entry_id!r}, type='param')\n"
     )
     return (
+        "import os\n"
+        "import sys\n"
         "from nmr.NmrDpUtility import NmrDpUtility\n"
         f"SRC = {src!r}\n"
         f"CIF = {cif!r}\n"
@@ -596,6 +606,12 @@ def _nmr_replace_cs_driver_script(
         "u.setDestination(OUT_STR)\n"
         "u.setVerbose(True)\n"
         "u.op('nmr-str-replace-cs')\n"
+        # A blocking replace error leaves no NMR-STAR output; the replace report
+        # already carries the user-facing errors, so skip the consistency check
+        # instead of letting setSource() raise.
+        "if not (os.path.isfile(OUT_STR) and os.path.getsize(OUT_STR) > 0):\n"
+        "    print('nmr-str-replace-cs produced no NMR-STAR output; skipping nmr-str-consistency-check')\n"
+        "    sys.exit(0)\n"
         "# Step 2: consistency check\n"
         "u.setWorkspace(WORK_DIR, CACHE_DIR)\n"
         "u.setSource(OUT_STR)\n"
@@ -649,6 +665,8 @@ def _nmr_bmrbdep_driver_script(
         if cif else ""
     )
     return (
+        "import os\n"
+        "import sys\n"
         "from nmr.NmrDpUtility import NmrDpUtility\n"
         f"CS_LIST = {cs_list!r}\n"
         f"ATYPICAL_CS = {atypical_cs_list!r}\n"
@@ -672,6 +690,12 @@ def _nmr_bmrbdep_driver_script(
         "u.setDestination(OUT_STR)\n"
         "u.setVerbose(True)\n"
         "u.op('nmr-cs-mr-merge')\n"
+        # A blocking merge error (e.g. an NMR-STAR V2 file uploaded as V3) leaves no
+        # NMR-STAR output; the merge report already carries the user-facing errors,
+        # so skip the consistency check instead of letting setSource() raise.
+        "if not (os.path.isfile(OUT_STR) and os.path.getsize(OUT_STR) > 0):\n"
+        "    print('nmr-cs-mr-merge produced no NMR-STAR output; skipping nmr-str-consistency-check')\n"
+        "    sys.exit(0)\n"
         "# Step 2: consistency check\n"
         "u.setWorkspace(WORK_DIR, CACHE_DIR)\n"
         "u.setSource(OUT_STR)\n"
@@ -879,9 +903,12 @@ def _run_nmr_driver(
         failed_reason = 'no NMR-STAR output produced'
 
     if failed_reason:
+        # When the final step never ran (e.g. the first task produced no output), point
+        # the row at the first-task report so the summary page can still show its errors.
+        failed_log = deposit_log if deposit_log.is_file() or not report_path.is_file() else report_path
         asyncio.run(_update_workflow_status(
             conversion_id, run_number, WfTaskCode.convert_nmr_data, WfStatusCode.failed,
-            finished=True, log_path=str(deposit_log), detail=failed_reason,
+            finished=True, log_path=str(failed_log), detail=failed_reason,
         ))
         print(f'[{conversion_id}] NMR data conversion FAILED — {failed_reason}')
         return False, None

@@ -15,13 +15,13 @@ export const FILE_TYPE_OPTIONS: readonly FileTypeOption[] = [
   // Assigned chemical shifts
   { label: 'Assigned chemical shifts (NMR-STAR V3 or NEF)', value: 'nm-shi' },
   { label: 'Assigned chemical shifts (ARIA format)', value: 'nm-shi-ari' },
+  { label: 'Assigned chemical shifts (DIANA format)', value: 'nm-shi-dia' },
   { label: 'Assigned chemical shifts (GARRET format)', value: 'nm-shi-gar' },
   { label: 'Assigned chemical shifts (NMRPIPE format)', value: 'nm-shi-npi' },
   { label: 'Assigned chemical shifts (OLIVIA format)', value: 'nm-shi-oli' },
   { label: 'Assigned chemical shifts (PIPP format)', value: 'nm-shi-pip' },
   { label: 'Assigned chemical shifts (PPM/CAMRA format)', value: 'nm-shi-ppm' },
   { label: 'Assigned chemical shifts (NMR-STAR V2, seq+cs loop)', value: 'nm-shi-st2' },
-  { label: 'Assigned chemical shifts (NMRVIEW format)', value: 'nm-shi-vie' },
   { label: 'Assigned chemical shifts (XEASY format, aka. prot)', value: 'nm-shi-xea' },
   {
     label:
@@ -36,7 +36,6 @@ export const FILE_TYPE_OPTIONS: readonly FileTypeOption[] = [
   { label: 'Perturbed chemical shifts (PIPP format)', value: 'nm-csp-pip' },
   { label: 'Perturbed chemical shifts (PPM/CAMRA format)', value: 'nm-csp-ppm' },
   { label: 'Perturbed chemical shifts (NMR-STAR V2 format, seq+cs loop)', value: 'nm-csp-st2' },
-  { label: 'Perturbed chemical shifts (NMRVIEW format)', value: 'nm-csp-vie' },
   { label: 'Perturbed chemical shifts (XEASY format, aka. prot)', value: 'nm-csp-xea' },
   {
     label:
@@ -54,7 +53,7 @@ export const FILE_TYPE_OPTIONS: readonly FileTypeOption[] = [
   { label: 'NMR restraints (BIOSYM format, incl. INSIGHT-II)', value: 'nm-res-bio' },
   { label: 'NMR restraints (CHARMM format)', value: 'nm-res-cha' },
   { label: 'NMR restraints (CNS format)', value: 'nm-res-cns' },
-  { label: 'NMR restraints (CYANA format)', value: 'nm-res-cya' },
+  { label: 'NMR restraints (CYANA/DIANA format)', value: 'nm-res-cya' },
   { label: 'NMR restraints (CYANA NOA format, aka. noe assignment)', value: 'nm-res-noa' },
   { label: 'NMR restraints (DYNAMO/PALES/TALOS format)', value: 'nm-res-dyn' },
   { label: 'NMR restraints (GROMACS format)', value: 'nm-res-gro' },

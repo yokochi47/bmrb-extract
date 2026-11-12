@@ -59,13 +59,13 @@
             "nm-pea-xwi",
             "nm-shi-ari",
             "nm-shi-bar",
+            "nm-shi-dia",
             "nm-shi-gar",
             "nm-shi-npi",
             "nm-shi-oli",
             "nm-shi-pip",
             "nm-shi-ppm",
             "nm-shi-st2",
-            "nm-shi-vie",
             "nm-shi-xea",
             "nm-csp-ari",
             "nm-csp-bar",
@@ -75,7 +75,6 @@
             "nm-csp-pip",
             "nm-csp-ppm",
             "nm-csp-st2",
-            "nm-csp-vie",
             "nm-csp-xea"
           ]
         },
