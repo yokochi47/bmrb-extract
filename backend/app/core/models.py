@@ -259,6 +259,31 @@ class Communication(Base):
     is_help_desk = sa.Column(sa.Boolean(), nullable=False, server_default='FALSE')
 
 
+class HelpAttachment(Base):
+    """A file attached to one help-desk message. Hand-added; mirrors
+    help_attachment in postgres/init-service.sql.template."""
+
+    __tablename__ = 'help_attachment'
+    __table_args__ = (
+        sa.ForeignKeyConstraint(
+            ['conversion_id', 'comm_ordinal'],
+            ['communication.conversion_id', 'communication.ordinal'],
+            ondelete='CASCADE',
+        ),
+    )
+
+    conversion_id = sa.Column(sa.Integer(), primary_key=True)
+    comm_ordinal = sa.Column(sa.Integer(), primary_key=True)
+    ordinal = sa.Column(sa.Integer(), primary_key=True)
+    original_name = sa.Column(sa.Text(), nullable=False)
+    stored_path = sa.Column(sa.Text(), nullable=False)
+    file_size = sa.Column(sa.BigInteger(), nullable=False)
+    sha256 = sa.Column(sa.Text(), nullable=False)
+    uploaded_at = sa.Column(sa.TIMESTAMP(), nullable=False, server_default=func.now())
+    expires_at = sa.Column(sa.TIMESTAMP(), nullable=False)  # min(uploaded_at + TTL, session.token_expiry)
+    expired_at = sa.Column(sa.TIMESTAMP())  # set when cleanup removed the file; NULL = still available
+
+
 class Workflow(Base):
 
     __tablename__ = 'workflow'

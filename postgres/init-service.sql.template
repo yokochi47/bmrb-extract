@@ -221,6 +221,36 @@ CREATE TABLE IF NOT EXISTS communication (
     PRIMARY KEY ( conversion_id, ordinal )
 );
 
+--
+-- Help-desk attachment: a file attached to one help-desk message (communication row).
+-- Stored at <WORKSPACE_BASE_PATH>/.helpdesk/<conversion_id>/<comm_ordinal>/<ordinal>_<original_name>,
+-- outside both the git archive and the per-conversion workspace, so neither conversion
+-- runs nor the cross-site exchange ever see it. Served only by GET /api/help/attachment
+-- (login session required). The nightly cleanup-sessions flow removes the file once
+-- expires_at has passed and keeps the row as a tombstone (expired_at set).
+--
+
+CREATE TABLE IF NOT EXISTS help_attachment (
+    conversion_id   INT,
+    comm_ordinal    INT,
+    ordinal         INT CHECK ( ordinal > 0 ),
+
+    original_name   TEXT NOT NULL,
+    stored_path     TEXT NOT NULL,
+    file_size       BIGINT NOT NULL,
+    sha256          TEXT NOT NULL,
+
+    uploaded_at     TIMESTAMP NOT NULL DEFAULT now(),
+    expires_at      TIMESTAMP NOT NULL,                 -- min(uploaded_at + HELP_ATTACHMENT_VALIDITY_IN_DAYS, session.token_expiry)
+    expired_at      TIMESTAMP,                          -- set when cleanup removed the file; NULL = file still available
+
+    PRIMARY KEY ( conversion_id, comm_ordinal, ordinal ),
+    FOREIGN KEY ( conversion_id, comm_ordinal )
+        REFERENCES communication ( conversion_id, ordinal ) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS help_attachment_live_idx ON help_attachment ( expires_at ) WHERE expired_at IS NULL;
+
 DROP TYPE IF EXISTS wf_task_code;
 CREATE TYPE wf_task_code as ENUM ('issue_conversion', 'convert_model', 'convert_nmr_data', 'nef_release', 'convert_pdf', 'session_exchange', 'session_lock', 'session_cleanup', 'notification', 'communication');
 

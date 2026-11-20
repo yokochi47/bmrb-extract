@@ -11,7 +11,7 @@
 -- The auth tables are listed too: init-service.sql.template uses CREATE TABLE IF
 -- NOT EXISTS, so leaving them in place would silently skip any column added to
 -- them and a development reset would not match a fresh install.
-DROP TABLE IF EXISTS workflow, communication, notification, output_file, upload_file, session,
+DROP TABLE IF EXISTS workflow, help_attachment, communication, notification, output_file, upload_file, session,
   admin_access_audit, auth_session, login_challenge, app_user CASCADE;
 DROP TYPE IF EXISTS wf_status_code, wf_task_code, delivery_status_code,
   output_file_type, upload_file_type, target_depsys_code,
