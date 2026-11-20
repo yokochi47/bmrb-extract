@@ -9,7 +9,17 @@ import { MessageModule } from 'primeng/message';
 import { DividerModule } from 'primeng/divider';
 import { TagModule } from 'primeng/tag';
 
+import { HttpErrorResponse } from '@angular/common/http';
+
 import { AuthService, Inquiry, SessionRow, ThreadState } from './auth.service';
+import {
+  HELP_ATTACH_ACCEPT,
+  HELP_ATTACH_MAX_BYTES,
+  HELP_ATTACH_MAX_FILES,
+  HelpAttachment,
+  addAttachments,
+  formatBytes,
+} from './help-attachments';
 import { PageService } from './page.service';
 
 interface Thread {
@@ -70,6 +80,8 @@ export class Help {
   userBusy = signal(false);
   userSent = signal(false);
   userError = signal<string | null>(null);
+  /** Files picked for the next inquiry. */
+  userFiles = signal<File[]>([]);
   /** Message thread for the selected session (newest first). */
   thread = signal<Inquiry[]>([]);
   threadLoading = signal(false);
@@ -79,6 +91,19 @@ export class Help {
   /** Per-thread handling state from the server, keyed by conversion_id. */
   states = signal<Record<number, ThreadState>>({});
   replies = signal<Record<number, string>>({});
+  /** Files picked for the next reply, per thread. */
+  replyFiles = signal<Record<number, File[]>>({});
+  replyErrors = signal<Record<number, string | null>>({});
+  replyBusy = signal<number | null>(null);
+
+  // --- attachments (both sides) ---
+  readonly attachAccept = HELP_ATTACH_ACCEPT;
+  readonly attachHint =
+    `Up to ${HELP_ATTACH_MAX_FILES} files, ${formatBytes(HELP_ATTACH_MAX_BYTES)} each ` +
+    `(text, log, PDF, image, NMR/coordinate files and archives). Files are kept for a limited ` +
+    `time and can only be downloaded from this page.`;
+  readonly formatBytes = formatBytes;
+  downloadError = signal<string | null>(null);
   /** Which group the two switch buttons are showing. */
   group = signal<'open' | 'addressed'>('open');
   resolving = signal<number | null>(null);
@@ -202,6 +227,62 @@ export class Help {
     });
   }
 
+  /** Server error text ({error: ...}) or a fallback. */
+  private errorText(err: unknown, fallback: string): string {
+    const e = err as HttpErrorResponse;
+    const msg = e?.error && typeof e.error === 'object' ? e.error.error : null;
+    return typeof msg === 'string' && msg ? msg : fallback;
+  }
+
+  onUserFiles(input: HTMLInputElement) {
+    const r = addAttachments(this.userFiles(), input.files);
+    this.userFiles.set(r.files);
+    this.userError.set(r.error);
+    input.value = '';
+  }
+
+  removeUserFile(i: number) {
+    this.userFiles.update((fs) => fs.filter((_, j) => j !== i));
+  }
+
+  onReplyFiles(cid: number, input: HTMLInputElement) {
+    const r = addAttachments(this.replyFiles()[cid] ?? [], input.files);
+    this.replyFiles.update((m) => ({ ...m, [cid]: r.files }));
+    this.replyErrors.update((m) => ({ ...m, [cid]: r.error }));
+    input.value = '';
+  }
+
+  replyFilesFor(cid: number): File[] {
+    return this.replyFiles()[cid] ?? [];
+  }
+
+  removeReplyFile(cid: number, i: number) {
+    this.replyFiles.update((m) => ({ ...m, [cid]: (m[cid] ?? []).filter((_, j) => j !== i) }));
+  }
+
+  /** Download one attachment of message `m` (only possible from this page). */
+  download(m: Inquiry, a: HelpAttachment) {
+    if (a.expired) return;
+    this.downloadError.set(null);
+    this.auth.downloadAttachment(m.conversion_id, m.ordinal, a).subscribe({
+      error: (err: HttpErrorResponse) =>
+        this.downloadError.set(
+          err.status === 410
+            ? `${a.name} has expired and is no longer available.`
+            : `Could not download ${a.name}.`,
+        ),
+    });
+  }
+
+  attachmentLabel(a: HelpAttachment): string {
+    return `${a.name} · ${formatBytes(a.size)}`;
+  }
+
+  attachmentNote(a: HelpAttachment): string {
+    if (a.expired) return 'expired';
+    return a.expires_at ? `until ${a.expires_at.slice(0, 10)}` : '';
+  }
+
   submitInquiry() {
     const token = this.selectedToken();
     const subject = this.subject().trim();
@@ -212,19 +293,20 @@ export class Help {
     }
     this.userBusy.set(true);
     this.userError.set(null);
-    this.auth.postInquiry(token, subject, content).subscribe({
+    this.auth.postInquiry(token, subject, content, this.userFiles()).subscribe({
       next: () => {
         this.userBusy.set(false);
         this.userSent.set(true);
         this.subject.set('');
         this.content.set('');
+        this.userFiles.set([]);
         // Reload so the just-sent message appears at the top of the thread.
         this.loadThread(token);
         this.auth.refreshUnread();
       },
-      error: () => {
+      error: (err) => {
         this.userBusy.set(false);
-        this.userError.set('Could not send your inquiry — please try again.');
+        this.userError.set(this.errorText(err, 'Could not send your inquiry — please try again.'));
       },
     });
   }
@@ -235,13 +317,24 @@ export class Help {
 
   submitReply(cid: number) {
     const content = (this.replies()[cid] || '').trim();
-    if (!content) return;
-    this.auth.postReply(cid, content).subscribe({
+    if (!content || this.replyBusy() !== null) return;
+    this.replyBusy.set(cid);
+    this.replyErrors.update((m) => ({ ...m, [cid]: null }));
+    this.auth.postReply(cid, content, this.replyFiles()[cid] ?? []).subscribe({
       next: () => {
+        this.replyBusy.set(null);
         this.setReply(cid, '');
+        this.replyFiles.update((m) => ({ ...m, [cid]: [] }));
         this.loadInquiries();
         // Replying handles the inquiry on this site — clear the badge.
         this.auth.refreshUnread();
+      },
+      error: (err) => {
+        this.replyBusy.set(null);
+        this.replyErrors.update((m) => ({
+          ...m,
+          [cid]: this.errorText(err, 'Could not send the reply — please try again.'),
+        }));
       },
     });
   }

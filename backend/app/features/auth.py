@@ -29,7 +29,7 @@ import pyotp
 import qrcode
 import redis
 from cryptography.fernet import Fernet, InvalidToken
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, send_file
 from io import BytesIO
 from sqlalchemy import func, select, update
 
@@ -38,8 +38,22 @@ from core.models import (
     AppUser,
     AuthSession,
     Communication,
+    HelpAttachment,
     LoginChallenge,
     Session,
+)
+from core.filenames import UnsafeFileName
+from core.helpdesk import (
+    HELP_ATTACH_MAX_FILES,
+    HELP_ATTACH_MAX_REQUEST,
+    AttachmentTooLarge,
+    attachment_expiry,
+    format_attachment_notice,
+    help_attachment_dir,
+    human_bytes,
+    remove_dir,
+    save_attachment,
+    validate_attachment_name,
 )
 from core.site_config import (
     AUTH_SECRET,
@@ -731,6 +745,80 @@ async def _next_ordinal(db, conversion_id):
     return (n or 0) + 1
 
 
+def _help_payload():
+    """Body of a help-desk post: multipart (fields + 'files') when attachments are
+    sent, JSON otherwise. Returns (fields, files, error_response_or_None).
+    The size check runs before Werkzeug parses (and spools) the body."""
+    if request.mimetype != 'multipart/form-data':
+        return (request.get_json(silent=True) or {}), [], None
+    if request.content_length is not None and request.content_length > HELP_ATTACH_MAX_REQUEST:
+        return None, None, ({'error': f'attachments are limited to {HELP_ATTACH_MAX_FILES} files '
+                                      f'of {human_bytes(HELP_ATTACH_MAX_REQUEST // HELP_ATTACH_MAX_FILES)} each'}, 413)
+    # An empty <input type=file> still posts one part with an empty name; skip it.
+    files = [f for f in request.files.getlist('files') if f and f.filename]
+    if len(files) > HELP_ATTACH_MAX_FILES:
+        return None, None, ({'error': f'at most {HELP_ATTACH_MAX_FILES} attachments per message'}, 400)
+    for f in files:
+        try:
+            validate_attachment_name(f.filename)
+        except UnsafeFileName as exc:
+            return None, None, ({'error': f'invalid attachment {f.filename!r}: {exc}'}, 400)
+    return request.form, files, None
+
+
+async def _store_attachments(db, conversion_id, comm_ordinal, files, session_expiry):
+    """Write the message's attachments to disk and insert their help_attachment
+    rows (in the caller's transaction). Returns [(name, size, expires_at)] for the
+    mail notice. On any failure the caller must roll back and remove_dir() the
+    message directory."""
+    if not files:
+        return []
+    dest = help_attachment_dir(conversion_id, comm_ordinal)
+    expires_at = attachment_expiry(_now(), session_expiry)
+    saved = []
+    for n, f in enumerate(files, start=1):
+        name = validate_attachment_name(f.filename)
+        path, size, digest = save_attachment(f.stream, dest, n, name)
+        await db.execute(HelpAttachment.__table__.insert().values(
+            conversion_id=conversion_id, comm_ordinal=comm_ordinal, ordinal=n,
+            original_name=name, stored_path=path, file_size=size, sha256=digest,
+            uploaded_at=_now(), expires_at=expires_at,
+        ))
+        saved.append((name, size, expires_at))
+    return saved
+
+
+def _attachment_error(exc):
+    if isinstance(exc, AttachmentTooLarge):
+        return {'error': str(exc)}, 413
+    return {'error': f'invalid attachment: {exc}'}, 400
+
+
+async def _attachments_by_message(db, conversion_ids):
+    """{(conversion_id, comm_ordinal): [attachment view, ...]} for the threads."""
+    ids = {c for c in conversion_ids if c is not None}
+    if not ids:
+        return {}
+    rows = (
+        await db.execute(
+            select(HelpAttachment)
+            .where(HelpAttachment.conversion_id.in_(ids))
+            .order_by(HelpAttachment.ordinal.asc())
+        )
+    ).scalars().all()
+    now = _now()
+    out = {}
+    for a in rows:
+        out.setdefault((a.conversion_id, a.comm_ordinal), []).append({
+            'ordinal': a.ordinal,
+            'name': a.original_name,
+            'size': a.file_size,
+            'expires_at': a.expires_at.isoformat() if a.expires_at else None,
+            'expired': a.expired_at is not None or (a.expires_at is not None and a.expires_at < now),
+        })
+    return out
+
+
 @auth_bp.route('/api/help/inquiry', methods=['POST'])
 async def help_inquiry():
     """A logged-in user files a help-desk inquiry about one of their sessions
@@ -742,7 +830,9 @@ async def help_inquiry():
             return {'error': 'authentication required'}, 401
         if not csrf_valid(auth_session):
             return {'error': 'invalid CSRF token'}, 403
-        body = request.get_json(silent=True) or {}
+        body, files, err = _help_payload()
+        if err is not None:
+            return err
         token = body.get('token')
         subject = (body.get('subject') or '').strip()
         content = (body.get('content') or '').strip()
@@ -764,13 +854,30 @@ async def help_inquiry():
             subject=subject, content=content, email_address=user.email,
             from_admin=False, is_help_desk=True,
         ))
+        # Plain locals: a rollback expires `row`, and an async session cannot lazy-load.
+        cid, msg_dir = row.conversion_id, help_attachment_dir(row.conversion_id, ordinal)
+        try:
+            saved = await _store_attachments(db, cid, ordinal, files, row.token_expiry)
+        except (UnsafeFileName, AttachmentTooLarge) as exc:
+            await db.rollback()
+            remove_dir(msg_dir)
+            return _attachment_error(exc)
+        except Exception:
+            await db.rollback()
+            remove_dir(msg_dir)
+            raise
         # The user is up to date with their own thread after posting.
         await db.execute(update(Session).where(Session.token == token)
                          .values(help_user_seen_at=_now()))
-        await db.commit()
+        try:
+            await db.commit()
+        except Exception:
+            remove_dir(msg_dir)
+            raise
     if _send_email is not None:
-        _send_email(SERVICE_HELP_EMAIL, f'[Help desk] C_{row.conversion_id}: {subject}',
-                    f'From: {user.email}\nConversion: C_{row.conversion_id}\n\n{content}')
+        _send_email(SERVICE_HELP_EMAIL, f'[Help desk] C_{cid}: {subject}',
+                    f'From: {user.email}\nConversion: C_{cid}\n\n{content}'
+                    + format_attachment_notice(saved, SERVICE_HOST))
     return {'ok': True}, 200
 
 
@@ -789,7 +896,8 @@ async def help_inquiries():
                 .limit(1000)
             )
         ).scalars().all()
-        items = [_message_view(r) for r in rows]
+        atts = await _attachments_by_message(db, {r.conversion_id for r in rows})
+        items = [_message_view(r, atts) for r in rows]
         # Per-thread addressed/resolved state, so the annotator page can split the
         # list into 'Needs reply' / 'Addressed' without a second round trip.
         states = await _help_thread_states(db)
@@ -848,8 +956,9 @@ async def _help_thread_states(db):
     return states
 
 
-def _message_view(r):
-    """Serialize one help-desk communication row for the frontend."""
+def _message_view(r, attachments=None):
+    """Serialize one help-desk communication row for the frontend.
+    `attachments` is the map built by _attachments_by_message()."""
     return {
         'conversion_id': r.conversion_id,
         'public_id': f'C_{r.conversion_id}',
@@ -859,6 +968,7 @@ def _message_view(r):
         'email_address': r.email_address,
         'sent_at': r.sent_at.isoformat() if r.sent_at else None,
         'from_admin': bool(r.from_admin),
+        'attachments': (attachments or {}).get((r.conversion_id, r.ordinal), []),
     }
 
 
@@ -892,11 +1002,12 @@ async def help_thread():
                 .order_by(Communication.ordinal.desc())
             )
         ).scalars().all()
+        atts = await _attachments_by_message(db, {row.conversion_id})
         # Opening the thread marks all replies seen (clears the new-reply badge).
         await db.execute(update(Session).where(Session.token == token)
                          .values(help_user_seen_at=_now()))
         await db.commit()
-        return {'messages': [_message_view(r) for r in rows]}, 200
+        return {'messages': [_message_view(r, atts) for r in rows]}, 200
 
 
 @auth_bp.route('/api/help/unread', methods=['GET'])
@@ -953,12 +1064,22 @@ async def help_reply():
             return {'error': 'not authorized'}, 403
         if not csrf_valid(auth_session):
             return {'error': 'invalid CSRF token'}, 403
-        body = request.get_json(silent=True) or {}
-        conversion_id = body.get('conversion_id')
+        body, files, err = _help_payload()
+        if err is not None:
+            return err
+        try:
+            conversion_id = int(body.get('conversion_id') or 0)
+        except (TypeError, ValueError):
+            conversion_id = 0
         content = (body.get('content') or '').strip()
         subject = (body.get('subject') or 'Re: your bmrb_extract inquiry').strip()
         if not conversion_id or not content:
             return {'error': 'conversion_id and content are required'}, 400
+        session_expiry = (
+            await db.execute(select(Session.token_expiry).where(Session.conversion_id == conversion_id))
+        ).scalar_one_or_none()
+        if session_expiry is None:
+            return {'error': 'session not found'}, 404
         # Recipient: the most recent user address recorded for this conversation.
         recipient = (
             await db.execute(
@@ -976,12 +1097,81 @@ async def help_reply():
             email_address=recipient or SERVICE_HELP_EMAIL,
             from_admin=True, is_help_desk=True,
         ))
-        await record_admin_access(db, user, None, f'help_reply:C_{conversion_id}')
-        await db.commit()
+        try:
+            saved = await _store_attachments(db, conversion_id, ordinal, files, session_expiry)
+        except (UnsafeFileName, AttachmentTooLarge) as exc:
+            await db.rollback()
+            remove_dir(help_attachment_dir(conversion_id, ordinal))
+            return _attachment_error(exc)
+        except Exception:
+            await db.rollback()
+            remove_dir(help_attachment_dir(conversion_id, ordinal))
+            raise
+        try:
+            # record_admin_access commits, so the reply + attachment rows land with it.
+            await record_admin_access(db, user, None, f'help_reply:C_{conversion_id}')
+            await db.commit()
+        except Exception:
+            remove_dir(help_attachment_dir(conversion_id, ordinal))
+            raise
     if _send_email is not None and recipient:
         _send_email(recipient, f'[bmrb_extract] {subject}',
-                    f'{content}\n\n(Regarding C_{conversion_id})')
+                    f'{content}\n\n(Regarding C_{conversion_id})'
+                    + format_attachment_notice(saved, SERVICE_HOST))
     return {'ok': True}, 200
+
+
+@auth_bp.route('/api/help/attachment', methods=['GET'])
+async def help_attachment():
+    """Download one help-desk attachment. The only way to reach the file.
+
+    Requires a login session (cookie): the session owner or a TOTP-verified
+    annotator (audited). The ?token= capability URL is deliberately not
+    accepted, so a link copied out of the page or a mail is useless on its own.
+    Always served as an octet-stream download, never rendered inline."""
+    try:
+        cid = int(request.args.get('conversion_id', ''))
+        comm = int(request.args.get('comm_ordinal', ''))
+        n = int(request.args.get('ordinal', ''))
+    except ValueError:
+        return {'error': 'conversion_id, comm_ordinal and ordinal are required'}, 400
+    async with _session_factory() as db:
+        auth_session, user = await current_auth(db)
+        if user is None:
+            return {'error': 'authentication required'}, 401
+        owner = (
+            await db.execute(select(Session.user_id).where(Session.conversion_id == cid))
+        ).first()
+        if owner is None:
+            return {'error': 'attachment not found'}, 404
+        admin = is_admin(auth_session, user)
+        if not admin and (owner[0] is None or str(owner[0]) != str(user.id)):
+            return {'error': 'not authorized for this attachment'}, 403
+        att = (
+            await db.execute(select(HelpAttachment).where(
+                HelpAttachment.conversion_id == cid,
+                HelpAttachment.comm_ordinal == comm,
+                HelpAttachment.ordinal == n,
+            ))
+        ).scalar_one_or_none()
+        if att is None:
+            return {'error': 'attachment not found'}, 404
+        if att.expired_at is not None or att.expires_at < _now():
+            return {'error': 'attachment expired'}, 410
+        if admin and (owner[0] is None or str(owner[0]) != str(user.id)):
+            await record_admin_access(db, user, None, f'help_attachment:C_{cid}/{comm}/{n}')
+        stored_path, name = att.stored_path, att.original_name
+    # Defence in depth: the stored path must still sit in this message's directory.
+    expected_dir = os.path.realpath(help_attachment_dir(cid, comm))
+    real = os.path.realpath(stored_path)
+    if os.path.dirname(real) != expected_dir or not os.path.isfile(real):
+        return {'error': 'attachment file missing'}, 404
+    resp = send_file(real, mimetype='application/octet-stream',
+                     as_attachment=True, download_name=name, conditional=False)
+    resp.headers['X-Content-Type-Options'] = 'nosniff'
+    resp.headers['Content-Security-Policy'] = "sandbox; default-src 'none'"
+    resp.headers['Cache-Control'] = 'private, no-store'
+    return resp
 
 
 @auth_bp.route('/api/help/resolve', methods=['POST'])

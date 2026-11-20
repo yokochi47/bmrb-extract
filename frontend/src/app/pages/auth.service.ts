@@ -4,6 +4,7 @@ import { Observable, filter, map, race, take, tap, timer } from 'rxjs';
 
 import { API_URL } from '../../site.config';
 import { AuthBroadcast, AuthChannel } from './auth-channel';
+import { HelpAttachment } from './help-attachments';
 
 /** Current auth state (from GET /api/auth/me or a login/verify response). */
 export interface AuthState {
@@ -75,6 +76,8 @@ export interface Inquiry {
   sent_at: string | null;
   /** true = annotator reply, false = the user's own inquiry. */
   from_admin?: boolean;
+  /** Files attached to this message (download via downloadAttachment()). */
+  attachments?: HelpAttachment[];
 }
 
 /** Per-thread handling state for the annotator help-desk view
@@ -375,8 +378,21 @@ export class AuthService {
     });
   }
 
-  postInquiry(token: string, subject: string, content: string): Observable<{ ok: boolean }> {
-    return this.http.post<{ ok: boolean }>(API_URL + 'help/inquiry', { token, subject, content });
+  postInquiry(
+    token: string,
+    subject: string,
+    content: string,
+    files: File[] = [],
+  ): Observable<{ ok: boolean }> {
+    if (!files.length) {
+      return this.http.post<{ ok: boolean }>(API_URL + 'help/inquiry', { token, subject, content });
+    }
+    const form = new FormData();
+    form.append('token', token);
+    form.append('subject', subject);
+    form.append('content', content);
+    files.forEach((f) => form.append('files', f, f.name));
+    return this.http.post<{ ok: boolean }>(API_URL + 'help/inquiry', form);
   }
 
   getInquiries(): Observable<{ inquiries: Inquiry[]; threads: ThreadState[] }> {
@@ -391,11 +407,48 @@ export class AuthService {
     return this.http.get<{ messages: Inquiry[] }>(API_URL + 'help/thread', { params: { token } });
   }
 
-  postReply(conversionId: number, content: string): Observable<{ ok: boolean }> {
-    return this.http.post<{ ok: boolean }>(API_URL + 'help/reply', {
-      conversion_id: conversionId,
-      content,
-    });
+  postReply(
+    conversionId: number,
+    content: string,
+    files: File[] = [],
+  ): Observable<{ ok: boolean }> {
+    if (!files.length) {
+      return this.http.post<{ ok: boolean }>(API_URL + 'help/reply', {
+        conversion_id: conversionId,
+        content,
+      });
+    }
+    const form = new FormData();
+    form.append('conversion_id', String(conversionId));
+    form.append('content', content);
+    files.forEach((f) => form.append('files', f, f.name));
+    return this.http.post<{ ok: boolean }>(API_URL + 'help/reply', form);
+  }
+
+  /** Fetch a help-desk attachment with the login cookie and save it. The file
+   * is reachable only this way (no capability URL), so it goes through a Blob. */
+  downloadAttachment(
+    conversionId: number,
+    commOrdinal: number,
+    a: HelpAttachment,
+  ): Observable<void> {
+    return this.http
+      .get(API_URL + 'help/attachment', {
+        params: { conversion_id: conversionId, comm_ordinal: commOrdinal, ordinal: a.ordinal },
+        responseType: 'blob',
+      })
+      .pipe(
+        map((blob) => {
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = a.name;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 0);
+        }),
+      );
   }
 
   /** Annotator: mark a help-desk thread resolved (or reopen it). */

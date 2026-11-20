@@ -48,6 +48,7 @@ from sqlalchemy.pool import NullPool  # noqa: E402
 from core.models import (  # noqa: E402
     AuthSession,
     Communication,
+    HelpAttachment,
     LoginChallenge,
     Notification,
     OutputFile,
@@ -57,6 +58,7 @@ from core.models import (  # noqa: E402
     Workflow,
 )
 import core.site_config as cfg  # noqa: E402
+from core.helpdesk import helpdesk_conversion_dir  # noqa: E402
 from core.site_config import (  # noqa: E402
     ARCHIVE_BASE_PATH,
     SERVICE_ADMIN_EMAIL,
@@ -131,6 +133,7 @@ async def cleanup_expired(archive_base=ARCHIVE_BASE_PATH, workspace_base=WORKSPA
     errors = []
     bytes_freed = 0
     purged = {'login_challenges': 0, 'auth_sessions': 0}
+    attachments = {'removed': 0, 'bytes': 0}
     try:
         async with async_sessionmaker(engine, expire_on_commit=False)() as db:
             rows = (
@@ -157,6 +160,11 @@ async def cleanup_expired(archive_base=ARCHIVE_BASE_PATH, workspace_base=WORKSPA
                     if os.path.isdir(workspace_dir):
                         freed += _dir_size(workspace_dir)
                         shutil.rmtree(workspace_dir)
+                    # Help-desk attachments live outside <workspace>/<cid>/.
+                    helpdesk_dir = helpdesk_conversion_dir(conversion_id, workspace_base)
+                    if os.path.isdir(helpdesk_dir):
+                        freed += _dir_size(helpdesk_dir)
+                        shutil.rmtree(helpdesk_dir)
 
                 # 2. Purge child rows, then mark the session expired (kept). Only
                 #    after the files are gone, so a failure above leaves the
@@ -172,6 +180,11 @@ async def cleanup_expired(archive_base=ARCHIVE_BASE_PATH, workspace_base=WORKSPA
                         )
                         await db.execute(
                             delete(Notification).where(Notification.conversion_id == conversion_id)
+                        )
+                        await db.execute(
+                            delete(HelpAttachment).where(
+                                HelpAttachment.conversion_id == conversion_id
+                            )
                         )
                         await db.execute(
                             delete(Communication).where(
@@ -191,6 +204,13 @@ async def cleanup_expired(archive_base=ARCHIVE_BASE_PATH, workspace_base=WORKSPA
             except Exception as exc:  # noqa: BLE001
                 errors.append({'label': label, 'error': str(exc)})
                 print(f'cleanup: FAILED {label}: {exc}')
+        # Help-desk attachments carry their own, shorter TTL than the session.
+        try:
+            attachments = await _purge_help_attachments(engine)
+            bytes_freed += attachments['bytes']
+        except Exception as exc:  # noqa: BLE001
+            errors.append({'label': 'help attachments', 'error': str(exc)})
+            print(f'cleanup: FAILED help-attachment purge: {exc}')
         # Spent auth rows are unrelated to any one session, so a failure here is
         # recorded but must not abort the retention run.
         try:
@@ -201,7 +221,54 @@ async def cleanup_expired(archive_base=ARCHIVE_BASE_PATH, workspace_base=WORKSPA
     finally:
         await engine.dispose()
 
-    return {'expired': expired, 'errors': errors, 'bytes_freed': bytes_freed, 'purged': purged}
+    return {'expired': expired, 'errors': errors, 'bytes_freed': bytes_freed, 'purged': purged,
+            'help_attachments': attachments}
+
+
+async def _purge_help_attachments(engine):
+    """Remove every help-desk attachment past its expires_at.
+
+    The file is deleted and the row kept as a tombstone (expired_at set), so the
+    thread still shows "name (size) — expired". The API already refuses an
+    attachment once expires_at has passed; this reclaims the disk. A file that
+    is already gone is not an error. Empty message directories are removed."""
+    removed = 0
+    freed = 0
+    async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+        rows = (
+            await db.execute(
+                select(HelpAttachment).where(
+                    HelpAttachment.expired_at.is_(None),
+                    HelpAttachment.expires_at < func.now(),
+                )
+            )
+        ).scalars().all()
+        for a in rows:
+            try:
+                size = os.path.getsize(a.stored_path)
+                os.remove(a.stored_path)
+                freed += size
+            except FileNotFoundError:
+                pass
+            parent = os.path.dirname(a.stored_path)
+            try:
+                os.rmdir(parent)            # only succeeds once the message dir is empty
+                os.rmdir(os.path.dirname(parent))
+            except OSError:
+                pass
+            await db.execute(
+                update(HelpAttachment)
+                .where(
+                    HelpAttachment.conversion_id == a.conversion_id,
+                    HelpAttachment.comm_ordinal == a.comm_ordinal,
+                    HelpAttachment.ordinal == a.ordinal,
+                )
+                .values(expired_at=func.now())
+            )
+            removed += 1
+        await db.commit()
+    print(f'cleanup: removed {removed} help-desk attachment(s) ({_human_bytes(freed)})')
+    return {'removed': removed, 'bytes': freed}
 
 
 async def _purge_login_state(engine):
@@ -252,6 +319,8 @@ def _email_summary(summary):
         f'Disk freed : {_human_bytes(summary["bytes_freed"])}',
         f'Challenges : {summary["purged"]["login_challenges"]} purged',
         f'Logins     : {summary["purged"]["auth_sessions"]} purged',
+        f'Attachments: {summary["help_attachments"]["removed"]} help-desk file(s) expired '
+        f'({_human_bytes(summary["help_attachments"]["bytes"])})',
         f'Errors     : {len(errors)}',
         '',
     ]
