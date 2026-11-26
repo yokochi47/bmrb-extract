@@ -487,7 +487,8 @@ export class Upload implements OnDestroy {
    * recognised extension picks a sensible default and the user only has to
    * confirm. Keys are lower-cased extensions. The XEASY '.prot' file is
    * resolved per target in guessFileType() (topology vs chemical shifts), as are
-   * '.str' and '.pdb' under bmrbdep ('nm-shi' / 'nm-aux-pdb'), and
+   * '.str' and '.pdb' under bmrbdep ('nm-shi' / 'nm-aux-pdb'), and '.str' under
+   * OneDep ('nm-shi' when another non-coordinate file is active, else 'nm-uni-str'), and
    * every guess is gated through DEPSYS_FILE_TYPES so a type that the current
    * deposition system does not accept is dropped (row left unselected).
    */
@@ -523,22 +524,21 @@ export class Upload implements OnDestroy {
    * when there is no confident match (or the match is not acceptable for the
    * target). Extension / whole-name matching is case-insensitive.
    */
-  private guessFileType(name: string, target: TargetDepsys): string | null {
+  private guessFileType(name: string, target: TargetDepsys, otherActive = false): string | null {
     const lower = name.toLowerCase();
     const dot = lower.lastIndexOf('.');
     const ext = dot >= 0 ? lower.slice(dot + 1) : '';
     let value: string | undefined = this.EXT_FILE_TYPE[ext] ?? this.NAME_FILE_TYPE[lower];
-    // Converted NMR unified data files carry the format in the file name; this
-    // takes precedence over the extension (e.g. a renamed file).
-    if (lower.includes('nmr-data-nef')) value = 'nm-uni-nef';
-    else if (
+    const isNmrDataStr =
       lower.includes('nmr-data-str') ||
       lower.endsWith('nmr-data.str') ||
       lower.endsWith('nmr_data.str') ||
       lower.endsWith('nmr-data.cif') ||
-      lower.endsWith('nmr_data.cif')
-    )
-      value = 'nm-uni-str';
+      lower.endsWith('nmr_data.cif');
+    // Converted NMR unified data files carry the format in the file name; this
+    // takes precedence over the extension (e.g. a renamed file).
+    if (lower.includes('nmr-data-nef')) value = 'nm-uni-nef';
+    else if (isNmrDataStr) value = 'nm-uni-str';
     else if (lower.includes('_model') && lower.includes('.cif.')) value = 'co-cif';
     else if (lower.includes('_model') && lower.includes('.pdb.')) value = 'co-pdb';
     else if (lower.includes('_cs') && lower.includes('.str.')) value = 'nm-shi';
@@ -558,6 +558,11 @@ export class Upload implements OnDestroy {
     else if (lower.includes('_nmr-peaks') && lower.includes('.dat.')) value = 'nm-pea-any';
     // XEASY .prot carries topology (OneDep) or chemical shifts (elsewhere).
     if (ext === 'prot') value = target === TargetDepsys.onedep ? 'nm-aux-xea' : 'nm-shi-xea';
+    // OneDep and '.str' extension: assigned chemical shifts ('nm-shi') when any
+    // other non-coordinate file is active, otherwise NMR unified data. Converted
+    // 'nmr-data' names stay 'nm-uni-str'.
+    if (ext === 'str' && target === TargetDepsys.onedep && !isNmrDataStr)
+      value = otherActive ? 'nm-shi' : 'nm-uni-str';
     // bmrbdep and '.str' extension indicates 'nm-shi'.
     if (ext === 'str' && target === TargetDepsys.bmrbdep) value = 'nm-shi';
     // bmrbdep and '.pdb' extension indicates topology ('nm-aux-pdb'), not coordinates.
@@ -875,11 +880,21 @@ export class Upload implements OnDestroy {
     if (!input.files?.length) return;
     const token = this.state().tokenBase;
     const target = this.state().targetDepsys;
-    const added: FileRow[] = Array.from(input.files).map((f) => ({
+    const files = Array.from(input.files);
+    // Whether another active (selected) non-coordinate file exists — rows already
+    // in the table plus the other files of this batch — steers the '.str' guess.
+    const isCoord = (t: string | null | undefined) => !!t?.startsWith('co-');
+    const existingActive = this.rows().some((r) => r.selected && !isCoord(r.fileType));
+    const batchNonCoord = files.map((f) => !isCoord(this.guessFileType(f.name, target)));
+    const added: FileRow[] = files.map((f, i) => ({
       selected: true,
       name: f.name,
       size: f.size,
-      fileType: this.guessFileType(f.name, target),
+      fileType: this.guessFileType(
+        f.name,
+        target,
+        existingActive || batchNonCoord.some((nc, j) => nc && j !== i),
+      ),
       file: f,
     }));
     this.rows.update((prev) => [...prev, ...added]);
