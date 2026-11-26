@@ -790,8 +790,8 @@ async def _store_attachments(db, conversion_id, comm_ordinal, files, session_exp
 
 def _attachment_error(exc):
     if isinstance(exc, AttachmentTooLarge):
-        return {'error': str(exc)}, 413
-    return {'error': f'invalid attachment: {exc}'}, 400
+        return {'error': 'attachment too large'}, 413
+    return {'error': 'invalid attachment'}, 400
 
 
 async def _attachments_by_message(db, conversion_ids):
