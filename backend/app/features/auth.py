@@ -762,7 +762,7 @@ def _help_payload():
         try:
             validate_attachment_name(f.filename)
         except UnsafeFileName:
-            return None, None, ({'error': 'invalid attachment filename'}, 400)
+            return None, None, ({'error': f'invalid attachment {f.filename!r}'}, 400)
     return request.form, files, None
 
 
