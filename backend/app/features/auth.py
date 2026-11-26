@@ -761,8 +761,8 @@ def _help_payload():
     for f in files:
         try:
             validate_attachment_name(f.filename)
-        except UnsafeFileName as exc:
-            return None, None, ({'error': f'invalid attachment {f.filename!r}: {exc}'}, 400)
+        except UnsafeFileName:
+            return None, None, ({'error': f'invalid attachment {f.filename!r}'}, 400)
     return request.form, files, None
 
 
@@ -790,7 +790,7 @@ async def _store_attachments(db, conversion_id, comm_ordinal, files, session_exp
 
 def _attachment_error(exc):
     if isinstance(exc, AttachmentTooLarge):
-        return {'error': 'attachment too large'}, 413
+        return {'error': 'attachment exceeds the permitted size'}, 413
     return {'error': 'invalid attachment'}, 400
 
 
